@@ -20,7 +20,7 @@
       "properties": {
         "title": { "type": "string" },
         "content": { "type": "string" },
-        "category": { "type": "string", "enum": ["research", "community"] },
+        "category": { "type": "string", "enum": ["research", "community", "sermon"] },
         "subCategory": { "type": "string", "enum": ["worship", "preaching", "pastoring", "governing", "general"] },
         "authorId": { "type": "string" },
         "authorName": { "type": "string" },

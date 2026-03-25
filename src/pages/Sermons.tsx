@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { format } from 'date-fns';
+import { formatDate } from '../lib/utils';
 import { PlayCircle, Plus, Video } from 'lucide-react';
 
 export default function Sermons() {
@@ -14,16 +15,17 @@ export default function Sermons() {
   useEffect(() => {
     const fetchVideos = async () => {
       try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('category', 'sermon')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setVideos(data || []);
+        const q = query(
+          collection(db, 'posts'),
+          where('category', '==', 'sermon'),
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setVideos(data);
       } catch (error) {
         console.error('Error fetching videos:', error);
+        handleFirestoreError(error, OperationType.GET, 'posts');
       } finally {
         setLoading(false);
       }
@@ -106,7 +108,7 @@ export default function Sermons() {
                       <div className="p-6 flex-grow">
                         <h3 className="text-xl font-bold text-wood-900 mb-2 line-clamp-2">{video.title}</h3>
                         <p className="text-sm text-wood-500">
-                          {video.created_at ? format(new Date(video.created_at), 'yyyy.MM.dd') : ''}
+                          {formatDate(video.createdAt)}
                         </p>
                       </div>
                     </div>

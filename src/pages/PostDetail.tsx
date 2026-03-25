@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { format } from 'date-fns';
+import { formatDate } from '../lib/utils';
 import { ArrowLeft, MessageSquare, Trash2 } from 'lucide-react';
 
 export default function PostDetail() {
@@ -22,30 +23,27 @@ export default function PostDetail() {
     const fetchPostAndComments = async () => {
       try {
         // Fetch post
-        const { data: postData, error: postError } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('id', id)
-          .single();
+        const postRef = doc(db, 'posts', id);
+        const postSnap = await getDoc(postRef);
 
-        if (postError || !postData) {
+        if (!postSnap.exists()) {
           navigate('/research');
           return;
         }
-        setPost(postData);
+        setPost({ id: postSnap.id, ...postSnap.data() });
 
         // Fetch comments
-        const { data: commentsData, error: commentsError } = await supabase
-          .from('comments')
-          .select('*')
-          .eq('post_id', id)
-          .order('created_at', { ascending: true });
-
-        if (!commentsError && commentsData) {
-          setComments(commentsData);
-        }
+        const q = query(
+          collection(db, 'comments'),
+          where('postId', '==', id),
+          orderBy('createdAt', 'asc')
+        );
+        const commentsSnap = await getDocs(q);
+        const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setComments(commentsData);
       } catch (error) {
         console.error('Error fetching data:', error);
+        handleFirestoreError(error, OperationType.GET, 'posts/comments');
       } finally {
         setLoading(false);
       }
@@ -60,27 +58,29 @@ export default function PostDetail() {
 
     setSubmitting(true);
     try {
-      const { data, error } = await supabase
-        .from('comments')
-        .insert([{
-          post_id: id,
-          content: newComment.trim(),
-          author_id: user.uid,
-          author_name: user.displayName || '익명'
-        }])
-        .select()
-        .single();
+      const commentData = {
+        postId: id,
+        content: newComment.trim(),
+        authorId: user.uid,
+        authorName: user.displayName || '익명',
+        createdAt: new Date()
+      };
 
-      if (error) throw error;
+      const docRef = await addDoc(collection(db, 'comments'), commentData);
+      const newCommentObj = { id: docRef.id, ...commentData };
 
       // Update post comment count
-      await supabase.rpc('increment_comment_count', { row_id: id });
+      const postRef = doc(db, 'posts', id);
+      await updateDoc(postRef, {
+        commentCount: increment(1)
+      });
 
-      setComments([...comments, data]);
-      setPost({ ...post, comment_count: (post.comment_count || 0) + 1 });
+      setComments([...comments, newCommentObj]);
+      setPost({ ...post, commentCount: (post.commentCount || 0) + 1 });
       setNewComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'comments');
       alert('댓글 등록 중 오류가 발생했습니다.');
     } finally {
       setSubmitting(false);
@@ -91,11 +91,11 @@ export default function PostDetail() {
     if (!id || !window.confirm('정말로 이 게시글을 삭제하시겠습니까?')) return;
     
     try {
-      const { error } = await supabase.from('posts').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'posts', id));
       navigate(-1);
     } catch (error) {
       console.error('Error deleting post:', error);
+      handleFirestoreError(error, OperationType.DELETE, 'posts');
       alert('게시글 삭제 중 오류가 발생했습니다.');
     }
   };
@@ -104,16 +104,19 @@ export default function PostDetail() {
     if (!id || !window.confirm('댓글을 삭제하시겠습니까?')) return;
     
     try {
-      const { error } = await supabase.from('comments').delete().eq('id', commentId);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'comments', commentId));
 
       // Decrement post comment count
-      await supabase.rpc('decrement_comment_count', { row_id: id });
+      const postRef = doc(db, 'posts', id);
+      await updateDoc(postRef, {
+        commentCount: increment(-1)
+      });
 
       setComments(comments.filter(c => c.id !== commentId));
-      setPost({ ...post, comment_count: Math.max(0, (post.comment_count || 0) - 1) });
+      setPost({ ...post, commentCount: Math.max(0, (post.commentCount || 0) - 1) });
     } catch (error) {
       console.error('Error deleting comment:', error);
+      handleFirestoreError(error, OperationType.DELETE, 'comments');
       alert('댓글 삭제 중 오류가 발생했습니다.');
     }
   };
@@ -200,12 +203,18 @@ export default function PostDetail() {
           <div className="p-8 md:p-12">
             <div className="flex items-center justify-between mb-6">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-wood-50 text-wood-800">
-                {post.category === 'research' ? '연구실' : post.category === 'sermon' ? '말씀 서재' : '소통 게시판'}
+                {post.category === 'research' ? (
+                  post.subCategory === 'worship' ? '예배' :
+                  post.subCategory === 'preaching' ? '설교' :
+                  post.subCategory === 'pastoring' ? '목양' :
+                  post.subCategory === 'governing' ? '치리' :
+                  post.subCategory === 'general' ? '일반' : '연구실'
+                ) : post.category === 'sermon' ? '말씀 서재' : '소통 게시판'}
               </span>
               <div className="flex items-center text-sm text-wood-600 gap-4">
-                <span>{post.author_name}</span>
+                <span>{post.authorName}</span>
                 <span>&bull;</span>
-                <span>{post.created_at ? format(new Date(post.created_at), 'yyyy.MM.dd HH:mm') : ''}</span>
+                <span>{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
               </div>
             </div>
             
@@ -217,7 +226,7 @@ export default function PostDetail() {
               {renderContentWithYouTube(post.content)}
             </div>
 
-            {(user?.uid === post.author_id || role === 'admin') && (
+            {(user?.uid === post.authorId || role === 'admin') && (
               <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end">
                 <button
                   onClick={handleDeletePost}
@@ -235,7 +244,7 @@ export default function PostDetail() {
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
           <h3 className="text-xl font-bold text-wood-900 mb-8 flex items-center">
             <MessageSquare className="mr-2 text-wood-900" />
-            댓글 {post.comment_count || 0}
+            댓글 {post.commentCount || 0}
           </h3>
 
           {/* Comment Form */}
@@ -275,20 +284,20 @@ export default function PostDetail() {
               <div key={comment.id} className="flex space-x-4">
                 <div className="flex-shrink-0">
                   <div className="h-10 w-10 rounded-full bg-wood-100 flex items-center justify-center text-wood-800 font-bold text-lg">
-                    {comment.author_name?.charAt(0) || '익'}
+                    {comment.authorName?.charAt(0) || '익'}
                   </div>
                 </div>
                 <div className="flex-grow bg-wood-50 rounded-2xl p-5 border border-wood-100">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-bold text-wood-900">{comment.author_name}</h4>
+                    <h4 className="text-sm font-bold text-wood-900">{comment.authorName}</h4>
                     <span className="text-xs text-wood-500">
-                      {comment.created_at ? format(new Date(comment.created_at), 'yyyy.MM.dd HH:mm') : ''}
+                      {formatDate(comment.createdAt, 'yyyy.MM.dd HH:mm')}
                     </span>
                   </div>
                   <div className="text-sm text-wood-700 whitespace-pre-wrap">
                     {comment.content}
                   </div>
-                  {(user?.uid === comment.author_id || role === 'admin') && (
+                  {(user?.uid === comment.authorId || role === 'admin') && (
                     <div className="mt-3 flex justify-end">
                       <button
                         onClick={() => handleDeleteComment(comment.id)}

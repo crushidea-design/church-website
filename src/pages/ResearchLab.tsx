@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { format } from 'date-fns';
+import { formatDate } from '../lib/utils';
 import { BookOpen, Plus } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 export default function ResearchLab() {
   const { user, role, loading: authLoading } = useAuth();
@@ -15,16 +15,17 @@ export default function ResearchLab() {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('category', 'research')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setPosts(data || []);
+        const q = query(
+          collection(db, 'posts'),
+          where('category', '==', 'research'),
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPosts(data);
       } catch (error) {
         console.error('Error fetching posts:', error);
+        handleFirestoreError(error, OperationType.GET, 'posts');
       } finally {
         setLoading(false);
       }
@@ -78,10 +79,14 @@ export default function ResearchLab() {
                   <div className="bg-white rounded-2xl shadow-sm border border-wood-100 p-8 h-full hover:shadow-md transition flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-wood-50 text-wood-800">
-                        연구글
+                        {post.subCategory === 'worship' ? '예배' :
+                         post.subCategory === 'preaching' ? '설교' :
+                         post.subCategory === 'pastoring' ? '목양' :
+                         post.subCategory === 'governing' ? '치리' :
+                         post.subCategory === 'general' ? '일반' : '연구글'}
                       </span>
                       <span className="text-sm text-wood-500">
-                        {post.created_at ? format(new Date(post.created_at), 'yyyy.MM.dd') : ''}
+                        {formatDate(post.createdAt)}
                       </span>
                     </div>
                     <h3 className="text-xl font-bold text-wood-900 mb-4 line-clamp-2 leading-snug">
@@ -91,9 +96,9 @@ export default function ResearchLab() {
                       {post.content.replace(/<[^>]*>?/gm, '')}
                     </p>
                     <div className="flex items-center justify-between text-sm text-wood-600 pt-4 border-t border-wood-100">
-                      <span>{post.author_name}</span>
+                      <span>{post.authorName}</span>
                       <span className="flex items-center">
-                        댓글 {post.comment_count || 0}
+                        댓글 {post.commentCount || 0}
                       </span>
                     </div>
                   </div>

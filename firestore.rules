@@ -61,8 +61,9 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        (request.auth.token.email == "crushidea@gmail.com" && request.auth.token.email_verified == true));
+        ((request.auth.token.email == "crushidea@gmail.com" && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
     
     function hasOnlyAllowedFields(fields) {
@@ -88,7 +89,7 @@ service cloud.firestore {
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount']) &&
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() < 50000 &&
-             data.category in ['research', 'community'] &&
+             data.category in ['research', 'community', 'sermon'] &&
              data.authorId is string && data.authorId == request.auth.uid &&
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
              data.createdAt is timestamp &&

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { ArrowLeft } from 'lucide-react';
 
@@ -12,6 +13,7 @@ export default function CreatePost() {
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [subCategory, setSubCategory] = useState('general');
   const [submitting, setSubmitting] = useState(false);
 
   if (!user) {
@@ -43,27 +45,27 @@ export default function CreatePost() {
 
     setSubmitting(true);
     try {
-      const postData = {
+      const postData: any = {
         title: title.trim(),
         content: content.trim(),
         category: type,
-        author_id: user.uid,
-        author_name: user.displayName || '익명',
-        comment_count: 0
+        authorId: user.uid,
+        authorName: user.displayName || '익명',
+        commentCount: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
 
-      const { data, error } = await supabase
-        .from('posts')
-        .insert([postData])
-        .select()
-        .single();
+      if (type === 'research' && subCategory) {
+        postData.subCategory = subCategory;
+      }
 
-      if (error) throw error;
-
-      navigate(`/post/${data.id}`);
+      const docRef = await addDoc(collection(db, 'posts'), postData);
+      navigate(`/post/${docRef.id}`);
     } catch (error) {
       console.error('Error creating post:', error);
       alert('게시글 등록 중 오류가 발생했습니다.');
+      handleFirestoreError(error, OperationType.CREATE, 'posts');
     } finally {
       setSubmitting(false);
     }
@@ -94,6 +96,26 @@ export default function CreatePost() {
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {type === 'research' && (
+              <div>
+                <label htmlFor="subCategory" className="block text-sm font-medium text-wood-700 mb-2">
+                  분류
+                </label>
+                <select
+                  id="subCategory"
+                  value={subCategory}
+                  onChange={(e) => setSubCategory(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                >
+                  <option value="worship">예배</option>
+                  <option value="preaching">설교</option>
+                  <option value="pastoring">목양</option>
+                  <option value="governing">치리</option>
+                  <option value="general">일반</option>
+                </select>
+              </div>
+            )}
+
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-wood-700 mb-2">
                 제목
