@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, X } from 'lucide-react';
 
 export default function EditPost() {
   const { id } = useParams();
@@ -14,6 +15,10 @@ export default function EditPost() {
   const [content, setContent] = useState('');
   const [type, setType] = useState('');
   const [subCategory, setSubCategory] = useState('general');
+  const [existingPdfUrl, setExistingPdfUrl] = useState('');
+  const [existingPdfName, setExistingPdfName] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [removeExistingPdf, setRemoveExistingPdf] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -30,6 +35,8 @@ export default function EditPost() {
           setContent(data.content);
           setType(data.category);
           setSubCategory(data.subCategory || 'general');
+          setExistingPdfUrl(data.pdfUrl || '');
+          setExistingPdfName(data.pdfName || '');
           
           // Check permission: only author or admin can edit
           if (!authLoading && user) {
@@ -55,17 +62,50 @@ export default function EditPost() {
     }
   }, [id, user, role, authLoading, navigate]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type !== 'application/pdf') {
+        alert('PDF 파일만 업로드 가능합니다.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        alert('파일 크기는 10MB를 초과할 수 없습니다.');
+        return;
+      }
+      setPdfFile(file);
+      setRemoveExistingPdf(true); // If new file selected, we'll replace existing
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !title.trim() || !content.trim()) return;
 
     setSubmitting(true);
     try {
+      let pdfUrl = existingPdfUrl;
+      let pdfName = existingPdfName;
+
+      if (removeExistingPdf) {
+        pdfUrl = '';
+        pdfName = '';
+      }
+
+      if (pdfFile) {
+        const storageRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, pdfFile);
+        pdfUrl = await getDownloadURL(uploadResult.ref);
+        pdfName = pdfFile.name;
+      }
+
       const postRef = doc(db, 'posts', id);
       const updateData: any = {
         title: title.trim(),
         content: content.trim(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        pdfUrl,
+        pdfName
       };
 
       if ((type === 'research' || type === 'sermon') && subCategory) {
@@ -163,6 +203,73 @@ export default function EditPost() {
                 maxLength={200}
               />
             </div>
+
+            {(type === 'research' || type === 'sermon') && (
+              <div>
+                <label className="block text-sm font-medium text-wood-700 mb-2">
+                  PDF 파일 첨부
+                </label>
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-wood-300 border-dashed rounded-xl bg-wood-50 hover:bg-wood-100 transition-colors cursor-pointer relative">
+                  <div className="space-y-1 text-center">
+                    {(existingPdfUrl && !removeExistingPdf) ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <FileText className="h-8 w-8 text-wood-600" />
+                        <span className="text-sm text-wood-900 font-medium">{existingPdfName}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRemoveExistingPdf(true);
+                          }}
+                          className="p-1 hover:bg-wood-200 rounded-full transition"
+                        >
+                          <X className="h-4 w-4 text-wood-500" />
+                        </button>
+                      </div>
+                    ) : pdfFile ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <FileText className="h-8 w-8 text-wood-600" />
+                        <span className="text-sm text-wood-900 font-medium">{pdfFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPdfFile(null);
+                            if (existingPdfUrl) setRemoveExistingPdf(false);
+                          }}
+                          className="p-1 hover:bg-wood-200 rounded-full transition"
+                        >
+                          <X className="h-4 w-4 text-wood-500" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <FileText className="mx-auto h-12 w-12 text-wood-400" />
+                        <div className="flex text-sm text-wood-600">
+                          <label
+                            htmlFor="file-upload"
+                            className="relative cursor-pointer rounded-md font-medium text-wood-900 hover:text-wood-700 focus-within:outline-none"
+                          >
+                            <span>파일 업로드</span>
+                            <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".pdf" onChange={handleFileChange} />
+                          </label>
+                          <p className="pl-1">또는 드래그 앤 드롭</p>
+                        </div>
+                        <p className="text-xs text-wood-500">PDF up to 10MB</p>
+                      </>
+                    )}
+                  </div>
+                  {(!pdfFile && (!existingPdfUrl || removeExistingPdf)) && (
+                    <input
+                      type="file"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      accept=".pdf"
+                      onChange={handleFileChange}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
 
             <div>
               <div className="mb-2">

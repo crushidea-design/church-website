@@ -21,12 +21,14 @@
         "title": { "type": "string" },
         "content": { "type": "string" },
         "category": { "type": "string", "enum": ["research", "community", "sermon"] },
-        "subCategory": { "type": "string", "enum": ["worship", "preaching", "pastoring", "governing", "general"] },
+        "subCategory": { "type": "string", "enum": ["worship", "preaching", "pastoring", "governing", "general", "past_sermons", "pilgrims_progress"] },
         "authorId": { "type": "string" },
         "authorName": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
-        "commentCount": { "type": "number" }
+        "commentCount": { "type": "number" },
+        "pdfUrl": { "type": "string" },
+        "pdfName": { "type": "string" }
       },
       "required": ["title", "content", "category", "authorId", "authorName", "createdAt", "updatedAt", "commentCount"]
     },

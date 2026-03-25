@@ -85,7 +85,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -94,10 +94,12 @@ service cloud.firestore {
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
              data.createdAt is timestamp &&
              data.updatedAt is timestamp &&
-             data.commentCount is number && data.commentCount >= 0;
+             data.commentCount is number && data.commentCount >= 0 &&
+             (!('pdfUrl' in data) || (data.pdfUrl is string && data.pdfUrl.size() < 2000)) &&
+             (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500));
              
       let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress'];
-      return baseValid && subCatValid;
+      return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
     }
 
     function isValidComment(data) {

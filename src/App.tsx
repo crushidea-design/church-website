@@ -12,6 +12,7 @@ import PostDetail from './pages/PostDetail';
 import CreatePost from './pages/CreatePost';
 import EditPost from './pages/EditPost';
 import Contact from './pages/Contact';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="edit-post/:id" element={<EditPost />} />
               <Route path="create-post" element={<CreatePost />} />
               <Route path="contact" element={<Contact />} />
+              <Route path="privacy" element={<PrivacyPolicy />} />
             </Route>
           </Routes>
         </BrowserRouter>

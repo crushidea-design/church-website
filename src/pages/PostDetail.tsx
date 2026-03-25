@@ -4,7 +4,7 @@ import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, delete
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { ArrowLeft, MessageSquare, Trash2, Edit3 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText } from 'lucide-react';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -225,9 +225,37 @@ export default function PostDetail() {
               {post.title}
             </h1>
             
-            <div className="prose prose-stone max-w-none text-wood-700 leading-relaxed whitespace-pre-wrap">
+            <div className="prose prose-stone max-w-none text-wood-700 leading-relaxed whitespace-pre-wrap mb-12">
               {renderContentWithYouTube(post.content)}
             </div>
+
+            {post.pdfUrl && (
+              <div className="mt-12 border-t border-wood-100 pt-12">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-wood-900 flex items-center">
+                    <FileText className="mr-2 text-wood-900" />
+                    첨부된 PDF 문서
+                  </h3>
+                  <a
+                    href={post.pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
+                  >
+                    새 창에서 열기 / 다운로드
+                  </a>
+                </div>
+                <div className="aspect-[1/1.4] w-full bg-wood-50 rounded-2xl border border-wood-200 overflow-hidden shadow-inner">
+                  <iframe
+                    src={`${post.pdfUrl}#toolbar=0`}
+                    className="w-full h-full"
+                    title="PDF Viewer"
+                  >
+                    <p>이 브라우저는 PDF 뷰어를 지원하지 않습니다. <a href={post.pdfUrl}>여기</a>를 클릭하여 다운로드하세요.</p>
+                  </iframe>
+                </div>
+              </div>
+            )}
 
             {(user?.uid === post.authorId || role === 'admin') && (
               <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end gap-4">

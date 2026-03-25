@@ -208,8 +208,13 @@ export default function Layout() {
               </ul>
             </div>
           </div>
-          <div className="mt-12 pt-8 border-t border-wood-800 text-center text-sm text-wood-400">
-            &copy; {new Date().getFullYear()} 함께 지어져가는 교회. All rights reserved.
+          <div className="mt-12 pt-8 border-t border-wood-800 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-wood-400">
+            <div className="order-2 md:order-1">
+              &copy; {new Date().getFullYear()} 함께 지어져가는 교회. All rights reserved.
+            </div>
+            <div className="order-1 md:order-2 flex items-center gap-6">
+              <Link to="/privacy" className="hover:text-gold-400 transition">개인정보처리방침</Link>
+            </div>
           </div>
         </div>
       </footer>
