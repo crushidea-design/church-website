@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -13,27 +13,39 @@ export default function Sermons() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('past_sermons');
 
-  useEffect(() => {
-    const fetchVideos = async () => {
-      try {
-        const q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          orderBy('createdAt', 'desc')
-        );
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setVideos(data);
-      } catch (error) {
-        console.error('Error fetching videos:', error);
-        handleFirestoreError(error, OperationType.GET, 'posts');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
+  const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
 
-    fetchVideos();
-  }, []);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isRegularMember) {
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'posts'),
+      where('category', '==', 'sermon'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setVideos(data);
+      setLoading(false);
+    }, (error) => {
+      // If it's a permission error and we're not a regular member, we already handle it in the UI
+      if (error.code === 'permission-denied' && !isRegularMember) {
+        setLoading(false);
+        return;
+      }
+      console.error('Error fetching videos:', error);
+      handleFirestoreError(error, OperationType.GET, 'posts');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [authLoading, isRegularMember]);
 
   const getYouTubeId = (content: string) => {
     const youtubeRegex = /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11}))/;
@@ -41,12 +53,33 @@ export default function Sermons() {
     return match ? match[1] : null;
   };
 
-  const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
-
   const filteredVideos = videos.filter(video => {
     const subCat = video.subCategory || 'past_sermons';
     return subCat === activeTab;
   });
+
+  if (!authLoading && !isRegularMember) {
+    return (
+      <div className="bg-wood-100 min-h-screen py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-12 text-center">
+            <Video className="mx-auto h-16 w-16 text-wood-300 mb-6" />
+            <h2 className="text-3xl font-serif font-bold text-wood-900 mb-4">정회원 전용 공간입니다</h2>
+            <p className="text-wood-600 text-lg mb-8">
+              말씀 서재의 영상은 교회 정회원만 시청하실 수 있습니다.<br />
+              상단 '문의'를 통해 신청해주세요.
+            </p>
+            <Link
+              to="/"
+              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-full hover:bg-wood-800 transition shadow-sm font-medium"
+            >
+              홈으로 돌아가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-wood-100 min-h-screen py-16">

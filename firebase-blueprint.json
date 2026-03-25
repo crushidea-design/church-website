@@ -9,7 +9,8 @@
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "user"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "displayName", "role", "createdAt"]
     },
@@ -20,7 +21,7 @@
       "properties": {
         "title": { "type": "string" },
         "content": { "type": "string" },
-        "category": { "type": "string", "enum": ["research", "community", "sermon"] },
+        "category": { "type": "string", "enum": ["research", "community", "sermon", "journal"] },
         "subCategory": { "type": "string", "enum": ["worship", "preaching", "pastoring", "governing", "general", "past_sermons", "pilgrims_progress"] },
         "authorId": { "type": "string" },
         "authorName": { "type": "string" },

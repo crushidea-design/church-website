@@ -11,6 +11,10 @@ import Community from './pages/Community';
 import PostDetail from './pages/PostDetail';
 import CreatePost from './pages/CreatePost';
 import EditPost from './pages/EditPost';
+import AdminUsers from './pages/AdminUsers';
+import AdminContacts from './pages/AdminContacts';
+import AdminDashboard from './pages/AdminDashboard';
+import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 
@@ -29,6 +33,10 @@ export default function App() {
               <Route path="post/:id" element={<PostDetail />} />
               <Route path="edit-post/:id" element={<EditPost />} />
               <Route path="create-post" element={<CreatePost />} />
+              <Route path="admin/users" element={<AdminUsers />} />
+              <Route path="admin/contacts" element={<AdminContacts />} />
+              <Route path="admin" element={<AdminDashboard />} />
+              <Route path="journal" element={<Journal />} />
               <Route path="contact" element={<Contact />} />
               <Route path="privacy" element={<PrivacyPolicy />} />
             </Route>

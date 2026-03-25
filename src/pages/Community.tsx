@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -13,25 +13,23 @@ export default function Community() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'community'),
-          orderBy('createdAt', 'desc')
-        );
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setPosts(data);
-      } catch (error) {
-        console.error('Error fetching posts:', error);
-        handleFirestoreError(error, OperationType.GET, 'posts');
-      } finally {
-        setLoading(false);
-      }
-    };
+    const q = query(
+      collection(db, 'posts'),
+      where('category', '==', 'community'),
+      orderBy('createdAt', 'desc')
+    );
 
-    fetchPosts();
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPosts(data);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching posts:', error);
+      handleFirestoreError(error, OperationType.GET, 'posts');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   return (

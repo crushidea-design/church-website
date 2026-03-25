@@ -4,22 +4,38 @@ import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+console.log('Firebase configuration loaded:', {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+  databaseId: firebaseConfig.firestoreDatabaseId
+});
+
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const storage = getStorage(app);
+
+// Use the bucket from config explicitly
+export const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
 export const auth = getAuth(app);
+
+console.log('Firebase Storage initialized with bucket:', firebaseConfig.storageBucket);
+
 export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
+  console.log('signInWithGoogle called');
   try {
+    console.log('Attempting signInWithPopup...');
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
+    console.log('SignIn successful, user:', user.email);
     
     // Check if user exists in Firestore, if not create them
     const userRef = doc(db, 'users', user.uid);
+    console.log('Fetching user document from Firestore...');
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
+      console.log('User document does not exist, creating new user...');
       const isAdmin = user.email === 'crushidea@gmail.com';
       await setDoc(userRef, {
         uid: user.uid,
@@ -28,9 +44,21 @@ export const signInWithGoogle = async () => {
         role: isAdmin ? 'admin' : 'user',
         createdAt: new Date()
       });
+      console.log('User document created successfully');
+    } else {
+      console.log('User document already exists');
     }
-  } catch (error) {
-    console.error("Error signing in with Google", error);
+  } catch (error: any) {
+    console.error("Error signing in with Google:", error);
+    let message = '로그인 중 오류가 발생했습니다.';
+    if (error.code === 'auth/popup-blocked') {
+      message = '팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해 주세요.';
+    } else if (error.code === 'auth/unauthorized-domain') {
+      message = '허용되지 않은 도메인입니다. 관리자에게 문의해 주세요.';
+    } else if (error.message) {
+      message += ` (${error.message})`;
+    }
+    alert(message);
   }
 };
 

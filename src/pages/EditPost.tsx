@@ -142,6 +142,15 @@ export default function EditPost() {
     );
   }
 
+  const getTitle = () => {
+    switch (type) {
+      case 'research': return '연구글 수정';
+      case 'sermon': return '말씀 서재 수정';
+      case 'journal': return '개척 일지 수정';
+      default: return '게시글 수정';
+    }
+  };
+
   return (
     <div className="bg-wood-100 min-h-screen py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -155,7 +164,7 @@ export default function EditPost() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
           <h1 className="text-3xl font-serif font-bold text-wood-900 mb-8">
-            게시글 수정
+            {getTitle()}
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">

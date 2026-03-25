@@ -11,7 +11,7 @@ service cloud.firestore {
     //   - uid: string (required) - User's ID
     //   - email: string (required) - User's email
     //   - displayName: string (required) - User's display name
-    //   - role: string (required) - 'admin' or 'user'
+    //   - role: string (required) - 'admin', 'regular', or 'user'
     //   - createdAt: timestamp (required)
     //
     // Collection: posts
@@ -19,7 +19,7 @@ service cloud.firestore {
     // Fields:
     //   - title: string (required, < 200 chars)
     //   - content: string (required, < 50000 chars)
-    //   - category: string (required, 'research' or 'community')
+    //   - category: string (required, 'research', 'community', 'sermon', or 'journal')
     //   - subCategory: string (optional, 'worship', 'preaching', 'pastoring', 'governing', 'general')
     //   - authorId: string (required)
     //   - authorName: string (required, < 100 chars)
@@ -61,9 +61,14 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        ((request.auth.token.email == "crushidea@gmail.com" && request.auth.token.email_verified == true) ||
+        ((request.auth.token.email == "crushidea@gmail.com") ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isRegularMember() {
+      return isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'regular');
     }
     
     function hasOnlyAllowedFields(fields) {
@@ -76,27 +81,29 @@ service cloud.firestore {
 
     // Domain Validators
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt']) &&
              data.uid is string && data.uid.size() > 0 &&
              data.email is string && isValidEmail(data.email) &&
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
-             data.role in ['admin', 'user'] &&
-             data.createdAt is timestamp;
+             data.role in ['admin', 'regular', 'user'] &&
+             data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName'];
-      let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount']) &&
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64'];
+      let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
-             data.category in ['research', 'community', 'sermon'] &&
+             data.category in ['research', 'community', 'sermon', 'journal'] &&
              data.authorId is string &&
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
              data.createdAt is timestamp &&
-             data.updatedAt is timestamp &&
-             data.commentCount is number && data.commentCount >= 0 &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+             (!('commentCount' in data) || (data.commentCount is number && data.commentCount >= 0)) &&
              (!('pdfUrl' in data) || (data.pdfUrl is string && data.pdfUrl.size() < 2000)) &&
-             (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500));
+             (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500)) &&
+             (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1500000));
              
       let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress'];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
@@ -124,14 +131,14 @@ service cloud.firestore {
       allow read: if isAuthenticated(); // Users can see other users' basic info for community
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
                     (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
-                    (request.resource.data.role == resource.data.role || isAdmin()) &&
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
+                    (isOwner(userId) ? (request.resource.data.role == resource.data.role || isAdmin()) : isAdmin()) &&
                     request.resource.data.uid == resource.data.uid &&
                     request.resource.data.createdAt == resource.data.createdAt;
     }
 
     match /posts/{postId} {
-      allow read: if true; // Publicly readable
+      allow read: if resource.data.category != 'sermon' || isRegularMember();
       allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
                     request.resource.data.authorId == request.auth.uid &&
                     (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research/sermon
@@ -142,14 +149,16 @@ service cloud.firestore {
                     // If not owner/admin, only allow incrementing commentCount
                     ((isDocOwner() || isAdmin()) || 
                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']) &&
-                      math.abs(request.resource.data.commentCount - resource.data.commentCount) == 1)) &&
+                      math.abs(request.resource.data.commentCount - (('commentCount' in resource.data) ? resource.data.commentCount : 0)) == 1)) &&
                     // Ensure non-admins cannot change category
                     (isAdmin() || request.resource.data.category == resource.data.category);
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
     }
 
     match /comments/{commentId} {
-      allow read: if true; // Publicly readable
+      allow read: if !exists(/databases/$(database)/documents/posts/$(resource.data.postId)) || 
+                     get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.category != 'sermon' || 
+                     isRegularMember();
       allow create: if isAuthenticated() && isValidComment(request.resource.data);
       allow update: if isAuthenticated() && isDocOwner() && isValidComment(request.resource.data) &&
                     request.resource.data.authorId == resource.data.authorId &&

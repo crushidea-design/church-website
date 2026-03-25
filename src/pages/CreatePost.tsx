@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { ArrowLeft, FileText, X } from 'lucide-react';
 
@@ -10,13 +10,24 @@ export default function CreatePost() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const type = searchParams.get('type') || 'community';
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
   const [subCategory, setSubCategory] = useState(type === 'sermon' ? 'past_sermons' : 'general');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-wood-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -53,6 +64,7 @@ export default function CreatePost() {
         return;
       }
       setPdfFile(file);
+      setError(null);
     }
   };
 
@@ -61,12 +73,80 @@ export default function CreatePost() {
     if (!title.trim() || !content.trim()) return;
 
     setSubmitting(true);
+    setError(null);
+    setUploadProgress(0);
+    console.log('Starting post creation...', { type, title, contentLen: content.length, online: navigator.onLine });
+
+    if (!navigator.onLine) {
+      setError('인터넷 연결이 끊어져 있습니다. 네트워크 상태를 확인해 주세요.');
+      setSubmitting(false);
+      return;
+    }
+
+    if (!title.trim()) {
+      setError('제목을 입력해 주세요.');
+      setSubmitting(false);
+      return;
+    }
+    if (!content.trim()) {
+      setError('내용을 입력해 주세요.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
       let pdfUrl = '';
+      let pdfBase64 = '';
+      
       if (pdfFile) {
-        const storageRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
-        const uploadResult = await uploadBytes(storageRef, pdfFile);
-        pdfUrl = await getDownloadURL(uploadResult.ref);
+        console.log('--- PDF PROCESSING ---');
+        console.log('File:', { name: pdfFile.name, size: pdfFile.size });
+
+        // If file is small enough (< 800KB), use Base64 for maximum reliability
+        if (pdfFile.size < 800 * 1024) {
+          console.log('File is small enough for Base64 storage. Converting...');
+          setUploadProgress(30);
+          
+          pdfBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(pdfFile);
+          });
+          
+          setUploadProgress(100);
+          console.log('Base64 conversion complete.');
+        } else {
+          // For larger files, try Storage but with a clear fallback message
+          try {
+            console.log('File is large, attempting Storage upload...');
+            const fileName = `${Date.now()}_${pdfFile.name.replace(/\s+/g, '_')}`;
+            const storageRef = ref(storage, `pdfs/${fileName}`);
+            setUploadProgress(10);
+            
+            const uploadPromise = uploadBytes(storageRef, pdfFile);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Storage timeout')), 10000)
+            );
+
+            const snapshot = (await Promise.race([uploadPromise, timeoutPromise])) as any;
+            pdfUrl = await getDownloadURL(snapshot.ref);
+            setUploadProgress(100);
+          } catch (err) {
+            console.warn('Storage upload failed, but file might be too large for Base64. Attempting Base64 anyway as last resort.');
+            // Last resort: try Base64 even if slightly large, up to Firestore's 1MB limit
+            if (pdfFile.size < 1000 * 1024) {
+              pdfBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(pdfFile);
+              });
+            } else {
+              throw new Error('파일이 너무 크고 저장소 연결이 원활하지 않습니다. 1MB 이하의 파일로 다시 시도해 주세요.');
+            }
+          }
+        }
       }
 
       const postData: any = {
@@ -83,18 +163,51 @@ export default function CreatePost() {
       if (pdfUrl) {
         postData.pdfUrl = pdfUrl;
         postData.pdfName = pdfFile?.name;
+      } else if (pdfBase64) {
+        postData.pdfBase64 = pdfBase64;
+        postData.pdfName = pdfFile?.name;
+      }
+
+      if (type === 'journal' && journalDate) {
+        // Convert local date string to a Date object at noon to avoid timezone issues
+        const [year, month, day] = journalDate.split('-').map(Number);
+        const dateObj = new Date(year, month - 1, day, 12, 0, 0);
+        postData.journalDate = dateObj;
+        // Also set createdAt to match the journal date if it's in the past
+        postData.createdAt = dateObj;
       }
 
       if ((type === 'research' || type === 'sermon') && subCategory) {
         postData.subCategory = subCategory;
       }
 
-      const docRef = await addDoc(collection(db, 'posts'), postData);
+      console.log('Adding document to Firestore...', postData);
+      
+      // Use a timeout for Firestore operation
+      const addDocPromise = addDoc(collection(db, 'posts'), postData);
+      const firestoreTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('게시글 등록 시간이 초과되었습니다. 네트워크 상태를 확인해 주세요.')), 30000)
+      );
+
+      console.log('Awaiting addDoc...');
+      const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
+      console.log('Post created successfully with ID:', docRef.id);
+      
+      console.log('Navigating to post detail...');
       navigate(`/post/${docRef.id}`);
-    } catch (error) {
-      console.error('Error creating post:', error);
-      alert('게시글 등록 중 오류가 발생했습니다.');
-      handleFirestoreError(error, OperationType.CREATE, 'posts');
+    } catch (err: any) {
+      console.error('Error in handleSubmit:', err);
+      const errorMessage = err.message || '게시글 등록 중 오류가 발생했습니다.';
+      setError(errorMessage);
+      
+      // If it's a Firestore error, handle it with our utility
+      if (err.code || err.message?.includes('permission')) {
+        try {
+          handleFirestoreError(err, OperationType.CREATE, 'posts');
+        } catch (fError) {
+          // handleFirestoreError throws, so we just let it be logged to console
+        }
+      }
     } finally {
       setSubmitting(false);
     }
@@ -104,6 +217,7 @@ export default function CreatePost() {
     switch (type) {
       case 'research': return '연구글 작성';
       case 'sermon': return '말씀 서재 등록';
+      case 'journal': return '개척 일지 작성';
       default: return '게시글 작성';
     }
   };
@@ -123,6 +237,19 @@ export default function CreatePost() {
           <h1 className="text-3xl font-serif font-bold text-wood-900 mb-8">
             {getTitle()}
           </h1>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start text-red-700">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {(type === 'research' || type === 'sermon') && (
@@ -169,6 +296,22 @@ export default function CreatePost() {
                 maxLength={200}
               />
             </div>
+
+            {type === 'journal' && (
+              <div>
+                <label htmlFor="journalDate" className="block text-sm font-medium text-wood-700 mb-2">
+                  일지 날짜
+                </label>
+                <input
+                  type="date"
+                  id="journalDate"
+                  value={journalDate}
+                  onChange={(e) => setJournalDate(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  required
+                />
+              </div>
+            )}
 
             {(type === 'research' || type === 'sermon') && (
               <div>
@@ -233,7 +376,7 @@ export default function CreatePost() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
-                placeholder="내용을 입력하세요. 유튜브 링크를 포함하면 영상이 자동 삽입됩니다."
+                placeholder={type === 'journal' ? "오늘의 기록을 남겨주세요." : "내용을 입력하세요. 유튜브 링크를 포함하면 영상이 자동 삽입됩니다."}
                 required
                 maxLength={50000}
               />
@@ -249,12 +392,29 @@ export default function CreatePost() {
               </button>
               <button
                 type="submit"
-                disabled={submitting || !title.trim() || !content.trim()}
-                className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
+                disabled={submitting}
+                className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
               >
-                {submitting ? '등록 중...' : '등록하기'}
+                {submitting ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {uploadProgress > 0 && uploadProgress < 100 ? `업로드 중 (${uploadProgress}%)` : '등록 중...'}
+                  </div>
+                ) : '등록하기'}
               </button>
             </div>
+            
+            {submitting && uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="mt-4">
+                <div className="w-full bg-wood-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-wood-600 h-2.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-wood-500 mt-1 text-right">PDF 업로드 중... {uploadProgress}%</p>
+              </div>
+            )}
           </form>
         </div>
       </div>

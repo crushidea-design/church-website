@@ -5,6 +5,7 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText } from 'lucide-react';
+import PdfCanvasViewer from '../components/PdfCanvasViewer';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,11 @@ export default function PostDetail() {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCommentDeleteConfirm, setShowCommentDeleteConfirm] = useState<string | null>(null);
+  const [isDeletingComment, setIsDeletingComment] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -24,13 +30,63 @@ export default function PostDetail() {
       try {
         // Fetch post
         const postRef = doc(db, 'posts', id);
-        const postSnap = await getDoc(postRef);
+        let postSnap;
+        try {
+          postSnap = await getDoc(postRef);
+        } catch (error: any) {
+          // If permission denied, it's likely a sermon post and user is not regular
+          if (error.code === 'permission-denied') {
+            const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
+            if (!isRegularMember) {
+              alert('정회원만 볼 수 있는 영상입니다. 상단 \'문의\'를 통해 신청해주세요.');
+              navigate('/sermons');
+              return;
+            }
+          }
+          throw error;
+        }
 
         if (!postSnap.exists()) {
           navigate('/research');
           return;
         }
-        setPost({ id: postSnap.id, ...postSnap.data() });
+        const postData: any = { id: postSnap.id, ...postSnap.data() };
+        
+        // Double check access for sermon category (in case rules were bypassed or changed)
+        const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
+        if (postData.category === 'sermon' && !isRegularMember) {
+          alert('정회원만 볼 수 있는 영상입니다. 상단 \'문의\'를 통해 신청해주세요.');
+          navigate('/sermons');
+          return;
+        }
+
+        setPost(postData);
+
+        // Handle Base64 PDF if exists
+        if (postData.pdfBase64) {
+          console.log('PDF Data detected (Base64). Size:', postData.pdfBase64.length);
+          try {
+            const base64Parts = postData.pdfBase64.split(',');
+            const mimeType = base64Parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+            const base64Data = base64Parts[1];
+            
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            
+            console.log('Successfully created Blob URL:', url);
+            setPdfBlobUrl(url);
+          } catch (e) {
+            console.error('Error converting base64 to blob:', e);
+          }
+        } else if (postData.pdfUrl) {
+          console.log('PDF Data detected (URL):', postData.pdfUrl);
+        }
 
         // Fetch comments
         const q = query(
@@ -50,7 +106,14 @@ export default function PostDetail() {
     };
 
     fetchPostAndComments();
-  }, [id, navigate]);
+
+    // Cleanup function for the Blob URL
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [id, navigate, role, user]);
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,14 +132,15 @@ export default function PostDetail() {
       const docRef = await addDoc(collection(db, 'comments'), commentData);
       const newCommentObj = { id: docRef.id, ...commentData, createdAt: new Date() };
 
-      // Update post comment count
+      // Update post comment count and updatedAt
       const postRef = doc(db, 'posts', id);
       await updateDoc(postRef, {
-        commentCount: increment(1)
+        commentCount: increment(1),
+        updatedAt: serverTimestamp()
       });
 
-      setComments([...comments, newCommentObj]);
-      setPost({ ...post, commentCount: (post.commentCount || 0) + 1 });
+      setComments([newCommentObj, ...comments]);
+      setPost({ ...post, commentCount: (post.commentCount || 0) + 1, updatedAt: new Date() });
       setNewComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -88,8 +152,9 @@ export default function PostDetail() {
   };
 
   const handleDeletePost = async () => {
-    if (!id || !window.confirm('정말로 이 게시글을 삭제하시겠습니까?')) return;
+    if (!id) return;
     
+    setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'posts', id));
       navigate(-1);
@@ -97,27 +162,35 @@ export default function PostDetail() {
       console.error('Error deleting post:', error);
       handleFirestoreError(error, OperationType.DELETE, 'posts');
       alert('게시글 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!id || !window.confirm('댓글을 삭제하시겠습니까?')) return;
+    if (!id) return;
     
+    setIsDeletingComment(commentId);
     try {
       await deleteDoc(doc(db, 'comments', commentId));
 
-      // Decrement post comment count
+      // Decrement post comment count and update updatedAt
       const postRef = doc(db, 'posts', id);
       await updateDoc(postRef, {
-        commentCount: increment(-1)
+        commentCount: increment(-1),
+        updatedAt: serverTimestamp()
       });
 
       setComments(comments.filter(c => c.id !== commentId));
-      setPost({ ...post, commentCount: Math.max(0, (post.commentCount || 0) - 1) });
+      setPost({ ...post, commentCount: Math.max(0, (post.commentCount || 0) - 1), updatedAt: new Date() });
+      setShowCommentDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting comment:', error);
       handleFirestoreError(error, OperationType.DELETE, 'comments');
       alert('댓글 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeletingComment(null);
     }
   };
 
@@ -229,36 +302,56 @@ export default function PostDetail() {
               {renderContentWithYouTube(post.content)}
             </div>
 
-            {post.pdfUrl && (
+            {(post.pdfUrl || post.pdfBase64) && (
               <div className="mt-12 border-t border-wood-100 pt-12">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <h3 className="text-xl font-bold text-wood-900 flex items-center">
                     <FileText className="mr-2 text-wood-900" />
                     첨부된 PDF 문서
                   </h3>
-                  <a
-                    href={post.pdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
-                  >
-                    새 창에서 열기 / 다운로드
-                  </a>
+                  <div className="flex gap-2">
+                    <a
+                      href={pdfBlobUrl || post.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
+                    >
+                      새 창에서 열기
+                    </a>
+                    <a
+                      href={pdfBlobUrl || post.pdfUrl}
+                      download={post.pdfName || 'document.pdf'}
+                      className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-full text-sm font-medium hover:bg-wood-800 transition"
+                    >
+                      다운로드
+                    </a>
+                  </div>
                 </div>
-                <div className="aspect-[1/1.4] w-full bg-wood-50 rounded-2xl border border-wood-200 overflow-hidden shadow-inner">
-                  <iframe
-                    src={`${post.pdfUrl}#toolbar=0`}
-                    className="w-full h-full"
-                    title="PDF Viewer"
-                  >
-                    <p>이 브라우저는 PDF 뷰어를 지원하지 않습니다. <a href={post.pdfUrl}>여기</a>를 클릭하여 다운로드하세요.</p>
-                  </iframe>
+                <div className="w-full bg-wood-50 rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
+                  {(pdfBlobUrl || post.pdfUrl) ? (
+                    <PdfCanvasViewer 
+                      url={pdfBlobUrl || post.pdfUrl} 
+                      onDownload={() => {
+                        const link = document.createElement('a');
+                        link.href = pdfBlobUrl || post.pdfUrl;
+                        link.download = post.pdfName || 'document.pdf';
+                        link.click();
+                      }}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-96 text-wood-400">
+                      <div className="animate-pulse flex flex-col items-center">
+                        <FileText size={48} className="mb-4 opacity-20" />
+                        <p>문서를 불러오는 중입니다...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {(user?.uid === post.authorId || role === 'admin') && (
-              <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end gap-4">
+              <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end items-center gap-4">
                 <button
                   onClick={() => navigate(`/edit-post/${id}`)}
                   className="inline-flex items-center text-sm font-medium text-wood-600 hover:text-wood-900 transition"
@@ -266,13 +359,35 @@ export default function PostDetail() {
                   <Edit3 size={16} className="mr-1.5" />
                   수정
                 </button>
-                <button
-                  onClick={handleDeletePost}
-                  className="inline-flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition"
-                >
-                  <Trash2 size={16} className="mr-1.5" />
-                  삭제
-                </button>
+                
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="inline-flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition"
+                    disabled={isDeleting}
+                  >
+                    <Trash2 size={16} className="mr-1.5" />
+                    삭제
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2 bg-red-50 p-2 rounded-xl border border-red-100">
+                    <span className="text-xs text-red-600 font-bold px-1">정말 삭제할까요?</span>
+                    <button
+                      onClick={handleDeletePost}
+                      disabled={isDeleting}
+                      className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full hover:bg-red-700 disabled:opacity-50 transition"
+                    >
+                      {isDeleting ? '삭제 중...' : '확인'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={isDeleting}
+                      className="text-xs bg-wood-200 text-wood-700 px-3 py-1.5 rounded-full hover:bg-wood-300 transition"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -336,13 +451,33 @@ export default function PostDetail() {
                     {comment.content}
                   </div>
                   {(user?.uid === comment.authorId || role === 'admin') && (
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="text-xs font-medium text-red-500 hover:text-red-700 transition"
-                      >
-                        삭제
-                      </button>
+                    <div className="mt-3 flex justify-end items-center">
+                      {showCommentDeleteConfirm !== comment.id ? (
+                        <button
+                          onClick={() => setShowCommentDeleteConfirm(comment.id)}
+                          className="text-xs font-medium text-red-500 hover:text-red-700 transition"
+                          disabled={isDeletingComment === comment.id}
+                        >
+                          삭제
+                        </button>
+                      ) : (
+                        <div className="flex items-center space-x-2 bg-red-50 p-1.5 rounded-lg border border-red-100">
+                          <button
+                            onClick={() => handleDeleteComment(comment.id)}
+                            disabled={isDeletingComment === comment.id}
+                            className="text-[10px] bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 disabled:opacity-50 transition"
+                          >
+                            {isDeletingComment === comment.id ? '...' : '삭제'}
+                          </button>
+                          <button
+                            onClick={() => setShowCommentDeleteConfirm(null)}
+                            disabled={isDeletingComment === comment.id}
+                            className="text-[10px] bg-wood-200 text-wood-700 px-2 py-1 rounded hover:bg-wood-300 transition"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

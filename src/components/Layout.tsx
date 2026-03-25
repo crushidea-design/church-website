@@ -2,7 +2,8 @@ import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { signInWithGoogle, logout } from '../lib/firebase';
-import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle } from 'lucide-react';
+import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool } from 'lucide-react';
+import DebugConsole from './DebugConsole';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,6 +15,7 @@ export default function Layout() {
   const navItems = [
     { name: '홈', path: '/', icon: Home },
     { name: '소개', path: '/intro', icon: Info },
+    { name: '개척 일지', path: '/journal', icon: PenTool },
     { name: '말씀 서재', path: '/sermons', icon: PlayCircle },
     { name: '교회 연구실', path: '/research', icon: BookOpen },
     { name: '소통 게시판', path: '/community', icon: Users },
@@ -89,18 +91,29 @@ export default function Layout() {
                 {user ? (
                   <div className="flex items-center gap-2 lg:gap-4">
                     <span className="text-xs lg:text-sm text-wood-600 whitespace-nowrap">
-                      {user.displayName}님 {role === 'admin' && <span className="text-[10px] lg:text-xs bg-wood-200 text-wood-800 px-1.5 lg:px-2 py-0.5 rounded-full ml-1">목사님</span>}
+                      {user.displayName}님 
+                      {role === 'admin' && (
+                        <Link 
+                          to="/admin" 
+                          className="text-[10px] lg:text-xs bg-wood-900 text-white px-2 lg:px-3 py-1 rounded-full ml-2 hover:bg-wood-800 transition-colors shadow-sm font-bold"
+                        >
+                          목사님
+                        </Link>
+                      )}
                     </span>
                     <button
                       onClick={logout}
-                      className="text-xs lg:text-sm text-wood-500 hover:text-wood-900 transition whitespace-nowrap"
+                      className="text-xs lg:text-sm text-wood-500 hover:text-wood-900 transition whitespace-nowrap border-l border-wood-200 pl-2 lg:pl-4"
                     >
                       로그아웃
                     </button>
                   </div>
                 ) : (
                   <button
-                    onClick={signInWithGoogle}
+                    onClick={() => {
+                      console.log('Login button clicked');
+                      signInWithGoogle();
+                    }}
                     className="text-xs lg:text-sm font-medium bg-wood-900 text-white px-4 lg:px-5 py-1.5 lg:py-2 rounded-full hover:bg-wood-800 transition shadow-sm whitespace-nowrap"
                   >
                     로그인
@@ -152,11 +165,20 @@ export default function Layout() {
                   {user ? (
                     <div className="px-3">
                       <div className="text-base font-medium text-wood-800 mb-4">
-                        {user.displayName}님 {role === 'admin' && <span className="text-xs bg-wood-200 text-wood-800 px-2 py-0.5 rounded-full ml-1">목사님</span>}
+                        {user.displayName}님 
+                        {role === 'admin' && (
+                          <Link 
+                            to="/admin" 
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="text-xs bg-wood-900 text-white px-2 py-0.5 rounded-full ml-2 font-bold"
+                          >
+                            목사님
+                          </Link>
+                        )}
                       </div>
                       <button
                         onClick={() => { logout(); setIsMobileMenuOpen(false); }}
-                        className="w-full text-left text-base font-medium text-red-600 hover:text-red-800 py-2"
+                        className="w-full text-left text-base font-medium text-red-600 hover:text-red-800 py-2 border-t border-wood-100 mt-2"
                       >
                         로그아웃
                       </button>
@@ -218,6 +240,7 @@ export default function Layout() {
           </div>
         </div>
       </footer>
+      <DebugConsole />
     </div>
   );
 }

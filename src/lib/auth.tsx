@@ -5,7 +5,7 @@ import { auth, db } from './firebase';
 
 interface AuthContextType {
   user: User | null;
-  role: 'admin' | 'user' | null;
+  role: 'admin' | 'regular' | 'user' | null;
   loading: boolean;
 }
 
@@ -13,26 +13,32 @@ const AuthContext = createContext<AuthContextType>({ user: null, role: null, loa
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<'admin' | 'user' | null>(null);
+  const [role, setRole] = useState<'admin' | 'regular' | 'user' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('AuthProvider: Setting up onAuthStateChanged listener');
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log('AuthProvider: onAuthStateChanged fired, user:', currentUser?.email);
       setUser(currentUser);
       if (currentUser) {
         try {
+          console.log('AuthProvider: Fetching user role for:', currentUser.uid);
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists()) {
             const data = userDoc.data();
+            console.log('AuthProvider: User document found, role:', data.role);
             setRole(currentUser.email === 'crushidea@gmail.com' ? 'admin' : data.role);
           } else {
+            console.log('AuthProvider: User document not found, defaulting to user role');
             setRole(currentUser.email === 'crushidea@gmail.com' ? 'admin' : 'user');
           }
         } catch (error) {
-          console.error("Error fetching user role:", error);
+          console.error("AuthProvider: Error fetching user role:", error);
           setRole('user');
         }
       } else {
+        console.log('AuthProvider: No user logged in');
         setRole(null);
       }
       setLoading(false);
