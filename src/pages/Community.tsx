@@ -1,0 +1,101 @@
+import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/auth';
+import { format } from 'date-fns';
+import { MessageSquare, Plus } from 'lucide-react';
+
+export default function Community() {
+  const { user } = useAuth();
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('category', 'community')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setPosts(data || []);
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  return (
+    <div className="bg-wood-100 min-h-screen py-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-end mb-12 border-b border-wood-200 pb-6">
+          <div>
+            <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">소통 게시판</h1>
+            <p className="text-wood-600 text-lg">자유롭게 의견을 나누고 교제하는 공간입니다.</p>
+          </div>
+          {user && (
+            <Link
+              to="/create-post?type=community"
+              className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
+            >
+              <Plus size={20} className="mr-2" />
+              글쓰기
+            </Link>
+          )}
+        </div>
+
+        {/* Posts List */}
+        <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="text-center py-20">
+              <MessageSquare className="mx-auto h-12 w-12 text-wood-300 mb-4" />
+              <h3 className="text-lg font-medium text-wood-900">등록된 게시글이 없습니다</h3>
+              <p className="mt-2 text-wood-500">첫 번째 게시글을 작성해 보세요.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-wood-100">
+              {posts.map((post, index) => (
+                <motion.li
+                  key={post.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Link to={`/post/${post.id}`} className="block hover:bg-wood-50 transition p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-bold text-wood-900 truncate mb-2">
+                          {post.title}
+                        </h3>
+                        <div className="flex items-center text-sm text-wood-600 gap-4">
+                          <span>{post.author_name}</span>
+                          <span>&bull;</span>
+                          <span>{post.created_at ? format(new Date(post.created_at), 'yyyy.MM.dd') : ''}</span>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-shrink-0 flex items-center text-wood-500">
+                        <MessageSquare size={18} className="mr-1.5" />
+                        <span className="text-sm font-medium">{post.comment_count || 0}</span>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

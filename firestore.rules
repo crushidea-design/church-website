@@ -1,0 +1,166 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - User's ID
+    //   - email: string (required) - User's email
+    //   - displayName: string (required) - User's display name
+    //   - role: string (required) - 'admin' or 'user'
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: posts
+    // Document ID: {postId}
+    // Fields:
+    //   - title: string (required, < 200 chars)
+    //   - content: string (required, < 50000 chars)
+    //   - category: string (required, 'research' or 'community')
+    //   - subCategory: string (optional, 'worship', 'preaching', 'pastoring', 'governing', 'general')
+    //   - authorId: string (required)
+    //   - authorName: string (required, < 100 chars)
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //   - commentCount: number (required)
+    //
+    // Collection: comments
+    // Document ID: {commentId}
+    // Fields:
+    //   - postId: string (required)
+    //   - content: string (required, < 5000 chars)
+    //   - authorId: string (required)
+    //   - authorName: string (required, < 100 chars)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: contacts
+    // Document ID: {contactId}
+    // Fields:
+    //   - name: string (required, < 100 chars)
+    //   - email: string (required)
+    //   - message: string (required, < 5000 chars)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "crushidea@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.role in ['admin', 'user'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidPost(data) {
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount'];
+      let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 50000 &&
+             data.category in ['research', 'community'] &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             data.commentCount is number && data.commentCount >= 0;
+             
+      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general'];
+      return baseValid && subCatValid;
+    }
+
+    function isValidComment(data) {
+      return hasOnlyAllowedFields(['postId', 'content', 'authorId', 'authorName', 'createdAt']) &&
+             data.postId is string && data.postId.size() > 0 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidContact(data) {
+      return hasOnlyAllowedFields(['name', 'email', 'message', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 5000 &&
+             data.createdAt is timestamp;
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Users can see other users' basic info for community
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == resource.data.role || isAdmin()) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /posts/{postId} {
+      allow read: if true; // Publicly readable
+      allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
+                    (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research
+      allow update: if isAuthenticated() && isValidPost(request.resource.data) &&
+                    (isDocOwner() || isAdmin()) &&
+                    request.resource.data.authorId == resource.data.authorId &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    // If not owner/admin, only allow incrementing commentCount
+                    ((isDocOwner() || isAdmin()) || 
+                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']) &&
+                      math.abs(request.resource.data.commentCount - resource.data.commentCount) == 1));
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /comments/{commentId} {
+      allow read: if true; // Publicly readable
+      allow create: if isAuthenticated() && isValidComment(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidComment(request.resource.data) &&
+                    request.resource.data.authorId == resource.data.authorId &&
+                    request.resource.data.postId == resource.data.postId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /contacts/{contactId} {
+      allow read: if isAdmin();
+      allow create: if isValidContact(request.resource.data); // Anyone can submit a contact form
+      allow update, delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
