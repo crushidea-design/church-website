@@ -4,7 +4,7 @@ import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, delete
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { ArrowLeft, MessageSquare, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Trash2, Edit3 } from 'lucide-react';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -209,7 +209,10 @@ export default function PostDetail() {
                   post.subCategory === 'pastoring' ? '목양' :
                   post.subCategory === 'governing' ? '치리' :
                   post.subCategory === 'general' ? '일반' : '연구실'
-                ) : post.category === 'sermon' ? '말씀 서재' : '소통 게시판'}
+                ) : post.category === 'sermon' ? (
+                  post.subCategory === 'past_sermons' ? '지난 설교들' :
+                  post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재'
+                ) : '소통 게시판'}
               </span>
               <div className="flex items-center text-sm text-wood-600 gap-4">
                 <span>{post.authorName}</span>
@@ -227,7 +230,14 @@ export default function PostDetail() {
             </div>
 
             {(user?.uid === post.authorId || role === 'admin') && (
-              <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end">
+              <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end gap-4">
+                <button
+                  onClick={() => navigate(`/edit-post/${id}`)}
+                  className="inline-flex items-center text-sm font-medium text-wood-600 hover:text-wood-900 transition"
+                >
+                  <Edit3 size={16} className="mr-1.5" />
+                  수정
+                </button>
                 <button
                   onClick={handleDeletePost}
                   className="inline-flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition"

@@ -10,6 +10,7 @@ import ResearchLab from './pages/ResearchLab';
 import Community from './pages/Community';
 import PostDetail from './pages/PostDetail';
 import CreatePost from './pages/CreatePost';
+import EditPost from './pages/EditPost';
 import Contact from './pages/Contact';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
               <Route path="research" element={<ResearchLab />} />
               <Route path="community" element={<Community />} />
               <Route path="post/:id" element={<PostDetail />} />
+              <Route path="edit-post/:id" element={<EditPost />} />
               <Route path="create-post" element={<CreatePost />} />
               <Route path="contact" element={<Contact />} />
             </Route>

@@ -90,13 +90,13 @@ service cloud.firestore {
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
              data.category in ['research', 'community', 'sermon'] &&
-             data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorId is string &&
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
              data.createdAt is timestamp &&
              data.updatedAt is timestamp &&
              data.commentCount is number && data.commentCount >= 0;
              
-      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general'];
+      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress'];
       return baseValid && subCatValid;
     }
 
@@ -131,7 +131,8 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if true; // Publicly readable
       allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
-                    (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research
+                    request.resource.data.authorId == request.auth.uid &&
+                    (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research/sermon
       allow update: if isAuthenticated() && isValidPost(request.resource.data) &&
                     (isDocOwner() || isAdmin()) &&
                     request.resource.data.authorId == resource.data.authorId &&
@@ -139,7 +140,9 @@ service cloud.firestore {
                     // If not owner/admin, only allow incrementing commentCount
                     ((isDocOwner() || isAdmin()) || 
                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']) &&
-                      math.abs(request.resource.data.commentCount - resource.data.commentCount) == 1));
+                      math.abs(request.resource.data.commentCount - resource.data.commentCount) == 1)) &&
+                    // Ensure non-admins cannot change category
+                    (isAdmin() || request.resource.data.category == resource.data.category);
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
     }
 

@@ -1,20 +1,95 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 
-export default function CreatePost() {
+export default function EditPost() {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const type = searchParams.get('type') || 'community';
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [subCategory, setSubCategory] = useState(type === 'sermon' ? 'past_sermons' : 'general');
+  const [type, setType] = useState('');
+  const [subCategory, setSubCategory] = useState('general');
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchPost = async () => {
+      if (!id) return;
+      try {
+        const docRef = doc(db, 'posts', id);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setTitle(data.title);
+          setContent(data.content);
+          setType(data.category);
+          setSubCategory(data.subCategory || 'general');
+          
+          // Check permission: only author or admin can edit
+          if (!authLoading && user) {
+            if (user.uid !== data.authorId && role !== 'admin') {
+              alert('수정 권한이 없습니다.');
+              navigate(-1);
+            }
+          }
+        } else {
+          alert('게시글을 찾을 수 없습니다.');
+          navigate(-1);
+        }
+      } catch (error) {
+        console.error('Error fetching post:', error);
+        handleFirestoreError(error, OperationType.GET, `posts/${id}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      fetchPost();
+    }
+  }, [id, user, role, authLoading, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !title.trim() || !content.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const postRef = doc(db, 'posts', id);
+      const updateData: any = {
+        title: title.trim(),
+        content: content.trim(),
+        updatedAt: serverTimestamp()
+      };
+
+      if ((type === 'research' || type === 'sermon') && subCategory) {
+        updateData.subCategory = subCategory;
+      }
+
+      await updateDoc(postRef, updateData);
+      navigate(`/post/${id}`);
+    } catch (error) {
+      console.error('Error updating post:', error);
+      alert('게시글 수정 중 오류가 발생했습니다.');
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${id}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-wood-50">
+        <Loader2 className="animate-spin h-12 w-12 text-wood-900" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -26,58 +101,6 @@ export default function CreatePost() {
       </div>
     );
   }
-
-  if ((type === 'research' || type === 'sermon') && role !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-wood-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-wood-900 mb-4">권한이 없습니다</h2>
-          <p className="text-wood-600 mb-4">이 게시판은 관리자(목회자)만 작성할 수 있습니다.</p>
-          <button onClick={() => navigate(-1)} className="text-wood-600 hover:underline">돌아가기</button>
-        </div>
-      </div>
-    );
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !content.trim()) return;
-
-    setSubmitting(true);
-    try {
-      const postData: any = {
-        title: title.trim(),
-        content: content.trim(),
-        category: type,
-        authorId: user.uid,
-        authorName: user.displayName || '익명',
-        commentCount: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-
-      if ((type === 'research' || type === 'sermon') && subCategory) {
-        postData.subCategory = subCategory;
-      }
-
-      const docRef = await addDoc(collection(db, 'posts'), postData);
-      navigate(`/post/${docRef.id}`);
-    } catch (error) {
-      console.error('Error creating post:', error);
-      alert('게시글 등록 중 오류가 발생했습니다.');
-      handleFirestoreError(error, OperationType.CREATE, 'posts');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const getTitle = () => {
-    switch (type) {
-      case 'research': return '연구글 작성';
-      case 'sermon': return '말씀 서재 등록';
-      default: return '게시글 작성';
-    }
-  };
 
   return (
     <div className="bg-wood-100 min-h-screen py-12">
@@ -92,7 +115,7 @@ export default function CreatePost() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
           <h1 className="text-3xl font-serif font-bold text-wood-900 mb-8">
-            {getTitle()}
+            게시글 수정
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -172,7 +195,7 @@ export default function CreatePost() {
                 disabled={submitting || !title.trim() || !content.trim()}
                 className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
               >
-                {submitting ? '등록 중...' : '등록하기'}
+                {submitting ? '수정 중...' : '수정하기'}
               </button>
             </div>
           </form>

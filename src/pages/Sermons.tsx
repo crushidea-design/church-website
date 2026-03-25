@@ -11,6 +11,7 @@ export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('past_sermons');
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -42,10 +43,15 @@ export default function Sermons() {
 
   const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
 
+  const filteredVideos = videos.filter(video => {
+    const subCat = video.subCategory || 'past_sermons';
+    return subCat === activeTab;
+  });
+
   return (
     <div className="bg-wood-100 min-h-screen py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-end mb-12 border-b border-wood-200 pb-6">
+        <div className="flex justify-between items-end mb-8 border-b border-wood-200 pb-6">
           <div className="text-left">
             <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">말씀 서재</h1>
             <p className="text-lg text-wood-600">유튜브에 업로드된 설교와 성경 공부 영상을 확인하세요.</p>
@@ -61,11 +67,30 @@ export default function Sermons() {
           )}
         </div>
 
+        <div className="flex space-x-2 mb-8 overflow-x-auto pb-2">
+          {[
+            { id: 'past_sermons', label: '지난 설교들' },
+            { id: 'pilgrims_progress', label: '천로역정' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-wood-900 text-white shadow-sm'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
           </div>
-        ) : videos.length === 0 ? (
+        ) : filteredVideos.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-wood-200">
             <Video className="mx-auto h-12 w-12 text-wood-300 mb-4" />
             <h3 className="text-lg font-medium text-wood-900">등록된 영상이 없습니다</h3>
@@ -73,7 +98,7 @@ export default function Sermons() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {videos.map((video, index) => {
+            {filteredVideos.map((video, index) => {
               const videoId = getYouTubeId(video.content);
               return (
                 <motion.div
