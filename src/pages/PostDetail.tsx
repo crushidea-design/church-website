@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -63,11 +63,11 @@ export default function PostDetail() {
         content: newComment.trim(),
         authorId: user.uid,
         authorName: user.displayName || '익명',
-        createdAt: new Date()
+        createdAt: serverTimestamp()
       };
 
       const docRef = await addDoc(collection(db, 'comments'), commentData);
-      const newCommentObj = { id: docRef.id, ...commentData };
+      const newCommentObj = { id: docRef.id, ...commentData, createdAt: new Date() };
 
       // Update post comment count
       const postRef = doc(db, 'posts', id);

@@ -87,8 +87,8 @@ service cloud.firestore {
     function isValidPost(data) {
       let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount']) &&
-             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
-             data.content is string && data.content.size() > 0 && data.content.size() < 50000 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
              data.category in ['research', 'community', 'sermon'] &&
              data.authorId is string && data.authorId == request.auth.uid &&
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
