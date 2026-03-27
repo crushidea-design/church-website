@@ -100,8 +100,10 @@ export default function Layout() {
               <div className="ml-2 pl-2 lg:ml-4 lg:pl-4 border-l border-wood-200 flex items-center gap-2 lg:gap-4">
                 {user ? (
                   <div className="flex items-center gap-2 lg:gap-4">
-                    <span className="text-xs lg:text-sm text-wood-600 whitespace-nowrap">
-                      {user.displayName}님 
+                    <span className="text-xs lg:text-sm text-wood-600 whitespace-nowrap flex items-center">
+                      <Link to="/profile" className="hover:text-wood-900 hover:underline transition-colors">
+                        {user.displayName}님
+                      </Link>
                       {role === 'admin' && (
                         <Link 
                           to="/admin" 
@@ -122,15 +124,12 @@ export default function Layout() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => {
-                      console.log('Login button clicked');
-                      signInWithGoogle();
-                    }}
+                  <Link
+                    to="/login"
                     className="text-xs lg:text-sm font-medium bg-wood-900 text-white px-4 lg:px-5 py-1.5 lg:py-2 rounded-full hover:bg-wood-800 transition shadow-sm whitespace-nowrap"
                   >
                     로그인
-                  </button>
+                  </Link>
                 )}
               </div>
             </nav>
@@ -177,8 +176,14 @@ export default function Layout() {
                 <div className="mt-6 pt-6 border-t border-wood-100">
                   {user ? (
                     <div className="px-3">
-                      <div className="text-base font-medium text-wood-800 mb-4">
-                        {user.displayName}님 
+                      <div className="text-base font-medium text-wood-800 mb-4 flex items-center">
+                        <Link 
+                          to="/profile" 
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="hover:text-wood-900 hover:underline transition-colors"
+                        >
+                          {user.displayName}님
+                        </Link>
                         {role === 'admin' && (
                           <Link 
                             to="/admin" 
@@ -200,12 +205,13 @@ export default function Layout() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => { signInWithGoogle(); setIsMobileMenuOpen(false); }}
+                    <Link
+                      to="/login"
+                      onClick={() => setIsMobileMenuOpen(false)}
                       className="w-full mx-3 flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-wood-900 hover:bg-wood-800"
                     >
-                      구글 로그인
-                    </button>
+                      로그인
+                    </Link>
                   )}
                 </div>
               </div>

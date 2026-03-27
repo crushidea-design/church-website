@@ -21,6 +21,9 @@ import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 
+import Login from './pages/Login';
+import Profile from './pages/Profile';
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -29,6 +32,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
+              <Route path="login" element={<Login />} />
+              <Route path="profile" element={<Profile />} />
               <Route path="intro" element={<Introduction />} />
               <Route path="sermons" element={<Sermons />} />
               <Route path="research" element={<ResearchLab />} />
