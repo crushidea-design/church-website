@@ -4,20 +4,29 @@ import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+const config = {
+  ...firebaseConfig,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (firebaseConfig.apiKey !== "REDACTED" ? firebaseConfig.apiKey : "")
+};
+
+if (!config.apiKey) {
+  console.error("Firebase API Key is missing!");
+}
+
 console.log('Firebase configuration loaded:', {
-  projectId: firebaseConfig.projectId,
-  authDomain: firebaseConfig.authDomain,
-  databaseId: firebaseConfig.firestoreDatabaseId
+  projectId: config.projectId,
+  authDomain: config.authDomain,
+  databaseId: config.firestoreDatabaseId
 });
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const app = initializeApp(config);
+export const db = getFirestore(app, config.firestoreDatabaseId);
 
 // Use the bucket from config explicitly
-export const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
+export const storage = getStorage(app, `gs://${config.storageBucket}`);
 export const auth = getAuth(app);
 
-console.log('Firebase Storage initialized with bucket:', firebaseConfig.storageBucket);
+console.log('Firebase Storage initialized with bucket:', config.storageBucket);
 
 export const googleProvider = new GoogleAuthProvider();
 
