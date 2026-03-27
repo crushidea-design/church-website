@@ -164,13 +164,12 @@ service cloud.firestore {
                     request.resource.data.authorId == request.auth.uid &&
                     (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research/sermon
       allow update: if isAuthenticated() && isValidPost(request.resource.data) &&
-                    (isDocOwner() || isAdmin()) &&
-                    request.resource.data.authorId == resource.data.authorId &&
-                    request.resource.data.createdAt == resource.data.createdAt &&
-                    // If not owner/admin, only allow incrementing commentCount
+                    // Allow if owner/admin OR if only incrementing commentCount
                     ((isDocOwner() || isAdmin()) || 
                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']) &&
                       math.abs(request.resource.data.commentCount - (('commentCount' in resource.data) ? resource.data.commentCount : 0)) == 1)) &&
+                    request.resource.data.authorId == resource.data.authorId &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
                     // Ensure non-admins cannot change category
                     (isAdmin() || request.resource.data.category == resource.data.category);
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
