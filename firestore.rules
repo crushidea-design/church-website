@@ -105,7 +105,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'journalDate', 'uid'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'uid', 'viewCount'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -115,9 +115,11 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              (!('updatedAt' in data) || data.updatedAt is timestamp) &&
              (!('commentCount' in data) || (data.commentCount is number && data.commentCount >= 0)) &&
+             (!('viewCount' in data) || (data.viewCount is number && data.viewCount >= 0)) &&
              (!('pdfUrl' in data) || (data.pdfUrl is string && data.pdfUrl.size() < 2000)) &&
              (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500)) &&
              (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1000000)) &&
+             (!('pdfChunkCount' in data) || (data.pdfChunkCount is number && data.pdfChunkCount >= 0 && data.pdfChunkCount <= 10)) &&
              (!('journalDate' in data) || data.journalDate is timestamp) &&
              (!('sermonCategoryId' in data) || data.sermonCategoryId is string) &&
              (!('researchCategoryId' in data) || data.researchCategoryId is string) &&
@@ -172,6 +174,20 @@ service cloud.firestore {
                     // Ensure non-admins cannot change category
                     (isAdmin() || request.resource.data.category == resource.data.category);
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /post_pdfs/{chunkId} {
+      allow read: if !exists(/databases/$(database)/documents/posts/$(resource.data.postId)) || 
+                     get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.category != 'sermon' || 
+                     isRegularMember();
+      allow create: if isAuthenticated() && 
+                    request.resource.data.keys().hasAll(['postId', 'index', 'data']) &&
+                    request.resource.data.data is string && request.resource.data.data.size() <= 1000000 &&
+                    request.resource.data.index is number &&
+                    (isAdmin() || get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.authorId == request.auth.uid);
+      allow update: if false; // Chunks should never be updated, only deleted and recreated
+      allow delete: if isAuthenticated() && 
+                    (isAdmin() || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorId == request.auth.uid);
     }
 
     match /comments/{commentId} {

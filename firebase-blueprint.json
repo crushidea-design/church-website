@@ -91,6 +91,7 @@
       "type": "object",
       "properties": {
         "heroImageUrl": { "type": "string" },
+        "introImageUrl": { "type": "string" },
         "introTitle1": { "type": "string" },
         "introContent1": { "type": "string" },
         "introTitle2": { "type": "string" },

@@ -4,7 +4,6 @@ import { useAuth } from '../lib/auth';
 import { signInWithGoogle, logout, db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool } from 'lucide-react';
-import DebugConsole from './DebugConsole';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -259,7 +258,6 @@ export default function Layout() {
           </div>
         </div>
       </footer>
-      <DebugConsole />
     </div>
   );
 }

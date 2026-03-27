@@ -63,7 +63,36 @@ export default function PostDetail() {
         setPost(postData);
 
         // Handle Base64 PDF if exists
-        if (postData.pdfBase64) {
+        if (postData.pdfChunkCount) {
+          console.log('PDF Data detected (Chunks). Count:', postData.pdfChunkCount);
+          try {
+            let fullBase64 = '';
+            for (let i = 0; i < postData.pdfChunkCount; i++) {
+              const chunkDoc = await getDoc(doc(db, 'post_pdfs', `${id}_${i}`));
+              if (chunkDoc.exists()) {
+                fullBase64 += chunkDoc.data().data;
+              }
+            }
+            
+            const base64Parts = fullBase64.split(',');
+            const mimeType = base64Parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+            const base64Data = base64Parts[1];
+            
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            
+            console.log('Successfully created Blob URL from chunks:', url);
+            setPdfBlobUrl(url);
+          } catch (e) {
+            console.error('Error converting chunks to blob:', e);
+          }
+        } else if (postData.pdfBase64) {
           console.log('PDF Data detected (Base64). Size:', postData.pdfBase64.length);
           try {
             const base64Parts = postData.pdfBase64.split(',');
@@ -156,6 +185,11 @@ export default function PostDetail() {
     
     setIsDeleting(true);
     try {
+      if (post?.pdfChunkCount) {
+        const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
+        const oldChunksSnap = await getDocs(oldChunksQuery);
+        await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
+      }
       await deleteDoc(doc(db, 'posts', id));
       navigate(-1);
     } catch (error) {
@@ -376,7 +410,7 @@ export default function PostDetail() {
               {renderContentWithYouTube(post.content)}
             </div>
 
-            {(post.pdfUrl || post.pdfBase64) && (
+            {(post.pdfUrl || post.pdfBase64 || post.pdfChunkCount > 0) && (
               <div className="mt-12 border-t border-wood-100 pt-12">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <h3 className="text-xl font-bold text-wood-900 flex items-center">
@@ -401,7 +435,7 @@ export default function PostDetail() {
                     </a>
                   </div>
                 </div>
-                <div className="w-full bg-wood-50 rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
+                <div className="w-full bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
                   {(pdfBlobUrl || post.pdfUrl) ? (
                     <PdfCanvasViewer 
                       url={pdfBlobUrl || post.pdfUrl} 

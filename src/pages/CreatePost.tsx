@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -115,8 +115,8 @@ export default function CreatePost() {
         alert('PDF 파일만 업로드 가능합니다.');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert('파일 크기는 10MB를 초과할 수 없습니다.');
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert('파일 크기는 2MB를 초과할 수 없습니다.');
         return;
       }
       setPdfFile(file);
@@ -150,59 +150,41 @@ export default function CreatePost() {
       return;
     }
 
+    if (type === 'sermon' && sermonCategories.length === 0) {
+      setError('영상을 등록하려면 먼저 카테고리를 생성해야 합니다.');
+      setSubmitting(false);
+      return;
+    }
+
+    if (type === 'research' && researchCategories.length === 0) {
+      setError('연구글을 등록하려면 먼저 카테고리를 생성해야 합니다.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      let pdfUrl = '';
       let pdfBase64 = '';
       
       if (pdfFile) {
         console.log('--- PDF PROCESSING ---');
         console.log('File:', { name: pdfFile.name, size: pdfFile.size });
 
-        // If file is small enough (< 800KB), use Base64 for maximum reliability
-        if (pdfFile.size < 800 * 1024) {
-          console.log('File is small enough for Base64 storage. Converting...');
-          setUploadProgress(30);
-          
-          pdfBase64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(pdfFile);
-          });
-          
-          setUploadProgress(100);
-          console.log('Base64 conversion complete.');
-        } else {
-          // For larger files, try Storage but with a clear fallback message
-          try {
-            console.log('File is large, attempting Storage upload...');
-            const fileName = `${Date.now()}_${pdfFile.name.replace(/\s+/g, '_')}`;
-            const storageRef = ref(storage, `pdfs/${fileName}`);
-            setUploadProgress(10);
-            
-            const uploadPromise = uploadBytes(storageRef, pdfFile);
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Storage timeout')), 10000)
-            );
-
-            const snapshot = (await Promise.race([uploadPromise, timeoutPromise])) as any;
-            pdfUrl = await getDownloadURL(snapshot.ref);
-            setUploadProgress(100);
-          } catch (err) {
-            console.warn('Storage upload failed, but file might be too large for Base64. Attempting Base64 anyway as last resort.');
-            // Last resort: try Base64 even if slightly large, up to Firestore's 1MB limit
-            if (pdfFile.size < 1000 * 1024) {
-              pdfBase64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(pdfFile);
-              });
-            } else {
-              throw new Error('파일이 너무 크고 저장소 연결이 원활하지 않습니다. 1MB 이하의 파일로 다시 시도해 주세요.');
-            }
-          }
+        if (pdfFile.size > 2 * 1024 * 1024) {
+          throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
         }
+
+        console.log('Converting PDF to Base64...');
+        setUploadProgress(20);
+        
+        pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(pdfFile);
+        });
+        
+        setUploadProgress(40);
+        console.log('Base64 conversion complete. Length:', pdfBase64.length);
       }
 
       const postData: any = {
@@ -216,12 +198,9 @@ export default function CreatePost() {
         updatedAt: serverTimestamp()
       };
 
-      if (pdfUrl) {
-        postData.pdfUrl = pdfUrl;
+      if (pdfBase64) {
         postData.pdfName = pdfFile?.name;
-      } else if (pdfBase64) {
-        postData.pdfBase64 = pdfBase64;
-        postData.pdfName = pdfFile?.name;
+        postData.pdfChunkCount = Math.ceil(pdfBase64.length / 800000);
       }
 
       if (type === 'journal' && journalDate) {
@@ -258,6 +237,21 @@ export default function CreatePost() {
       console.log('Awaiting addDoc...');
       const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
       console.log('Post created successfully with ID:', docRef.id);
+      
+      if (pdfBase64 && postData.pdfChunkCount) {
+        console.log(`Uploading PDF in ${postData.pdfChunkCount} chunks...`);
+        const CHUNK_SIZE = 800000;
+        for (let i = 0; i < postData.pdfChunkCount; i++) {
+          const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await setDoc(doc(db, 'post_pdfs', `${docRef.id}_${i}`), {
+            postId: docRef.id,
+            index: i,
+            data: chunk
+          });
+          setUploadProgress(40 + Math.round(((i + 1) / postData.pdfChunkCount) * 60));
+        }
+        console.log('PDF chunks uploaded successfully.');
+      }
       
       console.log('Navigating to post detail...');
       navigate(`/post/${docRef.id}`);
@@ -492,7 +486,7 @@ export default function CreatePost() {
                           </label>
                           <p className="pl-1">또는 드래그 앤 드롭</p>
                         </div>
-                        <p className="text-xs text-wood-500">PDF up to 10MB</p>
+                        <p className="text-xs text-wood-500">PDF up to 2MB</p>
                       </>
                     )}
                   </div>

@@ -96,7 +96,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 bg-wood-50 rounded-2xl border border-wood-200">
+      <div className="flex flex-col items-center justify-center h-96 bg-white rounded-2xl border border-wood-200">
         <Loader2 className="animate-spin text-wood-900 mb-4" size={32} />
         <p className="text-wood-600">문서를 렌더링하는 중입니다...</p>
       </div>
@@ -118,9 +118,12 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
   }
 
   return (
-    <div className="flex flex-col bg-wood-50 rounded-2xl border border-wood-200 overflow-hidden shadow-inner">
-      {/* Top Toolbar - Zoom only */}
-      <div className="flex items-center justify-end p-4 bg-white border-b border-wood-200">
+    <div className="flex flex-col bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
+      {/* Top Toolbar */}
+      <div className="flex items-center justify-between p-4 bg-white border-b border-wood-200">
+        <div className="text-sm font-bold text-wood-900 bg-wood-100 px-4 py-1.5 rounded-full">
+          {pageNum} / {numPages}
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={zoomOut}
@@ -139,34 +142,35 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
         </div>
       </div>
 
-      {/* Canvas Area */}
-      <div className="flex-1 overflow-auto p-8 flex justify-center bg-wood-200/30 min-h-[500px]">
-        <canvas ref={canvasRef} className="shadow-2xl bg-white max-w-full h-auto" />
-      </div>
+      {/* Canvas Area with Navigation Overlays */}
+      <div className="relative flex-1 bg-white min-h-[500px] flex flex-col">
+        <div className="flex-1 overflow-auto p-0 flex justify-center">
+          <canvas ref={canvasRef} className="max-w-full h-auto" />
+        </div>
 
-      {/* Bottom Toolbar - Navigation */}
-      <div className="flex items-center justify-center p-4 bg-white border-t border-wood-200 gap-6">
-        <button
-          onClick={goToPrevPage}
-          disabled={pageNum <= 1}
-          className="flex items-center gap-2 px-4 py-2 bg-wood-50 hover:bg-wood-100 text-wood-900 rounded-full disabled:opacity-30 transition border border-wood-200 font-medium"
-        >
-          <ChevronLeft size={20} />
-          이전 페이지
-        </button>
-        
-        <span className="text-sm font-bold text-wood-900 bg-wood-100 px-4 py-2 rounded-full">
-          {pageNum} / {numPages}
-        </span>
-        
-        <button
-          onClick={goToNextPage}
-          disabled={pageNum >= numPages}
-          className="flex items-center gap-2 px-4 py-2 bg-wood-900 hover:bg-wood-800 text-white rounded-full disabled:opacity-30 transition font-medium"
-        >
-          다음 페이지
-          <ChevronRight size={20} />
-        </button>
+        {/* Left Navigation Overlay */}
+        {pageNum > 1 && (
+          <div 
+            onClick={goToPrevPage}
+            className="absolute left-0 top-0 bottom-0 w-1/3 md:w-1/4 cursor-pointer flex items-center justify-start px-4 md:px-8 opacity-0 hover:opacity-100 transition-opacity group"
+          >
+            <div className="bg-black/30 text-white rounded-full p-3 backdrop-blur-sm shadow-lg transform scale-90 group-hover:scale-100 transition-all">
+              <ChevronLeft size={36} />
+            </div>
+          </div>
+        )}
+
+        {/* Right Navigation Overlay */}
+        {pageNum < numPages && (
+          <div 
+            onClick={goToNextPage}
+            className="absolute right-0 top-0 bottom-0 w-1/3 md:w-1/4 cursor-pointer flex items-center justify-end px-4 md:px-8 opacity-0 hover:opacity-100 transition-opacity group"
+          >
+            <div className="bg-black/30 text-white rounded-full p-3 backdrop-blur-sm shadow-lg transform scale-90 group-hover:scale-100 transition-all">
+              <ChevronRight size={36} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs, deleteField } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs, deleteField, setDoc, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -31,10 +31,14 @@ export default function EditPost() {
   const [researchCategories, setResearchCategories] = useState<ResearchCategory[]>([]);
   const [existingPdfUrl, setExistingPdfUrl] = useState('');
   const [existingPdfName, setExistingPdfName] = useState('');
+  const [existingPdfBase64, setExistingPdfBase64] = useState('');
+  const [existingPdfChunkCount, setExistingPdfChunkCount] = useState(0);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [removeExistingPdf, setRemoveExistingPdf] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -53,6 +57,8 @@ export default function EditPost() {
           setResearchCategoryId(data.researchCategoryId || '');
           setExistingPdfUrl(data.pdfUrl || '');
           setExistingPdfName(data.pdfName || '');
+          setExistingPdfBase64(data.pdfBase64 || '');
+          setExistingPdfChunkCount(data.pdfChunkCount || 0);
           
           // Check permission: only author or admin can edit
           if (!authLoading && user) {
@@ -121,8 +127,8 @@ export default function EditPost() {
         alert('PDF 파일만 업로드 가능합니다.');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert('파일 크기는 10MB를 초과할 수 없습니다.');
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert('파일 크기는 2MB를 초과할 수 없습니다.');
         return;
       }
       setPdfFile(file);
@@ -134,21 +140,46 @@ export default function EditPost() {
     e.preventDefault();
     if (!id || !title.trim() || !content.trim()) return;
 
+    setError(null);
     setSubmitting(true);
+    setUploadProgress(0);
+
     try {
       let pdfUrl = existingPdfUrl;
       let pdfName = existingPdfName;
+      let pdfBase64 = existingPdfBase64;
+      let pdfChunkCount = existingPdfChunkCount;
 
       if (removeExistingPdf) {
         pdfUrl = '';
         pdfName = '';
+        pdfBase64 = '';
+        pdfChunkCount = 0;
       }
 
       if (pdfFile) {
-        const storageRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
-        const uploadResult = await uploadBytes(storageRef, pdfFile);
-        pdfUrl = await getDownloadURL(uploadResult.ref);
+        console.log('--- PDF PROCESSING (UPDATE) ---');
+        console.log('File:', { name: pdfFile.name, size: pdfFile.size });
+
+        if (pdfFile.size > 2 * 1024 * 1024) {
+          throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
+        }
+
+        console.log('Converting PDF to Base64...');
+        setUploadProgress(20);
+        
+        pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(pdfFile);
+        });
+        
+        pdfUrl = ''; // Clear URL if using Base64
         pdfName = pdfFile.name;
+        pdfChunkCount = Math.ceil(pdfBase64.length / 800000);
+        setUploadProgress(40);
+        console.log('Base64 conversion complete.');
       }
 
       const postRef = doc(db, 'posts', id);
@@ -156,16 +187,25 @@ export default function EditPost() {
         title: title.trim(),
         content: content.trim(),
         updatedAt: serverTimestamp(),
-        pdfUrl,
-        pdfName
       };
 
+      // Handle PDF fields explicitly to ensure they are cleared if needed
+      if (pdfFile) {
+        updateData.pdfName = pdfName;
+        updateData.pdfChunkCount = pdfChunkCount;
+        updateData.pdfBase64 = deleteField();
+        updateData.pdfUrl = deleteField();
+      } else if (removeExistingPdf) {
+        updateData.pdfUrl = deleteField();
+        updateData.pdfName = deleteField();
+        updateData.pdfBase64 = deleteField();
+        updateData.pdfChunkCount = deleteField();
+      }
+
       if (type === 'sermon') {
-        // Ensure sermonCategoryId is set, fallback to first category if still empty
         const finalCategoryId = sermonCategoryId || (sermonCategories.length > 0 ? sermonCategories[0].id : '');
         if (finalCategoryId) {
           updateData.sermonCategoryId = finalCategoryId;
-          // Remove legacy subCategory if it exists to avoid conflicts and validation errors
           updateData.subCategory = deleteField();
         }
       }
@@ -174,17 +214,48 @@ export default function EditPost() {
         const finalCategoryId = researchCategoryId || (researchCategories.length > 0 ? researchCategories[0].id : '');
         if (finalCategoryId) {
           updateData.researchCategoryId = finalCategoryId;
-          // Remove legacy subCategory if it exists
           updateData.subCategory = deleteField();
         }
       }
 
-      await updateDoc(postRef, updateData);
+      console.log('Updating document in Firestore...', updateData);
+      
+      const updatePromise = updateDoc(postRef, updateData);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('게시글 수정 시간이 초과되었습니다. 네트워크 상태를 확인해 주세요.')), 30000)
+      );
+
+      await Promise.race([updatePromise, timeoutPromise]);
+      console.log('Post updated successfully');
+
+      if (pdfFile || removeExistingPdf) {
+        const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
+        const oldChunksSnap = await getDocs(oldChunksQuery);
+        await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
+      }
+
+      if (pdfFile && pdfBase64 && pdfChunkCount > 0) {
+        console.log(`Uploading PDF in ${pdfChunkCount} chunks...`);
+        const CHUNK_SIZE = 800000;
+        for (let i = 0; i < pdfChunkCount; i++) {
+          const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await setDoc(doc(db, 'post_pdfs', `${id}_${i}`), {
+            postId: id,
+            index: i,
+            data: chunk
+          });
+          setUploadProgress(40 + Math.round(((i + 1) / pdfChunkCount) * 60));
+        }
+        console.log('PDF chunks uploaded successfully.');
+      }
+
       navigate(`/post/${id}`);
-    } catch (error) {
-      console.error('Error updating post:', error);
-      alert('게시글 수정 중 오류가 발생했습니다.');
-      handleFirestoreError(error, OperationType.UPDATE, `posts/${id}`);
+    } catch (err: any) {
+      console.error('Error updating post:', err);
+      const errorMessage = err.message || '게시글 수정 중 오류가 발생했습니다.';
+      setError(errorMessage);
+      alert(errorMessage);
+      handleFirestoreError(err, OperationType.UPDATE, `posts/${id}`);
     } finally {
       setSubmitting(false);
     }
@@ -230,11 +301,31 @@ export default function EditPost() {
         </button>
 
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
-          <h1 className="text-3xl font-serif font-bold text-wood-900 mb-8">
-            {getTitle()}
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-serif font-bold text-wood-900">
+              {getTitle()}
+            </h1>
+            <button
+              type="submit"
+              form="edit-post-form"
+              disabled={submitting || !title.trim() || !content.trim()}
+              className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
+            >
+              {submitting ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {uploadProgress > 0 && uploadProgress < 100 ? `${uploadProgress}%` : '...'}
+                </div>
+              ) : '수정하기'}
+            </button>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="edit-post-form" onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
+                {error}
+              </div>
+            )}
             {type === 'research' && (
               <div>
                 <label htmlFor="researchCategoryId" className="block text-sm font-medium text-wood-700 mb-2">
@@ -322,7 +413,7 @@ export default function EditPost() {
                 </label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-wood-300 border-dashed rounded-xl bg-wood-50 hover:bg-wood-100 transition-colors cursor-pointer relative">
                   <div className="space-y-1 text-center">
-                    {(existingPdfUrl && !removeExistingPdf) ? (
+                    {((existingPdfUrl || existingPdfBase64 || existingPdfChunkCount > 0) && !removeExistingPdf) ? (
                       <div className="flex items-center justify-center space-x-2">
                         <FileText className="h-8 w-8 text-wood-600" />
                         <span className="text-sm text-wood-900 font-medium">{existingPdfName}</span>
@@ -366,11 +457,11 @@ export default function EditPost() {
                           </label>
                           <p className="pl-1">또는 드래그 앤 드롭</p>
                         </div>
-                        <p className="text-xs text-wood-500">PDF up to 10MB</p>
+                        <p className="text-xs text-wood-500">PDF up to 2MB</p>
                       </>
                     )}
                   </div>
-                  {(!pdfFile && (!existingPdfUrl || removeExistingPdf)) && (
+                  {(!pdfFile && (!existingPdfUrl && !existingPdfBase64 || removeExistingPdf)) && (
                     <input
                       type="file"
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -413,7 +504,12 @@ export default function EditPost() {
                 disabled={submitting || !title.trim() || !content.trim()}
                 className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
               >
-                {submitting ? '수정 중...' : '수정하기'}
+                {submitting ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {uploadProgress > 0 && uploadProgress < 100 ? `업로드 중 (${uploadProgress}%)` : '수정 중...'}
+                  </div>
+                ) : '수정하기'}
               </button>
             </div>
           </form>
