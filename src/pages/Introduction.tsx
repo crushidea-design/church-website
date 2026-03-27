@@ -3,14 +3,14 @@ import { motion } from 'motion/react';
 
 export default function Introduction() {
   return (
-    <div className="bg-white py-16 sm:py-24">
+    <div className="bg-white pt-5 pb-16 sm:pt-10 sm:pb-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">교회 소개</h1>
             <div className="w-24 h-1 bg-gold-500 mx-auto" />
           </div>

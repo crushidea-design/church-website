@@ -21,6 +21,7 @@ export default function Contact() {
         name: name.trim(),
         email: email.trim(),
         message: message.trim(),
+        read: false,
         createdAt: serverTimestamp()
       });
       setSuccess(true);

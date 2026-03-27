@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Users, Mail, ArrowLeft, Settings, ShieldCheck } from 'lucide-react';
+import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function AdminDashboard() {
@@ -22,6 +22,13 @@ export default function AdminDashboard() {
 
   const adminItems = [
     {
+      title: '교회 정보 관리',
+      description: '교회 소개 페이지의 텍스트와 내용을 수정합니다.',
+      icon: Settings,
+      path: '/admin/church-info',
+      color: 'bg-rose-50 text-rose-600 border-rose-100'
+    },
+    {
       title: '회원 관리',
       description: '가입된 회원의 등급(준회원/정회원)을 관리하고 권한을 부여합니다.',
       icon: Users,
@@ -34,6 +41,20 @@ export default function AdminDashboard() {
       icon: Mail,
       path: '/admin/contacts',
       color: 'bg-amber-50 text-amber-600 border-amber-100'
+    },
+    {
+      title: '말씀 서재 카테고리',
+      description: '설교 영상들을 묶을 재생목록(강해 시리즈 등)을 관리합니다.',
+      icon: Video,
+      path: '/admin/sermon-categories',
+      color: 'bg-purple-50 text-purple-600 border-purple-100'
+    },
+    {
+      title: '교회 연구실 카테고리',
+      description: '연구글들을 묶을 카테고리(예배학, 설교학 등)를 관리합니다.',
+      icon: FlaskConical,
+      path: '/admin/research-categories',
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100'
     }
   ];
 

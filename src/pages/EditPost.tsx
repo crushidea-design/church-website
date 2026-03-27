@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { ArrowLeft, Loader2, FileText, X } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
+
+interface SermonCategory {
+  id: string;
+  name: string;
+}
+
+interface ResearchCategory {
+  id: string;
+  name: string;
+}
 
 export default function EditPost() {
   const { id } = useParams();
@@ -15,6 +25,10 @@ export default function EditPost() {
   const [content, setContent] = useState('');
   const [type, setType] = useState('');
   const [subCategory, setSubCategory] = useState('general');
+  const [sermonCategoryId, setSermonCategoryId] = useState('');
+  const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
+  const [researchCategoryId, setResearchCategoryId] = useState('');
+  const [researchCategories, setResearchCategories] = useState<ResearchCategory[]>([]);
   const [existingPdfUrl, setExistingPdfUrl] = useState('');
   const [existingPdfName, setExistingPdfName] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -35,6 +49,8 @@ export default function EditPost() {
           setContent(data.content);
           setType(data.category);
           setSubCategory(data.subCategory || 'general');
+          setSermonCategoryId(data.sermonCategoryId || '');
+          setResearchCategoryId(data.researchCategoryId || '');
           setExistingPdfUrl(data.pdfUrl || '');
           setExistingPdfName(data.pdfName || '');
           
@@ -61,6 +77,42 @@ export default function EditPost() {
       fetchPost();
     }
   }, [id, user, role, authLoading, navigate]);
+
+  useEffect(() => {
+    if (type === 'sermon') {
+      const fetchCategories = async () => {
+        try {
+          const q = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'));
+          const snapshot = await getDocs(q);
+          const cats = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+          setSermonCategories(cats);
+        } catch (error) {
+          console.error('Error fetching sermon categories:', error);
+        }
+      };
+      fetchCategories();
+    } else if (type === 'research') {
+      const fetchCategories = async () => {
+        try {
+          const q = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
+          const snapshot = await getDocs(q);
+          const cats = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+          setResearchCategories(cats);
+        } catch (error) {
+          console.error('Error fetching research categories:', error);
+        }
+      };
+      fetchCategories();
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (type === 'sermon' && sermonCategories.length > 0 && !sermonCategoryId) {
+      setSermonCategoryId(sermonCategories[0].id);
+    } else if (type === 'research' && researchCategories.length > 0 && !researchCategoryId) {
+      setResearchCategoryId(researchCategories[0].id);
+    }
+  }, [type, sermonCategories, sermonCategoryId, researchCategories, researchCategoryId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -108,8 +160,23 @@ export default function EditPost() {
         pdfName
       };
 
-      if ((type === 'research' || type === 'sermon') && subCategory) {
-        updateData.subCategory = subCategory;
+      if (type === 'sermon') {
+        // Ensure sermonCategoryId is set, fallback to first category if still empty
+        const finalCategoryId = sermonCategoryId || (sermonCategories.length > 0 ? sermonCategories[0].id : '');
+        if (finalCategoryId) {
+          updateData.sermonCategoryId = finalCategoryId;
+          // Remove legacy subCategory if it exists to avoid conflicts and validation errors
+          updateData.subCategory = deleteField();
+        }
+      }
+
+      if (type === 'research') {
+        const finalCategoryId = researchCategoryId || (researchCategories.length > 0 ? researchCategories[0].id : '');
+        if (finalCategoryId) {
+          updateData.researchCategoryId = finalCategoryId;
+          // Remove legacy subCategory if it exists
+          updateData.subCategory = deleteField();
+        }
       }
 
       await updateDoc(postRef, updateData);
@@ -168,32 +235,67 @@ export default function EditPost() {
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {(type === 'research' || type === 'sermon') && (
+            {type === 'research' && (
               <div>
-                <label htmlFor="subCategory" className="block text-sm font-medium text-wood-700 mb-2">
-                  분류
+                <label htmlFor="researchCategoryId" className="block text-sm font-medium text-wood-700 mb-2">
+                  연구 분야 (카테고리)
                 </label>
-                <select
-                  id="subCategory"
-                  value={subCategory}
-                  onChange={(e) => setSubCategory(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
-                >
-                  {type === 'research' ? (
-                    <>
-                      <option value="worship">예배</option>
-                      <option value="preaching">설교</option>
-                      <option value="pastoring">목양</option>
-                      <option value="governing">치리</option>
-                      <option value="general">일반</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="past_sermons">지난 설교들</option>
-                      <option value="pilgrims_progress">천로역정</option>
-                    </>
-                  )}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    id="researchCategoryId"
+                    value={researchCategoryId}
+                    onChange={(e) => setResearchCategoryId(e.target.value)}
+                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  >
+                    {researchCategories.length === 0 ? (
+                      <option value="">등록된 카테고리가 없습니다</option>
+                    ) : (
+                      researchCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/research-categories')}
+                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    title="카테고리 관리"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {type === 'sermon' && (
+              <div>
+                <label htmlFor="sermonCategoryId" className="block text-sm font-medium text-wood-700 mb-2">
+                  재생목록 (카테고리)
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    id="sermonCategoryId"
+                    value={sermonCategoryId}
+                    onChange={(e) => setSermonCategoryId(e.target.value)}
+                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  >
+                    {sermonCategories.length === 0 ? (
+                      <option value="">등록된 카테고리가 없습니다</option>
+                    ) : (
+                      sermonCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/sermon-categories')}
+                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    title="카테고리 관리"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
               </div>
             )}
 

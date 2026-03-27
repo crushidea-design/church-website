@@ -21,6 +21,8 @@ service cloud.firestore {
     //   - content: string (required, < 50000 chars)
     //   - category: string (required, 'research', 'community', 'sermon', or 'journal')
     //   - subCategory: string (optional, 'worship', 'preaching', 'pastoring', 'governing', 'general')
+    //   - sermonCategoryId: string (optional)
+    //   - researchCategoryId: string (optional)
     //   - authorId: string (required)
     //   - authorName: string (required, < 100 chars)
     //   - createdAt: timestamp (required)
@@ -42,7 +44,18 @@ service cloud.firestore {
     //   - name: string (required, < 100 chars)
     //   - email: string (required)
     //   - message: string (required, < 5000 chars)
+    //   - read: boolean (required)
     //   - createdAt: timestamp (required)
+    //
+    // Collection: settings
+    // Document ID: church_info
+    // Fields:
+    //   - introTitle1: string
+    //   - introContent1: string
+    //   - introTitle2: string
+    //   - introContent2: string
+    //   - quote: string
+    //   - updatedAt: timestamp
     //
     // ===============================================================
 
@@ -81,17 +94,18 @@ service cloud.firestore {
 
     // Domain Validators
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt']) &&
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
              data.uid is string && data.uid.size() > 0 &&
              data.email is string && isValidEmail(data.email) &&
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             (!('photoURL' in data) || data.photoURL is string) &&
              data.role in ['admin', 'regular', 'user'] &&
              data.createdAt is timestamp &&
              (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'journalDate', 'uid'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -103,9 +117,13 @@ service cloud.firestore {
              (!('commentCount' in data) || (data.commentCount is number && data.commentCount >= 0)) &&
              (!('pdfUrl' in data) || (data.pdfUrl is string && data.pdfUrl.size() < 2000)) &&
              (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500)) &&
-             (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1500000));
+             (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1000000)) &&
+             (!('journalDate' in data) || data.journalDate is timestamp) &&
+             (!('sermonCategoryId' in data) || data.sermonCategoryId is string) &&
+             (!('researchCategoryId' in data) || data.researchCategoryId is string) &&
+             (!('uid' in data) || data.uid is string);
              
-      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress'];
+      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
     }
 
@@ -119,10 +137,11 @@ service cloud.firestore {
     }
 
     function isValidContact(data) {
-      return hasOnlyAllowedFields(['name', 'email', 'message', 'createdAt']) &&
+      return hasOnlyAllowedFields(['name', 'email', 'message', 'read', 'createdAt']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
              data.message is string && data.message.size() > 0 && data.message.size() < 5000 &&
+             data.read is bool &&
              data.createdAt is timestamp;
     }
 
@@ -170,10 +189,21 @@ service cloud.firestore {
     match /contacts/{contactId} {
       allow read: if isAdmin();
       allow create: if isValidContact(request.resource.data); // Anyone can submit a contact form
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() && isValidContact(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /sermon_categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /research_categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
     }

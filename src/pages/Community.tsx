@@ -15,13 +15,18 @@ export default function Community() {
   useEffect(() => {
     const q = query(
       collection(db, 'posts'),
-      where('category', '==', 'community'),
-      orderBy('createdAt', 'desc')
+      where('category', '==', 'community')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPosts(data);
+      // Sort client-side since orderBy was removed to prevent missing data issues
+      const sortedData = data.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+      setPosts(sortedData);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching posts:', error);

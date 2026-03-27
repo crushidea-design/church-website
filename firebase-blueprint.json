@@ -23,15 +23,41 @@
         "content": { "type": "string" },
         "category": { "type": "string", "enum": ["research", "community", "sermon", "journal"] },
         "subCategory": { "type": "string", "enum": ["worship", "preaching", "pastoring", "governing", "general", "past_sermons", "pilgrims_progress"] },
+        "sermonCategoryId": { "type": "string" },
+        "researchCategoryId": { "type": "string" },
         "authorId": { "type": "string" },
         "authorName": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "commentCount": { "type": "number" },
         "pdfUrl": { "type": "string" },
-        "pdfName": { "type": "string" }
+        "pdfName": { "type": "string" },
+        "pdfBase64": { "type": "string" },
+        "journalDate": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "content", "category", "authorId", "authorName", "createdAt", "updatedAt", "commentCount"]
+    },
+    "SermonCategory": {
+      "title": "SermonCategory",
+      "description": "A category for sermon videos (playlists).",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "order", "createdAt"]
+    },
+    "ResearchCategory": {
+      "title": "ResearchCategory",
+      "description": "A category for research lab posts.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "order", "createdAt"]
     },
     "Comment": {
       "title": "Comment",
@@ -54,19 +80,25 @@
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "message": { "type": "string" },
+        "read": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "email", "message", "createdAt"]
+      "required": ["name", "email", "message", "read", "createdAt"]
     },
     "Setting": {
       "title": "Setting",
-      "description": "Global application settings.",
+      "description": "Global application settings and church information.",
       "type": "object",
       "properties": {
         "heroImageUrl": { "type": "string" },
+        "introTitle1": { "type": "string" },
+        "introContent1": { "type": "string" },
+        "introTitle2": { "type": "string" },
+        "introContent2": { "type": "string" },
+        "quote": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["heroImageUrl", "updatedAt"]
+      "required": ["updatedAt"]
     }
   },
   "firestore": {
@@ -89,6 +121,14 @@
     "settings/{settingId}": {
       "schema": { "$ref": "#/entities/Setting" },
       "description": "Stores global application settings."
+    },
+    "sermon_categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/SermonCategory" },
+      "description": "Stores categories for sermon videos."
+    },
+    "research_categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/ResearchCategory" },
+      "description": "Stores categories for research lab posts."
     }
   }
 }

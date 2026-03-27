@@ -15,13 +15,18 @@ export default function Journal() {
   useEffect(() => {
     const q = query(
       collection(db, 'posts'),
-      where('category', '==', 'journal'),
-      orderBy('createdAt', 'desc')
+      where('category', '==', 'journal')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPosts(data);
+      // Sort client-side since orderBy was removed to prevent missing data issues
+      const sortedData = data.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+      setPosts(sortedData);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching journal posts:', error);
@@ -77,7 +82,7 @@ export default function Journal() {
                     <Book size={14} />
                     <span>Journal</span>
                   </div>
-                  <h3 className="text-xl font-bold text-wood-900 mb-3 line-clamp-2 leading-tight">
+                  <h3 className="text-lg font-bold text-wood-900 mb-3 line-clamp-2 leading-tight">
                     {post.title}
                   </h3>
                   <p className="text-wood-600 text-sm line-clamp-3 mb-4 leading-relaxed">

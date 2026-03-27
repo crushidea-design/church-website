@@ -14,6 +14,9 @@ import EditPost from './pages/EditPost';
 import AdminUsers from './pages/AdminUsers';
 import AdminContacts from './pages/AdminContacts';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminSermonCategories from './pages/AdminSermonCategories';
+import AdminResearchCategories from './pages/AdminResearchCategories';
+import AdminChurchInfo from './pages/AdminChurchInfo';
 import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -35,6 +38,9 @@ export default function App() {
               <Route path="create-post" element={<CreatePost />} />
               <Route path="admin/users" element={<AdminUsers />} />
               <Route path="admin/contacts" element={<AdminContacts />} />
+              <Route path="admin/sermon-categories" element={<AdminSermonCategories />} />
+              <Route path="admin/research-categories" element={<AdminResearchCategories />} />
+              <Route path="admin/church-info" element={<AdminChurchInfo />} />
               <Route path="admin" element={<AdminDashboard />} />
               <Route path="journal" element={<Journal />} />
               <Route path="contact" element={<Contact />} />

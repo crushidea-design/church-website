@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { ArrowLeft, FileText, X } from 'lucide-react';
+import { ArrowLeft, FileText, X, Plus } from 'lucide-react';
+
+interface SermonCategory {
+  id: string;
+  name: string;
+}
+
+interface ResearchCategory {
+  id: string;
+  name: string;
+}
 
 export default function CreatePost() {
   const navigate = useNavigate();
@@ -15,11 +25,57 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
-  const [subCategory, setSubCategory] = useState(type === 'sermon' ? 'past_sermons' : 'general');
+  const [subCategory, setSubCategory] = useState(searchParams.get('subCategory') || (type === 'sermon' ? 'past_sermons' : 'general'));
+  const [sermonCategoryId, setSermonCategoryId] = useState('');
+  const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
+  const [researchCategoryId, setResearchCategoryId] = useState('');
+  const [researchCategories, setResearchCategories] = useState<ResearchCategory[]>([]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (type === 'sermon') {
+      const fetchCategories = async () => {
+        try {
+          const q = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'));
+          const snapshot = await getDocs(q);
+          const cats = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+          setSermonCategories(cats);
+          
+          const paramCategoryId = searchParams.get('categoryId');
+          if (paramCategoryId && cats.some(c => c.id === paramCategoryId)) {
+            setSermonCategoryId(paramCategoryId);
+          } else if (cats.length > 0) {
+            setSermonCategoryId(cats[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching sermon categories:', error);
+        }
+      };
+      fetchCategories();
+    } else if (type === 'research') {
+      const fetchCategories = async () => {
+        try {
+          const q = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
+          const snapshot = await getDocs(q);
+          const cats = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+          setResearchCategories(cats);
+          
+          const paramCategoryId = searchParams.get('categoryId');
+          if (paramCategoryId && cats.some(c => c.id === paramCategoryId)) {
+            setResearchCategoryId(paramCategoryId);
+          } else if (cats.length > 0) {
+            setResearchCategoryId(cats[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching research categories:', error);
+        }
+      };
+      fetchCategories();
+    }
+  }, [type]);
 
   if (authLoading) {
     return (
@@ -177,8 +233,18 @@ export default function CreatePost() {
         postData.createdAt = dateObj;
       }
 
-      if ((type === 'research' || type === 'sermon') && subCategory) {
-        postData.subCategory = subCategory;
+      if (type === 'sermon') {
+        const finalCategoryId = sermonCategoryId || (sermonCategories.length > 0 ? sermonCategories[0].id : '');
+        if (finalCategoryId) {
+          postData.sermonCategoryId = finalCategoryId;
+        }
+      }
+
+      if (type === 'research') {
+        const finalCategoryId = researchCategoryId || (researchCategories.length > 0 ? researchCategories[0].id : '');
+        if (finalCategoryId) {
+          postData.researchCategoryId = finalCategoryId;
+        }
       }
 
       console.log('Adding document to Firestore...', postData);
@@ -234,9 +300,24 @@ export default function CreatePost() {
         </button>
 
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
-          <h1 className="text-3xl font-serif font-bold text-wood-900 mb-8">
-            {getTitle()}
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-serif font-bold text-wood-900">
+              {getTitle()}
+            </h1>
+            <button
+              type="submit"
+              form="create-post-form"
+              disabled={submitting}
+              className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
+            >
+              {submitting ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {uploadProgress > 0 && uploadProgress < 100 ? `${uploadProgress}%` : '...'}
+                </div>
+              ) : '등록하기'}
+            </button>
+          </div>
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start text-red-700">
@@ -251,33 +332,78 @@ export default function CreatePost() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {(type === 'research' || type === 'sermon') && (
+          <form id="create-post-form" onSubmit={handleSubmit} className="space-y-6">
+            {type === 'research' && (
               <div>
-                <label htmlFor="subCategory" className="block text-sm font-medium text-wood-700 mb-2">
-                  분류
+                <label htmlFor="researchCategoryId" className="block text-sm font-medium text-wood-700 mb-2">
+                  연구 분야 (카테고리)
                 </label>
-                <select
-                  id="subCategory"
-                  value={subCategory}
-                  onChange={(e) => setSubCategory(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
-                >
-                  {type === 'research' ? (
-                    <>
-                      <option value="worship">예배</option>
-                      <option value="preaching">설교</option>
-                      <option value="pastoring">목양</option>
-                      <option value="governing">치리</option>
-                      <option value="general">일반</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="past_sermons">지난 설교들</option>
-                      <option value="pilgrims_progress">천로역정</option>
-                    </>
-                  )}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    id="researchCategoryId"
+                    value={researchCategoryId}
+                    onChange={(e) => setResearchCategoryId(e.target.value)}
+                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  >
+                    {researchCategories.length === 0 ? (
+                      <option value="">등록된 카테고리가 없습니다</option>
+                    ) : (
+                      researchCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/research-categories')}
+                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    title="카테고리 관리"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+                {researchCategories.length === 0 && (
+                  <p className="mt-2 text-sm text-amber-600">
+                    먼저 카테고리를 생성해야 연구글을 등록할 수 있습니다.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {type === 'sermon' && (
+              <div>
+                <label htmlFor="sermonCategoryId" className="block text-sm font-medium text-wood-700 mb-2">
+                  재생목록 (카테고리)
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    id="sermonCategoryId"
+                    value={sermonCategoryId}
+                    onChange={(e) => setSermonCategoryId(e.target.value)}
+                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  >
+                    {sermonCategories.length === 0 ? (
+                      <option value="">등록된 카테고리가 없습니다</option>
+                    ) : (
+                      sermonCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/sermon-categories')}
+                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    title="카테고리 관리"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+                {sermonCategories.length === 0 && (
+                  <p className="mt-2 text-sm text-amber-600">
+                    먼저 카테고리를 생성해야 영상을 등록할 수 있습니다.
+                  </p>
+                )}
               </div>
             )}
 
@@ -312,6 +438,24 @@ export default function CreatePost() {
                 />
               </div>
             )}
+
+            <div>
+              <div className="mb-2">
+                <label htmlFor="content" className="block text-sm font-medium text-wood-700">
+                  내용
+                </label>
+              </div>
+              <textarea
+                id="content"
+                rows={15}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                placeholder={type === 'journal' ? "오늘의 기록을 남겨주세요." : "내용을 입력하세요. 유튜브 링크를 포함하면 영상이 자동 삽입됩니다."}
+                required
+                maxLength={50000}
+              />
+            </div>
 
             {(type === 'research' || type === 'sermon') && (
               <div>
@@ -363,24 +507,6 @@ export default function CreatePost() {
                 </div>
               </div>
             )}
-
-            <div>
-              <div className="mb-2">
-                <label htmlFor="content" className="block text-sm font-medium text-wood-700">
-                  내용
-                </label>
-              </div>
-              <textarea
-                id="content"
-                rows={15}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
-                placeholder={type === 'journal' ? "오늘의 기록을 남겨주세요." : "내용을 입력하세요. 유튜브 링크를 포함하면 영상이 자동 삽입됩니다."}
-                required
-                maxLength={50000}
-              />
-            </div>
 
             <div className="flex justify-end pt-6 border-t border-wood-100">
               <button

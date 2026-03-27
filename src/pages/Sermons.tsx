@@ -1,17 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { Link, useSearchParams } from 'react-router-dom';
+import { collection, query, where, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { PlayCircle, Plus, Video } from 'lucide-react';
+import { PlayCircle, Plus, Video, ArrowUpDown } from 'lucide-react';
+
+interface SermonCategory {
+  id: string;
+  name: string;
+  order: number;
+}
 
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
   const [videos, setVideos] = useState<any[]>([]);
+  const [categories, setCategories] = useState<SermonCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('past_sermons');
+  const [activeTab, setActiveTab] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
   const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
@@ -23,10 +33,32 @@ export default function Sermons() {
       return;
     }
 
+    // Fetch categories
+    const fetchCategories = async () => {
+      try {
+        const q = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'));
+        const snapshot = await getDocs(q);
+        const cats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SermonCategory[];
+        setCategories(cats);
+        
+        const tabParam = searchParams.get('tab');
+        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress')) {
+          setActiveTab(tabParam);
+        } else if (cats.length > 0 && !activeTab) {
+          setActiveTab(cats[0].id);
+        } else if (cats.length === 0) {
+          setActiveTab('past_sermons');
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+
     const q = query(
       collection(db, 'posts'),
-      where('category', '==', 'sermon'),
-      orderBy('createdAt', 'desc')
+      where('category', '==', 'sermon')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -53,10 +85,29 @@ export default function Sermons() {
     return match ? match[1] : null;
   };
 
-  const filteredVideos = videos.filter(video => {
-    const subCat = video.subCategory || 'past_sermons';
-    return subCat === activeTab;
-  });
+  const filteredVideos = videos
+    .filter(video => {
+      // Support legacy subCategory and new sermonCategoryId
+      const matchesTab = video.sermonCategoryId === activeTab || 
+                        (activeTab === 'past_sermons' && video.subCategory === 'past_sermons') ||
+                        (activeTab === 'pilgrims_progress' && video.subCategory === 'pilgrims_progress');
+      return matchesTab;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'date') {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+      } else {
+        const titleA = a.title;
+        const titleB = b.title;
+        if (sortOrder === 'asc') {
+          return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
+        } else {
+          return titleB.localeCompare(titleA, undefined, { numeric: true, sensitivity: 'base' });
+        }
+      }
+    });
 
   if (!authLoading && !isRegularMember) {
     return (
@@ -91,7 +142,7 @@ export default function Sermons() {
           </div>
           {canWrite && (
             <Link
-              to="/create-post?type=sermon"
+              to={`/create-post?type=sermon${activeTab ? `&categoryId=${activeTab}` : ''}`}
               className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
             >
               <Plus size={20} className="mr-2" />
@@ -100,23 +151,67 @@ export default function Sermons() {
           )}
         </div>
 
-        <div className="flex space-x-2 mb-8 overflow-x-auto pb-2">
-          {[
-            { id: 'past_sermons', label: '지난 설교들' },
-            { id: 'pilgrims_progress', label: '천로역정' }
-          ].map((tab) => (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+            {categories.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-wood-900 text-white shadow-sm'
+                    : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                }`}
+              >
+                {tab.name}
+              </button>
+            ))}
+            {/* Fallback for legacy tabs if they don't exist in categories */}
+            {!categories.find(c => c.id === 'past_sermons') && videos.some(v => v.subCategory === 'past_sermons') && (
+              <button
+                onClick={() => setActiveTab('past_sermons')}
+                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                  activeTab === 'past_sermons'
+                    ? 'bg-wood-900 text-white shadow-sm'
+                    : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                }`}
+              >
+                지난 설교들
+              </button>
+            )}
+            {!categories.find(c => c.id === 'pilgrims_progress') && videos.some(v => v.subCategory === 'pilgrims_progress') && (
+              <button
+                onClick={() => setActiveTab('pilgrims_progress')}
+                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                  activeTab === 'pilgrims_progress'
+                    ? 'bg-wood-900 text-white shadow-sm'
+                    : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                }`}
+              >
+                천로역정
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-wood-200 shadow-sm self-end md:self-auto">
+            <div className="flex items-center gap-1 px-2 border-r border-wood-100">
+              <ArrowUpDown size={14} className="text-wood-400" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
+                className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-medium cursor-pointer py-1"
+              >
+                <option value="date">날짜순</option>
+                <option value="title">제목순</option>
+              </select>
+            </div>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-wood-900 text-white shadow-sm'
-                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
-              }`}
+              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="px-3 py-1 text-sm font-medium text-wood-600 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
             >
-              {tab.label}
+              {sortOrder === 'desc' ? '내림차순' : '오름차순'}
             </button>
-          ))}
+          </div>
         </div>
 
         {loading ? (
@@ -164,7 +259,7 @@ export default function Sermons() {
                         </div>
                       </div>
                       <div className="p-6 flex-grow">
-                        <h3 className="text-xl font-bold text-wood-900 mb-2 line-clamp-2">{video.title}</h3>
+                        <h3 className="text-lg font-bold text-wood-900 mb-2 line-clamp-2">{video.title}</h3>
                         <p className="text-sm text-wood-500">
                           {formatDate(video.createdAt)}
                         </p>

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText, Plus } from 'lucide-react';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 
 export default function PostDetail() {
@@ -260,16 +260,49 @@ export default function PostDetail() {
 
   if (!post) return null;
 
+  const isAdmin = role === 'admin' || user?.email === 'crushidea@gmail.com';
+
   return (
     <div className="bg-wood-100 min-h-screen py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center text-sm font-medium text-wood-500 hover:text-wood-900 mb-8 transition"
-        >
-          <ArrowLeft size={16} className="mr-2" />
-          목록으로 돌아가기
-        </button>
+        <div className="flex items-center justify-between mb-8">
+          <button
+            onClick={() => {
+              const categoryPaths: Record<string, string> = {
+                'journal': '/journal',
+                'sermon': '/sermons',
+                'research': '/research',
+                'community': '/community',
+                'contact': '/contact'
+              };
+              let path = post ? categoryPaths[post.category] || '/' : '/';
+              
+              // For sermons, append the category ID to preserve the tab
+              if (post?.category === 'sermon' && post.sermonCategoryId) {
+                path += `?tab=${post.sermonCategoryId}`;
+              } else if (post?.category === 'sermon' && post.subCategory) {
+                // Fallback for legacy subCategory
+                path += `?tab=${post.subCategory}`;
+              }
+              
+              navigate(path);
+            }}
+            className="inline-flex items-center text-sm font-medium text-wood-500 hover:text-wood-900 transition"
+          >
+            <ArrowLeft size={16} className="mr-2" />
+            목록으로 돌아가기
+          </button>
+
+          {isAdmin && (post.category === 'sermon' || post.category === 'research') && (
+            <Link
+              to={`/create-post?type=${post.category}${post.sermonCategoryId ? `&categoryId=${post.sermonCategoryId}` : post.researchCategoryId ? `&categoryId=${post.researchCategoryId}` : post.subCategory ? `&subCategory=${post.subCategory}` : ''}`}
+              className="inline-flex items-center px-4 py-2 bg-white text-wood-900 rounded-full text-sm font-medium hover:bg-wood-50 transition border border-wood-200 shadow-sm"
+            >
+              <Plus size={16} className="mr-2" />
+              영상 추가 등록
+            </Link>
+          )}
+        </div>
 
         {/* Post Content */}
         <article className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden mb-8">
@@ -294,10 +327,51 @@ export default function PostDetail() {
               </div>
             </div>
             
-            <h1 className="text-3xl md:text-4xl font-bold text-wood-900 mb-8 leading-tight">
+            <h1 className="text-xl md:text-2xl font-bold text-wood-900 mb-4 leading-tight border-l-4 border-wood-900 pl-4">
               {post.title}
             </h1>
-            
+
+            {(user?.uid === post.authorId || role === 'admin') && (
+              <div className="flex justify-end items-center gap-4 mb-8 pb-4 border-b border-wood-50">
+                <button
+                  onClick={() => navigate(`/edit-post/${id}`)}
+                  className="inline-flex items-center text-sm font-medium text-wood-600 hover:text-wood-900 transition"
+                >
+                  <Edit3 size={16} className="mr-1.5" />
+                  수정
+                </button>
+                
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="inline-flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition"
+                    disabled={isDeleting}
+                  >
+                    <Trash2 size={16} className="mr-1.5" />
+                    삭제
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2 bg-red-50 p-2 rounded-xl border border-red-100">
+                    <span className="text-xs text-red-600 font-bold px-1">정말 삭제할까요?</span>
+                    <button
+                      onClick={handleDeletePost}
+                      disabled={isDeleting}
+                      className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full hover:bg-red-700 disabled:opacity-50 transition"
+                    >
+                      {isDeleting ? '삭제 중...' : '확인'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={isDeleting}
+                      className="text-xs bg-wood-200 text-wood-700 px-3 py-1.5 rounded-full hover:bg-wood-300 transition"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="prose prose-stone max-w-none text-wood-700 leading-relaxed whitespace-pre-wrap mb-12">
               {renderContentWithYouTube(post.content)}
             </div>
@@ -347,47 +421,6 @@ export default function PostDetail() {
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-
-            {(user?.uid === post.authorId || role === 'admin') && (
-              <div className="mt-12 pt-6 border-t border-wood-100 flex justify-end items-center gap-4">
-                <button
-                  onClick={() => navigate(`/edit-post/${id}`)}
-                  className="inline-flex items-center text-sm font-medium text-wood-600 hover:text-wood-900 transition"
-                >
-                  <Edit3 size={16} className="mr-1.5" />
-                  수정
-                </button>
-                
-                {!showDeleteConfirm ? (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="inline-flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition"
-                    disabled={isDeleting}
-                  >
-                    <Trash2 size={16} className="mr-1.5" />
-                    삭제
-                  </button>
-                ) : (
-                  <div className="flex items-center space-x-2 bg-red-50 p-2 rounded-xl border border-red-100">
-                    <span className="text-xs text-red-600 font-bold px-1">정말 삭제할까요?</span>
-                    <button
-                      onClick={handleDeletePost}
-                      disabled={isDeleting}
-                      className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full hover:bg-red-700 disabled:opacity-50 transition"
-                    >
-                      {isDeleting ? '삭제 중...' : '확인'}
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      disabled={isDeleting}
-                      className="text-xs bg-wood-200 text-wood-700 px-3 py-1.5 rounded-full hover:bg-wood-300 transition"
-                    >
-                      취소
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>

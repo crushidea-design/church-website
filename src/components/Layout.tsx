@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { signInWithGoogle, logout } from '../lib/firebase';
+import { signInWithGoogle, logout, db } from '../lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool } from 'lucide-react';
 import DebugConsole from './DebugConsole';
 import { cn } from '../lib/utils';
@@ -11,6 +12,23 @@ export default function Layout() {
   const { user, role } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+
+  useEffect(() => {
+    if (role !== 'admin') {
+      setHasUnreadMessages(false);
+      return;
+    }
+
+    const q = query(collection(db, 'contacts'), where('read', '==', false));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHasUnreadMessages(!snapshot.empty);
+    }, (error) => {
+      console.error('Error listening for unread messages:', error);
+    });
+
+    return () => unsubscribe();
+  }, [role]);
 
   const navItems = [
     { name: '홈', path: '/', icon: Home },
@@ -31,41 +49,34 @@ export default function Layout() {
             <div className="flex items-center">
               <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
                 <svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-md transition-transform duration-300 group-hover:scale-105">
-                  {/* Bible Foundation */}
-                  <path d="M 4 56 C 12 56 22 58 32 62 C 42 58 52 56 60 56 L 60 60 C 52 60 42 62 32 66 C 22 62 12 60 4 60 Z" fill="#4a3728" />
-                  <path d="M 6 54 C 14 54 23 56 32 60 C 41 56 50 54 58 54 L 58 58 C 50 58 41 60 32 64 C 23 60 14 58 6 58 Z" fill="#fdfaf6" />
-                  <path d="M 6 56 C 14 56 23 58 32 62 M 58 56 C 50 56 41 58 32 62" stroke="#dcb884" strokeWidth="1" fill="none" />
-                  <line x1="32" y1="54" x2="32" y2="64" stroke="#8b5e3c" strokeWidth="1" opacity="0.5" />
-                  <path d="M 31 60 L 33 60 L 33 68 L 32 66 L 31 68 Z" fill="#dc2626" />
+                  {/* Bible Foundation - Curved Open Book */}
+                  <path d="M 4 56 C 12 56 22 58 32 62 C 42 58 52 56 60 56 L 60 59 C 52 59 42 61 32 65 C 22 61 12 59 4 59 Z" fill="#2d1e16" />
+                  <path d="M 6 54 C 14 54 23 56 32 60 C 41 56 50 54 58 54 L 58 57 C 50 57 41 59 32 63 C 23 59 14 57 6 57 Z" fill="#f8f4e8" stroke="#c5a059" strokeWidth="0.5" />
+                  <line x1="32" y1="55" x2="32" y2="63" stroke="#c5a059" strokeWidth="0.8" opacity="0.4" />
 
-                  {/* Bricks (Church Building) - Wood/Forest/Gold Colors */}
+                  {/* Bricks (Church Building) - Refined Palette */}
                   {/* Row 1 */}
-                  <rect x="12" y="46" width="14" height="8" rx="1.5" fill="#3d5a40" />
-                  <rect x="27" y="46" width="10" height="8" rx="1.5" fill="#8b5e3c" />
-                  <rect x="38" y="46" width="14" height="8" rx="1.5" fill="#c5a059" />
+                  <rect x="15" y="46" width="10" height="8" rx="1.5" fill="#d4af37" />
+                  <rect x="26" y="46" width="12" height="8" rx="1.5" fill="#436b47" />
+                  <rect x="39" y="46" width="10" height="8" rx="1.5" fill="#8b5e3c" />
 
                   {/* Row 2 */}
-                  <rect x="15" y="37" width="10" height="8" rx="1.5" fill="#c5a059" />
-                  <rect x="26" y="37" width="12" height="8" rx="1.5" fill="#3d5a40" />
-                  <rect x="39" y="37" width="10" height="8" rx="1.5" fill="#8b5e3c" />
+                  <rect x="18" y="37" width="14" height="8" rx="1.5" fill="#8b5e3c" />
+                  <rect x="33" y="37" width="13" height="8" rx="1.5" fill="#d4af37" />
 
                   {/* Row 3 */}
-                  <rect x="18" y="28" width="14" height="8" rx="1.5" fill="#8b5e3c" />
-                  <rect x="33" y="28" width="13" height="8" rx="1.5" fill="#c5a059" />
+                  <rect x="22" y="28" width="10" height="8" rx="1.5" fill="#436b47" />
+                  <rect x="33" y="28" width="9" height="8" rx="1.5" fill="#8b5e3c" />
 
                   {/* Row 4 */}
-                  <rect x="22" y="19" width="10" height="8" rx="1.5" fill="#3d5a40" />
-                  <rect x="33" y="19" width="9" height="8" rx="1.5" fill="#8b5e3c" />
-
-                  {/* Row 5 */}
-                  <rect x="26" y="10" width="12" height="8" rx="1.5" fill="#c5a059" />
+                  <rect x="26" y="19" width="12" height="8" rx="1.5" fill="#d4af37" />
 
                   {/* Cross */}
-                  <rect x="30.5" y="-2" width="3" height="12" rx="1" fill="#c5a059" />
-                  <rect x="26" y="1" width="12" height="3" rx="1" fill="#c5a059" />
+                  <rect x="30.5" y="7" width="3" height="12" rx="1" fill="#d4af37" />
+                  <rect x="26" y="10" width="12" height="3" rx="1" fill="#d4af37" />
                 </svg>
                 <div className="flex flex-col justify-center">
-                  <span className="font-serif font-bold text-lg lg:text-xl text-wood-900 tracking-tight whitespace-nowrap">
+                  <span className="font-serif font-bold text-xl lg:text-2xl text-wood-900 tracking-tight whitespace-nowrap">
                     함께 지어져가는 교회
                   </span>
                 </div>
@@ -95,9 +106,12 @@ export default function Layout() {
                       {role === 'admin' && (
                         <Link 
                           to="/admin" 
-                          className="text-[10px] lg:text-xs bg-wood-900 text-white px-2 lg:px-3 py-1 rounded-full ml-2 hover:bg-wood-800 transition-colors shadow-sm font-bold"
+                          className="text-[10px] lg:text-xs bg-wood-900 text-white px-2 lg:px-3 py-1 rounded-full ml-2 hover:bg-wood-800 transition-colors shadow-sm font-bold relative"
                         >
                           목사님
+                          {hasUnreadMessages && (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+                          )}
                         </Link>
                       )}
                     </span>
@@ -170,9 +184,12 @@ export default function Layout() {
                           <Link 
                             to="/admin" 
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="text-xs bg-wood-900 text-white px-2 py-0.5 rounded-full ml-2 font-bold"
+                            className="text-xs bg-wood-900 text-white px-2 py-0.5 rounded-full ml-2 font-bold relative inline-flex items-center"
                           >
                             목사님
+                            {hasUnreadMessages && (
+                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white animate-pulse" />
+                            )}
                           </Link>
                         )}
                       </div>
@@ -217,6 +234,8 @@ export default function Layout() {
               <h4 className="font-bold mb-4 text-wood-100">바로가기</h4>
               <ul className="space-y-2 text-sm text-wood-300">
                 <li><Link to="/intro" className="hover:text-gold-400 transition">교회 소개</Link></li>
+                <li><Link to="/journal" className="hover:text-gold-400 transition">개척 일지</Link></li>
+                <li><Link to="/sermons" className="hover:text-gold-400 transition">말씀 서재</Link></li>
                 <li><Link to="/research" className="hover:text-gold-400 transition">교회 연구실</Link></li>
                 <li><Link to="/community" className="hover:text-gold-400 transition">소통 게시판</Link></li>
                 <li><Link to="/contact" className="hover:text-gold-400 transition">개척 모임 문의</Link></li>
