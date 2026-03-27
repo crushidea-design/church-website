@@ -20,29 +20,52 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isCancelled = false;
+    let loadingTask: any = null;
+    let pdfDoc: any = null;
+
     const loadPdf = async () => {
       setLoading(true);
       setError(null);
       try {
-        const loadingTask = pdfjsLib.getDocument(url);
-        const pdfDoc = await loadingTask.promise;
+        loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        
+        if (isCancelled) {
+          pdfDoc.destroy();
+          return;
+        }
+
         setPdf(pdfDoc);
         setNumPages(pdfDoc.numPages);
         setPageNum(1);
       } catch (err: any) {
+        if (isCancelled) return;
         console.error('Error loading PDF:', err);
         setError('PDF를 불러오는 중 오류가 발생했습니다. 브라우저 보안 설정이나 파일 형식을 확인해 주세요.');
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
 
     if (url) {
       loadPdf();
     }
+
+    return () => {
+      isCancelled = true;
+      if (loadingTask && !pdfDoc) {
+        loadingTask.destroy();
+      } else if (pdfDoc) {
+        pdfDoc.destroy();
+      }
+    };
   }, [url]);
 
   useEffect(() => {
+    let isCancelled = false;
     let renderTask: any = null;
 
     const renderPage = async () => {
@@ -50,6 +73,10 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
       try {
         const page = await pdf.getPage(pageNum);
+        
+        // If the component unmounted or dependencies changed while waiting for getPage, abort.
+        if (isCancelled) return;
+
         const viewport = page.getViewport({ scale });
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
@@ -63,11 +90,6 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
           canvasContext: context,
           viewport: viewport,
         };
-
-        // Cancel previous render task if it exists
-        if (renderTask) {
-          renderTask.cancel();
-        }
 
         renderTask = page.render(renderContext);
         await renderTask.promise;
@@ -83,6 +105,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
     renderPage();
 
     return () => {
+      isCancelled = true;
       if (renderTask) {
         renderTask.cancel();
       }

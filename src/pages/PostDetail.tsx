@@ -126,6 +126,17 @@ export default function PostDetail() {
         const commentsSnap = await getDocs(q);
         const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setComments(commentsData);
+
+        // Auto-heal comment count if it mismatches
+        const actualCommentCount = commentsData.length;
+        if ((postData.commentCount || 0) !== actualCommentCount) {
+          try {
+            await updateDoc(postRef, { commentCount: actualCommentCount });
+            setPost((prev: any) => prev ? { ...prev, commentCount: actualCommentCount } : null);
+          } catch (e) {
+            console.error('Failed to auto-heal comment count', e);
+          }
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
         handleFirestoreError(error, OperationType.GET, 'posts/comments');
@@ -352,12 +363,14 @@ export default function PostDetail() {
                 ) : post.category === 'sermon' ? (
                   post.subCategory === 'past_sermons' ? '지난 설교들' :
                   post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재'
-                ) : '소통 게시판'}
+                ) : post.category === 'journal' ? '개척 일지' : '소통 게시판'}
               </span>
               <div className="flex items-center text-sm text-wood-600 gap-4">
                 <span>{post.authorName}</span>
                 <span>&bull;</span>
                 <span>{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
+                <span>&bull;</span>
+                <span className="flex items-center gap-1"><MessageSquare size={14} /> {comments.length}</span>
               </div>
             </div>
             

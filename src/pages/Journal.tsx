@@ -78,10 +78,6 @@ export default function Journal() {
                 className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
               >
                 <Link to={`/post/${post.id}`} className="p-6 flex-grow">
-                  <div className="flex items-center gap-2 text-xs font-bold text-wood-500 mb-3 uppercase tracking-wider">
-                    <Book size={14} />
-                    <span>Journal</span>
-                  </div>
                   <h3 className="text-lg font-bold text-wood-900 mb-3 line-clamp-2 leading-tight">
                     {post.title}
                   </h3>

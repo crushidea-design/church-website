@@ -231,7 +231,7 @@ export default function Layout() {
             </div>
             <div>
               <h4 className="font-bold mb-4 text-wood-100">바로가기</h4>
-              <ul className="space-y-2 text-sm text-wood-300">
+              <ul className="grid grid-cols-2 gap-y-2 gap-x-6 w-fit text-sm text-wood-300">
                 <li><Link to="/intro" className="hover:text-gold-400 transition">교회 소개</Link></li>
                 <li><Link to="/journal" className="hover:text-gold-400 transition">개척 일지</Link></li>
                 <li><Link to="/sermons" className="hover:text-gold-400 transition">말씀 서재</Link></li>

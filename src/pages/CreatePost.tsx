@@ -208,8 +208,6 @@ export default function CreatePost() {
         const [year, month, day] = journalDate.split('-').map(Number);
         const dateObj = new Date(year, month - 1, day, 12, 0, 0);
         postData.journalDate = dateObj;
-        // Also set createdAt to match the journal date if it's in the past
-        postData.createdAt = dateObj;
       }
 
       if (type === 'sermon') {
