@@ -20,6 +20,7 @@ import AdminChurchInfo from './pages/AdminChurchInfo';
 import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import PrayerRoom from './pages/PrayerRoom';
 
 import Login from './pages/Login';
 import Profile from './pages/Profile';
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="sermons" element={<Sermons />} />
               <Route path="research" element={<ResearchLab />} />
               <Route path="community" element={<Community />} />
+              <Route path="prayer-room" element={<PrayerRoom />} />
               <Route path="post/:id" element={<PostDetail />} />
               <Route path="edit-post/:id" element={<EditPost />} />
               <Route path="create-post" element={<CreatePost />} />

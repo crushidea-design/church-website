@@ -222,5 +222,33 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /prayer_requests/{requestId} {
+      allow read: if isAuthenticated() && 
+                     (isAdmin() || 
+                      (resource.data.uid == request.auth.uid) || 
+                      (!resource.data.isPrivate && isRegularMember()));
+      allow create: if isAuthenticated() && isRegularMember() && 
+                    request.resource.data.uid == request.auth.uid &&
+                    request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() < 5000 &&
+                    request.resource.data.isPrivate is bool &&
+                    request.resource.data.prayCount == 0 &&
+                    request.resource.data.prayedBy is list &&
+                    request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated() && 
+                    // Allow owner to update content/isPrivate
+                    ((resource.data.uid == request.auth.uid && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'isPrivate', 'updatedAt'])) ||
+                     // Allow anyone to increment prayCount if they haven't prayed yet
+                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prayCount', 'prayedBy', 'updatedAt']) &&
+                      math.abs(request.resource.data.prayCount - resource.data.prayCount) == 1 &&
+                      request.resource.data.prayedBy.size() == resource.data.prayedBy.size() + 1 &&
+                      request.resource.data.prayedBy.hasAll(resource.data.prayedBy) &&
+                      request.resource.data.prayedBy.hasAny([request.auth.uid]) &&
+                      !(request.auth.uid in resource.data.prayedBy))) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
   }
 }

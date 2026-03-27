@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { signInWithGoogle, logout, db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool } from 'lucide-react';
+import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool, Heart } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -36,6 +36,7 @@ export default function Layout() {
     { name: '말씀 서재', path: '/sermons', icon: PlayCircle },
     { name: '교회 연구실', path: '/research', icon: BookOpen },
     { name: '소통 게시판', path: '/community', icon: Users },
+    { name: '기도자의 방', path: '/prayer-room', icon: Heart },
     { name: '문의', path: '/contact', icon: Mail },
   ];
 

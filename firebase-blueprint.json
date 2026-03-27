@@ -85,6 +85,21 @@
       },
       "required": ["name", "email", "message", "read", "createdAt"]
     },
+    "PrayerRequest": {
+      "title": "PrayerRequest",
+      "description": "A prayer request in the prayer room.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "isPrivate": { "type": "boolean" },
+        "prayCount": { "type": "number" },
+        "prayedBy": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "authorName", "content", "isPrivate", "prayCount", "prayedBy", "createdAt"]
+    },
     "Setting": {
       "title": "Setting",
       "description": "Global application settings and church information.",
@@ -118,6 +133,10 @@
     "contacts/{contactId}": {
       "schema": { "$ref": "#/entities/Contact" },
       "description": "Stores contact messages."
+    },
+    "prayer_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/PrayerRequest" },
+      "description": "Stores prayer requests in the prayer room."
     },
     "settings/{settingId}": {
       "schema": { "$ref": "#/entities/Setting" },
