@@ -148,7 +148,7 @@ export default function PrayerRoom() {
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder=""
+                  placeholder="기도 제목을 작성해주세요."
                   className="w-full bg-transparent border-b border-[#444] p-2 mb-6 focus:outline-none focus:border-[#f59e0b] transition text-[#fef3c7] placeholder-[#666] text-lg"
                   rows={4}
                 />

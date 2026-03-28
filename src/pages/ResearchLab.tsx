@@ -168,7 +168,7 @@ export default function ResearchLab() {
                 transition={{ delay: index * 0.1 }}
               >
                 <Link to={`/post/${post.id}`} className="block h-full">
-                  <div className="bg-white rounded-2xl shadow-sm border border-wood-100 p-8 h-full hover:shadow-md transition flex flex-col">
+                  <div className="bg-white rounded-2xl shadow-sm border border-wood-100 p-8 h-full hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-wood-50 text-wood-800">
                         {categories.find(c => c.id === post.researchCategoryId)?.name || '연구글'}

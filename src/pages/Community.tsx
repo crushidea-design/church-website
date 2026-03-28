@@ -77,7 +77,7 @@ export default function Community() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <Link to={`/post/${post.id}`} className="block hover:bg-wood-50 transition p-6">
+                  <Link to={`/post/${post.id}`} className="block hover:bg-wood-50 hover:shadow-xl hover:-translate-y-1 transition-all p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-bold text-wood-900 truncate mb-2">

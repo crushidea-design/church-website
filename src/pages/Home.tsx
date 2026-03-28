@@ -154,14 +154,14 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, ease: "easeOut" }}
           >
-            <h1 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6 leading-tight drop-shadow-lg">
+            <h1 className="text-5xl md:text-7xl font-serif font-bold text-white mb-8 leading-tight drop-shadow-2xl">
               함께 지어져가는 <span className="text-gold-400">교회</span>
             </h1>
-            <p className="text-xl md:text-2xl text-wood-100 mb-2 max-w-3xl mx-auto font-serif font-light leading-relaxed">
+            <p className="text-2xl md:text-3xl text-wood-100 mb-4 max-w-4xl mx-auto font-serif font-light leading-relaxed drop-shadow-md">
               "너희도 성령 안에서 하나님이 거하실 처소가 되기 위하여<br className="hidden md:block" />
               그리스도 예수 안에서 함께 지어져 가느니라"
             </p>
-            <p className="text-xl md:text-2xl text-wood-100 font-serif font-light mb-12">에베소서 2:22</p>
+            <p className="text-xl md:text-2xl text-wood-200 font-serif font-light mb-16 drop-shadow-md">에베소서 2:22</p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link

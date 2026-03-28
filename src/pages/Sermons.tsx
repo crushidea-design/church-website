@@ -236,13 +236,13 @@ export default function Sermons() {
                   transition={{ delay: index * 0.1 }}
                 >
                   <Link to={`/post/${video.id}`} className="block h-full group">
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-wood-100 hover:shadow-md transition-shadow flex flex-col h-full">
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-wood-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-full">
                       <div className="aspect-video bg-wood-900 relative">
                         {videoId ? (
                           <img
                             src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
                             alt={video.title}
-                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                            className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity duration-300"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/0.jpg`;
                             }}

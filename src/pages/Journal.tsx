@@ -75,7 +75,7 @@ export default function Journal() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
+                className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col"
               >
                 <Link to={`/post/${post.id}`} className="p-6 flex-grow">
                   <h3 className="text-lg font-bold text-wood-900 mb-3 line-clamp-2 leading-tight">
