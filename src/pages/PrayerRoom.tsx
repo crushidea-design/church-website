@@ -227,7 +227,7 @@ export default function PrayerRoom() {
                   transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
                   className="text-[#f59e0b] flex flex-col items-center gap-2"
                 >
-                  <span className="text-[10px] uppercase tracking-[0.2em] font-black drop-shadow-lg">More Prayers</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] font-black drop-shadow-lg">기도제목 더보기</span>
                   <div className="w-px h-12 bg-gradient-to-b from-[#f59e0b] to-transparent shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
                 </motion.div>
               </div>

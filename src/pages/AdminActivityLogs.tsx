@@ -38,9 +38,19 @@ const translatePath = (path: string, activityType: string, postsMap: Record<stri
   if (path === '/sermons') return '말씀 서재에 입장했습니다.';
   if (path === '/sermons/new') return '말씀 서재에 새 설교를 작성하기 시작했습니다.';
   if (path === '/research') return '교회 연구실에 입장했습니다.';
+  if (path === '/intro') return '소개 페이지에 입장했습니다.';
+  if (path === '/contact') return '문의 페이지에 입장했습니다.';
+  if (path === '/journal') return '개척 일지를 열어보았습니다.';
   if (path === '/profile') return '내 프로필을 확인했습니다.';
   if (path === '/admin') return '관리자 페이지에 입장했습니다.';
   if (path === '/admin/activity-logs') return '디지털 출석부를 확인했습니다.';
+  if (path === '/admin/users') return '회원 관리 페이지에 접속했습니다.';
+  if (path === '/admin/contacts') return '문의 내역 관리 페이지에 접속했습니다.';
+  if (path === '/admin/sermon-categories') return '설교 카테고리 관리 페이지에 접속했습니다.';
+  if (path === '/admin/research-categories') return '연구실 카테고리 관리 페이지에 접속했습니다.';
+  if (path === '/admin/church-info') return '교회 정보 관리 페이지에 접속했습니다.';
+  if (path === '/create-post') return '게시글 작성 페이지에 접속했습니다.';
+  if (path === '/privacy') return '개인정보 처리방침을 확인했습니다.';
   
   if (path.startsWith('/post/')) {
     const postId = path.split('/')[2];
@@ -52,6 +62,7 @@ const translatePath = (path: string, activityType: string, postsMap: Record<stri
     }
   }
 
+  if (path.startsWith('/edit-post/')) return '게시글 수정 페이지에 접속했습니다.';
   if (path.startsWith('/community/')) return '소통 게시판의 글을 읽었습니다.';
   if (path.startsWith('/sermons/')) return '말씀 서재의 설교를 읽었습니다.';
   if (path.startsWith('/admin/')) return '관리자 메뉴를 이용했습니다.';

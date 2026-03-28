@@ -71,7 +71,7 @@ export default function Profile() {
         <div className="p-8 sm:p-10 bg-wood-50 border-b border-wood-200">
           <div className="flex items-center gap-6">
             <div className="w-20 h-20 bg-wood-200 rounded-full flex items-center justify-center text-wood-600 text-3xl font-serif">
-              {user.displayName?.charAt(0) || 'U'}
+              {user.displayName?.charAt(0) || '회'}
             </div>
             <div>
               <h1 className="text-3xl font-serif font-bold text-wood-900 mb-2">
