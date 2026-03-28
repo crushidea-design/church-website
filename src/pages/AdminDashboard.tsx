@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical } from 'lucide-react';
+import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function AdminDashboard() {
@@ -21,6 +21,13 @@ export default function AdminDashboard() {
   }
 
   const adminItems = [
+    {
+      title: '디지털 출석부',
+      description: '성도들의 홈페이지 방문 및 활동 로그(디지털 심방 자료)를 확인합니다.',
+      icon: Activity,
+      path: '/admin/activity-logs',
+      color: 'bg-indigo-50 text-indigo-600 border-indigo-100'
+    },
     {
       title: '교회 정보 관리',
       description: '교회 소개 페이지의 텍스트와 내용을 수정합니다.',

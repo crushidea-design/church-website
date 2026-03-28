@@ -147,7 +147,24 @@ service cloud.firestore {
              data.createdAt is timestamp;
     }
 
+    function isValidActivityLog(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'activityType', 'pagePath', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.email is string &&
+             (!('displayName' in data) || data.displayName is string) &&
+             data.role is string &&
+             data.activityType is string && data.activityType.size() > 0 && data.activityType.size() < 100 &&
+             data.pagePath is string && data.pagePath.size() > 0 && data.pagePath.size() < 500 &&
+             data.timestamp is timestamp;
+    }
+
     // Rules
+    match /activity_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidActivityLog(request.resource.data);
+      allow update, delete: if false;
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated(); // Users can see other users' basic info for community
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
@@ -159,7 +176,7 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if resource.data.category != 'sermon' || isRegularMember();
+      allow read: if resource.data.category != 'sermon' || isRegularMember() || resource.data.authorId == request.auth.uid;
       allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
                     request.resource.data.authorId == request.auth.uid &&
                     (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research/sermon
@@ -190,7 +207,8 @@ service cloud.firestore {
     }
 
     match /comments/{commentId} {
-      allow read: if !exists(/databases/$(database)/documents/posts/$(resource.data.postId)) || 
+      allow read: if resource.data.authorId == request.auth.uid ||
+                     !exists(/databases/$(database)/documents/posts/$(resource.data.postId)) || 
                      get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.category != 'sermon' || 
                      isRegularMember();
       allow create: if isAuthenticated() && isValidComment(request.resource.data);
@@ -224,10 +242,7 @@ service cloud.firestore {
     }
 
     match /prayer_requests/{requestId} {
-      allow read: if isAuthenticated() && 
-                     (isAdmin() || 
-                      (resource.data.uid == request.auth.uid) || 
-                      (!resource.data.isPrivate && isRegularMember()));
+      allow read: if isAuthenticated() && isRegularMember();
       allow create: if isAuthenticated() && isRegularMember() && 
                     request.resource.data.uid == request.auth.uid &&
                     request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() < 5000 &&

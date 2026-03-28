@@ -115,9 +115,27 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["updatedAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "A log of user activity on the site.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
+        "activityType": { "type": "string" },
+        "pagePath": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "activityType", "pagePath", "timestamp"]
     }
   },
   "firestore": {
+    "activity_logs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Stores user activity logs."
+    },
     "users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles and roles."

@@ -6,12 +6,20 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool, Heart } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { logActivity } from '../utils/logger';
 
 export default function Layout() {
   const { user, role } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+
+  // Automatic Page Tracking
+  useEffect(() => {
+    if (user) {
+      logActivity(user, role, '페이지 방문', location.pathname);
+    }
+  }, [location.pathname, user, role]);
 
   useEffect(() => {
     if (role !== 'admin') {

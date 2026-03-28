@@ -6,6 +6,7 @@ import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy } from 'firebase/firestore';
 import { Heart, Lock, Edit2, Trash2, X as CloseIcon } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/firebase';
+import { logActivity } from '../utils/logger';
 
 interface PrayerRequest {
   id: string;
@@ -112,6 +113,9 @@ export default function PrayerRoom() {
       prayedBy: [...prayedBy, user.uid],
       updatedAt: serverTimestamp()
     });
+    
+    // Action Tracking
+    logActivity(user, role, '기도 응원 참여', `/prayer-room/pray/${id}`);
   };
 
   if (loading) return <div className="min-h-screen bg-[#f5f2ed] text-[#5a5a40] flex items-center justify-center">로딩 중...</div>;
@@ -126,10 +130,10 @@ export default function PrayerRoom() {
       >
         <div className="absolute inset-0 bg-black/30 z-0"></div>
 
-      <div className="max-w-7xl mx-auto relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center min-h-[calc(100vh-160px)]">
+      <div className="max-w-7xl mx-auto relative z-10 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-32 h-full min-h-[calc(100vh-160px)]">
           {/* Left Side: Verse and Input - Vertically Centered */}
-          <div className="space-y-8 py-8">
+          <div className="flex flex-col justify-center h-full py-8">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
