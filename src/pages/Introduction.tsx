@@ -44,7 +44,7 @@ export default function Introduction() {
   const [visionPoint3Title, setVisionPoint3Title] = useState('사랑의 교제');
   const [visionPoint3Desc, setVisionPoint3Desc] = useState('그리스도의 몸 된 지체로서 서로를 돌아보고 세워주는 성경적 목양과 교제를 나눕니다.');
 
-  const [ciTitle, setCiTitle] = useState('CI의 의미');
+  const [ciTitle, setCiTitle] = useState('로고의 의미');
   const [ciSub, setCiSub] = useState('함께 지어져가는 교회의 삼위일체 신학적 고백');
   const [ciPoint1Title, setCiPoint1Title] = useState('성부 하나님의 영광 (임재의 구름 - 쉐키나)');
   const [ciPoint1Desc, setCiPoint1Desc] = useState('로고 배경을 감싸는 은은한 빛과 구름 효과는 하나님의 영광과 임재를 상징합니다. 이는 구약의 성막과 성전에 가득했던 하나님의 영광(쉐키나)을 의미하며, 우리 공동체가 하나님의 주권적인 통치와 임재 안에 있음을 고백합니다. 모든 사역의 시작과 끝이 하나님의 영광을 위한 것임을 나타냅니다.');
@@ -184,8 +184,9 @@ export default function Introduction() {
                     onClick={() => setShowLogoModal(true)}
                     className="group flex flex-col items-center w-full h-full transition-all duration-500"
                   >
-                    <div className="w-full h-full min-h-[160px] lg:min-h-[200px] py-4 px-4 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex items-center justify-center">
+                    <div className="w-full h-full min-h-[160px] lg:min-h-[200px] pt-10 pb-6 px-4 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex flex-col items-center justify-center relative">
                       <Logo size={140} className="group-hover:scale-110 transition-transform duration-700 drop-shadow-md" />
+                      <span className="absolute top-6 left-6 sm:left-8 text-xs sm:text-sm text-wood-400 font-medium tracking-tight group-hover:text-wood-600 transition-colors">로고 의미 보기</span>
                     </div>
                   </button>
                 </div>
@@ -196,19 +197,20 @@ export default function Introduction() {
                     onClick={() => setShowNameModal(true)}
                     className="group flex flex-col items-center lg:items-start w-full h-full transition-all duration-500"
                   >
-                    <div className="w-full h-full min-h-[160px] lg:min-h-[200px] py-4 px-6 sm:px-8 lg:px-10 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex flex-col justify-center">
+                    <div className="w-full h-full min-h-[160px] lg:min-h-[200px] pt-10 pb-6 px-6 sm:px-8 lg:px-10 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex flex-col justify-center relative">
                       <div className="w-full flex flex-col justify-center group-hover:scale-105 transition-transform duration-700 origin-center lg:origin-left">
                         <div className="flex justify-between font-serif font-bold text-[1.3rem] min-[400px]:text-2xl sm:text-4xl lg:text-[3rem] text-wood-900 leading-tight w-full">
                           {Array.from("함께 지어져가는 교회").map((c, i) => (
                             <span key={i} className={c === ' ' ? 'w-1.5 sm:w-2.5 lg:w-3' : ''}>{c}</span>
                           ))}
                         </div>
-                        <div className="flex justify-between text-[0.55rem] min-[400px]:text-[0.65rem] sm:text-sm lg:text-[1rem] text-gold-700 font-bold uppercase opacity-80 leading-none mt-3 sm:mt-4 lg:mt-6 w-full">
+                        <div className="flex justify-between text-[0.65rem] min-[400px]:text-[0.8rem] sm:text-base lg:text-xl text-gold-700 font-bold uppercase opacity-80 leading-none mt-3 sm:mt-4 lg:mt-6 w-full">
                           {Array.from("BUILT TOGETHER CHURCH").map((c, i) => (
                             <span key={i} className={c === ' ' ? 'w-1.5 sm:w-2.5 lg:w-3' : ''}>{c}</span>
                           ))}
                         </div>
                       </div>
+                      <span className="absolute top-6 left-6 sm:left-8 lg:left-10 text-xs sm:text-sm text-wood-400 font-medium tracking-tight group-hover:text-wood-600 transition-colors">교회 이름 의미 보기</span>
                     </div>
                   </button>
                 </div>

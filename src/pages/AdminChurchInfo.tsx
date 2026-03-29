@@ -99,7 +99,7 @@ export default function AdminChurchInfo() {
           setVisionPoint3Title(data.visionPoint3Title || '사랑의 교제');
           setVisionPoint3Desc(data.visionPoint3Desc || '그리스도의 몸 된 지체로서 서로를 돌아보고 세워주는 성경적 목양과 교제를 나눕니다.');
 
-          setCiTitle(data.ciTitle || 'CI의 의미');
+          setCiTitle(data.ciTitle || '로고의 의미');
           setCiSub(data.ciSub || '함께 지어져가는 교회의 삼위일체 신학적 고백');
           setCiPoint1Title(data.ciPoint1Title || '성부 하나님의 영광 (임재의 구름 - 쉐키나)');
           setCiPoint1Desc(data.ciPoint1Desc || '로고 배경을 감싸는 은은한 빛과 구름 효과는 하나님의 영광과 임재를 상징합니다. 이는 구약의 성막과 성전에 가득했던 하나님의 영광(쉐키나)을 의미하며, 우리 공동체가 하나님의 주권적인 통치와 임재 안에 있음을 고백합니다. 모든 사역의 시작과 끝이 하나님의 영광을 위한 것임을 나타냅니다.');
@@ -139,7 +139,7 @@ export default function AdminChurchInfo() {
           setVisionPoint3Title('사랑의 교제');
           setVisionPoint3Desc('그리스도의 몸 된 지체로서 서로를 돌아보고 세워주는 성경적 목양과 교제를 나눕니다.');
 
-          setCiTitle('CI의 의미');
+          setCiTitle('로고의 의미');
           setCiSub('함께 지어져가는 교회의 삼위일체 신학적 고백');
           setCiPoint1Title('성부 하나님의 영광 (임재의 구름 - 쉐키나)');
           setCiPoint1Desc('로고 배경을 감싸는 은은한 빛과 구름 효과는 하나님의 영광과 임재를 상징합니다. 이는 구약의 성막과 성전에 가득했던 하나님의 영광(쉐키나)을 의미하며, 우리 공동체가 하나님의 주권적인 통치와 임재 안에 있음을 고백합니다. 모든 사역의 시작과 끝이 하나님의 영광을 위한 것임을 나타냅니다.');
@@ -202,7 +202,7 @@ export default function AdminChurchInfo() {
     { id: 'basic', name: '기본 소개' },
     { id: 'name', name: '교회 이름 의미' },
     { id: 'vision', name: '우리의 비전' },
-    { id: 'ci', name: '로고(CI) 의미' },
+    { id: 'ci', name: '로고 의미' },
   ];
 
   return (
