@@ -7,6 +7,7 @@ import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTo
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logActivity } from '../utils/logger';
+import Logo from './Logo';
 
 export default function Layout() {
   const { user, role } = useAuth();
@@ -55,50 +56,31 @@ export default function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
-              <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
-                <svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-md transition-transform duration-300 group-hover:scale-105">
-                  {/* Bible Foundation - Curved Open Book */}
-                  <path d="M 4 56 C 12 56 22 58 32 62 C 42 58 52 56 60 56 L 60 59 C 52 59 42 61 32 65 C 22 61 12 59 4 59 Z" fill="#2d1e16" />
-                  <path d="M 6 54 C 14 54 23 56 32 60 C 41 56 50 54 58 54 L 58 57 C 50 57 41 59 32 63 C 23 59 14 57 6 57 Z" fill="#f8f4e8" stroke="#c5a059" strokeWidth="0.5" />
-                  <line x1="32" y1="55" x2="32" y2="63" stroke="#c5a059" strokeWidth="0.8" opacity="0.4" />
-
-                  {/* Bricks (Church Building) - Refined Palette */}
-                  {/* Row 1 */}
-                  <rect x="15" y="46" width="10" height="8" rx="1.5" fill="#d4af37" />
-                  <rect x="26" y="46" width="12" height="8" rx="1.5" fill="#436b47" />
-                  <rect x="39" y="46" width="10" height="8" rx="1.5" fill="#8b5e3c" />
-
-                  {/* Row 2 */}
-                  <rect x="18" y="37" width="14" height="8" rx="1.5" fill="#8b5e3c" />
-                  <rect x="33" y="37" width="13" height="8" rx="1.5" fill="#d4af37" />
-
-                  {/* Row 3 */}
-                  <rect x="22" y="28" width="10" height="8" rx="1.5" fill="#436b47" />
-                  <rect x="33" y="28" width="9" height="8" rx="1.5" fill="#8b5e3c" />
-
-                  {/* Row 4 */}
-                  <rect x="26" y="19" width="12" height="8" rx="1.5" fill="#d4af37" />
-
-                  {/* Cross */}
-                  <rect x="30.5" y="7" width="3" height="12" rx="1" fill="#d4af37" />
-                  <rect x="26" y="10" width="12" height="3" rx="1" fill="#d4af37" />
-                </svg>
-                <div className="flex flex-col justify-center">
-                  <span className="font-serif font-bold text-xl lg:text-2xl text-wood-900 tracking-tight whitespace-nowrap">
-                    함께 지어져가는 교회
-                  </span>
+              <Link to="/" className="flex-shrink-0 flex items-end gap-2 group">
+                <Logo className="w-16 h-16 drop-shadow-md transition-transform duration-300 group-hover:scale-105" />
+                <div className="flex flex-col justify-center mb-2 min-w-[200px] lg:min-w-[220px]">
+                  <div className="flex justify-between font-serif font-bold text-xl lg:text-xl text-wood-900 leading-tight w-full">
+                    {Array.from("함께 지어져가는 교회").map((c, i) => (
+                      <span key={i} className={c === ' ' ? 'w-1' : ''}>{c}</span>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-[10px] lg:text-[9px] text-gold-700 font-bold uppercase opacity-80 leading-none mt-1.5 w-full">
+                    {Array.from("BUILT TOGETHER CHURCH").map((c, i) => (
+                      <span key={i} className={c === ' ' ? 'w-1' : ''}>{c}</span>
+                    ))}
+                  </div>
                 </div>
               </Link>
             </div>
 
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center space-x-4 lg:space-x-8">
+            <nav className="hidden lg:flex items-center space-x-3 xl:space-x-6">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
                   className={cn(
-                    "text-xs lg:text-sm font-medium transition-colors hover:text-wood-600 whitespace-nowrap",
+                    "text-xs xl:text-sm font-medium transition-colors hover:text-wood-600 whitespace-nowrap",
                     location.pathname === item.path ? "text-wood-900 font-bold border-b-2 border-gold-500 pb-1" : "text-wood-600"
                   )}
                 >
@@ -106,17 +88,17 @@ export default function Layout() {
                 </Link>
               ))}
               
-              <div className="ml-2 pl-2 lg:ml-4 lg:pl-4 border-l border-wood-200 flex items-center gap-2 lg:gap-4">
+              <div className="ml-3 pl-3 xl:ml-4 xl:pl-4 border-l border-wood-200 flex items-center gap-3 xl:gap-4">
                 {user ? (
-                  <div className="flex items-center gap-2 lg:gap-4">
-                    <span className="text-xs lg:text-sm text-wood-600 whitespace-nowrap flex items-center">
+                  <div className="flex items-center gap-3 xl:gap-4">
+                    <span className="text-xs xl:text-sm text-wood-600 whitespace-nowrap flex items-center">
                       <Link to="/profile" className="hover:text-wood-900 hover:underline transition-colors">
                         {user.displayName}님
                       </Link>
                       {role === 'admin' && (
                         <Link 
                           to="/admin" 
-                          className="text-[10px] lg:text-xs bg-wood-900 text-white px-2 lg:px-3 py-1 rounded-full ml-2 hover:bg-wood-800 transition-colors shadow-sm font-bold relative"
+                          className="text-[10px] xl:text-xs bg-wood-900 text-white px-2 xl:px-3 py-1 rounded-full ml-2 hover:bg-wood-800 transition-colors shadow-sm font-bold relative"
                         >
                           목사님
                           {hasUnreadMessages && (
@@ -127,7 +109,7 @@ export default function Layout() {
                     </span>
                     <button
                       onClick={logout}
-                      className="text-xs lg:text-sm text-wood-500 hover:text-wood-900 transition whitespace-nowrap border-l border-wood-200 pl-2 lg:pl-4"
+                      className="text-xs xl:text-sm text-wood-500 hover:text-wood-900 transition whitespace-nowrap border-l border-wood-200 pl-3 xl:pl-4"
                     >
                       로그아웃
                     </button>
@@ -135,7 +117,7 @@ export default function Layout() {
                 ) : (
                   <Link
                     to="/login"
-                    className="text-xs lg:text-sm font-medium bg-wood-900 text-white px-4 lg:px-5 py-1.5 lg:py-2 rounded-full hover:bg-wood-800 transition shadow-sm whitespace-nowrap"
+                    className="text-xs xl:text-sm font-medium bg-wood-900 text-white px-4 xl:px-5 py-1.5 xl:py-2 rounded-full hover:bg-wood-800 transition shadow-sm whitespace-nowrap"
                   >
                     로그인
                   </Link>
@@ -144,7 +126,7 @@ export default function Layout() {
             </nav>
 
             {/* Mobile menu button */}
-            <div className="flex items-center md:hidden">
+            <div className="flex items-center lg:hidden">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="text-wood-600 hover:text-wood-900 p-2"
@@ -162,7 +144,7 @@ export default function Layout() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-white border-b border-wood-200 overflow-hidden"
+              className="lg:hidden bg-white border-b border-wood-200 overflow-hidden"
             >
               <div className="px-4 pt-2 pb-6 space-y-1">
                 {navItems.map((item) => (
@@ -239,7 +221,10 @@ export default function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <h3 className="font-serif text-xl font-bold mb-4 text-gold-400">함께 지어져가는 교회</h3>
+              <div className="flex flex-col mb-4">
+                <h3 className="font-serif text-xl font-bold text-gold-400 leading-tight">함께 지어져가는 교회</h3>
+                <span className="text-[10px] text-gold-600 font-bold tracking-[0.2em] uppercase opacity-80">Built Together Church</span>
+              </div>
               <p className="text-wood-200 text-sm leading-relaxed">
                 너희도 성령 안에서 하나님이 거하실 처소가 되기 위하여 그리스도 예수 안에서 함께 지어져 가느니라 (에베소서 2:22)
               </p>
@@ -264,8 +249,9 @@ export default function Layout() {
             </div>
           </div>
           <div className="mt-12 pt-8 border-t border-wood-800 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-wood-400">
-            <div className="order-2 md:order-1">
-              &copy; {new Date().getFullYear()} 함께 지어져가는 교회. All rights reserved.
+            <div className="order-2 md:order-1 flex flex-col gap-1">
+              <div>&copy; {new Date().getFullYear()} 함께 지어져가는 교회. All rights reserved.</div>
+              <div className="text-[10px] tracking-[0.4em] uppercase font-bold text-wood-500">Soli Deo Gloria</div>
             </div>
             <div className="order-1 md:order-2 flex items-center gap-6">
               <Link to="/privacy" className="hover:text-gold-400 transition">개인정보처리방침</Link>
