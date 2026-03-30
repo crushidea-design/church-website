@@ -18,27 +18,47 @@ async function startServer() {
   const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (serviceAccountKey) {
     try {
-      let serviceAccount;
-      // Check if it's already an object (though process.env usually returns strings)
-      if (typeof serviceAccountKey === 'object') {
-        serviceAccount = serviceAccountKey;
-      } else {
-        // Clean up the string in case it has extra quotes or is malformed
-        const cleanedKey = serviceAccountKey.trim();
-        
-        // Try parsing as JSON
+      let serviceAccount: any = null;
+      const rawKey = serviceAccountKey.trim();
+
+      // Robust JSON parsing helper
+      const robustParse = (input: string): any => {
         try {
-          serviceAccount = JSON.parse(cleanedKey);
-        } catch (jsonError) {
-          // If it fails, maybe it's a base64 encoded string?
-          try {
-            const decoded = Buffer.from(cleanedKey, 'base64').toString('utf8');
-            serviceAccount = JSON.parse(decoded);
-          } catch (base64Error) {
-            // If both fail, throw the original JSON error
-            throw jsonError;
+          // 1. Direct parse
+          const parsed = JSON.parse(input);
+          if (typeof parsed === 'object' && parsed !== null) return parsed;
+          if (typeof parsed === 'string') return robustParse(parsed); // Handle double encoding
+        } catch (e: any) {
+          // 2. Try cleaning up escaped quotes and newlines if it looks like a string-wrapped JSON
+          if (input.includes('\\"')) {
+            try {
+              const unescaped = input.replace(/\\"/g, '"').replace(/\\n/g, '\n');
+              return robustParse(unescaped);
+            } catch (e2) {}
+          }
+
+          // 3. Try extracting the first valid JSON object if there's trailing garbage
+          const firstBrace = input.indexOf('{');
+          const lastBrace = input.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            try {
+              return JSON.parse(input.substring(firstBrace, lastBrace + 1));
+            } catch (e3) {}
           }
         }
+        return null;
+      };
+
+      serviceAccount = robustParse(rawKey);
+      
+      console.log(`Attempted to parse service account key. Length: ${rawKey.length}. First char: ${rawKey[0]}. Last char: ${rawKey[rawKey.length - 1]}`);
+
+      // 4. Try base64 as a last resort
+      if (!serviceAccount) {
+        try {
+          const decoded = Buffer.from(rawKey, 'base64').toString('utf8');
+          serviceAccount = robustParse(decoded);
+        } catch (e) {}
       }
 
       if (serviceAccount && serviceAccount.project_id) {
@@ -47,11 +67,10 @@ async function startServer() {
         });
         console.log(`Firebase Admin initialized for project: ${serviceAccount.project_id}`);
       } else {
-        throw new Error('Invalid service account key structure');
+        throw new Error('Could not parse valid service account key from FIREBASE_SERVICE_ACCOUNT_KEY');
       }
     } catch (error) {
       console.error('Error initializing Firebase Admin:', error);
-      // Log the first few characters to help debug without exposing the whole key
       const snippet = typeof serviceAccountKey === 'string' 
         ? serviceAccountKey.substring(0, 50) + '...' 
         : 'Not a string';

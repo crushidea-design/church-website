@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const config = {
@@ -10,14 +10,16 @@ const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (firebaseConfig.apiKey !== "REDACTED" ? firebaseConfig.apiKey : "")
 };
 
-if (!config.apiKey) {
-  console.error("Firebase API Key is missing!");
+if (!config.apiKey || config.apiKey === "") {
+  console.error("Firebase API Key is missing or invalid! Please set VITE_FIREBASE_API_KEY in your environment variables.");
 }
 
 console.log('Firebase configuration loaded:', {
   projectId: config.projectId,
   authDomain: config.authDomain,
-  databaseId: config.firestoreDatabaseId
+  databaseId: config.firestoreDatabaseId,
+  hasApiKey: !!config.apiKey,
+  apiKeyPrefix: config.apiKey ? config.apiKey.substring(0, 5) + '...' : 'none'
 });
 
 const app = initializeApp(config);
@@ -26,11 +28,50 @@ export const db = getFirestore(app, config.firestoreDatabaseId);
 // Use the bucket from config explicitly
 export const storage = getStorage(app, `gs://${config.storageBucket}`);
 export const auth = getAuth(app);
-export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
+
+// Messaging initialization with support check
+export let messaging: any = null;
+
+// Initialize messaging asynchronously to avoid blocking and handle unsupported browsers
+if (typeof window !== 'undefined') {
+  isSupported().then(supported => {
+    if (supported) {
+      messaging = getMessaging(app);
+      console.log('Firebase Messaging initialized');
+    } else {
+      console.warn('Firebase Messaging is not supported in this browser');
+    }
+  }).catch(err => {
+    console.error('Error checking messaging support:', err);
+  });
+}
 
 console.log('Firebase Storage initialized with bucket:', config.storageBucket);
 
 export const googleProvider = new GoogleAuthProvider();
+
+// Quota Guard: Prevents Firestore calls if quota is known to be exceeded
+const QUOTA_EXCEEDED_KEY = 'firestore_quota_exceeded';
+
+export function isQuotaExceeded(): boolean {
+  if (typeof window === 'undefined') return false;
+  const timestamp = localStorage.getItem(QUOTA_EXCEEDED_KEY);
+  if (!timestamp) return false;
+  
+  // Quota resets daily, so we clear the flag after 24 hours
+  const now = Date.now();
+  if (now - parseInt(timestamp) > 24 * 60 * 60 * 1000) {
+    localStorage.removeItem(QUOTA_EXCEEDED_KEY);
+    return false;
+  }
+  return true;
+}
+
+function setQuotaExceeded() {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(QUOTA_EXCEEDED_KEY, Date.now().toString());
+  }
+}
 
 export const signInWithGoogle = async () => {
   console.log('signInWithGoogle called');
@@ -101,8 +142,14 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
+  if (errorMessage.includes('Quota limit exceeded')) {
+    setQuotaExceeded();
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,

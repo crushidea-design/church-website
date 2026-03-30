@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Users, Heart, Edit2, Check, X as CloseIcon, Calendar, ChevronRight, Bell } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, isQuotaExceeded } from '../lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -36,14 +36,36 @@ export default function Home() {
 
   useEffect(() => {
     const fetchLatestPosts = async () => {
+      // Quota Guard
+      if (isQuotaExceeded()) {
+        const cachedPosts = sessionStorage.getItem('latest_posts');
+        if (cachedPosts) {
+          setLatestPosts(JSON.parse(cachedPosts));
+        }
+        setLoadingPosts(false);
+        return;
+      }
+
+      // Check cache first
+      const cachedPosts = sessionStorage.getItem('latest_posts');
+      if (cachedPosts) {
+        try {
+          setLatestPosts(JSON.parse(cachedPosts));
+          setLoadingPosts(false);
+          // We still fetch in background to keep it fresh
+        } catch (e) {
+          sessionStorage.removeItem('latest_posts');
+        }
+      }
+
       setLoadingPosts(true);
       try {
-        // Try fetching with 'in' query (might fail if missing index or permissions)
         const allowedCategories = ['community', 'research', 'journal'];
         if (role === 'regular' || role === 'admin') {
           allowedCategories.push('sermon');
         }
 
+        // We use where to match security rules. This requires a composite index: category (in) + createdAt (desc)
         const q = query(
           collection(db, 'posts'), 
           where('category', 'in', allowedCategories),
@@ -52,13 +74,20 @@ export default function Home() {
         );
         const snapshot = await getDocs(q);
         const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
         setLatestPosts(postsData);
+        sessionStorage.setItem('latest_posts', JSON.stringify(postsData));
       } catch (error: any) {
-        console.error('Error fetching latest posts with index:', error);
-        // We removed the fallback that fetched all posts without limit,
-        // because it causes massive read spikes and exhausts the Firestore quota.
-        // To fix this error permanently, please click the link in the Firebase console error
-        // to create the required composite index for 'category' and 'createdAt'.
+        console.error('Error fetching latest posts:', error);
+        if (error.code === 'failed-precondition' && error.message?.includes('index')) {
+          console.warn('Firestore index required for this query. Please check the console for the link to create it.');
+          // Fallback: try to fetch without order or just show empty if no index
+          // For now, we'll just show what's in cache or empty
+        }
+        if (error.message?.includes('Quota limit exceeded')) {
+          // Handled by handleFirestoreError if we were using it here, 
+          // but we'll just let the cache stay.
+        }
       } finally {
         setLoadingPosts(false);
       }
@@ -76,14 +105,32 @@ export default function Home() {
       return url;
     };
 
+    // Load from cache first
+    const cachedHero = sessionStorage.getItem('hero_image_url');
+    if (cachedHero) {
+      setHeroImage(cachedHero);
+    }
+
+    // Quota Guard for real-time listener
+    if (isQuotaExceeded()) {
+      console.warn('Home: Quota exceeded, skipping hero image listener');
+      return;
+    }
+
     const unsub = onSnapshot(doc(db, 'settings', 'hero'), (doc) => {
       if (doc.exists()) {
         const rawUrl = doc.data().heroImageUrl;
-        setHeroImage(getDirectImageUrl(rawUrl) || DEFAULT_HERO_IMAGE);
+        const directUrl = getDirectImageUrl(rawUrl) || DEFAULT_HERO_IMAGE;
+        setHeroImage(directUrl);
+        sessionStorage.setItem('hero_image_url', directUrl);
       }
     }, (error) => {
       console.error('Error fetching hero image:', error);
-      handleFirestoreError(error, OperationType.GET, 'settings/hero');
+      if (error.message?.includes('Quota limit exceeded')) {
+        // Use cached image if available, otherwise default is already set
+      } else {
+        handleFirestoreError(error, OperationType.GET, 'settings/hero');
+      }
     });
     return () => unsub();
   }, []);

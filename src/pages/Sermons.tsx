@@ -42,12 +42,10 @@ export default function Sermons() {
         setCategories(cats);
         
         const tabParam = searchParams.get('tab');
-        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress')) {
+        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'all')) {
           setActiveTab(tabParam);
-        } else if (cats.length > 0 && !activeTab) {
-          setActiveTab(cats[0].id);
-        } else if (cats.length === 0) {
-          setActiveTab('past_sermons');
+        } else if (!activeTab) {
+          setActiveTab('all'); // Default to 'all' to show everything
         }
       } catch (error) {
         console.error('Error fetching categories:', error);
@@ -60,7 +58,7 @@ export default function Sermons() {
       collection(db, 'posts'),
       where('category', '==', 'sermon'),
       orderBy('createdAt', 'desc'),
-      limit(50)
+      limit(200)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -87,8 +85,22 @@ export default function Sermons() {
     return match ? match[1] : null;
   };
 
+  const hasUncategorized = videos.some(video => {
+    const hasValidCategory = categories.some(c => c.id === video.sermonCategoryId);
+    const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
+    return !hasValidCategory && !isLegacy;
+  });
+
   const filteredVideos = videos
     .filter(video => {
+      if (activeTab === 'all' || !activeTab) return true;
+      
+      if (activeTab === 'uncategorized') {
+        const hasValidCategory = categories.some(c => c.id === video.sermonCategoryId);
+        const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
+        return !hasValidCategory && !isLegacy;
+      }
+
       // Support legacy subCategory and new sermonCategoryId
       const matchesTab = video.sermonCategoryId === activeTab || 
                         (activeTab === 'past_sermons' && video.subCategory === 'past_sermons') ||
@@ -155,6 +167,12 @@ export default function Sermons() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${activeTab === 'all' || !activeTab ? 'bg-wood-900 text-white shadow-sm' : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'}`}
+            >
+              전체보기
+            </button>
             {categories.map((tab) => (
               <button
                 key={tab.id}
@@ -168,6 +186,18 @@ export default function Sermons() {
                 {tab.name}
               </button>
             ))}
+            {hasUncategorized && (
+              <button
+                onClick={() => setActiveTab('uncategorized')}
+                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                  activeTab === 'uncategorized'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
+                }`}
+              >
+                카테고리 미지정
+              </button>
+            )}
             {/* Fallback for legacy tabs if they don't exist in categories */}
             {!categories.find(c => c.id === 'past_sermons') && videos.some(v => v.subCategory === 'past_sermons') && (
               <button

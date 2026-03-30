@@ -7,12 +7,12 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compa
 
 // I'll use a generic handler first.
 firebase.initializeApp({
-  apiKey: "REDACTED",
-  authDomain: "ais-dev-v47rikjpj2fqleu63x4mrp.firebaseapp.com",
-  projectId: "ais-dev-v47rikjpj2fqleu63x4mrp",
-  storageBucket: "ais-dev-v47rikjpj2fqleu63x4mrp.firebasestorage.app",
+  apiKey: "AIzaSyBe4AUkbqJepdMbq-3-6WcVTnwBfH4Lg9U",
+  authDomain: "gen-lang-client-0036445484.firebaseapp.com",
+  projectId: "gen-lang-client-0036445484",
+  storageBucket: "gen-lang-client-0036445484.firebasestorage.app",
   messagingSenderId: "638399109645",
-  appId: "1:638399109645:web:8664188448987484d720f1"
+  appId: "1:638399109645:web:26e54039ac88c438765344"
 });
 
 const messaging = firebase.messaging();
