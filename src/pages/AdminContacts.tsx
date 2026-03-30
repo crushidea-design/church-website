@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -32,21 +32,24 @@ export default function AdminContacts() {
       return;
     }
 
-    const q = query(collection(db, 'contacts'), orderBy('createdAt', 'desc'), limit(100));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ContactMessage[];
-      setMessages(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching messages:', error);
-      handleFirestoreError(error, OperationType.GET, 'contacts');
-      setLoading(false);
-    });
+    const fetchMessages = async () => {
+      try {
+        const q = query(collection(db, 'contacts'), orderBy('createdAt', 'desc'), limit(100));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as ContactMessage[];
+        setMessages(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        handleFirestoreError(error, OperationType.GET, 'contacts');
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchMessages();
   }, [role, authLoading, navigate]);
 
   const handleExpand = async (id: string, isRead: boolean) => {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Edit2, Check, X as CloseIcon, BookOpen, Heart, Users } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import Logo from '../components/Logo';
 
@@ -67,67 +67,63 @@ export default function Introduction() {
       return url;
     };
 
-    const unsubImage = onSnapshot(doc(db, 'settings', 'intro'), (doc) => {
-      if (doc.exists()) {
-        const rawUrl = doc.data().introImageUrl;
-        setIntroImage(getDirectImageUrl(rawUrl) || DEFAULT_INTRO_IMAGE);
+    const fetchIntroData = async () => {
+      try {
+        const introDoc = await getDoc(doc(db, 'settings', 'intro'));
+        if (introDoc.exists()) {
+          const rawUrl = introDoc.data().introImageUrl;
+          setIntroImage(getDirectImageUrl(rawUrl) || DEFAULT_INTRO_IMAGE);
+        }
+
+        const churchInfoDoc = await getDoc(doc(db, 'settings', 'church_info'));
+        if (churchInfoDoc.exists()) {
+          const data = churchInfoDoc.data();
+          if (data.introTitle1) setIntroTitle1(data.introTitle1);
+          if (data.introContent1) setIntroContent1(data.introContent1);
+          if (data.introTitle2) setIntroTitle2(data.introTitle2);
+          if (data.introContent2) setIntroContent2(data.introContent2);
+          if (data.quote) setQuote(data.quote);
+
+          if (data.nameQuote) setNameQuote(data.nameQuote);
+          if (data.nameQuoteSource) setNameQuoteSource(data.nameQuoteSource);
+          if (data.nameDescription) setNameDescription(data.nameDescription);
+          if (data.nameMeaningTitle) setNameMeaningTitle(data.nameMeaningTitle);
+          if (data.nameMeaningIntro) setNameMeaningIntro(data.nameMeaningIntro);
+          if (data.namePoint1Title) setNamePoint1Title(data.namePoint1Title);
+          if (data.namePoint1Desc) setNamePoint1Desc(data.namePoint1Desc);
+          if (data.namePoint2Title) setNamePoint2Title(data.namePoint2Title);
+          if (data.namePoint2Sub) setNamePoint2Sub(data.namePoint2Sub);
+          if (data.namePoint2Desc) setNamePoint2Desc(data.namePoint2Desc);
+
+          if (data.visionTitle) setVisionTitle(data.visionTitle);
+          if (data.visionDesc) setVisionDesc(data.visionDesc);
+          if (data.visionPoint1Title) setVisionPoint1Title(data.visionPoint1Title);
+          if (data.visionPoint1Desc) setVisionPoint1Desc(data.visionPoint1Desc);
+          if (data.visionPoint2Title) setVisionPoint2Title(data.visionPoint2Title);
+          if (data.visionPoint2Desc) setVisionPoint2Desc(data.visionPoint2Desc);
+          if (data.visionPoint3Title) setVisionPoint3Title(data.visionPoint3Title);
+          if (data.visionPoint3Desc) setVisionPoint3Desc(data.visionPoint3Desc);
+
+          if (data.ciTitle) setCiTitle(data.ciTitle);
+          if (data.ciSub) setCiSub(data.ciSub);
+          if (data.ciPoint1Title) setCiPoint1Title(data.ciPoint1Title);
+          if (data.ciPoint1Desc) setCiPoint1Desc(data.ciPoint1Desc);
+          if (data.ciPoint2Title) setCiPoint2Title(data.ciPoint2Title);
+          if (data.ciPoint2Desc) setCiPoint2Desc(data.ciPoint2Desc);
+          if (data.ciPoint3Title) setCiPoint3Title(data.ciPoint3Title);
+          if (data.ciPoint3Desc) setCiPoint3Desc(data.ciPoint3Desc);
+          if (data.ciPoint4Title) setCiPoint4Title(data.ciPoint4Title);
+          if (data.ciPoint4Desc) setCiPoint4Desc(data.ciPoint4Desc);
+          if (data.ciPoint5Title) setCiPoint5Title(data.ciPoint5Title);
+          if (data.ciPoint5Desc) setCiPoint5Desc(data.ciPoint5Desc);
+        }
+      } catch (error) {
+        console.error('Error fetching intro data:', error);
+        handleFirestoreError(error, OperationType.GET, 'settings');
       }
-    }, (error) => {
-      console.error('Error fetching intro image:', error);
-      handleFirestoreError(error, OperationType.GET, 'settings/intro');
-    });
-
-    const unsubText = onSnapshot(doc(db, 'settings', 'church_info'), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        if (data.introTitle1) setIntroTitle1(data.introTitle1);
-        if (data.introContent1) setIntroContent1(data.introContent1);
-        if (data.introTitle2) setIntroTitle2(data.introTitle2);
-        if (data.introContent2) setIntroContent2(data.introContent2);
-        if (data.quote) setQuote(data.quote);
-
-        if (data.nameQuote) setNameQuote(data.nameQuote);
-        if (data.nameQuoteSource) setNameQuoteSource(data.nameQuoteSource);
-        if (data.nameDescription) setNameDescription(data.nameDescription);
-        if (data.nameMeaningTitle) setNameMeaningTitle(data.nameMeaningTitle);
-        if (data.nameMeaningIntro) setNameMeaningIntro(data.nameMeaningIntro);
-        if (data.namePoint1Title) setNamePoint1Title(data.namePoint1Title);
-        if (data.namePoint1Desc) setNamePoint1Desc(data.namePoint1Desc);
-        if (data.namePoint2Title) setNamePoint2Title(data.namePoint2Title);
-        if (data.namePoint2Sub) setNamePoint2Sub(data.namePoint2Sub);
-        if (data.namePoint2Desc) setNamePoint2Desc(data.namePoint2Desc);
-
-        if (data.visionTitle) setVisionTitle(data.visionTitle);
-        if (data.visionDesc) setVisionDesc(data.visionDesc);
-        if (data.visionPoint1Title) setVisionPoint1Title(data.visionPoint1Title);
-        if (data.visionPoint1Desc) setVisionPoint1Desc(data.visionPoint1Desc);
-        if (data.visionPoint2Title) setVisionPoint2Title(data.visionPoint2Title);
-        if (data.visionPoint2Desc) setVisionPoint2Desc(data.visionPoint2Desc);
-        if (data.visionPoint3Title) setVisionPoint3Title(data.visionPoint3Title);
-        if (data.visionPoint3Desc) setVisionPoint3Desc(data.visionPoint3Desc);
-
-        if (data.ciTitle) setCiTitle(data.ciTitle);
-        if (data.ciSub) setCiSub(data.ciSub);
-        if (data.ciPoint1Title) setCiPoint1Title(data.ciPoint1Title);
-        if (data.ciPoint1Desc) setCiPoint1Desc(data.ciPoint1Desc);
-        if (data.ciPoint2Title) setCiPoint2Title(data.ciPoint2Title);
-        if (data.ciPoint2Desc) setCiPoint2Desc(data.ciPoint2Desc);
-        if (data.ciPoint3Title) setCiPoint3Title(data.ciPoint3Title);
-        if (data.ciPoint3Desc) setCiPoint3Desc(data.ciPoint3Desc);
-        if (data.ciPoint4Title) setCiPoint4Title(data.ciPoint4Title);
-        if (data.ciPoint4Desc) setCiPoint4Desc(data.ciPoint4Desc);
-        if (data.ciPoint5Title) setCiPoint5Title(data.ciPoint5Title);
-        if (data.ciPoint5Desc) setCiPoint5Desc(data.ciPoint5Desc);
-      }
-    }, (error) => {
-      console.error('Error fetching church info:', error);
-      handleFirestoreError(error, OperationType.GET, 'settings/church_info');
-    });
-
-    return () => {
-      unsubImage();
-      unsubText();
     };
+
+    fetchIntroData();
   }, []);
 
   const handleUpdateImage = async () => {

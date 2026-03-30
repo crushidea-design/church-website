@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -13,30 +13,32 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'posts'),
-      where('category', '==', 'journal'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
+    const fetchPosts = async () => {
+      try {
+        const q = query(
+          collection(db, 'posts'),
+          where('category', '==', 'journal'),
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort client-side since orderBy was removed to prevent missing data issues
+        const sortedData = data.sort((a: any, b: any) => {
+          const dateA = a.createdAt?.seconds || 0;
+          const dateB = b.createdAt?.seconds || 0;
+          return dateB - dateA;
+        });
+        setPosts(sortedData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching journal posts:', error);
+        handleFirestoreError(error, OperationType.GET, 'posts');
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Sort client-side since orderBy was removed to prevent missing data issues
-      const sortedData = data.sort((a: any, b: any) => {
-        const dateA = a.createdAt?.seconds || 0;
-        const dateB = b.createdAt?.seconds || 0;
-        return dateB - dateA;
-      });
-      setPosts(sortedData);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching journal posts:', error);
-      handleFirestoreError(error, OperationType.GET, 'posts');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    fetchPosts();
   }, []);
 
   return (

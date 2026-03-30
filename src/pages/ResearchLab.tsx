@@ -37,24 +37,26 @@ export default function ResearchLab() {
 
     fetchCategories();
 
-    const q = query(
-      collection(db, 'posts'),
-      where('category', '==', 'research'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
+    const fetchPosts = async () => {
+      try {
+        const q = query(
+          collection(db, 'posts'),
+          where('category', '==', 'research'),
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPosts(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+        handleFirestoreError(error, OperationType.GET, 'posts');
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPosts(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching posts:', error);
-      handleFirestoreError(error, OperationType.GET, 'posts');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    fetchPosts();
   }, []);
 
   const filteredPosts = posts

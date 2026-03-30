@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { signInWithGoogle, logout, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, limit } from 'firebase/firestore';
 import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool, Heart, Bell } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,15 +30,18 @@ export default function Layout() {
       return;
     }
 
-    const q = query(collection(db, 'contacts'), where('read', '==', false));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setHasUnreadMessages(!snapshot.empty);
-    }, (error) => {
-      console.error('Error listening for unread messages:', error);
-      handleFirestoreError(error, OperationType.GET, 'contacts');
-    });
+    const checkUnread = async () => {
+      try {
+        const q = query(collection(db, 'contacts'), where('read', '==', false), limit(1));
+        const snapshot = await getDocs(q);
+        setHasUnreadMessages(!snapshot.empty);
+      } catch (error) {
+        console.error('Error checking unread messages:', error);
+        handleFirestoreError(error, OperationType.GET, 'contacts');
+      }
+    };
 
-    return () => unsubscribe();
+    checkUnread();
   }, [role]);
 
   useEffect(() => {

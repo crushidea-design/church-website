@@ -32,21 +32,24 @@ export default function AdminSermonCategories() {
       return;
     }
 
-    const q = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'), limit(100));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as SermonCategory[];
-      setCategories(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching categories:', error);
-      handleFirestoreError(error, OperationType.GET, 'sermon_categories');
-      setLoading(false);
-    });
+    const fetchCategories = async () => {
+      try {
+        const q = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'), limit(100));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as SermonCategory[];
+        setCategories(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        handleFirestoreError(error, OperationType.GET, 'sermon_categories');
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchCategories();
   }, [role, authLoading, navigate]);
 
   const handleAddCategory = async (e: React.FormEvent) => {

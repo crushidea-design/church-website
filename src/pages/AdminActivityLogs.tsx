@@ -76,26 +76,28 @@ export default function AdminActivityLogs() {
       return;
     }
 
-    const q = query(
-      collection(db, 'activity_logs'),
-      orderBy('timestamp', 'desc'),
-      limit(100)
-    );
+    const fetchLogs = async () => {
+      try {
+        const q = query(
+          collection(db, 'activity_logs'),
+          orderBy('timestamp', 'desc'),
+          limit(100)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as ActivityLog[];
+        setLogs(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching activity logs:', error);
+        handleFirestoreError(error, OperationType.GET, 'activity_logs');
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ActivityLog[];
-      setLogs(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching activity logs:', error);
-      handleFirestoreError(error, OperationType.GET, 'activity_logs');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    fetchLogs();
   }, [role, navigate]);
 
   const groupedLogs = useMemo(() => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
@@ -21,18 +21,21 @@ export default function AdminUsers() {
       return;
     }
 
-    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching users:', error);
-      handleFirestoreError(error, OperationType.GET, 'users');
-      setLoading(false);
-    });
+    const fetchUsers = async () => {
+      try {
+        const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setUsers(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        handleFirestoreError(error, OperationType.GET, 'users');
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchUsers();
   }, [role, authLoading, navigate]);
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'regular' | 'user') => {

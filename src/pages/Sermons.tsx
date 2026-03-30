@@ -42,10 +42,10 @@ export default function Sermons() {
         setCategories(cats);
         
         const tabParam = searchParams.get('tab');
-        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'all')) {
+        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress')) {
           setActiveTab(tabParam);
-        } else if (!activeTab) {
-          setActiveTab('all'); // Default to 'all' to show everything
+        } else if (!activeTab && cats.length > 0) {
+          setActiveTab(cats[0].id);
         }
       } catch (error) {
         console.error('Error fetching categories:', error);
@@ -54,29 +54,30 @@ export default function Sermons() {
 
     fetchCategories();
 
-    const q = query(
-      collection(db, 'posts'),
-      where('category', '==', 'sermon'),
-      orderBy('createdAt', 'desc'),
-      limit(200)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setVideos(data);
-      setLoading(false);
-    }, (error) => {
-      // If it's a permission error and we're not a regular member, we already handle it in the UI
-      if (error.code === 'permission-denied' && !isRegularMember) {
+    const fetchVideos = async () => {
+      try {
+        const q = query(
+          collection(db, 'posts'),
+          where('category', '==', 'sermon'),
+          orderBy('createdAt', 'desc'),
+          limit(200)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setVideos(data);
         setLoading(false);
-        return;
+      } catch (error) {
+        if (error instanceof Error && (error as any).code === 'permission-denied' && !isRegularMember) {
+          setLoading(false);
+          return;
+        }
+        console.error('Error fetching videos:', error);
+        handleFirestoreError(error, OperationType.GET, 'posts');
+        setLoading(false);
       }
-      console.error('Error fetching videos:', error);
-      handleFirestoreError(error, OperationType.GET, 'posts');
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchVideos();
   }, [authLoading, isRegularMember]);
 
   const getYouTubeId = (content: string) => {
@@ -93,7 +94,7 @@ export default function Sermons() {
 
   const filteredVideos = videos
     .filter(video => {
-      if (activeTab === 'all' || !activeTab) return true;
+      if (!activeTab) return false;
       
       if (activeTab === 'uncategorized') {
         const hasValidCategory = categories.some(c => c.id === video.sermonCategoryId);
@@ -167,12 +168,6 @@ export default function Sermons() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${activeTab === 'all' || !activeTab ? 'bg-wood-900 text-white shadow-sm' : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'}`}
-            >
-              전체보기
-            </button>
             {categories.map((tab) => (
               <button
                 key={tab.id}

@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Users, Heart, Edit2, Check, X as CloseIcon, Calendar, ChevronRight, Bell } from 'lucide-react';
 import { db, handleFirestoreError, OperationType, isQuotaExceeded } from '../lib/firebase';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { requestNotificationPermission } from '../services/notificationService';
@@ -111,28 +111,30 @@ export default function Home() {
       setHeroImage(cachedHero);
     }
 
-    // Quota Guard for real-time listener
-    if (isQuotaExceeded()) {
-      console.warn('Home: Quota exceeded, skipping hero image listener');
-      return;
-    }
+    const fetchHeroImage = async () => {
+      // Quota Guard for fetch
+      if (isQuotaExceeded()) {
+        console.warn('Home: Quota exceeded, skipping hero image fetch');
+        return;
+      }
 
-    const unsub = onSnapshot(doc(db, 'settings', 'hero'), (doc) => {
-      if (doc.exists()) {
-        const rawUrl = doc.data().heroImageUrl;
-        const directUrl = getDirectImageUrl(rawUrl) || DEFAULT_HERO_IMAGE;
-        setHeroImage(directUrl);
-        sessionStorage.setItem('hero_image_url', directUrl);
+      try {
+        const heroDoc = await getDoc(doc(db, 'settings', 'hero'));
+        if (heroDoc.exists()) {
+          const rawUrl = heroDoc.data().heroImageUrl;
+          const directUrl = getDirectImageUrl(rawUrl) || DEFAULT_HERO_IMAGE;
+          setHeroImage(directUrl);
+          sessionStorage.setItem('hero_image_url', directUrl);
+        }
+      } catch (error: any) {
+        console.error('Error fetching hero image:', error);
+        if (!error.message?.includes('Quota limit exceeded')) {
+          handleFirestoreError(error, OperationType.GET, 'settings/hero');
+        }
       }
-    }, (error) => {
-      console.error('Error fetching hero image:', error);
-      if (error.message?.includes('Quota limit exceeded')) {
-        // Use cached image if available, otherwise default is already set
-      } else {
-        handleFirestoreError(error, OperationType.GET, 'settings/hero');
-      }
-    });
-    return () => unsub();
+    };
+
+    fetchHeroImage();
   }, []);
 
   const handleUpdateHero = async () => {

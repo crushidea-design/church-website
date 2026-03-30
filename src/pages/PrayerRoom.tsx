@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Heart, Lock, Edit2, Trash2, X as CloseIcon } from 'lucide-react';
-import { handleFirestoreError, OperationType } from '../lib/firebase';
+import { handleFirestoreError, OperationType, isQuotaExceeded } from '../lib/firebase';
 import { logActivity } from '../utils/logger';
 
 interface PrayerRequest {
@@ -40,8 +40,30 @@ export default function PrayerRoom() {
     }
 
     const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'), limit(50));
+
+    // Quota Guard for real-time listener
+    if (isQuotaExceeded()) {
+      console.warn('PrayerRoom: Quota exceeded, skipping real-time listener');
+      const fetchOnce = async () => {
+        try {
+          const snapshot = await getDocs(q);
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any as PrayerRequest));
+          const filtered = data.filter(r => 
+            role === 'admin' || !r.isPrivate || r.uid === user?.uid
+          );
+          setRequests(filtered);
+          setLoading(false);
+        } catch (error) {
+          console.error('Error fetching prayer requests once:', error);
+          setLoading(false);
+        }
+      };
+      fetchOnce();
+      return;
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PrayerRequest));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any as PrayerRequest));
       const filtered = data.filter(r => 
         role === 'admin' || !r.isPrivate || r.uid === user?.uid
       );
