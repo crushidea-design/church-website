@@ -236,6 +236,33 @@ export default function CreatePost() {
       const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
       console.log('Post created successfully with ID:', docRef.id);
       
+      // Update latest posts summary for Home page optimization
+      try {
+        const summaryRef = doc(db, 'settings', 'latest_posts_summary');
+        const summarySnap = await getDoc(summaryRef);
+        const currentSummary = summarySnap.exists() ? summarySnap.data() : {};
+        
+        const postSummary = {
+          id: docRef.id,
+          title: title.trim(),
+          content: content.trim().substring(0, 500), // Store a snippet
+          category: type,
+          subCategory: subCategory,
+          createdAt: new Date().toISOString(), // Use ISO string for summary to avoid timestamp issues in simple doc
+          authorName: user.displayName || '익명'
+        };
+
+        await setDoc(summaryRef, {
+          ...currentSummary,
+          [type]: postSummary,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        console.log('Latest posts summary updated.');
+      } catch (summaryErr) {
+        console.error('Error updating latest posts summary:', summaryErr);
+        // Don't fail the whole post creation if summary update fails
+      }
+      
       if (pdfBase64 && postData.pdfChunkCount) {
         console.log(`Uploading PDF in ${postData.pdfChunkCount} chunks...`);
         const CHUNK_SIZE = 800000;

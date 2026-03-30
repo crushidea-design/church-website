@@ -21,7 +21,7 @@ export default function Home() {
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
 
   useEffect(() => {
-    if (user && Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && user && Notification.permission === 'default') {
       const timer = setTimeout(() => setShowNotificationPrompt(true), 3000);
       return () => clearTimeout(timer);
     }
@@ -38,56 +38,104 @@ export default function Home() {
     const fetchLatestPosts = async () => {
       // Quota Guard
       if (isQuotaExceeded()) {
-        const cachedPosts = sessionStorage.getItem('latest_posts');
+        const cachedPosts = localStorage.getItem('latest_posts_data');
         if (cachedPosts) {
-          setLatestPosts(JSON.parse(cachedPosts));
+          try {
+            const { posts } = JSON.parse(cachedPosts);
+            setLatestPosts(posts);
+          } catch (e) {}
         }
         setLoadingPosts(false);
         return;
       }
 
-      // Check cache first
-      const cachedPosts = sessionStorage.getItem('latest_posts');
-      if (cachedPosts) {
+      // Check cache with TTL (10 minutes)
+      const CACHE_TTL = 10 * 60 * 1000;
+      const cachedData = localStorage.getItem('latest_posts_data');
+      if (cachedData) {
         try {
-          setLatestPosts(JSON.parse(cachedPosts));
-          setLoadingPosts(false);
-          // We still fetch in background to keep it fresh
+          const { posts, timestamp } = JSON.parse(cachedData);
+          setLatestPosts(posts);
+          
+          if (Date.now() - timestamp < CACHE_TTL) {
+            setLoadingPosts(false);
+            return;
+          }
         } catch (e) {
-          sessionStorage.removeItem('latest_posts');
+          localStorage.removeItem('latest_posts_data');
         }
       }
 
       setLoadingPosts(true);
       try {
-        const allowedCategories = ['community', 'research', 'journal'];
-        if (role === 'regular' || role === 'admin') {
-          allowedCategories.push('sermon');
+        // Optimization: Read from a pre-computed summary document
+        const summarySnap = await getDoc(doc(db, 'settings', 'latest_posts_summary'));
+        
+        if (summarySnap.exists()) {
+          const summaryData = summarySnap.data();
+          const categories = ['sermon', 'research', 'community'];
+          const postsData: any[] = [];
+          
+          categories.forEach(cat => {
+            if (summaryData[cat]) {
+              // Permission check for sermon
+              if (cat === 'sermon' && role !== 'regular' && role !== 'admin') {
+                return;
+              }
+              postsData.push(summaryData[cat]);
+            }
+          });
+
+          // Sort by createdAt descending
+          postsData.sort((a, b) => {
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
+            return dateB - dateA;
+          });
+
+          setLatestPosts(postsData);
+          localStorage.setItem('latest_posts_data', JSON.stringify({
+            posts: postsData,
+            timestamp: Date.now()
+          }));
+          setLoadingPosts(false);
+          return;
         }
 
-        // We use where to match security rules. This requires a composite index: category (in) + createdAt (desc)
-        const q = query(
-          collection(db, 'posts'), 
-          where('category', 'in', allowedCategories),
-          orderBy('createdAt', 'desc'), 
-          limit(3)
-        );
-        const snapshot = await getDocs(q);
-        const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Fallback to original query if summary doesn't exist
+        const categories = ['community', 'research'];
+        if (role === 'regular' || role === 'admin') {
+          categories.push('sermon');
+        }
+
+        const postsData: any[] = [];
+        await Promise.all(categories.map(async (cat) => {
+          const q = query(
+            collection(db, 'posts'),
+            where('category', '==', cat),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            postsData.push({ id: snap.docs[0].id, ...snap.docs[0].data() });
+          }
+        }));
+
+        // Sort by createdAt descending
+        postsData.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
+          const dateB = b.createdAt?.toDate?.()?.getTime() || 0;
+          return dateB - dateA;
+        });
 
         setLatestPosts(postsData);
-        sessionStorage.setItem('latest_posts', JSON.stringify(postsData));
+        localStorage.setItem('latest_posts_data', JSON.stringify({
+          posts: postsData,
+          timestamp: Date.now()
+        }));
       } catch (error: any) {
         console.error('Error fetching latest posts:', error);
-        if (error.code === 'failed-precondition' && error.message?.includes('index')) {
-          console.warn('Firestore index required for this query. Please check the console for the link to create it.');
-          // Fallback: try to fetch without order or just show empty if no index
-          // For now, we'll just show what's in cache or empty
-        }
-        if (error.message?.includes('Quota limit exceeded')) {
-          // Handled by handleFirestoreError if we were using it here, 
-          // but we'll just let the cache stay.
-        }
       } finally {
         setLoadingPosts(false);
       }
@@ -105,18 +153,24 @@ export default function Home() {
       return url;
     };
 
-    // Load from cache first
-    const cachedHero = sessionStorage.getItem('hero_image_url');
-    if (cachedHero) {
-      setHeroImage(cachedHero);
-    }
-
     const fetchHeroImage = async () => {
-      // Quota Guard for fetch
-      if (isQuotaExceeded()) {
-        console.warn('Home: Quota exceeded, skipping hero image fetch');
-        return;
+      // Check cache with TTL (30 minutes)
+      const CACHE_TTL = 30 * 60 * 1000;
+      const cachedHero = localStorage.getItem('hero_image_data');
+      if (cachedHero) {
+        try {
+          const { url, timestamp } = JSON.parse(cachedHero);
+          setHeroImage(url);
+          if (Date.now() - timestamp < CACHE_TTL) {
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem('hero_image_data');
+        }
       }
+
+      // Quota Guard
+      if (isQuotaExceeded()) return;
 
       try {
         const heroDoc = await getDoc(doc(db, 'settings', 'hero'));
@@ -124,13 +178,13 @@ export default function Home() {
           const rawUrl = heroDoc.data().heroImageUrl;
           const directUrl = getDirectImageUrl(rawUrl) || DEFAULT_HERO_IMAGE;
           setHeroImage(directUrl);
-          sessionStorage.setItem('hero_image_url', directUrl);
+          localStorage.setItem('hero_image_data', JSON.stringify({
+            url: directUrl,
+            timestamp: Date.now()
+          }));
         }
       } catch (error: any) {
         console.error('Error fetching hero image:', error);
-        if (!error.message?.includes('Quota limit exceeded')) {
-          handleFirestoreError(error, OperationType.GET, 'settings/hero');
-        }
       }
     };
 

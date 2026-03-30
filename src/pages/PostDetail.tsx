@@ -202,6 +202,55 @@ export default function PostDetail() {
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
       }
       await deleteDoc(doc(db, 'posts', id));
+      
+      // Update latest posts summary for Home page optimization
+      try {
+        const summaryRef = doc(db, 'settings', 'latest_posts_summary');
+        const summarySnap = await getDoc(summaryRef);
+        if (summarySnap.exists()) {
+          const summaryData = summarySnap.data();
+          const category = post.category;
+          
+          // If the deleted post was the one in the summary, find the new latest
+          if (summaryData[category]?.id === id) {
+            console.log('Deleted post was in summary, finding new latest for:', category);
+            const q = query(
+              collection(db, 'posts'),
+              where('category', '==', category),
+              orderBy('createdAt', 'desc'),
+              limit(1)
+            );
+            const nextLatestSnap = await getDocs(q);
+            
+            if (!nextLatestSnap.empty) {
+              const nextPost = nextLatestSnap.docs[0];
+              const nextData = nextPost.data();
+              const postSummary = {
+                id: nextPost.id,
+                title: nextData.title,
+                content: nextData.content.substring(0, 500),
+                category: category,
+                subCategory: nextData.subCategory || 'general',
+                createdAt: nextData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+                authorName: nextData.authorName || '익명'
+              };
+              await updateDoc(summaryRef, {
+                [category]: postSummary,
+                updatedAt: serverTimestamp()
+              });
+            } else {
+              // No more posts in this category, remove from summary
+              await updateDoc(summaryRef, {
+                [category]: null,
+                updatedAt: serverTimestamp()
+              });
+            }
+          }
+        }
+      } catch (summaryErr) {
+        console.error('Error updating latest posts summary on delete:', summaryErr);
+      }
+
       navigate(-1);
     } catch (error) {
       console.error('Error deleting post:', error);

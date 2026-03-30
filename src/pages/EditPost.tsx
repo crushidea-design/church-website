@@ -228,6 +228,34 @@ export default function EditPost() {
       await Promise.race([updatePromise, timeoutPromise]);
       console.log('Post updated successfully');
 
+      // Update latest posts summary for Home page optimization
+      try {
+        const summaryRef = doc(db, 'settings', 'latest_posts_summary');
+        const summarySnap = await getDoc(summaryRef);
+        if (summarySnap.exists()) {
+          const summaryData = summarySnap.data();
+          // Only update if this post IS the one currently in the summary for its category
+          if (summaryData[type]?.id === id) {
+            const postSummary = {
+              id: id,
+              title: title.trim(),
+              content: content.trim().substring(0, 500),
+              category: type,
+              subCategory: subCategory,
+              createdAt: summaryData[type].createdAt, // Keep original creation date
+              authorName: user?.displayName || '익명'
+            };
+            await updateDoc(summaryRef, {
+              [type]: postSummary,
+              updatedAt: serverTimestamp()
+            });
+            console.log('Latest posts summary updated (edited post was the latest).');
+          }
+        }
+      } catch (summaryErr) {
+        console.error('Error updating latest posts summary on edit:', summaryErr);
+      }
+
       if (pdfFile || removeExistingPdf) {
         const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
         const oldChunksSnap = await getDocs(oldChunksQuery);

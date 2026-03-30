@@ -18,6 +18,11 @@ export const requestNotificationPermission = async (userId: string) => {
       return null;
     }
 
+    if (typeof Notification === 'undefined') {
+      console.warn('Notifications are not supported in this browser.');
+      return;
+    }
+
     const permission = await Notification.requestPermission();
     console.log('Notification permission status:', permission);
     

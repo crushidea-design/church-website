@@ -1,12 +1,62 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell } from 'lucide-react';
+import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
+import { db } from '../lib/firebase';
+import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 export default function AdminDashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshLatestSummary = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const categories = ['sermon', 'research', 'community', 'journal'];
+      const summary: any = {};
+
+      await Promise.all(categories.map(async (cat) => {
+        const q = query(
+          collection(db, 'posts'),
+          where('category', '==', cat),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const post = snap.docs[0];
+          const data = post.data();
+          summary[cat] = {
+            id: post.id,
+            title: data.title,
+            content: data.content.substring(0, 500),
+            category: cat,
+            subCategory: data.subCategory || 'general',
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            authorName: data.authorName || '익명'
+          };
+        }
+      }));
+
+      await setDoc(doc(db, 'settings', 'latest_posts_summary'), {
+        ...summary,
+        updatedAt: serverTimestamp()
+      });
+      
+      toast.success('최신 게시물 요약 정보가 성공적으로 갱신되었습니다.');
+      // Clear local cache to show changes immediately
+      localStorage.removeItem('latest_posts_data');
+    } catch (error) {
+      console.error('Error refreshing summary:', error);
+      toast.error('요약 정보 갱신 중 오류가 발생했습니다.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (role !== 'admin') {
     return (
@@ -27,6 +77,14 @@ export default function AdminDashboard() {
       icon: Activity,
       path: '/admin/activity-logs',
       color: 'bg-gray-50 text-gray-400 border-gray-100'
+    },
+    {
+      title: '최신 게시물 요약 갱신',
+      description: '홈 화면의 최신 게시물 정보를 강제로 갱신합니다. (읽기 비용 절감용)',
+      icon: RefreshCw,
+      onClick: refreshLatestSummary,
+      isLoading: isRefreshing,
+      color: 'bg-indigo-50 text-indigo-600 border-indigo-100'
     },
     {
       title: '교회 정보 관리',
@@ -95,19 +153,15 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {adminItems.map((item, index) => (
-            <motion.div
-              key={item.path}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Link
-                to={item.path}
-                className="block bg-white rounded-3xl p-8 border border-wood-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group h-full"
-              >
+          {adminItems.map((item, index) => {
+            const Content = (
+              <div className="h-full">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 border ${item.color} group-hover:scale-110 transition-transform`}>
-                  <item.icon size={28} />
+                  {item.isLoading ? (
+                    <RefreshCw className="animate-spin" size={28} />
+                  ) : (
+                    <item.icon size={28} />
+                  )}
                 </div>
                 <h3 className="text-xl font-bold text-wood-900 mb-3 flex items-center justify-between">
                   {item.title}
@@ -116,9 +170,35 @@ export default function AdminDashboard() {
                 <p className="text-wood-600 leading-relaxed">
                   {item.description}
                 </p>
-              </Link>
-            </motion.div>
-          ))}
+              </div>
+            );
+
+            return (
+              <motion.div
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                {item.onClick ? (
+                  <button
+                    onClick={item.onClick}
+                    disabled={item.isLoading}
+                    className="w-full text-left block bg-white rounded-3xl p-8 border border-wood-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group h-full disabled:opacity-50"
+                  >
+                    {Content}
+                  </button>
+                ) : (
+                  <Link
+                    to={item.path || '#'}
+                    className="block bg-white rounded-3xl p-8 border border-wood-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group h-full"
+                  >
+                    {Content}
+                  </Link>
+                )}
+              </motion.div>
+            );
+          })}
         </div>
 
         <div className="mt-12 p-8 bg-white/50 backdrop-blur-sm rounded-3xl border border-wood-200/50 text-center">

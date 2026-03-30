@@ -31,10 +31,30 @@ export default function Layout() {
     }
 
     const checkUnread = async () => {
+      // Check cache with TTL (5 minutes)
+      const CACHE_TTL = 5 * 60 * 1000;
+      const cachedUnread = localStorage.getItem('admin_unread_messages');
+      if (cachedUnread) {
+        try {
+          const { hasUnread, timestamp } = JSON.parse(cachedUnread);
+          setHasUnreadMessages(hasUnread);
+          if (Date.now() - timestamp < CACHE_TTL) {
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem('admin_unread_messages');
+        }
+      }
+
       try {
         const q = query(collection(db, 'contacts'), where('read', '==', false), limit(1));
         const snapshot = await getDocs(q);
-        setHasUnreadMessages(!snapshot.empty);
+        const hasUnread = !snapshot.empty;
+        setHasUnreadMessages(hasUnread);
+        localStorage.setItem('admin_unread_messages', JSON.stringify({
+          hasUnread,
+          timestamp: Date.now()
+        }));
       } catch (error) {
         console.error('Error checking unread messages:', error);
         handleFirestoreError(error, OperationType.GET, 'contacts');
