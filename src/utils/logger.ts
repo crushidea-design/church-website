@@ -7,6 +7,9 @@ export const logActivity = async (
   activityType: string,
   pagePath: string
 ) => {
+  // DIGITAL ATTENDANCE DISABLED TO REDUCE FIRESTORE USAGE
+  return;
+
   if (!user) return; // 로그인하지 않은 사용자는 기록하지 않음
 
   try {

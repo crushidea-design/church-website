@@ -22,11 +22,11 @@ export default function AdminDashboard() {
 
   const adminItems = [
     {
-      title: '디지털 출석부',
-      description: '성도들의 홈페이지 방문 및 활동 로그(디지털 심방 자료)를 확인합니다.',
+      title: '디지털 출석부 (중단됨)',
+      description: '성도들의 홈페이지 방문 및 활동 로그 확인 기능이 현재 비활성화되었습니다.',
       icon: Activity,
       path: '/admin/activity-logs',
-      color: 'bg-indigo-50 text-indigo-600 border-indigo-100'
+      color: 'bg-gray-50 text-gray-400 border-gray-100'
     },
     {
       title: '교회 정보 관리',

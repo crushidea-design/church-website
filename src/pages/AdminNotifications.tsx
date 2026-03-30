@@ -93,16 +93,32 @@ export default function AdminNotifications() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 border border-wood-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-8 p-4 bg-orange-50 rounded-2xl border border-orange-100">
-            <Users className="text-orange-600" />
-            <div>
-              <p className="text-sm text-orange-800 font-medium">현재 알림 수신 가능 기기</p>
-              <p className="text-2xl font-bold text-orange-900">{tokenCount}대</p>
+          <div className="bg-white rounded-3xl p-8 border border-wood-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-8 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+              <Users className="text-orange-600" />
+              <div>
+                <p className="text-sm text-orange-800 font-medium">현재 알림 수신 가능 기기</p>
+                <p className="text-2xl font-bold text-orange-900">{tokenCount}대</p>
+              </div>
             </div>
-          </div>
 
-          <form onSubmit={handleSend} className="space-y-6">
+            {tokenCount === 0 && (
+              <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                <div className="flex gap-3">
+                  <AlertCircle className="text-amber-600 shrink-0" size={20} />
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">수신 가능 기기가 없습니다.</p>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                      1. 브라우저에서 알림 권한을 허용했는지 확인해 주세요.<br />
+                      2. VAPID 키(Web Push Certificate)가 올바르게 설정되어 있는지 확인이 필요합니다.<br />
+                      3. 시크릿 모드에서는 알림 기능이 작동하지 않을 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSend} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-wood-700 mb-2">알림 제목</label>
               <input

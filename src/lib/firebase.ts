@@ -37,9 +37,10 @@ if (typeof window !== 'undefined') {
   isSupported().then(supported => {
     if (supported) {
       messaging = getMessaging(app);
-      console.log('Firebase Messaging initialized');
+      (window as any).firebase_messaging = messaging;
+      console.log('Firebase Messaging initialized successfully');
     } else {
-      console.warn('Firebase Messaging is not supported in this browser');
+      console.warn('Firebase Messaging is not supported in this browser (Incognito mode or unsupported browser)');
     }
   }).catch(err => {
     console.error('Error checking messaging support:', err);
