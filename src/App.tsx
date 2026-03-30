@@ -1,10 +1,12 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Introduction from './pages/Introduction';
+import ArchiveLayout from './pages/ArchiveLayout';
+import TodayWord from './pages/TodayWord';
 import Sermons from './pages/Sermons';
 import ResearchLab from './pages/ResearchLab';
 import Community from './pages/Community';
@@ -38,8 +40,12 @@ export default function App() {
               <Route path="login" element={<Login />} />
               <Route path="profile" element={<Profile />} />
               <Route path="intro" element={<Introduction />} />
-              <Route path="sermons" element={<Sermons />} />
-              <Route path="research" element={<ResearchLab />} />
+              <Route path="archive" element={<ArchiveLayout />}>
+                <Route index element={<Navigate to="today" replace />} />
+                <Route path="today" element={<TodayWord />} />
+                <Route path="sermons" element={<Sermons />} />
+                <Route path="research" element={<ResearchLab />} />
+              </Route>
               <Route path="community" element={<Community />} />
               <Route path="prayer-room" element={<PrayerRoom />} />
               <Route path="post/:id" element={<PostDetail />} />

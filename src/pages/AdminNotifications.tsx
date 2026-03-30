@@ -8,8 +8,9 @@ import { motion } from 'motion/react';
 
 const CATEGORIES = [
   { id: 'home', name: '홈페이지', path: '/' },
-  { id: 'sermon', name: '말씀 서재', path: '/journal' }, // Note: sermon is often mapped to journal path in some apps, but let's check
-  { id: 'research', name: '교회 연구실', path: '/journal' },
+  { id: 'today_word', name: '오늘의 말씀', path: '/archive/today' },
+  { id: 'sermon', name: '말씀 서재', path: '/archive/sermons' },
+  { id: 'research', name: '교회 연구실', path: '/archive/research' },
   { id: 'community', name: '소통 게시판', path: '/community' },
   { id: 'journal', name: '개척 일지', path: '/journal' },
   { id: 'manual', name: '직접 입력', path: '' }
@@ -101,7 +102,7 @@ export default function AdminNotifications() {
     if (selectedCategory === 'community') {
       setTargetUrl(`/community?id=${postId}`);
     } else {
-      setTargetUrl(`/journal/${postId}`);
+      setTargetUrl(`/post/${postId}`);
     }
   };
 

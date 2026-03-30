@@ -313,6 +313,7 @@ export default function EditPost() {
       case 'research': return '연구글 수정';
       case 'sermon': return '말씀 서재 수정';
       case 'journal': return '개척 일지 수정';
+      case 'today_word': return '오늘의 묵상 가이드라인 수정';
       default: return '게시글 수정';
     }
   };

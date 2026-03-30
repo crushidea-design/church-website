@@ -68,7 +68,11 @@ export default function Layout() {
   useEffect(() => {
     const unsubscribe = onMessageListener((payload: any) => {
       if (payload?.notification) {
-        const url = payload.data?.url || '/';
+        const url = payload.data?.url || payload.fcmOptions?.link || '/';
+        
+        // Prevent duplicate toasts by checking if one with the same title already exists
+        // Sonner handles some of this, but we can be explicit if needed.
+        // For now, we just ensure the action is correctly set.
         toast(payload.notification.title, {
           description: payload.notification.body,
           icon: <Bell className="text-gold-500" />,
@@ -86,14 +90,13 @@ export default function Layout() {
         unsubscribe();
       }
     };
-  }, []);
+  }, [navigate]);
 
   const navItems = [
     { name: '홈', path: '/', icon: Home },
     { name: '소개', path: '/intro', icon: Info },
     { name: '개척 일지', path: '/journal', icon: PenTool },
-    { name: '말씀 서재', path: '/sermons', icon: PlayCircle },
-    { name: '교회 연구실', path: '/research', icon: BookOpen },
+    { name: '말씀 아카이브', path: '/archive', icon: BookOpen },
     { name: '소통 게시판', path: '/community', icon: Users },
     { name: '기도자의 방', path: '/prayer-room', icon: Heart },
     { name: '문의', path: '/contact', icon: Mail },
@@ -285,8 +288,9 @@ export default function Layout() {
               <ul className="grid grid-cols-2 gap-y-2 gap-x-6 w-fit text-sm text-wood-300">
                 <li><Link to="/intro" className="hover:text-gold-400 transition">교회 소개</Link></li>
                 <li><Link to="/journal" className="hover:text-gold-400 transition">개척 일지</Link></li>
-                <li><Link to="/sermons" className="hover:text-gold-400 transition">말씀 서재</Link></li>
-                <li><Link to="/research" className="hover:text-gold-400 transition">교회 연구실</Link></li>
+                <li><Link to="/archive/today" className="hover:text-gold-400 transition">오늘의 말씀</Link></li>
+                <li><Link to="/archive/sermons" className="hover:text-gold-400 transition">말씀 서재</Link></li>
+                <li><Link to="/archive/research" className="hover:text-gold-400 transition">교회 연구실</Link></li>
                 <li><Link to="/community" className="hover:text-gold-400 transition">소통 게시판</Link></li>
                 <li><Link to="/contact" className="hover:text-gold-400 transition">개척 모임 문의</Link></li>
               </ul>

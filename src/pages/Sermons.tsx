@@ -148,157 +148,154 @@ export default function Sermons() {
   }
 
   return (
-    <div className="bg-wood-100 min-h-screen py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-end mb-8 border-b border-wood-200 pb-6">
-          <div className="text-left">
-            <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">말씀 서재</h1>
-            <p className="text-lg text-wood-600">유튜브에 업로드된 설교와 성경 공부 영상을 확인하세요.</p>
-          </div>
-          {canWrite && (
-            <Link
-              to={`/create-post?type=sermon${activeTab ? `&categoryId=${activeTab}` : ''}`}
-              className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
+    <div className="max-w-7xl mx-auto">
+      <div className="flex justify-between items-end mb-8 border-b border-wood-200 pb-6">
+        <div className="text-left">
+          <p className="text-lg text-wood-600">유튜브에 업로드된 설교와 성경 공부 영상을 확인하세요.</p>
+        </div>
+        {canWrite && (
+          <Link
+            to={`/create-post?type=sermon${activeTab ? `&categoryId=${activeTab}` : ''}`}
+            className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
+          >
+            <Plus size={20} className="mr-2" />
+            영상 등록
+          </Link>
+        )}
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+          {categories.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-wood-900 text-white shadow-sm'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+              }`}
             >
-              <Plus size={20} className="mr-2" />
-              영상 등록
-            </Link>
+              {tab.name}
+            </button>
+          ))}
+          {hasUncategorized && (
+            <button
+              onClick={() => setActiveTab('uncategorized')}
+              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                activeTab === 'uncategorized'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
+              }`}
+            >
+              카테고리 미지정
+            </button>
+          )}
+          {/* Fallback for legacy tabs if they don't exist in categories */}
+          {!categories.find(c => c.id === 'past_sermons') && videos.some(v => v.subCategory === 'past_sermons') && (
+            <button
+              onClick={() => setActiveTab('past_sermons')}
+              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                activeTab === 'past_sermons'
+                  ? 'bg-wood-900 text-white shadow-sm'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+              }`}
+            >
+              지난 설교들
+            </button>
+          )}
+          {!categories.find(c => c.id === 'pilgrims_progress') && videos.some(v => v.subCategory === 'pilgrims_progress') && (
+            <button
+              onClick={() => setActiveTab('pilgrims_progress')}
+              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                activeTab === 'pilgrims_progress'
+                  ? 'bg-wood-900 text-white shadow-sm'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+              }`}
+            >
+              천로역정
+            </button>
           )}
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-            {categories.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-wood-900 text-white shadow-sm'
-                    : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
-                }`}
-              >
-                {tab.name}
-              </button>
-            ))}
-            {hasUncategorized && (
-              <button
-                onClick={() => setActiveTab('uncategorized')}
-                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                  activeTab === 'uncategorized'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
-                }`}
-              >
-                카테고리 미지정
-              </button>
-            )}
-            {/* Fallback for legacy tabs if they don't exist in categories */}
-            {!categories.find(c => c.id === 'past_sermons') && videos.some(v => v.subCategory === 'past_sermons') && (
-              <button
-                onClick={() => setActiveTab('past_sermons')}
-                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                  activeTab === 'past_sermons'
-                    ? 'bg-wood-900 text-white shadow-sm'
-                    : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
-                }`}
-              >
-                지난 설교들
-              </button>
-            )}
-            {!categories.find(c => c.id === 'pilgrims_progress') && videos.some(v => v.subCategory === 'pilgrims_progress') && (
-              <button
-                onClick={() => setActiveTab('pilgrims_progress')}
-                className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                  activeTab === 'pilgrims_progress'
-                    ? 'bg-wood-900 text-white shadow-sm'
-                    : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
-                }`}
-              >
-                천로역정
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-wood-200 shadow-sm self-end md:self-auto">
-            <div className="flex items-center gap-1 px-2 border-r border-wood-100">
-              <ArrowUpDown size={14} className="text-wood-400" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
-                className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-medium cursor-pointer py-1"
-              >
-                <option value="date">날짜순</option>
-                <option value="title">제목순</option>
-              </select>
-            </div>
-            <button
-              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="px-3 py-1 text-sm font-medium text-wood-600 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
+        <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-wood-200 shadow-sm self-end md:self-auto">
+          <div className="flex items-center gap-1 px-2 border-r border-wood-100">
+            <ArrowUpDown size={14} className="text-wood-400" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
+              className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-medium cursor-pointer py-1"
             >
-              {sortOrder === 'desc' ? '내림차순' : '오름차순'}
-            </button>
+              <option value="date">날짜순</option>
+              <option value="title">제목순</option>
+            </select>
           </div>
+          <button
+            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-1 text-sm font-medium text-wood-600 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
+          >
+            {sortOrder === 'desc' ? '내림차순' : '오름차순'}
+          </button>
         </div>
+      </div>
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
-          </div>
-        ) : filteredVideos.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl border border-wood-200">
-            <Video className="mx-auto h-12 w-12 text-wood-300 mb-4" />
-            <h3 className="text-lg font-medium text-wood-900">등록된 영상이 없습니다</h3>
-            <p className="mt-2 text-wood-500">곧 새로운 말씀 영상이 업데이트될 예정입니다.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredVideos.map((video, index) => {
-              const videoId = getYouTubeId(video.content);
-              return (
-                <motion.div
-                  key={video.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <Link to={`/post/${video.id}`} className="block h-full group">
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-wood-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-full">
-                      <div className="aspect-video bg-wood-900 relative">
-                        {videoId ? (
-                          <img
-                            src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
-                            alt={video.title}
-                            className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/0.jpg`;
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-wood-500">
-                            <Video size={48} />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <PlayCircle className="text-white" size={32} />
-                          </div>
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
+        </div>
+      ) : filteredVideos.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-2xl border border-wood-200">
+          <Video className="mx-auto h-12 w-12 text-wood-300 mb-4" />
+          <h3 className="text-lg font-medium text-wood-900">등록된 영상이 없습니다</h3>
+          <p className="mt-2 text-wood-500">곧 새로운 말씀 영상이 업데이트될 예정입니다.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredVideos.map((video, index) => {
+            const videoId = getYouTubeId(video.content);
+            return (
+              <motion.div
+                key={video.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Link to={`/post/${video.id}`} className="block h-full group">
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-wood-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-full">
+                    <div className="aspect-video bg-wood-900 relative">
+                      {videoId ? (
+                        <img
+                          src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                          alt={video.title}
+                          className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/0.jpg`;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-wood-500">
+                          <Video size={48} />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <PlayCircle className="text-white" size={32} />
                         </div>
                       </div>
-                      <div className="p-6 flex-grow">
-                        <h3 className="text-lg font-bold text-wood-900 mb-2 line-clamp-2">{video.title}</h3>
-                        <p className="text-sm text-wood-500">
-                          {formatDate(video.createdAt)}
-                        </p>
-                      </div>
                     </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    <div className="p-6 flex-grow">
+                      <h3 className="text-lg font-bold text-wood-900 mb-2 line-clamp-2">{video.title}</h3>
+                      <p className="text-sm text-wood-500">
+                        {formatDate(video.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

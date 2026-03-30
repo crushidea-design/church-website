@@ -96,7 +96,7 @@ export default function CreatePost() {
     );
   }
 
-  if ((type === 'research' || type === 'sermon') && role !== 'admin') {
+  if ((type === 'research' || type === 'sermon' || type === 'today_word') && role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-wood-50">
         <div className="text-center">
@@ -303,6 +303,7 @@ export default function CreatePost() {
       case 'research': return '연구글 작성';
       case 'sermon': return '말씀 서재 등록';
       case 'journal': return '개척 일지 작성';
+      case 'today_word': return '오늘의 묵상 가이드라인 작성';
       default: return '게시글 작성';
     }
   };

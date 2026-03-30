@@ -27,10 +27,10 @@ self.addEventListener('notificationclick', (event) => {
   
   // Extract URL from various possible payload structures
   let urlToOpen = '/';
-  if (event.notification.data?.FCM_MSG?.data?.url) {
-    urlToOpen = event.notification.data.FCM_MSG.data.url;
-  } else if (event.notification.data?.url) {
+  if (event.notification.data?.url) {
     urlToOpen = event.notification.data.url;
+  } else if (event.notification.data?.FCM_MSG?.data?.url) {
+    urlToOpen = event.notification.data.FCM_MSG.data.url;
   }
 
   // If it's a relative URL, make it absolute

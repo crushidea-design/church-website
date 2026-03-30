@@ -187,7 +187,7 @@ export default function Introduction() {
                     className="group flex flex-col items-center w-full h-full transition-all duration-500"
                   >
                     <div className="w-full h-full min-h-[120px] lg:min-h-[200px] pt-8 pb-4 lg:pt-10 lg:pb-6 px-4 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex flex-col items-center justify-center relative">
-                      <Logo className="w-20 h-20 lg:w-[140px] lg:h-[140px] group-hover:scale-110 transition-transform duration-700 drop-shadow-md" />
+                      <Logo className="w-28 h-28 lg:w-[160px] lg:h-[160px] group-hover:scale-110 transition-transform duration-700 drop-shadow-md" />
                       <span className="absolute top-4 lg:top-6 left-6 sm:left-8 text-xs sm:text-sm text-wood-400 font-medium tracking-tight group-hover:text-wood-600 transition-colors">로고 의미 보기</span>
                     </div>
                   </button>

@@ -364,8 +364,9 @@ export default function PostDetail() {
             onClick={() => {
               const categoryPaths: Record<string, string> = {
                 'journal': '/journal',
-                'sermon': '/sermons',
-                'research': '/research',
+                'sermon': '/archive/sermons',
+                'research': '/archive/research',
+                'today_word': '/archive/today',
                 'community': '/community',
                 'contact': '/contact'
               };
@@ -412,7 +413,8 @@ export default function PostDetail() {
                 ) : post.category === 'sermon' ? (
                   post.subCategory === 'past_sermons' ? '지난 설교들' :
                   post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재'
-                ) : post.category === 'journal' ? '개척 일지' : '소통 게시판'}
+                ) : post.category === 'today_word' ? '오늘의 묵상' :
+                post.category === 'journal' ? '개척 일지' : '소통 게시판'}
               </span>
               <div className="flex items-center text-sm text-wood-600 gap-4">
                 <span>{post.authorName}</span>
