@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs } from 'firebase/firestore';
 import { Activity, ArrowLeft, ChevronDown, ChevronRight, User } from 'lucide-react';
 
@@ -28,7 +28,7 @@ interface LogGroup {
   logs: ActivityLog[];
 }
 
-const translatePath = (path: string, activityType: string, postsMap: Record<string, any>) => {
+const translatePath = (path: string, activityType: string) => {
   if (activityType === '기도 응원 참여') return '기도 응원에 참여했습니다.';
   if (path === '/') return '홈 화면에 방문했습니다.';
   if (path === '/login') return '로그인 했습니다.';
@@ -53,13 +53,7 @@ const translatePath = (path: string, activityType: string, postsMap: Record<stri
   if (path === '/privacy') return '개인정보 처리방침을 확인했습니다.';
   
   if (path.startsWith('/post/')) {
-    const postId = path.split('/')[2];
-    const postTitle = postsMap[postId]?.title;
-    if (postTitle) {
-      return `"${postTitle}" 글을 열어보았습니다.`;
-    } else {
-      return '게시글을 열어보았습니다. (삭제된 글이거나 로딩 중)';
-    }
+    return '특정 게시글을 열어보았습니다.';
   }
 
   if (path.startsWith('/edit-post/')) return '게시글 수정 페이지에 접속했습니다.';
@@ -73,8 +67,6 @@ export default function AdminActivityLogs() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [usersMap, setUsersMap] = useState<Record<string, any>>({});
-  const [postsMap, setPostsMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -84,30 +76,10 @@ export default function AdminActivityLogs() {
       return;
     }
 
-    const fetchUsersAndPosts = async () => {
-      try {
-        const [usersSnap, postsSnap] = await Promise.all([
-          getDocs(collection(db, 'users')),
-          getDocs(collection(db, 'posts'))
-        ]);
-        
-        const uMap: Record<string, any> = {};
-        usersSnap.forEach(doc => { uMap[doc.id] = doc.data(); });
-        setUsersMap(uMap);
-
-        const pMap: Record<string, any> = {};
-        postsSnap.forEach(doc => { pMap[doc.id] = doc.data(); });
-        setPostsMap(pMap);
-      } catch (error) {
-        console.error("Failed to fetch users or posts:", error);
-      }
-    };
-    fetchUsersAndPosts();
-
     const q = query(
       collection(db, 'activity_logs'),
       orderBy('timestamp', 'desc'),
-      limit(500)
+      limit(100)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -116,6 +88,10 @@ export default function AdminActivityLogs() {
         ...doc.data()
       })) as ActivityLog[];
       setLogs(data);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching activity logs:', error);
+      handleFirestoreError(error, OperationType.GET, 'activity_logs');
       setLoading(false);
     });
 
@@ -136,7 +112,7 @@ export default function AdminActivityLogs() {
           id: groupId,
           uid: log.uid,
           email: log.email,
-          displayName: log.displayName || usersMap[log.uid]?.displayName || log.email.split('@')[0],
+          displayName: log.displayName || log.email.split('@')[0],
           role: log.role,
           dateStr: dateStr,
           loginTime: log.timestamp, 
@@ -163,7 +139,7 @@ export default function AdminActivityLogs() {
         logs: group.logs.reverse() // Reverse to show chronologically (oldest first)
       }))
       .sort((a, b) => b.lastActivityTime.toMillis() - a.lastActivityTime.toMillis());
-  }, [logs, usersMap]);
+  }, [logs]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -266,7 +242,7 @@ export default function AdminActivityLogs() {
                                   </span>
                                 </div>
                                 <div className="text-sm text-wood-700 mt-1">
-                                  {translatePath(log.pagePath, log.activityType, postsMap)}
+                                  {translatePath(log.pagePath, log.activityType)}
                                 </div>
                               </div>
                             </div>

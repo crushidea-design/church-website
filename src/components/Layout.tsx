@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { signInWithGoogle, logout, db } from '../lib/firebase';
+import { signInWithGoogle, logout, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool, Heart } from 'lucide-react';
+import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool, Heart, Bell } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logActivity } from '../utils/logger';
 import Logo from './Logo';
+import { Toaster, toast } from 'sonner';
+import { onMessageListener } from '../services/notificationService';
 
 export default function Layout() {
   const { user, role } = useAuth();
@@ -33,10 +35,23 @@ export default function Layout() {
       setHasUnreadMessages(!snapshot.empty);
     }, (error) => {
       console.error('Error listening for unread messages:', error);
+      handleFirestoreError(error, OperationType.GET, 'contacts');
     });
 
     return () => unsubscribe();
   }, [role]);
+
+  useEffect(() => {
+    onMessageListener().then((payload: any) => {
+      if (payload?.notification) {
+        toast(payload.notification.title, {
+          description: payload.notification.body,
+          icon: <Bell className="text-gold-500" />,
+          duration: 5000,
+        });
+      }
+    }).catch(err => console.log('failed: ', err));
+  }, []);
 
   const navItems = [
     { name: '홈', path: '/', icon: Home },
@@ -51,6 +66,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-wood-100 font-sans text-wood-900">
+      <Toaster position="top-right" expand={true} richColors />
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-wood-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

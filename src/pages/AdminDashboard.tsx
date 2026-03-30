@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity } from 'lucide-react';
+import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function AdminDashboard() {
@@ -62,6 +62,13 @@ export default function AdminDashboard() {
       icon: FlaskConical,
       path: '/admin/research-categories',
       color: 'bg-emerald-50 text-emerald-600 border-emerald-100'
+    },
+    {
+      title: '알림 발송',
+      description: '성도들에게 모바일 푸시 알림을 보냅니다. (공지사항, 긴급 소식 등)',
+      icon: Bell,
+      path: '/admin/notifications',
+      color: 'bg-orange-50 text-orange-600 border-orange-100'
     }
   ];
 

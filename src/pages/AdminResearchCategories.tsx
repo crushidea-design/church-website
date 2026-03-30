@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { FlaskConical, Plus, Trash2, ChevronUp, ChevronDown, Edit2, Save, X, ArrowLeft } from 'lucide-react';
@@ -32,7 +32,7 @@ export default function AdminResearchCategories() {
       return;
     }
 
-    const q = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
+    const q = query(collection(db, 'research_categories'), orderBy('order', 'asc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,

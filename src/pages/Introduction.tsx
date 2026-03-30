@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Edit2, Check, X as CloseIcon, BookOpen, Heart, Users } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import Logo from '../components/Logo';
@@ -72,6 +72,9 @@ export default function Introduction() {
         const rawUrl = doc.data().introImageUrl;
         setIntroImage(getDirectImageUrl(rawUrl) || DEFAULT_INTRO_IMAGE);
       }
+    }, (error) => {
+      console.error('Error fetching intro image:', error);
+      handleFirestoreError(error, OperationType.GET, 'settings/intro');
     });
 
     const unsubText = onSnapshot(doc(db, 'settings', 'church_info'), (doc) => {
@@ -116,6 +119,9 @@ export default function Introduction() {
         if (data.ciPoint5Title) setCiPoint5Title(data.ciPoint5Title);
         if (data.ciPoint5Desc) setCiPoint5Desc(data.ciPoint5Desc);
       }
+    }, (error) => {
+      console.error('Error fetching church info:', error);
+      handleFirestoreError(error, OperationType.GET, 'settings/church_info');
     });
 
     return () => {

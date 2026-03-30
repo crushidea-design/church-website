@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit } from 'firebase/firestore';
 import { Heart, Lock, Edit2, Trash2, X as CloseIcon } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/firebase';
 import { logActivity } from '../utils/logger';
@@ -39,13 +39,17 @@ export default function PrayerRoom() {
       return;
     }
 
-    const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PrayerRequest));
       const filtered = data.filter(r => 
         role === 'admin' || !r.isPrivate || r.uid === user?.uid
       );
       setRequests(filtered);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching prayer requests:', error);
+      handleFirestoreError(error, OperationType.GET, 'prayer_requests');
       setLoading(false);
     });
 

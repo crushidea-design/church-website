@@ -1,22 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Users, Heart, Edit2, Check, X as CloseIcon, Calendar, ChevronRight } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { ArrowRight, BookOpen, Users, Heart, Edit2, Check, X as CloseIcon, Calendar, ChevronRight, Bell } from 'lucide-react';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
+import { requestNotificationPermission } from '../services/notificationService';
 
 const DEFAULT_HERO_IMAGE = "https://lh3.googleusercontent.com/d/1V0VulPP6zYJLhZCS_Ytmq2Ad2tndcEm0";
 
 export default function Home() {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const [heroImage, setHeroImage] = useState(DEFAULT_HERO_IMAGE);
   const [isEditing, setIsEditing] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [latestPosts, setLatestPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+
+  useEffect(() => {
+    if (user && Notification.permission === 'default') {
+      const timer = setTimeout(() => setShowNotificationPrompt(true), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
+
+  const handleEnableNotifications = async () => {
+    if (user) {
+      await requestNotificationPermission(user.uid);
+      setShowNotificationPrompt(false);
+    }
+  };
 
   useEffect(() => {
     const fetchLatestPosts = async () => {
@@ -39,35 +55,10 @@ export default function Home() {
         setLatestPosts(postsData);
       } catch (error: any) {
         console.error('Error fetching latest posts with index:', error);
-        
-        // Fallback: fetch allowed categories separately and merge client-side
-        try {
-          const categories = ['community', 'research', 'journal', 'sermon'];
-          const allPosts: any[] = [];
-          
-          for (const cat of categories) {
-            try {
-              const catQuery = query(collection(db, 'posts'), where('category', '==', cat));
-              const catSnap = await getDocs(catQuery);
-              catSnap.docs.forEach(doc => {
-                allPosts.push({ id: doc.id, ...doc.data() });
-              });
-            } catch (e) {
-              // Skip categories the user doesn't have permission for
-              console.log(`Skipping category ${cat} due to permissions or error`);
-            }
-          }
-          
-          const sorted = allPosts.sort((a: any, b: any) => {
-            const dateA = a.createdAt?.seconds || 0;
-            const dateB = b.createdAt?.seconds || 0;
-            return dateB - dateA;
-          }).slice(0, 3);
-          
-          setLatestPosts(sorted);
-        } catch (e) {
-          console.error('Fallback fetch failed:', e);
-        }
+        // We removed the fallback that fetched all posts without limit,
+        // because it causes massive read spikes and exhausts the Firestore quota.
+        // To fix this error permanently, please click the link in the Firebase console error
+        // to create the required composite index for 'category' and 'createdAt'.
       } finally {
         setLoadingPosts(false);
       }
@@ -90,6 +81,9 @@ export default function Home() {
         const rawUrl = doc.data().heroImageUrl;
         setHeroImage(getDirectImageUrl(rawUrl) || DEFAULT_HERO_IMAGE);
       }
+    }, (error) => {
+      console.error('Error fetching hero image:', error);
+      handleFirestoreError(error, OperationType.GET, 'settings/hero');
     });
     return () => unsub();
   }, []);
@@ -275,6 +269,43 @@ export default function Home() {
           </motion.div>
         </div>
       </section>
+
+      {/* Notification Prompt */}
+      {showNotificationPrompt && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed bottom-8 left-4 right-4 z-50 md:left-auto md:right-8 md:w-96"
+        >
+          <div className="bg-wood-900 text-white p-6 rounded-3xl shadow-2xl border border-white/10 backdrop-blur-md">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-gold-500/20 rounded-2xl text-gold-400">
+                <Bell size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold mb-1">알림을 켜시겠습니까?</h3>
+                <p className="text-sm text-wood-200 mb-4 leading-relaxed">
+                  교회의 새로운 소식과 설교, 연구글 알림을 모바일로 받아보실 수 있습니다.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleEnableNotifications}
+                    className="flex-1 bg-gold-500 hover:bg-gold-600 text-wood-900 py-2 rounded-xl text-sm font-bold transition shadow-lg"
+                  >
+                    알림 켜기
+                  </button>
+                  <button
+                    onClick={() => setShowNotificationPrompt(false)}
+                    className="px-4 py-2 text-sm font-medium text-wood-300 hover:text-white transition"
+                  >
+                    나중에
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Latest Posts Section */}
       <section className="py-24 relative" style={{ backgroundColor: '#fcfcfc', backgroundImage: brickPattern }}>

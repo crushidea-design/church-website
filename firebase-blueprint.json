@@ -129,9 +129,24 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role", "activityType", "pagePath", "timestamp"]
+    },
+    "FCMToken": {
+      "title": "FCMToken",
+      "description": "A Firebase Cloud Messaging token for a user device.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "token": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "token", "updatedAt"]
     }
   },
   "firestore": {
+    "fcm_tokens/{tokenId}": {
+      "schema": { "$ref": "#/entities/FCMToken" },
+      "description": "Stores FCM tokens for push notifications."
+    },
     "activity_logs/{logId}": {
       "schema": { "$ref": "#/entities/ActivityLog" },
       "description": "Stores user activity logs."

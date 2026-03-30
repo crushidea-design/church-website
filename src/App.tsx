@@ -18,6 +18,7 @@ import AdminSermonCategories from './pages/AdminSermonCategories';
 import AdminResearchCategories from './pages/AdminResearchCategories';
 import AdminChurchInfo from './pages/AdminChurchInfo';
 import AdminActivityLogs from './pages/AdminActivityLogs';
+import AdminNotifications from './pages/AdminNotifications';
 import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="admin/research-categories" element={<AdminResearchCategories />} />
               <Route path="admin/church-info" element={<AdminChurchInfo />} />
               <Route path="admin/activity-logs" element={<AdminActivityLogs />} />
+              <Route path="admin/notifications" element={<AdminNotifications />} />
               <Route path="admin" element={<AdminDashboard />} />
               <Route path="journal" element={<Journal />} />
               <Route path="contact" element={<Contact />} />

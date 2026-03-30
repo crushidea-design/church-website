@@ -158,7 +158,20 @@ service cloud.firestore {
              data.timestamp is timestamp;
     }
 
+    function isValidFCMToken(data) {
+      return hasOnlyAllowedFields(['userId', 'token', 'updatedAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.token is string && data.token.size() > 0 && data.token.size() < 500 &&
+             data.updatedAt is timestamp;
+    }
+
     // Rules
+    match /fcm_tokens/{tokenId} {
+      allow read: if isAdmin();
+      allow create, update: if isAuthenticated() && isValidFCMToken(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
     match /activity_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAuthenticated() && isValidActivityLog(request.resource.data);
