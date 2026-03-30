@@ -49,23 +49,6 @@ export default function Home() {
         return;
       }
 
-      // Check cache with TTL (10 minutes)
-      const CACHE_TTL = 10 * 60 * 1000;
-      const cachedData = localStorage.getItem('latest_posts_data');
-      if (cachedData) {
-        try {
-          const { posts, timestamp } = JSON.parse(cachedData);
-          setLatestPosts(posts);
-          
-          if (Date.now() - timestamp < CACHE_TTL) {
-            setLoadingPosts(false);
-            return;
-          }
-        } catch (e) {
-          localStorage.removeItem('latest_posts_data');
-        }
-      }
-
       setLoadingPosts(true);
       try {
         // Optimization: Read from a pre-computed summary document

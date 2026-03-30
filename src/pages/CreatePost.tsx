@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';

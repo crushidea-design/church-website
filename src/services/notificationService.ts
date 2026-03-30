@@ -80,10 +80,9 @@ export const requestNotificationPermission = async (userId: string) => {
   return null;
 };
 
-export const onMessageListener = () =>
-  new Promise((resolve) => {
-    if (!messaging) return;
-    onMessage(messaging, (payload) => {
-      resolve(payload);
-    });
+export const onMessageListener = (callback: (payload: any) => void) => {
+  if (!messaging) return () => {};
+  return onMessage(messaging, (payload) => {
+    callback(payload);
   });
+};

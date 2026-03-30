@@ -84,7 +84,7 @@ async function startServer() {
 
   // API Route to send notifications
   app.post('/api/notifications/send', async (req, res) => {
-    const { title, body, targetTokens } = req.body;
+    const { title, body, targetUrl, targetTokens } = req.body;
 
     if (!admin.apps.length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
@@ -95,9 +95,17 @@ async function startServer() {
     }
 
     try {
-      const message = {
+      const message: any = {
         notification: { title, body },
         tokens: targetTokens,
+        data: {
+          url: targetUrl || '/',
+        },
+        webpush: {
+          fcm_options: {
+            link: targetUrl || '/',
+          },
+        },
       };
 
       const response = await admin.messaging().sendEachForMulticast(message);

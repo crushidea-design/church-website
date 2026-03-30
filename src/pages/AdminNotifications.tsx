@@ -2,15 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { Bell, Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { collection, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
+import { Bell, Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
+
+const CATEGORIES = [
+  { id: 'home', name: '홈페이지', path: '/' },
+  { id: 'sermon', name: '말씀 서재', path: '/journal' }, // Note: sermon is often mapped to journal path in some apps, but let's check
+  { id: 'research', name: '교회 연구실', path: '/journal' },
+  { id: 'community', name: '소통 게시판', path: '/community' },
+  { id: 'journal', name: '개척 일지', path: '/journal' },
+  { id: 'manual', name: '직접 입력', path: '' }
+];
 
 export default function AdminNotifications() {
   const { role } = useAuth();
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [targetUrl, setTargetUrl] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('home');
+  const [posts, setPosts] = useState<any[]>([]);
+  const [selectedPostId, setSelectedPostId] = useState('');
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tokenCount, setTokenCount] = useState(0);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -33,6 +47,64 @@ export default function AdminNotifications() {
     fetchTokenCount();
   }, [role, navigate]);
 
+  useEffect(() => {
+    if (selectedCategory === 'home') {
+      setTargetUrl('/');
+      setPosts([]);
+      setSelectedPostId('');
+    } else if (selectedCategory === 'manual') {
+      // Keep targetUrl as is or empty it if it was a post URL
+      if (targetUrl.includes('/journal/') || targetUrl.includes('/community/')) {
+        setTargetUrl('');
+      }
+      setPosts([]);
+      setSelectedPostId('');
+    } else {
+      const fetchPosts = async () => {
+        setLoadingPosts(true);
+        try {
+          const q = query(
+            collection(db, 'posts'),
+            where('category', '==', selectedCategory),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+          const snap = await getDocs(q);
+          const fetchedPosts = snap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setPosts(fetchedPosts);
+          
+          // Default to the category path if no post selected
+          const cat = CATEGORIES.find(c => c.id === selectedCategory);
+          setTargetUrl(cat?.path || '/');
+        } catch (error) {
+          console.error('Error fetching posts for notifications:', error);
+        } finally {
+          setLoadingPosts(false);
+        }
+      };
+      fetchPosts();
+    }
+  }, [selectedCategory]);
+
+  const handlePostSelect = (postId: string) => {
+    setSelectedPostId(postId);
+    if (!postId) {
+      const cat = CATEGORIES.find(c => c.id === selectedCategory);
+      setTargetUrl(cat?.path || '/');
+      return;
+    }
+
+    const cat = CATEGORIES.find(c => c.id === selectedCategory);
+    if (selectedCategory === 'community') {
+      setTargetUrl(`/community?id=${postId}`);
+    } else {
+      setTargetUrl(`/journal/${postId}`);
+    }
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !body) return;
@@ -41,9 +113,10 @@ export default function AdminNotifications() {
     setStatus(null);
 
     try {
-      // Fetch all tokens
+      // Fetch all tokens and deduplicate
       const snapshot = await getDocs(collection(db, 'fcm_tokens'));
-      const tokens = snapshot.docs.map(doc => doc.data().token);
+      const allTokens = snapshot.docs.map(doc => doc.data().token);
+      const tokens = Array.from(new Set(allTokens));
 
       if (tokens.length === 0) {
         setStatus({ type: 'error', message: '알림을 받을 수 있는 기기가 없습니다.' });
@@ -54,7 +127,7 @@ export default function AdminNotifications() {
       const response = await fetch('/api/notifications/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, targetTokens: tokens }),
+        body: JSON.stringify({ title, body, targetUrl, targetTokens: tokens }),
       });
 
       const result = await response.json();
@@ -66,6 +139,7 @@ export default function AdminNotifications() {
         });
         setTitle('');
         setBody('');
+        setTargetUrl('');
       } else {
         setStatus({ type: 'error', message: result.error || '알림 발송에 실패했습니다.' });
       }
@@ -141,6 +215,63 @@ export default function AdminNotifications() {
                 className="w-full px-4 py-3 rounded-xl border border-wood-200 focus:ring-2 focus:ring-gold-500 outline-none transition resize-none"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-wood-700 mb-2">이동할 페이지 설정</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div className="relative">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-wood-200 focus:ring-2 focus:ring-gold-500 outline-none transition appearance-none bg-white"
+                  >
+                    {CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-wood-400 pointer-events-none" size={18} />
+                </div>
+
+                {selectedCategory !== 'home' && selectedCategory !== 'manual' && (
+                  <div className="relative">
+                    <select
+                      value={selectedPostId}
+                      onChange={(e) => handlePostSelect(e.target.value)}
+                      disabled={loadingPosts || posts.length === 0}
+                      className="w-full px-4 py-3 rounded-xl border border-wood-200 focus:ring-2 focus:ring-gold-500 outline-none transition appearance-none bg-white disabled:bg-wood-50"
+                    >
+                      <option value="">게시판 전체로 이동</option>
+                      {posts.map(post => (
+                        <option key={post.id} value={post.id}>{post.title}</option>
+                      ))}
+                    </select>
+                    {loadingPosts ? (
+                      <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-wood-400 animate-spin" size={18} />
+                    ) : (
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-wood-400 pointer-events-none" size={18} />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {selectedCategory === 'manual' && (
+                <input
+                  type="text"
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  placeholder="예: /journal/123"
+                  className="w-full px-4 py-3 rounded-xl border border-wood-200 focus:ring-2 focus:ring-gold-500 outline-none transition"
+                />
+              )}
+              
+              {selectedCategory !== 'manual' && (
+                <div className="px-4 py-2 bg-wood-50 rounded-lg border border-wood-100">
+                  <p className="text-xs text-wood-500">
+                    <span className="font-medium">최종 이동 경로:</span> {targetUrl || '(홈페이지)'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {status && (

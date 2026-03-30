@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { signInWithGoogle, logout, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, onSnapshot, getDocs, limit } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import { onMessageListener } from '../services/notificationService';
 export default function Layout() {
   const { user, role } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
 
@@ -65,15 +66,26 @@ export default function Layout() {
   }, [role]);
 
   useEffect(() => {
-    onMessageListener().then((payload: any) => {
+    const unsubscribe = onMessageListener((payload: any) => {
       if (payload?.notification) {
+        const url = payload.data?.url || '/';
         toast(payload.notification.title, {
           description: payload.notification.body,
           icon: <Bell className="text-gold-500" />,
-          duration: 5000,
+          duration: 8000,
+          action: url !== '/' ? {
+            label: '보기',
+            onClick: () => navigate(url)
+          } : undefined,
         });
       }
-    }).catch(err => console.log('failed: ', err));
+    });
+    
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const navItems = [
