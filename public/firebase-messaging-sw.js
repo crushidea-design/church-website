@@ -24,7 +24,19 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.FCM_MSG?.data?.url || '/';
+  
+  // Extract URL from various possible payload structures
+  let urlToOpen = '/';
+  if (event.notification.data?.FCM_MSG?.data?.url) {
+    urlToOpen = event.notification.data.FCM_MSG.data.url;
+  } else if (event.notification.data?.url) {
+    urlToOpen = event.notification.data.url;
+  }
+
+  // If it's a relative URL, make it absolute
+  if (urlToOpen.startsWith('/')) {
+    urlToOpen = self.location.origin + urlToOpen;
+  }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

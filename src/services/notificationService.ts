@@ -80,9 +80,27 @@ export const requestNotificationPermission = async (userId: string) => {
   return null;
 };
 
+let messageListenerUnsubscribe: (() => void) | null = null;
+
 export const onMessageListener = (callback: (payload: any) => void) => {
-  if (!messaging) return () => {};
-  return onMessage(messaging, (payload) => {
+  const activeMessaging = (window as any).firebase_messaging || messaging;
+  if (!activeMessaging) {
+    console.warn('Messaging not initialized yet for onMessageListener');
+    return () => {};
+  }
+  
+  if (messageListenerUnsubscribe) {
+    messageListenerUnsubscribe();
+  }
+  
+  messageListenerUnsubscribe = onMessage(activeMessaging, (payload) => {
     callback(payload);
   });
+  
+  return () => {
+    if (messageListenerUnsubscribe) {
+      messageListenerUnsubscribe();
+      messageListenerUnsubscribe = null;
+    }
+  };
 };
