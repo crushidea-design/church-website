@@ -28,7 +28,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      let displayMessage = this.state.errorMessage;
+      let displayMessage = this.state.errorMessage || 'Unknown error occurred';
       let isQuotaError = false;
 
       try {

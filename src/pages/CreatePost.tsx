@@ -4,6 +4,7 @@ import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, d
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
+import { useStore } from '../store/useStore';
 import { ArrowLeft, FileText, X, Plus } from 'lucide-react';
 
 interface SermonCategory {
@@ -21,6 +22,7 @@ export default function CreatePost() {
   const [searchParams] = useSearchParams();
   const type = searchParams.get('type') || 'community';
   const { user, role, loading: authLoading } = useAuth();
+  const { invalidateCache } = useStore();
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -191,9 +193,11 @@ export default function CreatePost() {
         title: title.trim(),
         content: content.trim(),
         category: type,
+        subCategory: subCategory,
         authorId: user.uid,
         authorName: user.displayName || '익명',
         commentCount: 0,
+        viewCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -235,6 +239,13 @@ export default function CreatePost() {
       console.log('Awaiting addDoc...');
       const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
       console.log('Post created successfully with ID:', docRef.id);
+      
+      // Invalidate cache for the created category and home page
+      if (type === 'journal' || type === 'community' || type === 'sermon' || type === 'research' || type === 'today_word') {
+        const cacheKey = type === 'sermon' ? 'sermons' : type;
+        invalidateCache(cacheKey as any);
+      }
+      invalidateCache('home');
       
       // Update latest posts summary for Home page optimization
       try {

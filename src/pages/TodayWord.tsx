@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
-import { BookOpen, Calendar, Edit, ExternalLink } from 'lucide-react';
-import { format, getDayOfYear } from 'date-fns';
+import { BookOpen, Calendar as CalendarIcon, Edit, ExternalLink, CheckCircle2, Circle } from 'lucide-react';
+import { format, getDayOfYear, startOfDay, endOfDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 // @ts-ignore
 import ReadingPlan from 'bible-in-one-year';
@@ -60,7 +60,6 @@ const translatePassage = (passage: string): ReadingPassage => {
     const chapterAndVerses = match[2].trim();
     const koreanBookName = bookNameMap[bookName] || bookName;
     let translated = `${koreanBookName} ${chapterAndVerses}`.trim();
-    // Add '장' or '편' if it ends with a number
     if (/\d$/.test(translated)) {
       if (koreanBookName === '시편') {
         translated += '편';
@@ -89,9 +88,12 @@ const translatePassage = (passage: string): ReadingPassage => {
 
 const getMcheyneReadingPlan = (date: Date): ReadingPassage[] => {
   try {
+    // Check if ReadingPlan is a constructor
+    if (typeof ReadingPlan !== 'function') {
+      console.error('ReadingPlan is not a constructor. Check the bible-in-one-year package export.');
+      return [];
+    }
     const plan = new ReadingPlan('mcheyne');
-    // getDayOfYear returns 1-366. The plan is 0-indexed (0 to 364).
-    // In leap years, day 366 will map to index 365, which we can modulo to 0 or handle.
     const dayOfYear = getDayOfYear(date);
     const index = (dayOfYear - 1) % 365;
     const readingsStr = plan.getDay(index);
@@ -104,18 +106,30 @@ const getMcheyneReadingPlan = (date: Date): ReadingPassage[] => {
   }
 };
 
+import { useStore } from '../store/useStore';
+
 export default function TodayWord() {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const dateInputRef = React.useRef<HTMLInputElement>(null);
   const [latestPost, setLatestPost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
+  // Reading Progress & Meditation State
+  const [readingProgress, setReadingProgress] = useState<boolean[]>([]);
+  const [meditation, setMeditation] = useState('');
+  const [savingProgress, setSavingProgress] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+
   // Bridge Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
 
-  const today = new Date();
-  const readingPlan = getMcheyneReadingPlan(today);
+  const readingPlan = getMcheyneReadingPlan(selectedDate);
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  
+  const { todayWords, todayWordProgress, setTodayWord, setTodayWordProgress } = useStore();
 
   const openBridgeModal = (link: string, version: string) => {
     setSelectedLink(link);
@@ -137,29 +151,157 @@ export default function TodayWord() {
     setIsModalOpen(false);
   };
 
+  // Fetch Post and User Progress for selected date
   useEffect(() => {
-    const fetchLatestPost = async () => {
+    let ignore = false;
+
+    const fetchData = async () => {
+      setLoading(true);
       try {
-        const q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'today_word'),
-          orderBy('createdAt', 'desc'),
-          limit(1)
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setLatestPost({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+        // 1. Fetch Post
+        if (todayWords[dateStr] !== undefined) {
+          if (!ignore) setLatestPost(todayWords[dateStr]);
+        } else {
+          const start = startOfDay(selectedDate);
+          const end = endOfDay(selectedDate);
+          
+          const q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'today_word'),
+            where('createdAt', '>=', start),
+            where('createdAt', '<=', end),
+            limit(1)
+          );
+          const snapshot = await getDocs(q);
+          
+          if (!snapshot.empty) {
+            const postData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+            if (!ignore) setLatestPost(postData);
+            setTodayWord(dateStr, postData);
+          } else {
+            // If no post for the specific date, try to get the latest one if it's today
+            if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
+              const latestQ = query(
+                collection(db, 'posts'),
+                where('category', '==', 'today_word'),
+                orderBy('createdAt', 'desc'),
+                limit(1)
+              );
+              const latestSnap = await getDocs(latestQ);
+              if (!latestSnap.empty) {
+                const postData = { id: latestSnap.docs[0].id, ...latestSnap.docs[0].data() };
+                if (!ignore) setLatestPost(postData);
+                setTodayWord(dateStr, postData);
+              } else {
+                if (!ignore) setLatestPost(null);
+                setTodayWord(dateStr, null);
+              }
+            } else {
+              if (!ignore) setLatestPost(null);
+              setTodayWord(dateStr, null);
+            }
+          }
         }
+
+        // 2. Fetch User Progress
+        if (user) {
+          const cacheKey = `${user.uid}_${dateStr}`;
+          if (todayWordProgress[cacheKey]) {
+            const data = todayWordProgress[cacheKey];
+            if (!ignore) {
+              setReadingProgress(data.progress || new Array(readingPlan.length).fill(false));
+              setMeditation(data.meditation || '');
+            }
+          } else {
+            const progressRef = doc(db, 'users', user.uid, 'readings', dateStr);
+            const progressSnap = await getDoc(progressRef);
+            if (progressSnap.exists()) {
+              const data = progressSnap.data();
+              if (!ignore) {
+                setReadingProgress(data.progress || new Array(readingPlan.length).fill(false));
+                setMeditation(data.meditation || '');
+              }
+              setTodayWordProgress(cacheKey, data);
+            } else {
+              if (!ignore) {
+                setReadingProgress(new Array(readingPlan.length).fill(false));
+                setMeditation('');
+              }
+              setTodayWordProgress(cacheKey, { progress: new Array(readingPlan.length).fill(false), meditation: '' });
+            }
+          }
+        } else {
+          if (!ignore) {
+            setReadingProgress(new Array(readingPlan.length).fill(false));
+            setMeditation('');
+          }
+        }
+
       } catch (error) {
-        console.error('Error fetching today word post:', error);
-        handleFirestoreError(error, OperationType.GET, 'posts');
+        console.error('Error fetching data:', error);
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     };
 
-    fetchLatestPost();
-  }, []);
+    fetchData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDate, user, dateStr, readingPlan.length, todayWords, todayWordProgress, setTodayWord, setTodayWordProgress]);
+
+  const handleToggleProgress = async (index: number) => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    const newProgress = [...readingProgress];
+    newProgress[index] = !newProgress[index];
+    setReadingProgress(newProgress);
+    saveProgress(newProgress, meditation);
+  };
+
+  const handleMeditationChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMeditation(e.target.value);
+  };
+
+  const saveProgress = async (progress: boolean[], med: string) => {
+    if (!user) return;
+    setSavingProgress(true);
+    setSaveMessage('');
+    try {
+      const progressRef = doc(db, 'users', user.uid, 'readings', dateStr);
+      await setDoc(progressRef, {
+        date: dateStr,
+        progress,
+        meditation: med,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      
+      // Update cache
+      const cacheKey = `${user.uid}_${dateStr}`;
+      setTodayWordProgress(cacheKey, { progress, meditation: med });
+      
+      setSaveMessage('저장되었습니다.');
+      setTimeout(() => setSaveMessage(''), 2000);
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      setSaveMessage('저장 실패');
+    } finally {
+      setSavingProgress(false);
+    }
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = new Date(e.target.value);
+    if (!isNaN(newDate.getTime())) {
+      setSelectedDate(newDate);
+      setReadingProgress([]);
+      setMeditation('');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -170,17 +312,57 @@ export default function TodayWord() {
 
       {/* 오늘의 말씀 읽기표 섹션 */}
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
-        <div className="bg-wood-900 px-6 py-4 flex justify-between items-center">
+        <div className="bg-wood-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h2 className="text-xl font-serif font-bold text-white flex items-center gap-2">
-            <Calendar size={20} className="text-gold-400" />
-            {format(today, 'yyyy년 M월 d일 (EEEE)', { locale: ko })} 맥체인 성경 읽기
+            <CalendarIcon size={20} className="text-gold-400" />
+            맥체인 성경 읽기
           </h2>
+          
+          {/* Date Picker moved here */}
+          <div 
+            onClick={() => {
+              if (dateInputRef.current?.showPicker) {
+                dateInputRef.current.showPicker();
+              } else {
+                dateInputRef.current?.click();
+              }
+            }}
+            className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl border border-white/20 hover:bg-white/20 transition-colors cursor-pointer relative group"
+          >
+            <CalendarIcon size={16} className="text-white/80 group-hover:text-white transition-colors" />
+            <span className="text-white font-medium">{dateStr}</span>
+            <span className="text-white/60 text-sm">({format(selectedDate, 'EEEE', { locale: ko })})</span>
+            <input 
+              ref={dateInputRef}
+              type="date" 
+              value={dateStr}
+              onChange={handleDateChange}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              className="sr-only"
+              aria-hidden="true"
+            />
+          </div>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {readingPlan.map((passage, index) => (
-              <div key={index} className="bg-wood-50 rounded-xl p-4 border border-wood-100 flex flex-col items-center justify-center text-center">
-                <span className="text-lg font-bold text-wood-900 mb-3">{passage.text}</span>
+              <div key={index} className="bg-wood-50 rounded-xl p-4 border border-wood-100 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                {/* Checkbox for reading progress */}
+                <button 
+                  onClick={() => handleToggleProgress(index)}
+                  className="absolute top-3 right-3 text-wood-400 hover:text-gold-500 transition-colors"
+                  title={readingProgress[index] ? "읽음 취소" : "읽음 완료"}
+                >
+                  {readingProgress[index] ? (
+                    <CheckCircle2 size={24} className="text-gold-500 fill-gold-50" />
+                  ) : (
+                    <Circle size={24} />
+                  )}
+                </button>
+
+                <span className={`text-lg font-bold mb-3 mt-2 ${readingProgress[index] ? 'text-wood-400 line-through' : 'text-wood-900'}`}>
+                  {passage.text}
+                </span>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => openBridgeModal(passage.gaeLink, '개역개정')}
@@ -265,10 +447,10 @@ export default function TodayWord() {
               <span>작성자: {latestPost.authorName}</span>
               <span>{latestPost.createdAt?.toDate ? format(latestPost.createdAt.toDate(), 'yyyy.MM.dd') : ''}</span>
             </div>
-            <div className="prose prose-wood max-w-none whitespace-pre-wrap text-wood-800 leading-relaxed">
+            <div className="prose prose-wood max-w-none whitespace-pre-wrap text-wood-800 leading-relaxed mb-8">
               {latestPost.content}
             </div>
-            <div className="mt-8 pt-6 border-t border-wood-100 flex justify-end">
+            <div className="pt-6 border-t border-wood-100 flex justify-end mb-8">
               <Link 
                 to={`/post/${latestPost.id}`}
                 className="text-gold-600 hover:text-gold-700 font-medium text-sm flex items-center gap-1"
@@ -278,11 +460,45 @@ export default function TodayWord() {
             </div>
           </div>
         ) : (
-          <div className="py-12 text-center text-wood-500 bg-wood-50 rounded-xl border border-wood-100 border-dashed">
+          <div className="py-12 text-center text-wood-500 bg-wood-50 rounded-xl border border-wood-100 border-dashed mb-8">
             <BookOpen size={48} className="mx-auto mb-4 opacity-20" />
-            <p>아직 등록된 오늘의 묵상 가이드라인이 없습니다.</p>
+            <p>해당 날짜에 등록된 묵상 가이드라인이 없습니다.</p>
           </div>
         )}
+
+        {/* 오늘의 한줄 묵상 (Private) */}
+        <div className="mt-8 bg-wood-50 rounded-xl p-6 border border-wood-100">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="text-lg font-bold text-wood-900 flex items-center gap-2">
+              <Edit size={18} className="text-wood-500" />
+              오늘의 한줄 묵상
+            </h4>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-wood-400 font-medium">
+                {savingProgress ? '저장 중...' : saveMessage}
+              </span>
+              {user && (
+                <button
+                  onClick={() => saveProgress(readingProgress, meditation)}
+                  disabled={savingProgress}
+                  className="px-4 py-1.5 bg-wood-900 text-white text-sm font-bold rounded-lg hover:bg-wood-800 transition-colors disabled:opacity-50"
+                >
+                  저장
+                </button>
+              )}
+            </div>
+          </div>
+          <textarea
+            value={meditation}
+            onChange={handleMeditationChange}
+            placeholder="다른 사람에게 공개되지 않습니다. 나의 묵상을 자유롭게 작성해보세요."
+            className="w-full bg-white border border-wood-200 rounded-xl p-4 text-wood-800 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none resize-none transition-shadow placeholder:text-wood-300"
+            rows={3}
+          />
+          {!user && (
+            <p className="text-sm text-red-500 mt-2">로그인 후 묵상을 기록할 수 있습니다.</p>
+          )}
+        </div>
       </div>
     </div>
   );

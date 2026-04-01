@@ -109,7 +109,7 @@ service cloud.firestore {
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
-             data.category in ['research', 'community', 'sermon', 'journal'] &&
+             data.category in ['research', 'community', 'sermon', 'journal', 'today_word'] &&
              data.authorId is string &&
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
              data.createdAt is timestamp &&
@@ -123,9 +123,10 @@ service cloud.firestore {
              (!('journalDate' in data) || data.journalDate is timestamp) &&
              (!('sermonCategoryId' in data) || data.sermonCategoryId is string) &&
              (!('researchCategoryId' in data) || data.researchCategoryId is string) &&
-             (!('uid' in data) || data.uid is string);
+             (!('uid' in data) || data.uid is string) &&
+             (!('subCategory' in data) || data.subCategory is string);
              
-      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', ''];
+      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
     }
 
@@ -186,6 +187,16 @@ service cloud.firestore {
                     (isOwner(userId) ? (request.resource.data.role == resource.data.role || isAdmin()) : isAdmin()) &&
                     request.resource.data.uid == resource.data.uid &&
                     request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /users/{userId}/readings/{readingId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow write: if isAuthenticated() && isOwner(userId) &&
+                   request.resource.data.keys().hasAll(['date', 'progress', 'updatedAt']) &&
+                   request.resource.data.date is string &&
+                   request.resource.data.progress is list &&
+                   (!('meditation' in request.resource.data) || request.resource.data.meditation is string) &&
+                   request.resource.data.updatedAt is timestamp;
     }
 
     match /posts/{postId} {

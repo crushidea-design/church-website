@@ -2,49 +2,28 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Users, Heart, Edit2, Check, X as CloseIcon, Calendar, ChevronRight, Bell } from 'lucide-react';
-import { db, handleFirestoreError, OperationType, isQuotaExceeded } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { requestNotificationPermission } from '../services/notificationService';
+import { useStore } from '../store/useStore';
 
 const DEFAULT_HERO_IMAGE = "https://lh3.googleusercontent.com/d/1V0VulPP6zYJLhZCS_Ytmq2Ad2tndcEm0";
 
 export default function Home() {
   const { user, role } = useAuth();
+  const { homeLatestPosts, homeLatestPostsFetched, setHomeLatestPosts } = useStore();
+  
   const [heroImage, setHeroImage] = useState(DEFAULT_HERO_IMAGE);
   const [isEditing, setIsEditing] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [latestPosts, setLatestPosts] = useState<any[]>([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-
-  useEffect(() => {
-    if (typeof Notification !== 'undefined' && user && Notification.permission === 'default') {
-      const timer = setTimeout(() => setShowNotificationPrompt(true), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [user]);
-
-  const handleEnableNotifications = async () => {
-    if (user) {
-      await requestNotificationPermission(user.uid);
-      setShowNotificationPrompt(false);
-    }
-  };
+  const [loadingPosts, setLoadingPosts] = useState(!homeLatestPostsFetched);
 
   useEffect(() => {
     const fetchLatestPosts = async () => {
-      // Quota Guard
-      if (isQuotaExceeded()) {
-        const cachedPosts = localStorage.getItem('latest_posts_data');
-        if (cachedPosts) {
-          try {
-            const { posts } = JSON.parse(cachedPosts);
-            setLatestPosts(posts);
-          } catch (e) {}
-        }
+      if (homeLatestPostsFetched) {
         setLoadingPosts(false);
         return;
       }
@@ -56,7 +35,7 @@ export default function Home() {
         
         if (summarySnap.exists()) {
           const summaryData = summarySnap.data();
-          const categories = ['sermon', 'research', 'community'];
+          const categories = ['sermon', 'research', 'journal', 'community'];
           const postsData: any[] = [];
           
           categories.forEach(cat => {
@@ -76,17 +55,13 @@ export default function Home() {
             return dateB - dateA;
           });
 
-          setLatestPosts(postsData);
-          localStorage.setItem('latest_posts_data', JSON.stringify({
-            posts: postsData,
-            timestamp: Date.now()
-          }));
+          setHomeLatestPosts(postsData.slice(0, 3));
           setLoadingPosts(false);
           return;
         }
 
         // Fallback to original query if summary doesn't exist
-        const categories = ['community', 'research'];
+        const categories = ['community', 'research', 'journal'];
         if (role === 'regular' || role === 'admin') {
           categories.push('sermon');
         }
@@ -112,11 +87,7 @@ export default function Home() {
           return dateB - dateA;
         });
 
-        setLatestPosts(postsData);
-        localStorage.setItem('latest_posts_data', JSON.stringify({
-          posts: postsData,
-          timestamp: Date.now()
-        }));
+        setHomeLatestPosts(postsData.slice(0, 3));
       } catch (error: any) {
         console.error('Error fetching latest posts:', error);
       } finally {
@@ -124,7 +95,7 @@ export default function Home() {
       }
     };
     fetchLatestPosts();
-  }, [role]);
+  }, [role, homeLatestPostsFetched]);
 
   useEffect(() => {
     const getDirectImageUrl = (url: string) => {
@@ -151,9 +122,6 @@ export default function Home() {
           localStorage.removeItem('hero_image_data');
         }
       }
-
-      // Quota Guard
-      if (isQuotaExceeded()) return;
 
       try {
         const heroDoc = await getDoc(doc(db, 'settings', 'hero'));
@@ -356,43 +324,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Notification Prompt */}
-      {showNotificationPrompt && (
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-8 left-4 right-4 z-50 md:left-auto md:right-8 md:w-96"
-        >
-          <div className="bg-wood-900 text-white p-6 rounded-3xl shadow-2xl border border-white/10 backdrop-blur-md">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-gold-500/20 rounded-2xl text-gold-400">
-                <Bell size={24} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold mb-1">알림을 켜시겠습니까?</h3>
-                <p className="text-sm text-wood-200 mb-4 leading-relaxed">
-                  교회의 새로운 소식과 설교, 연구글 알림을 모바일로 받아보실 수 있습니다.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleEnableNotifications}
-                    className="flex-1 bg-gold-500 hover:bg-gold-600 text-wood-900 py-2 rounded-xl text-sm font-bold transition shadow-lg"
-                  >
-                    알림 켜기
-                  </button>
-                  <button
-                    onClick={() => setShowNotificationPrompt(false)}
-                    className="px-4 py-2 text-sm font-medium text-wood-300 hover:text-white transition"
-                  >
-                    나중에
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
       {/* Latest Posts Section */}
       <section className="py-24 relative" style={{ backgroundColor: '#fcfcfc', backgroundImage: brickPattern }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -408,19 +339,22 @@ export default function Home() {
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#001f3f]"></div>
             </div>
-          ) : latestPosts.length === 0 ? (
+          ) : homeLatestPosts.length === 0 ? (
             <div className="text-center py-12 bg-white/80 backdrop-blur-sm rounded-2xl border border-wood-200">
               <p className="text-wood-500">아직 등록된 게시물이 없습니다.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {latestPosts.map((post, index) => (
+              {homeLatestPosts.map((post, index) => (
                 <motion.div
                   key={post.id}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
+                  transition={{ 
+                    delay: Math.min(index * 0.03, 0.4),
+                    ease: "easeOut"
+                  }}
                   className="group"
                 >
                   <Link to={`/post/${post.id}`} className="block h-full">

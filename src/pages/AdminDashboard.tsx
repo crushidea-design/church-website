@@ -87,6 +87,16 @@ export default function AdminDashboard() {
       color: 'bg-indigo-50 text-indigo-600 border-indigo-100'
     },
     {
+      title: '할당량 초과 플래그 초기화',
+      description: '데이터베이스 할당량 초과 경고가 떴을 때, 수동으로 초기화하여 접속을 재시도합니다.',
+      icon: ShieldCheck,
+      onClick: () => {
+        localStorage.removeItem('firestore_quota_exceeded');
+        toast.success('할당량 초과 플래그가 초기화되었습니다. 페이지를 새로고침해 주세요.');
+      },
+      color: 'bg-amber-50 text-amber-600 border-amber-100'
+    },
+    {
       title: '교회 정보 관리',
       description: '교회 소개 페이지의 텍스트와 내용을 수정합니다.',
       icon: Settings,
@@ -178,7 +188,10 @@ export default function AdminDashboard() {
                 key={item.title}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ 
+                  delay: Math.min(index * 0.03, 0.4),
+                  ease: "easeOut"
+                }}
               >
                 {item.onClick ? (
                   <button

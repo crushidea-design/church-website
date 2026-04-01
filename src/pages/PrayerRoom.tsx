@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit, getDocs } from 'firebase/firestore';
-import { Heart, Lock, Edit2, Trash2, X as CloseIcon } from 'lucide-react';
-import { handleFirestoreError, OperationType, isQuotaExceeded } from '../lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { Heart, Lock, Edit2, Trash2, X as CloseIcon, Bell } from 'lucide-react';
+import { handleFirestoreError, OperationType } from '../lib/firebase';
 import { logActivity } from '../utils/logger';
 
 interface PrayerRequest {
@@ -26,6 +26,8 @@ export default function PrayerRoom() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [requests, setRequests] = useState<PrayerRequest[]>([]);
+  const [hasNewPosts, setHasNewPosts] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Timestamp | null>(null);
   const [content, setContent] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,50 +35,73 @@ export default function PrayerRoom() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
 
-  useEffect(() => {
-    if (role !== 'regular' && role !== 'admin') {
-      setLoading(false);
-      return;
-    }
-
-    const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'), limit(50));
-
-    // Quota Guard for real-time listener
-    if (isQuotaExceeded()) {
-      console.warn('PrayerRoom: Quota exceeded, skipping real-time listener');
-      const fetchOnce = async () => {
-        try {
-          const snapshot = await getDocs(q);
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any as PrayerRequest));
-          const filtered = data.filter(r => 
-            role === 'admin' || !r.isPrivate || r.uid === user?.uid
-          );
-          setRequests(filtered);
-          setLoading(false);
-        } catch (error) {
-          console.error('Error fetching prayer requests once:', error);
-          setLoading(false);
-        }
-      };
-      fetchOnce();
-      return;
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+  const fetchPrayers = async (isInitial = false) => {
+    if (role !== 'regular' && role !== 'admin') return;
+    
+    try {
+      const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'), limit(50));
+      const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any as PrayerRequest));
       const filtered = data.filter(r => 
         role === 'admin' || !r.isPrivate || r.uid === user?.uid
       );
+      
       setRequests(filtered);
-      setLoading(false);
-    }, (error) => {
+      setHasNewPosts(false);
+      
+      if (snapshot.docs.length > 0) {
+        setLastFetchedAt(snapshot.docs[0].data().createdAt as Timestamp);
+      }
+      
+      if (isInitial) setLoading(false);
+    } catch (error) {
       console.error('Error fetching prayer requests:', error);
-      handleFirestoreError(error, OperationType.GET, 'prayer_requests');
-      setLoading(false);
-    });
+      try {
+        handleFirestoreError(error, OperationType.GET, 'prayer_requests');
+      } catch (e) {}
+      if (isInitial) setLoading(false);
+    }
+  };
 
-    return () => unsubscribe();
+  const checkForNewPosts = async () => {
+    if (!lastFetchedAt || (role !== 'regular' && role !== 'admin')) return;
+    
+    try {
+      const q = query(
+        collection(db, 'prayer_requests'), 
+        where('createdAt', '>', lastFetchedAt),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        setHasNewPosts(true);
+      }
+    } catch (error) {
+      console.error('Error checking for new posts:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPrayers(true);
   }, [role, user]);
+
+  useEffect(() => {
+    // Focus Refresh
+    const handleFocus = () => {
+      fetchPrayers();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 5-minute Polling
+    const interval = setInterval(() => {
+      checkForNewPosts();
+    }, 5 * 60 * 1000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [lastFetchedAt, role, user]);
 
   if (!loading && role !== 'regular' && role !== 'admin') {
     return (
@@ -103,6 +128,7 @@ export default function PrayerRoom() {
     });
     setContent('');
     setIsPrivate(false);
+    fetchPrayers();
   };
 
   const handleUpdate = async (id: string) => {
@@ -111,12 +137,14 @@ export default function PrayerRoom() {
       updatedAt: serverTimestamp() 
     });
     setEditingId(null);
+    fetchPrayers();
   };
 
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'prayer_requests', id));
       setDeletingId(null);
+      fetchPrayers();
     } catch (error) {
       console.error('Error deleting document:', error);
       try {
@@ -140,6 +168,7 @@ export default function PrayerRoom() {
       updatedAt: serverTimestamp()
     });
     
+    fetchPrayers();
     // Action Tracking
     logActivity(user, role, '기도 응원 참여', `/prayer-room/pray/${id}`);
   };
@@ -148,6 +177,23 @@ export default function PrayerRoom() {
 
   return (
     <div className="min-h-screen bg-black">
+      {/* New Post Notification Banner */}
+      {hasNewPosts && (
+        <motion.div
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4"
+        >
+          <button
+            onClick={() => fetchPrayers()}
+            className="w-full bg-[#f59e0b] text-black py-3 px-6 rounded-full font-bold shadow-2xl flex items-center justify-center gap-3 hover:bg-[#d97706] transition-all transform hover:scale-105 active:scale-95"
+          >
+            <Bell size={18} className="animate-bounce" />
+            <span>새로운 기도 제목이 있습니다. [보기]</span>
+          </button>
+        </motion.div>
+      )}
+
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -202,7 +248,10 @@ export default function PrayerRoom() {
                     key={req.id} 
                     initial={{ opacity: 0, y: 20 }} 
                     animate={{ opacity: 1, y: 0 }} 
-                    transition={{ delay: 1.8 + (index * 0.1), duration: 0.5 }}
+                    transition={{ 
+                      delay: 1.8 + Math.min(index * 0.03, 0.4),
+                      ease: "easeOut"
+                    }}
                     className="bg-[#2d2a1a]/80 backdrop-blur-sm p-6 rounded-2xl border border-[#f59e0b]/30 shadow-lg"
                   >
                     <div className="flex justify-between items-start mb-4">

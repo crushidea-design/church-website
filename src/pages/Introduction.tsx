@@ -516,7 +516,10 @@ export default function Introduction() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.2 }}
+                transition={{ 
+                  delay: Math.min(index * 0.03, 0.4),
+                  ease: "easeOut"
+                }}
                 className="bg-white p-8 rounded-2xl shadow-sm border border-wood-100 text-center hover:shadow-md transition"
               >
                 <div className="w-16 h-16 bg-wood-50 rounded-full flex items-center justify-center mx-auto mb-6 text-wood-900">
