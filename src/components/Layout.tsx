@@ -70,17 +70,47 @@ export default function Layout() {
       if (payload?.notification) {
         const url = payload.data?.url || payload.fcmOptions?.link || '/';
         
-        // Prevent duplicate toasts by checking if one with the same title already exists
-        // Sonner handles some of this, but we can be explicit if needed.
-        // For now, we just ensure the action is correctly set.
-        toast(payload.notification.title, {
-          description: payload.notification.body,
-          icon: <Bell className="text-gold-500" />,
-          duration: 8000,
-          action: url !== '/' ? {
-            label: '보기',
-            onClick: () => navigate(url)
-          } : undefined,
+        // Use messageId or title as a unique ID to prevent duplicate toasts
+        const toastId = payload.messageId || payload.notification.title;
+        
+        toast.custom((t) => (
+          <div className="bg-amber-50 rounded-2xl p-4 shadow-lg border border-amber-200 flex items-center gap-4 w-[350px] max-w-[90vw] pointer-events-auto">
+            <div className="bg-amber-100 p-2 rounded-full shrink-0">
+              <motion.div
+                animate={{ y: [0, -8, 0, -4, 0] }}
+                transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
+              >
+                <Bell className="text-amber-600" size={24} />
+              </motion.div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-amber-900 text-sm truncate">{payload.notification.title}</h4>
+              <p className="text-xs text-amber-800 truncate">{payload.notification.body}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {url !== '/' && (
+                <button 
+                  onClick={() => {
+                    navigate(url);
+                    toast.dismiss(t);
+                  }}
+                  className="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition"
+                >
+                  보기
+                </button>
+              )}
+              <button 
+                onClick={() => toast.dismiss(t)}
+                className="text-amber-400 hover:text-amber-600 p-1 transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        ), {
+          id: toastId,
+          duration: 5000,
+          position: 'top-center',
         });
       }
     });

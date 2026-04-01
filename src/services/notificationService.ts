@@ -18,9 +18,10 @@ export const requestNotificationPermission = async (userId: string) => {
       return null;
     }
 
-    if (typeof Notification === 'undefined') {
-      console.warn('Notifications are not supported in this browser.');
-      return;
+    // Check if Notification API is available (it might not be in some iOS browsers if not PWA)
+    if (!('Notification' in window)) {
+      console.warn('Notification API not supported in this browser.');
+      return null;
     }
 
     const permission = await Notification.requestPermission();
@@ -45,8 +46,19 @@ export const requestNotificationPermission = async (userId: string) => {
       }
 
       console.log('Attempting to get FCM token with VAPID key...');
+      
+      // Register service worker manually if needed before getting token
+      let swRegistration = null;
+      try {
+        swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Service Worker registered for FCM:', swRegistration.scope);
+      } catch (swError) {
+        console.error('Service Worker registration failed:', swError);
+      }
+
       const token = await getToken(activeMessaging, {
-        vapidKey: VAPID_KEY
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: swRegistration || undefined
       });
 
       if (token) {
@@ -81,6 +93,7 @@ export const requestNotificationPermission = async (userId: string) => {
 };
 
 let messageListenerUnsubscribe: (() => void) | null = null;
+let activeCallbacks: Set<(payload: any) => void> = new Set();
 
 export const onMessageListener = (callback: (payload: any) => void) => {
   const activeMessaging = (window as any).firebase_messaging || messaging;
@@ -89,18 +102,51 @@ export const onMessageListener = (callback: (payload: any) => void) => {
     return () => {};
   }
   
-  if (messageListenerUnsubscribe) {
-    messageListenerUnsubscribe();
+  activeCallbacks.add(callback);
+
+  if (!messageListenerUnsubscribe) {
+    messageListenerUnsubscribe = onMessage(activeMessaging, (payload) => {
+      activeCallbacks.forEach(cb => cb(payload));
+    });
   }
   
-  messageListenerUnsubscribe = onMessage(activeMessaging, (payload) => {
-    callback(payload);
-  });
-  
   return () => {
-    if (messageListenerUnsubscribe) {
+    activeCallbacks.delete(callback);
+    if (activeCallbacks.size === 0 && messageListenerUnsubscribe) {
       messageListenerUnsubscribe();
       messageListenerUnsubscribe = null;
     }
   };
+};
+
+export const sendPushNotification = async (title: string, body: string, targetUrl: string = '/') => {
+  try {
+    // Fetch all tokens from Firestore
+    const tokensRef = collection(db, 'fcm_tokens');
+    const snapshot = await getDocs(tokensRef);
+    const allTokens = snapshot.docs.map(doc => doc.data().token);
+    const tokens = Array.from(new Set(allTokens));
+
+    if (tokens.length === 0) {
+      console.log('No FCM tokens found in Firestore');
+      return { success: false, error: '수신 가능한 기기가 없습니다.' };
+    }
+
+    const response = await fetch('/api/notifications/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        title, 
+        body, 
+        targetUrl, 
+        targetTokens: tokens 
+      }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    return { success: false, error: '알림 발송 중 오류가 발생했습니다.' };
+  }
 };

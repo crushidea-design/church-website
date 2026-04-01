@@ -19,7 +19,28 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  // FCM automatically shows a notification if the payload contains a 'notification' object.
+  
+  // If the payload has a notification object, FCM will automatically show it.
+  // However, to ensure our custom options are applied (especially for data-only messages),
+  // we can manually call showNotification if it's a data message.
+  if (!payload.notification && payload.data) {
+    const notificationTitle = payload.data.title || '새로운 알림';
+    const notificationOptions = {
+      body: payload.data.body || '',
+      icon: '/icons/church-logo-96x96.png',
+      badge: '/icons/badge-monochrome.png',
+      vibrate: [100, 50, 100],
+      data: {
+        url: payload.data.url || '/'
+      }
+    };
+
+    if (payload.data.image) {
+      notificationOptions.image = payload.data.image;
+    }
+
+    return self.registration.showNotification(notificationTitle, notificationOptions);
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {

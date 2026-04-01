@@ -5,6 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { useStore } from '../store/useStore';
+import { sendPushNotification } from '../services/notificationService';
 import { ArrowLeft, FileText, X, Plus } from 'lucide-react';
 
 interface SermonCategory {
@@ -239,6 +240,21 @@ export default function CreatePost() {
       console.log('Awaiting addDoc...');
       const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
       console.log('Post created successfully with ID:', docRef.id);
+      
+      // Send push notification for Today's Word
+      if (type === 'today_word') {
+        try {
+          console.log('Sending push notification for Today\'s Word...');
+          await sendPushNotification(
+            '오늘의 말씀 가이드라인이 올라왔습니다!',
+            title.trim(),
+            `/archive/today`
+          );
+          console.log('Push notification sent.');
+        } catch (pushErr) {
+          console.error('Error sending push notification:', pushErr);
+        }
+      }
       
       // Invalidate cache for the created category and home page
       if (type === 'journal' || type === 'community' || type === 'sermon' || type === 'research' || type === 'today_word') {

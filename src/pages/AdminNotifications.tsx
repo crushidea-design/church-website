@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
 import { Bell, Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
+import { requestNotificationPermission } from '../services/notificationService';
 
 const CATEGORIES = [
   { id: 'home', name: '홈페이지', path: '/' },
@@ -17,11 +18,12 @@ const CATEGORIES = [
 ];
 
 export default function AdminNotifications() {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [targetUrl, setTargetUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('home');
   const [posts, setPosts] = useState<any[]>([]);
   const [selectedPostId, setSelectedPostId] = useState('');
@@ -95,7 +97,15 @@ export default function AdminNotifications() {
     if (!postId) {
       const cat = CATEGORIES.find(c => c.id === selectedCategory);
       setTargetUrl(cat?.path || '/');
+      setImageUrl('');
       return;
+    }
+
+    const post = posts.find(p => p.id === postId);
+    if (post && post.imageUrl) {
+      setImageUrl(post.imageUrl);
+    } else {
+      setImageUrl('');
     }
 
     const cat = CATEGORIES.find(c => c.id === selectedCategory);
@@ -128,7 +138,7 @@ export default function AdminNotifications() {
       const response = await fetch('/api/notifications/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, targetUrl, targetTokens: tokens }),
+        body: JSON.stringify({ title, body, targetUrl, imageUrl, targetTokens: tokens }),
       });
 
       const result = await response.json();
@@ -141,6 +151,7 @@ export default function AdminNotifications() {
         setTitle('');
         setBody('');
         setTargetUrl('');
+        setImageUrl('');
       } else {
         setStatus({ type: 'error', message: result.error || '알림 발송에 실패했습니다.' });
       }
@@ -284,20 +295,58 @@ export default function AdminNotifications() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading || !title || !body}
-              className="w-full bg-wood-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-wood-800 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-            >
-              {loading ? (
-                <Loader2 className="animate-spin" size={20} />
-              ) : (
-                <>
-                  <Send size={20} />
-                  알림 발송하기
-                </>
-              )}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-wood-100">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!title || !body) {
+                    setStatus({ type: 'error', message: '제목과 내용을 입력해 주세요.' });
+                    return;
+                  }
+                  setLoading(true);
+                  try {
+                    const token = await requestNotificationPermission(user?.uid || '');
+                    if (!token) {
+                      setStatus({ type: 'error', message: '내 기기의 알림 토큰을 가져올 수 없습니다. 알림 권한을 확인해 주세요.' });
+                      return;
+                    }
+                    const response = await fetch('/api/notifications/send', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ title, body, targetUrl, imageUrl, targetTokens: [token] }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                      setStatus({ type: 'success', message: '테스트 알림 발송 성공!' });
+                    } else {
+                      setStatus({ type: 'error', message: result.error || '발송 실패' });
+                    }
+                  } catch (err) {
+                    setStatus({ type: 'error', message: '오류 발생' });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading || !title || !body}
+                className="flex-1 bg-wood-100 text-wood-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-wood-200 transition disabled:opacity-50"
+              >
+                나에게 테스트 발송
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !title || !body || tokenCount === 0}
+                className="flex-[2] bg-wood-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-wood-800 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  <>
+                    <Send size={20} />
+                    전체 성도에게 발송 ({tokenCount}명)
+                  </>
+                )}
+              </button>
+            </div>
           </form>
         </div>
 

@@ -4,6 +4,7 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
 import { MessageSquare, FileText, Calendar, Mail, BookOpen, Bell, Edit, Save, X, Plus } from 'lucide-react';
+import { motion } from 'motion/react';
 import { requestNotificationPermission } from '../services/notificationService';
 
 export default function Profile() {
@@ -23,17 +24,40 @@ export default function Profile() {
   useEffect(() => {
     if (typeof Notification !== 'undefined') {
       setNotificationStatus(Notification.permission);
+    } else {
+      setNotificationStatus('unsupported');
     }
   }, []);
 
   const handleEnableNotifications = async () => {
     if (user) {
-      const token = await requestNotificationPermission(user.uid);
-      if (token) {
-        setNotificationStatus('granted');
-        alert('알림이 허용되었습니다.');
-      } else {
-        setNotificationStatus(Notification.permission);
+      if (notificationStatus === 'denied') {
+        alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 알림 권한을 허용으로 변경해 주세요.');
+        return;
+      }
+      
+      try {
+        const token = await requestNotificationPermission(user.uid);
+        if (token) {
+          setNotificationStatus('granted');
+          alert('알림이 허용되었습니다.');
+        } else {
+          // If token is null, it might be because permission was denied or an error occurred
+          const currentPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+          setNotificationStatus(currentPermission);
+          if (currentPermission === 'default') {
+            // User dismissed the prompt without granting or denying
+            console.log('Notification permission prompt dismissed.');
+          } else if (currentPermission === 'denied') {
+            alert('알림 권한이 거부되었습니다.');
+          } else if (currentPermission === 'granted') {
+             // Permission granted but token generation failed
+             alert('알림 권한은 허용되었으나, 서버와 연결하는 데 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+          }
+        }
+      } catch (error) {
+        console.error("Error requesting notification permission:", error);
+        alert('알림 설정 중 오류가 발생했습니다.');
       }
     }
   };
@@ -130,6 +154,52 @@ export default function Profile() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Notification Permission UI - Prominent at the top */}
+      {notificationStatus !== 'granted' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gold-50 p-6 rounded-2xl border border-gold-200 shadow-sm mb-8"
+        >
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+            <div className="p-4 bg-white text-gold-600 rounded-2xl shadow-sm">
+              <Bell size={28} className="animate-pulse" />
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="text-lg font-bold text-wood-900 mb-1">매일 아침 말씀 알림을 받아보세요!</h3>
+              
+              {notificationStatus === 'unsupported' ? (
+                <div className="text-sm text-wood-600 mb-4 leading-relaxed">
+                  <p className="mb-2 font-bold text-red-600">아이폰(iOS) 사용자를 위한 안내:</p>
+                  <ol className="list-decimal pl-4 space-y-1 text-xs">
+                    <li>브라우저 하단의 <strong>'공유'</strong> 버튼을 누르세요.</li>
+                    <li><strong>'홈 화면에 추가'</strong>를 선택해 주세요.</li>
+                    <li>홈 화면에 추가된 앱으로 접속하면 알림을 설정할 수 있습니다.</li>
+                  </ol>
+                </div>
+              ) : (
+                <p className="text-sm text-wood-600 mb-4 leading-relaxed">
+                  오늘의 말씀 가이드라인이 올라오면 휴대폰으로 즉시 알려드립니다. 
+                  중요한 묵상 시간을 놓치지 마세요.
+                </p>
+              )}
+
+              {notificationStatus !== 'unsupported' && (
+                <button
+                  onClick={handleEnableNotifications}
+                  className={`w-full sm:w-auto px-8 py-3 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md flex items-center justify-center gap-2 ${
+                    notificationStatus === 'denied' ? 'bg-red-600 hover:bg-red-700' : 'bg-wood-900 hover:bg-wood-800'
+                  }`}
+                >
+                  <Bell size={18} />
+                  {notificationStatus === 'denied' ? '알림 권한 재설정 필요' : '알림 허용하기'}
+                </button>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden mb-8">
         <div className="p-8 sm:p-10 bg-wood-50 border-b border-wood-200">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -147,27 +217,6 @@ export default function Profile() {
                 </p>
               </div>
             </div>
-
-            {/* Notification Permission UI */}
-            {notificationStatus !== 'granted' && (
-              <div className="bg-white p-4 rounded-xl border border-wood-200 shadow-sm max-w-sm">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-gold-50 text-gold-600 rounded-lg">
-                    <Bell size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-wood-900 mb-1">알림을 원하시면 알림 허용을 해주세요!</h3>
-                    <p className="text-xs text-wood-500 mb-3">매일 아침 오늘의 말씀 가이드라인 알림을 보내드립니다.</p>
-                    <button
-                      onClick={handleEnableNotifications}
-                      className="text-xs font-bold bg-wood-900 text-white px-4 py-2 rounded-lg hover:bg-wood-800 transition-colors"
-                    >
-                      알림 허용하기
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
