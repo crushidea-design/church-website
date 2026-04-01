@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
-import { Bell, Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
+import { collection, getDocs, query, orderBy, where, limit, getCountFromServer, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Bell, Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2, ChevronDown, Calendar, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { requestNotificationPermission } from '../services/notificationService';
 
@@ -31,6 +31,14 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(false);
   const [tokenCount, setTokenCount] = useState(0);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [targetAudience, setTargetAudience] = useState<'all' | 'specific'>('all');
+  const [usersWithTokens, setUsersWithTokens] = useState<{uid: string, displayName: string, email: string, tokens: string[]}[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
+  const [scheduledTime, setScheduledTime] = useState('09:00');
 
   useEffect(() => {
     if (role !== 'admin') {
@@ -38,17 +46,82 @@ export default function AdminNotifications() {
       return;
     }
 
+    if (dataLoaded) return;
+
     const fetchTokenCount = async () => {
       try {
-        const snapshot = await getDocs(collection(db, 'fcm_tokens'));
-        setTokenCount(snapshot.size);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const tokensQuery = query(
+          collection(db, 'fcm_tokens'),
+          where('updatedAt', '>=', thirtyDaysAgo)
+        );
+        
+        // Optimization: Use getCountFromServer to reduce read costs (1 read per 1000 docs)
+        const countSnapshot = await getCountFromServer(tokensQuery);
+        setTokenCount(countSnapshot.data().count);
+        setDataLoaded(true);
       } catch (error) {
-        console.error('Error fetching tokens:', error);
+        console.error('Error fetching token count:', error);
       }
     };
 
     fetchTokenCount();
-  }, [role, navigate]);
+  }, [role, navigate, dataLoaded]);
+
+  const fetchUsersWithTokens = async () => {
+    if (usersWithTokens.length > 0 || loadingUsers) return;
+    
+    setLoadingUsers(true);
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const tokensQuery = query(
+        collection(db, 'fcm_tokens'),
+        where('updatedAt', '>=', thirtyDaysAgo)
+      );
+      const tokensSnapshot = await getDocs(tokensQuery);
+      const tokensData = tokensSnapshot.docs.map(doc => doc.data());
+      
+      const userIds = Array.from(new Set(tokensData.map(t => t.userId).filter(Boolean)));
+      
+      if (userIds.length > 0) {
+        // Optimization: Only fetch users that have tokens, in chunks of 30 due to Firestore 'in' limit
+        const usersData: any[] = [];
+        for (let i = 0; i < userIds.length; i += 30) {
+          const chunk = userIds.slice(i, i + 30);
+          const usersQuery = query(collection(db, 'users'), where('uid', 'in', chunk));
+          const usersSnap = await getDocs(usersQuery);
+          usersData.push(...usersSnap.docs.map(doc => doc.data()));
+        }
+        const usersMap = new Map(usersData.map(u => [u.uid, u]));
+        
+        const usersList = userIds.map(uid => {
+          const user = usersMap.get(uid);
+          return {
+            uid,
+            displayName: user?.displayName || '알 수 없는 사용자',
+            email: user?.email || '이메일 없음',
+            tokens: tokensData.filter(t => t.userId === uid).map(t => t.token)
+          };
+        });
+        
+        setUsersWithTokens(usersList);
+      }
+    } catch (error) {
+      console.error('Error fetching users with tokens:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (targetAudience === 'specific') {
+      fetchUsersWithTokens();
+    }
+  }, [targetAudience]);
 
   useEffect(() => {
     if (selectedCategory === 'home') {
@@ -124,10 +197,72 @@ export default function AdminNotifications() {
     setStatus(null);
 
     try {
-      // Fetch all tokens and deduplicate
-      const snapshot = await getDocs(collection(db, 'fcm_tokens'));
-      const allTokens = snapshot.docs.map(doc => doc.data().token);
-      const tokens = Array.from(new Set(allTokens));
+      if (isScheduled) {
+        const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+        if (scheduledDateTime <= new Date()) {
+          setStatus({ type: 'error', message: '예약 시간은 현재 시간보다 이후여야 합니다.' });
+          setLoading(false);
+          return;
+        }
+
+        let targetTokens: string[] = [];
+        if (targetAudience === 'specific') {
+          if (selectedUserIds.length === 0) {
+            setStatus({ type: 'error', message: '알림을 받을 사용자를 선택해 주세요.' });
+            setLoading(false);
+            return;
+          }
+          const selectedUsers = usersWithTokens.filter(u => selectedUserIds.includes(u.uid));
+          targetTokens = Array.from(new Set(selectedUsers.flatMap(u => u.tokens)));
+        }
+
+        await addDoc(collection(db, 'scheduled_notifications'), {
+          title,
+          body,
+          targetUrl,
+          imageUrl,
+          targetAudience,
+          targetUserIds: targetAudience === 'specific' ? selectedUserIds : null,
+          targetTokens: targetAudience === 'specific' ? targetTokens : null,
+          scheduledAt: scheduledDateTime,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          authorId: user?.uid
+        });
+
+        setStatus({ type: 'success', message: '알림 예약이 완료되었습니다.' });
+        setTitle('');
+        setBody('');
+        setIsScheduled(false);
+        setLoading(false);
+        return;
+      }
+
+      let tokens: string[] = [];
+
+      if (targetAudience === 'specific') {
+        if (selectedUserIds.length === 0) {
+          setStatus({ type: 'error', message: '알림을 받을 사용자를 선택해 주세요.' });
+          setLoading(false);
+          return;
+        }
+        const selectedUsers = usersWithTokens.filter(u => selectedUserIds.includes(u.uid));
+        const allSelectedTokens = selectedUsers.flatMap(u => u.tokens);
+        tokens = Array.from(new Set(allSelectedTokens));
+      } else {
+        // Optimization: Only fetch tokens updated in the last 30 days to reduce read costs
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const snapshot = await getDocs(
+          query(
+            collection(db, 'fcm_tokens'),
+            where('updatedAt', '>=', thirtyDaysAgo)
+          )
+        );
+        const allTokens = snapshot.docs.map(doc => doc.data().token);
+        tokens = Array.from(new Set(allTokens));
+      }
 
       if (tokens.length === 0) {
         setStatus({ type: 'error', message: '알림을 받을 수 있는 기기가 없습니다.' });
@@ -205,6 +340,130 @@ export default function AdminNotifications() {
             )}
 
             <form onSubmit={handleSend} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-wood-700 mb-2">발송 설정</label>
+              <div className="bg-wood-50 p-6 rounded-2xl border border-wood-200 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="text-wood-500" size={18} />
+                    <span className="text-sm font-medium text-wood-900">예약 발송</span>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <div className="relative">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only" 
+                        checked={isScheduled}
+                        onChange={(e) => setIsScheduled(e.target.checked)}
+                      />
+                      <div className={`block w-10 h-6 rounded-full transition-colors ${isScheduled ? 'bg-wood-900' : 'bg-wood-300'}`}></div>
+                      <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${isScheduled ? 'transform translate-x-4' : ''}`}></div>
+                    </div>
+                    <span className="ml-3 text-sm font-medium text-wood-700">
+                      {isScheduled ? '예약 켜짐' : '예약 꺼짐'}
+                    </span>
+                  </label>
+                </div>
+
+                {isScheduled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div>
+                      <label className="block text-xs font-medium text-wood-500 mb-1">예약 날짜</label>
+                      <input
+                        type="date"
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full px-3 py-2 rounded-lg border border-wood-200 focus:ring-2 focus:ring-gold-500 outline-none transition text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-wood-500 mb-1">예약 시간 (정각 단위)</label>
+                      <div className="relative">
+                        <select
+                          value={scheduledTime}
+                          onChange={(e) => setScheduledTime(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-wood-200 focus:ring-2 focus:ring-gold-500 outline-none transition text-sm appearance-none bg-white"
+                        >
+                          {Array.from({ length: 24 }).map((_, i) => {
+                            const hour = i.toString().padStart(2, '0');
+                            return (
+                              <option key={hour} value={`${hour}:00`}>{hour}:00</option>
+                            );
+                          })}
+                        </select>
+                        <Clock className="absolute right-3 top-1/2 -translate-y-1/2 text-wood-400 pointer-events-none" size={14} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-wood-700 mb-2">발송 대상</label>
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="targetAudience"
+                    value="all"
+                    checked={targetAudience === 'all'}
+                    onChange={() => setTargetAudience('all')}
+                    className="text-gold-600 focus:ring-gold-500"
+                  />
+                  <span className="text-sm text-wood-800">전체 발송</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="targetAudience"
+                    value="specific"
+                    checked={targetAudience === 'specific'}
+                    onChange={() => setTargetAudience('specific')}
+                    className="text-gold-600 focus:ring-gold-500"
+                  />
+                  <span className="text-sm text-wood-800">특정 성도 선택</span>
+                </label>
+              </div>
+
+              {targetAudience === 'specific' && (
+                <div className="border border-wood-200 rounded-xl p-4 max-h-60 overflow-y-auto bg-wood-50">
+                  {loadingUsers ? (
+                    <div className="flex flex-col items-center justify-center py-8 gap-2">
+                      <Loader2 className="animate-spin text-wood-400" size={24} />
+                      <p className="text-sm text-wood-500">성도 목록을 불러오는 중...</p>
+                    </div>
+                  ) : usersWithTokens.length === 0 ? (
+                    <p className="text-sm text-wood-500 text-center py-4">알림을 받을 수 있는 성도가 없습니다.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {usersWithTokens.map(user => (
+                        <label key={user.uid} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition">
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(user.uid)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUserIds(prev => [...prev, user.uid]);
+                              } else {
+                                setSelectedUserIds(prev => prev.filter(id => id !== user.uid));
+                              }
+                            }}
+                            className="rounded text-gold-600 focus:ring-gold-500"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-wood-900">{user.displayName}</p>
+                            <p className="text-xs text-wood-500">{user.email}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-wood-700 mb-2">알림 제목</label>
               <input
@@ -334,7 +593,7 @@ export default function AdminNotifications() {
               </button>
               <button
                 type="submit"
-                disabled={loading || !title || !body || tokenCount === 0}
+                disabled={loading || !title || !body || tokenCount === 0 || (targetAudience === 'specific' && selectedUserIds.length === 0)}
                 className="flex-[2] bg-wood-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-wood-800 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
                 {loading ? (
@@ -342,7 +601,11 @@ export default function AdminNotifications() {
                 ) : (
                   <>
                     <Send size={20} />
-                    전체 성도에게 발송 ({tokenCount}명)
+                    {isScheduled 
+                      ? '알림 예약하기'
+                      : targetAudience === 'all' 
+                        ? `전체 성도에게 발송 (${tokenCount}대)` 
+                        : `선택한 성도에게 발송 (${selectedUserIds.length}명)`}
                   </>
                 )}
               </button>

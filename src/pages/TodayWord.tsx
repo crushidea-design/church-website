@@ -170,14 +170,26 @@ export default function TodayWord() {
             where('category', '==', 'today_word'),
             where('createdAt', '>=', start),
             where('createdAt', '<=', end),
-            limit(1)
+            limit(10) // Fetch a few to filter client-side
           );
           const snapshot = await getDocs(q);
           
           if (!snapshot.empty) {
-            const postData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-            if (!ignore) setLatestPost(postData);
-            setTodayWord(dateStr, postData);
+            let validPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+            
+            // Filter out unpublished scheduled posts for non-admins
+            if (role !== 'admin') {
+              validPosts = validPosts.filter(p => p.isPublished !== false);
+            }
+            
+            if (validPosts.length > 0) {
+              const postData = validPosts[0];
+              if (!ignore) setLatestPost(postData);
+              setTodayWord(dateStr, postData);
+            } else {
+              if (!ignore) setLatestPost(null);
+              setTodayWord(dateStr, null);
+            }
           } else {
             // If no post for the specific date, try to get the latest one if it's today
             if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
@@ -185,11 +197,17 @@ export default function TodayWord() {
                 collection(db, 'posts'),
                 where('category', '==', 'today_word'),
                 orderBy('createdAt', 'desc'),
-                limit(1)
+                limit(10) // Fetch a few to filter client-side
               );
               const latestSnap = await getDocs(latestQ);
-              if (!latestSnap.empty) {
-                const postData = { id: latestSnap.docs[0].id, ...latestSnap.docs[0].data() };
+              
+              let validLatestPosts = latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+              if (role !== 'admin') {
+                validLatestPosts = validLatestPosts.filter(p => p.isPublished !== false);
+              }
+
+              if (validLatestPosts.length > 0) {
+                const postData = validLatestPosts[0];
                 if (!ignore) setLatestPost(postData);
                 setTodayWord(dateStr, postData);
               } else {

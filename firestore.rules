@@ -105,7 +105,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'uid', 'viewCount'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'uid', 'viewCount', 'isPublished', 'scheduledAt', 'targetUserIds'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -124,7 +124,10 @@ service cloud.firestore {
              (!('sermonCategoryId' in data) || data.sermonCategoryId is string) &&
              (!('researchCategoryId' in data) || data.researchCategoryId is string) &&
              (!('uid' in data) || data.uid is string) &&
-             (!('subCategory' in data) || data.subCategory is string);
+             (!('subCategory' in data) || data.subCategory is string) &&
+             (!('isPublished' in data) || data.isPublished is bool) &&
+             (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
+             (!('targetUserIds' in data) || data.targetUserIds is list);
              
       let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);

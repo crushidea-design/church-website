@@ -1,0 +1,35 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isPublished",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledAt",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "posts",
+      "fieldPath": "content",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "prayer_requests",
+      "fieldPath": "content",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "contacts",
+      "fieldPath": "message",
+      "indexes": []
+    }
+  ]
+}

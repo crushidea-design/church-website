@@ -77,7 +77,14 @@ export const requestNotificationPermission = async (userId: string) => {
           });
           console.log('Token saved successfully');
         } else {
-          console.log('Token already exists in Firestore');
+          console.log('Token already exists in Firestore, updating updatedAt...');
+          const docId = snapshot.docs[0].id;
+          const { updateDoc, doc } = await import('firebase/firestore');
+          await updateDoc(doc(db, 'fcm_tokens', docId), {
+            updatedAt: serverTimestamp(),
+            userId // Update userId in case it changed (e.g. logged in)
+          });
+          console.log('Token updatedAt refreshed');
         }
         return token;
       } else {
@@ -119,16 +126,28 @@ export const onMessageListener = (callback: (payload: any) => void) => {
   };
 };
 
-export const sendPushNotification = async (title: string, body: string, targetUrl: string = '/') => {
+export const sendPushNotification = async (title: string, body: string, targetUrl: string = '/', targetUserIds?: string[]) => {
   try {
-    // Fetch all tokens from Firestore
+    // Optimization: Only fetch tokens updated in the last 30 days to reduce read costs
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    // Fetch tokens from Firestore
     const tokensRef = collection(db, 'fcm_tokens');
-    const snapshot = await getDocs(tokensRef);
-    const allTokens = snapshot.docs.map(doc => doc.data().token);
-    const tokens = Array.from(new Set(allTokens));
+    const q = query(tokensRef, where('updatedAt', '>=', thirtyDaysAgo));
+    const snapshot = await getDocs(q);
+    
+    let allTokens = snapshot.docs.map(doc => doc.data());
+    
+    // Filter by targetUserIds if provided
+    if (targetUserIds && targetUserIds.length > 0) {
+      allTokens = allTokens.filter(t => targetUserIds.includes(t.userId));
+    }
+    
+    const tokens = Array.from(new Set(allTokens.map(t => t.token)));
 
     if (tokens.length === 0) {
-      console.log('No FCM tokens found in Firestore');
+      console.log('No matching FCM tokens found in Firestore');
       return { success: false, error: '수신 가능한 기기가 없습니다.' };
     }
 
