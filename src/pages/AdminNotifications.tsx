@@ -238,8 +238,31 @@ export default function AdminNotifications() {
         return;
       }
 
-      let tokens: string[] = [];
+      if (targetAudience === 'all') {
+        // Zero-read broadcast using topics
+        const response = await fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            title, 
+            body, 
+            targetUrl, 
+            useTopic: true 
+          }),
+        });
+        const result = await response.json();
+        if (result.success) {
+          setStatus({ type: 'success', message: '전체 성도에게 알림이 발송되었습니다.' });
+          setTitle('');
+          setBody('');
+        } else {
+          setStatus({ type: 'error', message: result.error || '발송 중 오류가 발생했습니다.' });
+        }
+        setLoading(false);
+        return;
+      }
 
+      let tokens: string[] = [];
       if (targetAudience === 'specific') {
         if (selectedUserIds.length === 0) {
           setStatus({ type: 'error', message: '알림을 받을 사용자를 선택해 주세요.' });
@@ -249,19 +272,6 @@ export default function AdminNotifications() {
         const selectedUsers = usersWithTokens.filter(u => selectedUserIds.includes(u.uid));
         const allSelectedTokens = selectedUsers.flatMap(u => u.tokens);
         tokens = Array.from(new Set(allSelectedTokens));
-      } else {
-        // Optimization: Only fetch tokens updated in the last 30 days to reduce read costs
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        const snapshot = await getDocs(
-          query(
-            collection(db, 'fcm_tokens'),
-            where('updatedAt', '>=', thirtyDaysAgo)
-          )
-        );
-        const allTokens = snapshot.docs.map(doc => doc.data().token);
-        tokens = Array.from(new Set(allTokens));
       }
 
       if (tokens.length === 0) {

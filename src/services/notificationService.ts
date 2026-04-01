@@ -85,8 +85,21 @@ export const requestNotificationPermission = async (userId: string) => {
             userId // Update userId in case it changed (e.g. logged in)
           });
           console.log('Token updatedAt refreshed');
-        }
-        return token;
+      }
+
+      // Subscribe to all_members topic for zero-read broadcasts
+      try {
+        await fetch('/api/notifications/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, topic: 'all_members' })
+        });
+        console.log('Subscribed to all_members topic');
+      } catch (subError) {
+        console.error('Failed to subscribe to topic:', subError);
+      }
+
+      return token;
       } else {
         console.warn('No FCM token received. Check if VAPID key is correct and service worker is registered.');
       }

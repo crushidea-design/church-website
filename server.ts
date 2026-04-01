@@ -124,49 +124,43 @@ async function startServer() {
 
           // Send notifications for published 'today_word' posts
           if (postsToNotify.length > 0) {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            
-            const tokensSnapshot = await db.collection('fcm_tokens')
-              .where('updatedAt', '>=', thirtyDaysAgo)
-              .get();
-            const allTokensData = tokensSnapshot.docs.map(doc => doc.data());
-
             for (const post of postsToNotify) {
-              let targetTokens: string[] = [];
-              if (post.targetUserIds && post.targetUserIds.length > 0) {
-                targetTokens = Array.from(new Set(
-                  allTokensData
-                    .filter(t => post.targetUserIds.includes(t.userId))
-                    .map(t => t.token)
-                ));
-              } else {
-                targetTokens = Array.from(new Set(allTokensData.map(t => t.token)));
-              }
-
-              if (targetTokens.length > 0) {
-                const message: any = {
-                  notification: { 
-                    title: '오늘의 말씀 가이드라인이 올라왔습니다!', 
-                    body: post.title 
+              const baseMessage: any = {
+                notification: { 
+                  title: '오늘의 말씀 가이드라인이 올라왔습니다!', 
+                  body: post.title 
+                },
+                data: { url: '/archive/today' },
+                webpush: {
+                  notification: {
+                    icon: '/icons/church-logo-96x96.png',
+                    badge: '/icons/badge-monochrome.png',
+                    vibrate: [100, 50, 100]
                   },
-                  tokens: targetTokens,
-                  data: { url: '/archive/today' },
-                  webpush: {
-                    notification: {
-                      icon: '/icons/church-logo-96x96.png',
-                      badge: '/icons/badge-monochrome.png',
-                      vibrate: [100, 50, 100]
-                    },
-                    fcm_options: { link: '/archive/today' }
-                  }
-                };
-
-                try {
-                  await admin.messaging().sendEachForMulticast(message);
-                } catch (err) {
-                  console.error(`Failed to send scheduled notification for post ${post.id}:`, err);
+                  fcm_options: { link: '/archive/today' }
                 }
+              };
+
+              try {
+                if (post.targetUserIds && post.targetUserIds.length > 0) {
+                  // Only fetch tokens if we have specific target users
+                  const thirtyDaysAgo = new Date();
+                  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                  const tokensSnapshot = await db.collection('fcm_tokens')
+                    .where('userId', 'in', post.targetUserIds)
+                    .where('updatedAt', '>=', thirtyDaysAgo)
+                    .get();
+                  const targetTokens = Array.from(new Set(tokensSnapshot.docs.map(t => t.data().token)));
+                  
+                  if (targetTokens.length > 0) {
+                    await admin.messaging().sendEachForMulticast({ ...baseMessage, tokens: targetTokens });
+                  }
+                } else {
+                  // Zero-read broadcast using topic
+                  await admin.messaging().send({ ...baseMessage, topic: 'all_members' });
+                }
+              } catch (err) {
+                console.error(`Failed to send scheduled notification for post ${post.id}:`, err);
               }
             }
           }
@@ -181,58 +175,49 @@ async function startServer() {
         if (!notificationsSnapshot.empty) {
           console.log(`Found ${notificationsSnapshot.size} scheduled notifications to send.`);
           
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
-          const tokensSnapshot = await db.collection('fcm_tokens')
-            .where('updatedAt', '>=', thirtyDaysAgo)
-            .get();
-          const allTokensData = tokensSnapshot.docs.map(doc => doc.data());
-
           for (const doc of notificationsSnapshot.docs) {
             const notif = doc.data();
-            let targetTokens: string[] = [];
-
-            if (notif.targetTokens && notif.targetTokens.length > 0) {
-              targetTokens = notif.targetTokens;
-            } else if (notif.targetUserIds && notif.targetUserIds.length > 0) {
-              targetTokens = Array.from(new Set(
-                allTokensData
-                  .filter(t => notif.targetUserIds.includes(t.userId))
-                  .map(t => t.token)
-              ));
-            } else {
-              targetTokens = Array.from(new Set(allTokensData.map(t => t.token)));
-            }
-
-            if (targetTokens.length > 0) {
-              const message: any = {
-                notification: { title: notif.title, body: notif.body },
-                tokens: targetTokens,
-                data: {
-                  url: notif.targetUrl || '/',
+            const baseMessage: any = {
+              notification: { title: notif.title, body: notif.body },
+              data: {
+                url: notif.targetUrl || '/',
+                ...(notif.imageUrl && { image: notif.imageUrl }),
+              },
+              webpush: {
+                notification: {
+                  icon: '/icons/church-logo-96x96.png',
+                  badge: '/icons/badge-monochrome.png',
+                  vibrate: [100, 50, 100],
                   ...(notif.imageUrl && { image: notif.imageUrl }),
                 },
-                webpush: {
-                  notification: {
-                    icon: '/icons/church-logo-96x96.png',
-                    badge: '/icons/badge-monochrome.png',
-                    vibrate: [100, 50, 100],
-                    ...(notif.imageUrl && { image: notif.imageUrl }),
-                  },
-                  fcm_options: { link: notif.targetUrl || '/' }
-                }
-              };
-
-              try {
-                await admin.messaging().sendEachForMulticast(message);
-                await doc.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp() });
-              } catch (err) {
-                console.error(`Failed to send scheduled notification ${doc.id}:`, err);
-                await doc.ref.update({ status: 'failed', error: String(err) });
+                fcm_options: { link: notif.targetUrl || '/' }
               }
-            } else {
-              await doc.ref.update({ status: 'no_tokens' });
+            };
+
+            try {
+              if (notif.targetAudience === 'all') {
+                // Zero-read broadcast
+                await admin.messaging().send({ ...baseMessage, topic: 'all_members' });
+              } else {
+                let targetTokens: string[] = notif.targetTokens || [];
+                if (targetTokens.length === 0 && notif.targetUserIds?.length > 0) {
+                  const thirtyDaysAgo = new Date();
+                  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                  const tokensSnapshot = await db.collection('fcm_tokens')
+                    .where('userId', 'in', notif.targetUserIds)
+                    .where('updatedAt', '>=', thirtyDaysAgo)
+                    .get();
+                  targetTokens = Array.from(new Set(tokensSnapshot.docs.map(t => t.data().token)));
+                }
+
+                if (targetTokens.length > 0) {
+                  await admin.messaging().sendEachForMulticast({ ...baseMessage, tokens: targetTokens });
+                }
+              }
+              await doc.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp() });
+            } catch (err) {
+              console.error(`Failed to send scheduled notification ${doc.id}:`, err);
+              await doc.ref.update({ status: 'failed', error: String(err) });
             }
           }
         }
@@ -244,22 +229,37 @@ async function startServer() {
 
   app.use(express.json());
 
+  // API Route to subscribe to topic
+  app.post('/api/notifications/subscribe', async (req, res) => {
+    const { token, topic = 'all_members' } = req.body;
+    if (!admin.apps.length || !token) {
+      return res.status(400).json({ error: 'Invalid request' });
+    }
+    try {
+      await admin.messaging().subscribeToTopic(token, topic);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error subscribing to topic:', error);
+      res.status(500).json({ error: 'Failed to subscribe' });
+    }
+  });
+
   // API Route to send notifications
   app.post('/api/notifications/send', async (req, res) => {
-    const { title, body, targetUrl, targetTokens, imageUrl } = req.body;
+    const { title, body, targetUrl, targetTokens, imageUrl, useTopic } = req.body;
 
     if (!admin.apps.length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
     }
 
-    if (!title || !body || !targetTokens || !targetTokens.length) {
+    if (!title || !body) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-      const message: any = {
+      let response;
+      const baseMessage: any = {
         notification: { title, body },
-        tokens: targetTokens,
         data: {
           url: targetUrl || '/',
           ...(imageUrl && { image: imageUrl }),
@@ -275,25 +275,28 @@ async function startServer() {
             link: targetUrl || '/',
           },
         },
-        apns: {
-          payload: {
-            aps: {
-              'mutable-content': 1,
-              sound: 'default',
-            }
-          },
-          fcm_options: {
-            image: imageUrl || '/icons/church-logo-96x96.png'
-          }
-        }
       };
 
-      const response = await admin.messaging().sendEachForMulticast(message);
-      res.json({
-        success: true,
-        successCount: response.successCount,
-        failureCount: response.failureCount,
-      });
+      if (useTopic) {
+        // Zero-read broadcast using topics
+        response = await admin.messaging().send({
+          ...baseMessage,
+          topic: useTopic === true ? 'all_members' : useTopic,
+        });
+        res.json({ success: true, messageId: response });
+      } else if (targetTokens && targetTokens.length > 0) {
+        response = await admin.messaging().sendEachForMulticast({
+          ...baseMessage,
+          tokens: targetTokens,
+        });
+        res.json({
+          success: true,
+          successCount: response.successCount,
+          failureCount: response.failureCount,
+        });
+      } else {
+        res.status(400).json({ error: 'No target specified' });
+      }
     } catch (error) {
       console.error('Error sending notification:', error);
       res.status(500).json({ error: 'Failed to send notification' });
