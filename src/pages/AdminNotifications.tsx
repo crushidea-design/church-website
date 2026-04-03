@@ -80,7 +80,8 @@ export default function AdminNotifications() {
       
       const tokensQuery = query(
         collection(db, 'fcm_tokens'),
-        where('updatedAt', '>=', thirtyDaysAgo)
+        where('updatedAt', '>=', thirtyDaysAgo),
+        limit(100)
       );
       const tokensSnapshot = await getDocs(tokensQuery);
       const tokensData = tokensSnapshot.docs.map(doc => doc.data());

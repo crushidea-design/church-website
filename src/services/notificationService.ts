@@ -1,6 +1,6 @@
 import { messaging, db } from '../lib/firebase';
 import { getToken, onMessage, isSupported } from 'firebase/messaging';
-import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, serverTimestamp, limit } from 'firebase/firestore';
 
 // IMPORTANT: This VAPID key must be replaced with the one from your Firebase Console
 // Project Settings -> Cloud Messaging -> Web configuration -> Web Push certificates
@@ -145,19 +145,25 @@ export const sendPushNotification = async (title: string, body: string, targetUr
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    // Fetch tokens from Firestore
-    const tokensRef = collection(db, 'fcm_tokens');
-    const q = query(tokensRef, where('updatedAt', '>=', thirtyDaysAgo));
-    const snapshot = await getDocs(q);
+    let tokens: string[] = [];
     
-    let allTokens = snapshot.docs.map(doc => doc.data());
-    
-    // Filter by targetUserIds if provided
     if (targetUserIds && targetUserIds.length > 0) {
-      allTokens = allTokens.filter(t => targetUserIds.includes(t.userId));
+      // Optimization: Fetch tokens only for specific users, chunked by 30 due to 'in' query limits
+      for (let i = 0; i < targetUserIds.length; i += 30) {
+        const chunk = targetUserIds.slice(i, i + 30);
+        const q = query(collection(db, 'fcm_tokens'), where('userId', 'in', chunk));
+        const snapshot = await getDocs(q);
+        tokens.push(...snapshot.docs.map(doc => doc.data().token));
+      }
+    } else {
+      // Fallback for all users (though usually handled by topic)
+      const tokensRef = collection(db, 'fcm_tokens');
+      const q = query(tokensRef, where('updatedAt', '>=', thirtyDaysAgo), limit(1000));
+      const snapshot = await getDocs(q);
+      tokens = snapshot.docs.map(doc => doc.data().token);
     }
     
-    const tokens = Array.from(new Set(allTokens.map(t => t.token)));
+    tokens = Array.from(new Set(tokens));
 
     if (tokens.length === 0) {
       console.log('No matching FCM tokens found in Firestore');

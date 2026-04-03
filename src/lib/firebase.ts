@@ -66,12 +66,11 @@ async function ensureUserDocument(user: any) {
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
-      const isAdmin = user.email === 'crushidea@gmail.com';
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || 'User',
-        role: isAdmin ? 'admin' : 'user',
+        role: 'user',
         createdAt: new Date()
       });
       console.log('New user document created');

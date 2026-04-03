@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch, limit, getCountFromServer } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { Video, Plus, Trash2, GripVertical, Save, X, ArrowLeft } from 'lucide-react';
@@ -93,10 +93,11 @@ export default function AdminSermonCategories() {
   const handleDeleteCategory = async (id: string, name: string) => {
     // Check if there are posts using this category
     const q = query(collection(db, 'posts'), where('sermonCategoryId', '==', id));
-    const snapshot = await getDocs(q);
+    const snapshot = await getCountFromServer(q);
+    const count = snapshot.data().count;
     
-    if (!snapshot.empty) {
-      alert(`'${name}' 카테고리를 사용하는 영상이 ${snapshot.size}개 있습니다. 먼저 영상들의 카테고리를 변경하거나 삭제해주세요.`);
+    if (count > 0) {
+      alert(`'${name}' 카테고리를 사용하는 영상이 ${count}개 있습니다. 먼저 영상들의 카테고리를 변경하거나 삭제해주세요.`);
       return;
     }
 

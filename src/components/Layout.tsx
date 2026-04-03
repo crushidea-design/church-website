@@ -6,7 +6,6 @@ import { collection, query, where, onSnapshot, getDocs, limit } from 'firebase/f
 import { Menu, X, BookOpen, Users, Mail, Home, Info, PlayCircle, Terminal, PenTool, Heart, Bell, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { logActivity } from '../utils/logger';
 import Logo from './Logo';
 import { Toaster, toast } from 'sonner';
 import { onMessageListener } from '../services/notificationService';
@@ -17,13 +16,6 @@ export default function Layout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
-
-  // Automatic Page Tracking
-  useEffect(() => {
-    if (user) {
-      logActivity(user, role, '페이지 방문', location.pathname);
-    }
-  }, [location.pathname, user, role]);
 
   useEffect(() => {
     if (role !== 'admin') {

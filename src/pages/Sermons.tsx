@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { formatDate } from '../lib/utils';
+import { formatDate, getYouTubeId } from '../lib/utils';
 import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
@@ -34,8 +34,8 @@ export default function Sermons() {
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
   const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('desc');
 
-  const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
-  const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
+  const canWrite = !authLoading && role === 'admin';
+  const isRegularMember = role === 'regular' || role === 'admin';
 
   useEffect(() => {
     if (authLoading) return;
@@ -254,12 +254,6 @@ export default function Sermons() {
 
   const handleLoadMore = async () => {
     // This is now replaced by handlePageChange
-  };
-
-  const getYouTubeId = (content: string) => {
-    const youtubeRegex = /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11}))/;
-    const match = content.match(youtubeRegex);
-    return match ? match[1] : null;
   };
 
   const handleRefresh = async () => {
@@ -513,6 +507,7 @@ export default function Sermons() {
                           <img
                             src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
                             alt={video.title}
+                            loading="lazy"
                             className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity duration-300"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/0.jpg`;

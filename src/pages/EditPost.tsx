@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs, deleteField, setDoc, deleteDoc, where } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
@@ -169,14 +169,10 @@ export default function EditPost() {
     try {
       let pdfUrl = existingPdfUrl;
       let pdfName = existingPdfName;
-      let pdfBase64 = existingPdfBase64;
-      let pdfChunkCount = existingPdfChunkCount;
 
       if (removeExistingPdf) {
         pdfUrl = '';
         pdfName = '';
-        pdfBase64 = '';
-        pdfChunkCount = 0;
       }
 
       if (pdfFile) {
@@ -187,21 +183,17 @@ export default function EditPost() {
           throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
         }
 
-        console.log('Converting PDF to Base64...');
+        console.log('Uploading PDF to Storage...');
         setUploadProgress(20);
         
-        pdfBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(pdfFile);
-        });
+        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
+        await uploadBytes(fileRef, pdfFile);
+        setUploadProgress(60);
         
-        pdfUrl = ''; // Clear URL if using Base64
+        pdfUrl = await getDownloadURL(fileRef);
         pdfName = pdfFile.name;
-        pdfChunkCount = Math.ceil(pdfBase64.length / 800000);
-        setUploadProgress(40);
-        console.log('Base64 conversion complete.');
+        setUploadProgress(80);
+        console.log('PDF upload complete. URL:', pdfUrl);
       }
 
       const postRef = doc(db, 'posts', id);
@@ -227,9 +219,9 @@ export default function EditPost() {
       // Handle PDF fields explicitly to ensure they are cleared if needed
       if (pdfFile) {
         updateData.pdfName = pdfName;
-        updateData.pdfChunkCount = pdfChunkCount;
+        updateData.pdfUrl = pdfUrl;
         updateData.pdfBase64 = deleteField();
-        updateData.pdfUrl = deleteField();
+        updateData.pdfChunkCount = deleteField();
       } else if (removeExistingPdf) {
         updateData.pdfUrl = deleteField();
         updateData.pdfName = deleteField();
@@ -327,21 +319,6 @@ export default function EditPost() {
         const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
         const oldChunksSnap = await getDocs(oldChunksQuery);
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
-      }
-
-      if (pdfFile && pdfBase64 && pdfChunkCount > 0) {
-        console.log(`Uploading PDF in ${pdfChunkCount} chunks...`);
-        const CHUNK_SIZE = 800000;
-        for (let i = 0; i < pdfChunkCount; i++) {
-          const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          await setDoc(doc(db, 'post_pdfs', `${id}_${i}`), {
-            postId: id,
-            index: i,
-            data: chunk
-          });
-          setUploadProgress(40 + Math.round(((i + 1) / pdfChunkCount) * 60));
-        }
-        console.log('PDF chunks uploaded successfully.');
       }
 
       navigate(`/post/${id}`);

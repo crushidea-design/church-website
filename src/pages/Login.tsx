@@ -46,12 +46,11 @@ export default function Login() {
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
-      const isAdmin = user.email === 'crushidea@gmail.com';
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
         displayName: customDisplayName || user.displayName || user.email?.split('@')[0] || 'User',
-        role: isAdmin ? 'admin' : 'user',
+        role: 'user',
         createdAt: new Date()
       });
     }

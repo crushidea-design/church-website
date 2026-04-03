@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment, serverTimestamp, limit } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { formatDate } from '../lib/utils';
+import { formatDate, YOUTUBE_REGEX, getYouTubeId } from '../lib/utils';
 import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText, Plus } from 'lucide-react';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 
@@ -17,8 +18,6 @@ export default function PostDetail() {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const pdfBlobUrlRef = React.useRef<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCommentDeleteConfirm, setShowCommentDeleteConfirm] = useState<string | null>(null);
@@ -39,7 +38,7 @@ export default function PostDetail() {
         } catch (error: any) {
           // If permission denied, it's likely a sermon post and user is not regular
           if (error.code === 'permission-denied') {
-            const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
+            const isRegularMember = role === 'regular' || role === 'admin';
             if (!isRegularMember) {
               alert('정회원만 볼 수 있는 영상입니다. 상단 \'문의\'를 통해 신청해주세요.');
               navigate('/sermons');
@@ -76,7 +75,7 @@ export default function PostDetail() {
         }
         
         // Double check access for sermon category (in case rules were bypassed or changed)
-        const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
+        const isRegularMember = role === 'regular' || role === 'admin';
         if (postData.category === 'sermon' && !isRegularMember) {
           alert('정회원만 볼 수 있는 영상입니다. 상단 \'문의\'를 통해 신청해주세요.');
           navigate('/sermons');
@@ -85,60 +84,7 @@ export default function PostDetail() {
 
         setPost(postData);
 
-        // Handle Base64 PDF if exists
-        if (postData.pdfChunkCount) {
-          console.log('PDF Data detected (Chunks). Count:', postData.pdfChunkCount);
-          try {
-            let fullBase64 = '';
-            for (let i = 0; i < postData.pdfChunkCount; i++) {
-              const chunkDoc = await getDoc(doc(db, 'post_pdfs', `${id}_${i}`));
-              if (chunkDoc.exists()) {
-                fullBase64 += chunkDoc.data().data;
-              }
-            }
-            
-            const base64Parts = fullBase64.split(',');
-            const mimeType = base64Parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
-            const base64Data = base64Parts[1];
-            
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: mimeType });
-            const url = URL.createObjectURL(blob);
-            
-            console.log('Successfully created Blob URL from chunks:', url);
-            setPdfBlobUrl(url);
-            pdfBlobUrlRef.current = url;
-          } catch (e) {
-            console.error('Error converting chunks to blob:', e);
-          }
-        } else if (postData.pdfBase64) {
-          console.log('PDF Data detected (Base64). Size:', postData.pdfBase64.length);
-          try {
-            const base64Parts = postData.pdfBase64.split(',');
-            const mimeType = base64Parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
-            const base64Data = base64Parts[1];
-            
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: mimeType });
-            const url = URL.createObjectURL(blob);
-            
-            console.log('Successfully created Blob URL:', url);
-            setPdfBlobUrl(url);
-            pdfBlobUrlRef.current = url;
-          } catch (e) {
-            console.error('Error converting base64 to blob:', e);
-          }
-        } else if (postData.pdfUrl) {
+        if (postData.pdfUrl) {
           console.log('PDF Data detected (URL):', postData.pdfUrl);
         }
 
@@ -236,14 +182,6 @@ export default function PostDetail() {
     };
 
     fetchPostAndComments();
-
-    // Cleanup function for the Blob URL
-    return () => {
-      if (pdfBlobUrlRef.current) {
-        URL.revokeObjectURL(pdfBlobUrlRef.current);
-        pdfBlobUrlRef.current = null;
-      }
-    };
   }, [id, navigate, role, user]);
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
@@ -287,10 +225,14 @@ export default function PostDetail() {
     
     setIsDeleting(true);
     try {
-      if (post?.pdfChunkCount) {
-        const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
-        const oldChunksSnap = await getDocs(oldChunksQuery);
-        await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
+      if (post?.pdfUrl) {
+        try {
+          const fileRef = ref(storage, post.pdfUrl);
+          await deleteObject(fileRef);
+          console.log('PDF deleted from storage');
+        } catch (error) {
+          console.error('Error deleting PDF from storage:', error);
+        }
       }
       
       // Delete long content chunks if they exist
@@ -388,14 +330,13 @@ export default function PostDetail() {
   };
 
   const renderContentWithYouTube = (text: string) => {
-    // Regex to match YouTube URLs (youtube.com/watch, youtu.be, and youtube.com/shorts)
-    const youtubeRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[^\s]*)?)/g;
-    
     const parts = [];
     let lastIndex = 0;
     let match;
 
-    while ((match = youtubeRegex.exec(text)) !== null) {
+    YOUTUBE_REGEX.lastIndex = 0;
+
+    while ((match = YOUTUBE_REGEX.exec(text)) !== null) {
       // Add text before the match
       if (match.index > lastIndex) {
         parts.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex, match.index)}</span>);
@@ -432,7 +373,7 @@ export default function PostDetail() {
         </div>
       );
       
-      lastIndex = youtubeRegex.lastIndex;
+      lastIndex = YOUTUBE_REGEX.lastIndex;
     }
     
     // Add remaining text
@@ -453,7 +394,7 @@ export default function PostDetail() {
 
   if (!post) return null;
 
-  const isAdmin = role === 'admin' || user?.email === 'crushidea@gmail.com';
+  const isAdmin = role === 'admin';
 
   return (
     <div className="bg-wood-100 min-h-screen py-12">
@@ -573,7 +514,7 @@ export default function PostDetail() {
               {renderContentWithYouTube(post.content)}
             </div>
 
-            {(post.pdfUrl || post.pdfBase64 || post.pdfChunkCount > 0) && (
+            {post.pdfUrl && (
               <div className="mt-12 border-t border-wood-100 pt-12">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <h3 className="text-xl font-bold text-wood-900 flex items-center">
@@ -582,7 +523,7 @@ export default function PostDetail() {
                   </h3>
                   <div className="flex gap-2">
                     <a
-                      href={pdfBlobUrl || post.pdfUrl}
+                      href={post.pdfUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
@@ -590,7 +531,7 @@ export default function PostDetail() {
                       새 창에서 열기
                     </a>
                     <a
-                      href={pdfBlobUrl || post.pdfUrl}
+                      href={post.pdfUrl}
                       download={post.pdfName || 'document.pdf'}
                       className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-full text-sm font-medium hover:bg-wood-800 transition"
                     >
@@ -599,12 +540,12 @@ export default function PostDetail() {
                   </div>
                 </div>
                 <div className="w-full bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
-                  {(pdfBlobUrl || post.pdfUrl) ? (
+                  {post.pdfUrl ? (
                     <PdfCanvasViewer 
-                      url={pdfBlobUrl || post.pdfUrl} 
+                      url={post.pdfUrl} 
                       onDownload={() => {
                         const link = document.createElement('a');
-                        link.href = pdfBlobUrl || post.pdfUrl;
+                        link.href = post.pdfUrl;
                         link.download = post.pdfName || 'document.pdf';
                         link.click();
                       }}

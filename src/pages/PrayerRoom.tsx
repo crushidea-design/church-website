@@ -6,7 +6,6 @@ import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { Heart, Lock, Edit2, Trash2, X as CloseIcon, Bell } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/firebase';
-import { logActivity } from '../utils/logger';
 
 interface PrayerRequest {
   id: string;
@@ -169,8 +168,6 @@ export default function PrayerRoom() {
     });
     
     fetchPrayers();
-    // Action Tracking
-    logActivity(user, role, '기도 응원 참여', `/prayer-room/pray/${id}`);
   };
 
   if (loading) return <div className="min-h-screen bg-[#f5f2ed] text-[#5a5a40] flex items-center justify-center">로딩 중...</div>;

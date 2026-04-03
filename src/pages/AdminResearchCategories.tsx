@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch, limit, getCountFromServer } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { FlaskConical, Plus, Trash2, ChevronUp, ChevronDown, Edit2, Save, X, ArrowLeft } from 'lucide-react';
@@ -90,10 +90,11 @@ export default function AdminResearchCategories() {
   const handleDeleteCategory = async (id: string, name: string) => {
     // Check if there are posts using this category
     const q = query(collection(db, 'posts'), where('researchCategoryId', '==', id));
-    const snapshot = await getDocs(q);
+    const snapshot = await getCountFromServer(q);
+    const count = snapshot.data().count;
     
-    if (!snapshot.empty) {
-      alert(`'${name}' 카테고리를 사용하는 연구글이 ${snapshot.size}개 있습니다. 먼저 연구글들의 카테고리를 변경하거나 삭제해주세요.`);
+    if (count > 0) {
+      alert(`'${name}' 카테고리를 사용하는 연구글이 ${count}개 있습니다. 먼저 연구글들의 카테고리를 변경하거나 삭제해주세요.`);
       return;
     }
 

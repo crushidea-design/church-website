@@ -16,10 +16,13 @@ export default function AdminDashboard() {
 
   const migrateSortOrder = async () => {
     if (isMigrating) return;
+    if (!window.confirm('주의: 이 작업은 대량의 읽기 비용을 발생시킵니다. 계속하시겠습니까?')) return;
+    
     setIsMigrating(true);
     try {
       const postsRef = collection(db, 'posts');
-      const snapshot = await getDocs(postsRef);
+      const q = query(postsRef, limit(100)); // 한 번에 100개씩만 불러오도록 제한
+      const snapshot = await getDocs(q);
       let count = 0;
       for (const document of snapshot.docs) {
         const data = document.data();
@@ -29,7 +32,7 @@ export default function AdminDashboard() {
           count++;
         }
       }
-      toast.success(`마이그레이션 완료: ${count}개의 게시물 업데이트됨.`);
+      toast.success(`마이그레이션 완료: ${count}개의 게시물 업데이트됨. (추가 작업이 필요하면 다시 눌러주세요)`);
     } catch (error) {
       console.error('Error migrating sort order:', error);
       toast.error('마이그레이션 중 오류가 발생했습니다.');

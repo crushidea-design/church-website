@@ -244,7 +244,7 @@ export default function ResearchLab() {
     return currentResearch.data;
   }, [currentResearch.data]);
 
-  const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
+  const canWrite = !authLoading && role === 'admin';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

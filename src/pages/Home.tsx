@@ -212,6 +212,7 @@ export default function Home() {
             key={heroImage} // Force re-render when image changes
             src={heroImage}
             alt="Beautiful stone church architecture"
+            loading="lazy"
             className="w-full h-full object-cover transition-opacity duration-1000"
             referrerPolicy="no-referrer"
             onError={(e) => {

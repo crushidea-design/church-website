@@ -234,7 +234,8 @@ export default function CreatePost() {
     }
 
     try {
-      let pdfBase64 = '';
+      let pdfUrl = '';
+      let pdfName = '';
       
       if (pdfFile) {
         console.log('--- PDF PROCESSING ---');
@@ -244,18 +245,17 @@ export default function CreatePost() {
           throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
         }
 
-        console.log('Converting PDF to Base64...');
+        console.log('Uploading PDF to Storage...');
         setUploadProgress(20);
         
-        pdfBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(pdfFile);
-        });
+        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
+        await uploadBytes(fileRef, pdfFile);
+        setUploadProgress(60);
         
-        setUploadProgress(40);
-        console.log('Base64 conversion complete. Length:', pdfBase64.length);
+        pdfUrl = await getDownloadURL(fileRef);
+        pdfName = pdfFile.name;
+        setUploadProgress(80);
+        console.log('PDF upload complete. URL:', pdfUrl);
       }
 
       const postData: any = {
@@ -288,9 +288,9 @@ export default function CreatePost() {
         postData.targetUserIds = targetUserIds;
       }
 
-      if (pdfBase64) {
-        postData.pdfName = pdfFile?.name;
-        postData.pdfChunkCount = Math.ceil(pdfBase64.length / 800000);
+      if (pdfUrl) {
+        postData.pdfUrl = pdfUrl;
+        postData.pdfName = pdfName;
       }
 
       if (type === 'journal' && journalDate) {
@@ -405,21 +405,6 @@ export default function CreatePost() {
       } catch (summaryErr) {
         console.error('Error updating latest posts summary:', summaryErr);
         // Don't fail the whole post creation if summary update fails
-      }
-      
-      if (pdfBase64 && postData.pdfChunkCount) {
-        console.log(`Uploading PDF in ${postData.pdfChunkCount} chunks...`);
-        const CHUNK_SIZE = 800000;
-        for (let i = 0; i < postData.pdfChunkCount; i++) {
-          const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          await setDoc(doc(db, 'post_pdfs', `${docRef.id}_${i}`), {
-            postId: docRef.id,
-            index: i,
-            data: chunk
-          });
-          setUploadProgress(40 + Math.round(((i + 1) / postData.pdfChunkCount) * 60));
-        }
-        console.log('PDF chunks uploaded successfully.');
       }
       
       console.log('Navigating to post detail...');

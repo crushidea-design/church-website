@@ -226,6 +226,7 @@ export default function Introduction() {
                 key={introImage}
                 src={introImage}
                 alt="Bible and light"
+                loading="lazy"
                 className="rounded-2xl shadow-xl object-cover h-[500px] w-full border-4 border-wood-200 transition-opacity duration-500"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
