@@ -18,10 +18,13 @@ export default function PostDetail() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const pdfBlobUrlRef = React.useRef<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCommentDeleteConfirm, setShowCommentDeleteConfirm] = useState<string | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState<string | null>(null);
+  const [prevPost, setPrevPost] = useState<{ id: string, title: string } | null>(null);
+  const [nextPost, setNextPost] = useState<{ id: string, title: string } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -89,6 +92,7 @@ export default function PostDetail() {
             
             console.log('Successfully created Blob URL from chunks:', url);
             setPdfBlobUrl(url);
+            pdfBlobUrlRef.current = url;
           } catch (e) {
             console.error('Error converting chunks to blob:', e);
           }
@@ -110,6 +114,7 @@ export default function PostDetail() {
             
             console.log('Successfully created Blob URL:', url);
             setPdfBlobUrl(url);
+            pdfBlobUrlRef.current = url;
           } catch (e) {
             console.error('Error converting base64 to blob:', e);
           }
@@ -126,6 +131,63 @@ export default function PostDetail() {
         const commentsSnap = await getDocs(q);
         const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setComments(commentsData);
+
+        // Fetch prev/next posts
+        try {
+          const category = postData.category;
+          const isSermonOrResearch = category === 'sermon' || category === 'research';
+          const orderField = isSermonOrResearch ? 'sortOrder' : 'createdAt';
+          
+          let prevQuery, nextQuery;
+          
+          if (isSermonOrResearch) {
+             const baseQueryConstraints = [
+               where('category', '==', category),
+               ...(postData.sermonCategoryId ? [where('sermonCategoryId', '==', postData.sermonCategoryId)] : []),
+               ...(postData.researchCategoryId ? [where('researchCategoryId', '==', postData.researchCategoryId)] : []),
+               ...(postData.subCategory ? [where('subCategory', '==', postData.subCategory)] : [])
+             ];
+             
+             prevQuery = query(
+               collection(db, 'posts'),
+               ...baseQueryConstraints,
+               where('sortOrder', '<', postData.sortOrder || 0),
+               orderBy('sortOrder', 'desc'),
+               limit(1)
+             );
+             nextQuery = query(
+               collection(db, 'posts'),
+               ...baseQueryConstraints,
+               where('sortOrder', '>', postData.sortOrder || 0),
+               orderBy('sortOrder', 'asc'),
+               limit(1)
+             );
+          } else {
+             prevQuery = query(
+               collection(db, 'posts'),
+               where('category', '==', category),
+               where('createdAt', '>', postData.createdAt),
+               orderBy('createdAt', 'asc'),
+               limit(1)
+             );
+             nextQuery = query(
+               collection(db, 'posts'),
+               where('category', '==', category),
+               where('createdAt', '<', postData.createdAt),
+               orderBy('createdAt', 'desc'),
+               limit(1)
+             );
+          }
+          
+          const [prevSnap, nextSnap] = await Promise.all([getDocs(prevQuery), getDocs(nextQuery)]);
+          if (!prevSnap.empty) setPrevPost({ id: prevSnap.docs[0].id, title: prevSnap.docs[0].data().title });
+          else setPrevPost(null);
+          
+          if (!nextSnap.empty) setNextPost({ id: nextSnap.docs[0].id, title: nextSnap.docs[0].data().title });
+          else setNextPost(null);
+        } catch (e) {
+          console.error("Error fetching prev/next posts", e);
+        }
 
         // Auto-heal comment count if it mismatches
         const actualCommentCount = commentsData.length;
@@ -149,8 +211,9 @@ export default function PostDetail() {
 
     // Cleanup function for the Blob URL
     return () => {
-      if (pdfBlobUrl) {
-        URL.revokeObjectURL(pdfBlobUrl);
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current);
+        pdfBlobUrlRef.current = null;
       }
     };
   }, [id, navigate, role, user]);
@@ -522,6 +585,29 @@ export default function PostDetail() {
               </div>
             )}
           </div>
+          
+          {/* Post Navigation */}
+          {(prevPost || nextPost) && (
+            <div className="border-t border-wood-100 bg-wood-50 p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+              {prevPost ? (
+                <Link to={`/post/${prevPost.id}`} className="flex items-center text-wood-600 hover:text-wood-900 transition text-sm font-medium max-w-[45%] truncate">
+                  <ArrowLeft size={16} className="mr-2 flex-shrink-0" />
+                  <span className="truncate">이전글: {prevPost.title}</span>
+                </Link>
+              ) : (
+                <div className="w-1/2"></div>
+              )}
+              
+              {nextPost ? (
+                <Link to={`/post/${nextPost.id}`} className="flex items-center text-wood-600 hover:text-wood-900 transition text-sm font-medium max-w-[45%] truncate justify-end text-right">
+                  <span className="truncate">다음글: {nextPost.title}</span>
+                  <ArrowLeft size={16} className="ml-2 flex-shrink-0 rotate-180" />
+                </Link>
+              ) : (
+                <div className="w-1/2"></div>
+              )}
+            </div>
+          )}
         </article>
 
         {/* Comments Section */}

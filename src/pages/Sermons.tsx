@@ -16,7 +16,7 @@ interface SermonCategory {
 
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const { sermons, sermonCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
   
@@ -27,7 +27,7 @@ export default function Sermons() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('desc');
 
   const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
   const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
@@ -53,9 +53,11 @@ export default function Sermons() {
         // Set Active Tab
         let tab = activeTab;
         const tabParam = searchParams.get('tab');
-        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress')) {
+        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
           tab = tabParam;
-          setActiveTab(tabParam);
+          if (activeTab !== tabParam) {
+            setActiveTab(tabParam);
+          }
         } else if (cats.length > 0 && !activeTab) {
           tab = cats[0].id;
           setActiveTab(tab);
@@ -65,10 +67,7 @@ export default function Sermons() {
 
         // Fetch Sermons for current tab if not fetched
         const tabSermons = sermons[tab];
-        // Force refetch if it looks like it was fetched with the old limit of 20
-        const needsUpgrade = tabSermons && tabSermons.fetched && tabSermons.data.length === 20 && tabSermons.hasMore;
-
-        if (!tabSermons || !tabSermons.fetched || needsUpgrade) {
+        if (!tabSermons || !tabSermons.fetched) {
           setLoading(true);
           setError(null);
           
@@ -79,7 +78,7 @@ export default function Sermons() {
               collection(db, 'posts'),
               where('category', '==', 'sermon'),
               orderBy('createdAt', 'desc'),
-              limit(1000)
+              limit(24)
             );
           } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
             q = query(
@@ -87,7 +86,7 @@ export default function Sermons() {
               where('category', '==', 'sermon'),
               where('subCategory', '==', tab),
               orderBy('createdAt', 'desc'),
-              limit(1000)
+              limit(24)
             );
           } else {
             q = query(
@@ -95,14 +94,14 @@ export default function Sermons() {
               where('category', '==', 'sermon'),
               where('sermonCategoryId', '==', tab),
               orderBy('createdAt', 'desc'),
-              limit(1000)
+              limit(24)
             );
           }
 
           const snapshot = await getDocs(q);
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
           const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-          const hasMore = snapshot.docs.length === 1000;
+          const hasMore = snapshot.docs.length === 24;
           
           setCategoryCollection('sermons', tab, data, lastDoc, hasMore);
         }
@@ -128,39 +127,41 @@ export default function Sermons() {
 
     try {
       let q;
+      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderDir = sortOrderDirection;
 
       if (activeTab === 'uncategorized') {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
-          orderBy('createdAt', 'desc'),
+          orderBy(orderField, orderDir),
           startAfter(currentSermons.lastDoc),
-          limit(1000)
+          limit(24)
         );
       } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
           where('subCategory', '==', activeTab),
-          orderBy('createdAt', 'desc'),
+          orderBy(orderField, orderDir),
           startAfter(currentSermons.lastDoc),
-          limit(1000)
+          limit(24)
         );
       } else {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
           where('sermonCategoryId', '==', activeTab),
-          orderBy('createdAt', 'desc'),
+          orderBy(orderField, orderDir),
           startAfter(currentSermons.lastDoc),
-          limit(1000)
+          limit(24)
         );
       }
 
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 1000;
+      const hasMore = snapshot.docs.length === 24;
       
       appendCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
     } catch (error: any) {
@@ -186,35 +187,38 @@ export default function Sermons() {
     setError(null);
     try {
       let q;
+      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderDir = sortOrderDirection;
+
       if (activeTab === 'uncategorized') {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
-          orderBy('createdAt', 'desc'),
-          limit(1000)
+          orderBy(orderField, orderDir),
+          limit(24)
         );
       } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
           where('subCategory', '==', activeTab),
-          orderBy('createdAt', 'desc'),
-          limit(1000)
+          orderBy(orderField, orderDir),
+          limit(24)
         );
       } else {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
           where('sermonCategoryId', '==', activeTab),
-          orderBy('createdAt', 'desc'),
-          limit(1000)
+          orderBy(orderField, orderDir),
+          limit(24)
         );
       }
 
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 1000;
+      const hasMore = snapshot.docs.length === 24;
       
       setCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
     } catch (error: any) {
@@ -249,45 +253,21 @@ export default function Sermons() {
              (activeTab === 'pilgrims_progress' && video.subCategory === 'pilgrims_progress');
     });
 
-    // 2. Pre-calculate sort keys for natural sort
-    const getSortKey = (s: string) => {
-      const re = /(\d+)|(\D+)/g;
-      return Array.from(s.matchAll(re)).map(m => {
-        const n = parseInt(m[1], 10);
-        return isNaN(n) ? (m[2] || '').toLowerCase() : n;
-      });
-    };
-
-    const itemsWithKeys = filtered.map(item => ({
-      item,
-      key: sortBy === 'title' ? getSortKey(item.title || '') : null
-    }));
-
-    itemsWithKeys.sort((a, b) => {
+    // 2. Sort
+    const result = [...filtered].sort((a, b) => {
       if (sortBy === 'title') {
-        const ak = a.key!;
-        const bk = b.key!;
-        const len = Math.min(ak.length, bk.length);
-        for (let i = 0; i < len; i++) {
-          const av = ak[i];
-          const bv = bk[i];
-          if (typeof av === 'number' && typeof bv === 'number') {
-            if (av !== bv) return av - bv;
-          } else if (av !== bv) {
-            return String(av).localeCompare(String(bv), 'ko-KR', { sensitivity: 'base' });
-          }
-        }
-        return ak.length - bk.length;
+        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
+        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
+        return orderA - orderB;
       } else {
-        const dateA = a.item.createdAt?.toDate?.()?.getTime() || 0;
-        const dateB = b.item.createdAt?.toDate?.()?.getTime() || 0;
+        const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
+        const dateB = b.createdAt?.toDate?.()?.getTime() || 0;
         return dateA - dateB;
       }
     });
 
-    const result = itemsWithKeys.map(x => x.item);
-    return sortOrder === 'desc' ? result.reverse() : result;
-  }, [currentSermons.data, activeTab, sermonCategories, sortBy, sortOrder]);
+    return sortOrderDirection === 'desc' ? result.reverse() : result;
+  }, [currentSermons.data, activeTab, sermonCategories, sortBy, sortOrderDirection]);
 
   if (!authLoading && !isRegularMember) {
     return (
@@ -334,7 +314,10 @@ export default function Sermons() {
           {sermonCategories.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setSearchParams({ tab: tab.id });
+              }}
               className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-wood-900 text-white shadow-sm'
@@ -346,7 +329,10 @@ export default function Sermons() {
           ))}
           {hasUncategorized && (
             <button
-              onClick={() => setActiveTab('uncategorized')}
+              onClick={() => {
+                setActiveTab('uncategorized');
+                setSearchParams({ tab: 'uncategorized' });
+              }}
               className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
                 activeTab === 'uncategorized'
                   ? 'bg-amber-600 text-white shadow-sm'
@@ -359,7 +345,10 @@ export default function Sermons() {
           {/* Fallback for legacy tabs if they don't exist in categories */}
           {!sermonCategories.find(c => c.id === 'past_sermons') && Object.values(sermons).some(cat => cat?.data?.some(v => v.subCategory === 'past_sermons')) && (
             <button
-              onClick={() => setActiveTab('past_sermons')}
+              onClick={() => {
+                setActiveTab('past_sermons');
+                setSearchParams({ tab: 'past_sermons' });
+              }}
               className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
                 activeTab === 'past_sermons'
                   ? 'bg-wood-900 text-white shadow-sm'
@@ -371,7 +360,10 @@ export default function Sermons() {
           )}
           {!sermonCategories.find(c => c.id === 'pilgrims_progress') && Object.values(sermons).some(cat => cat?.data?.some(v => v.subCategory === 'pilgrims_progress')) && (
             <button
-              onClick={() => setActiveTab('pilgrims_progress')}
+              onClick={() => {
+                setActiveTab('pilgrims_progress');
+                setSearchParams({ tab: 'pilgrims_progress' });
+              }}
               className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
                 activeTab === 'pilgrims_progress'
                   ? 'bg-wood-900 text-white shadow-sm'
@@ -389,25 +381,25 @@ export default function Sermons() {
             <select
               value={sortBy}
               onChange={(e) => {
-                const newSortBy = e.target.value as 'date' | 'title';
+                const newSortBy = e.target.value as 'date' | 'order';
                 setSortBy(newSortBy);
-                if (newSortBy === 'title') {
-                  setSortOrder('asc');
+                if (newSortBy === 'order') {
+                  setSortOrderDirection('asc');
                 } else {
-                  setSortOrder('desc');
+                  setSortOrderDirection('desc');
                 }
               }}
               className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-medium cursor-pointer py-1"
             >
               <option value="date">날짜순</option>
-              <option value="title">제목순</option>
+              <option value="order">순서 정렬</option>
             </select>
           </div>
           <button
-            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+            onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
             className="px-3 py-1 text-sm font-medium text-wood-600 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
           >
-            {sortOrder === 'desc' ? '내림차순' : '오름차순'}
+            {sortOrderDirection === 'desc' ? '내림차순' : '오름차순'}
           </button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
+import { generateSortOrder } from '../lib/sortUtils';
 
 interface SermonCategory {
   id: string;
@@ -186,6 +187,7 @@ export default function EditPost() {
       const updateData: any = {
         title: title.trim(),
         content: content.trim(),
+        sortOrder: generateSortOrder(title.trim()),
         updatedAt: serverTimestamp(),
       };
 

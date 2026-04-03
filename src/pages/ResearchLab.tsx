@@ -26,7 +26,7 @@ export default function ResearchLab() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -42,36 +42,35 @@ export default function ResearchLab() {
 
         // Fetch Research Posts for current tab if not fetched
         const tabResearch = research[activeTab];
-        // Force refetch if it looks like it was fetched with the old limit of 20
-        const needsUpgrade = tabResearch && tabResearch.fetched && tabResearch.data.length === 20 && tabResearch.hasMore;
-        
-        if (!tabResearch || !tabResearch.fetched || needsUpgrade) {
+        if (!tabResearch || !tabResearch.fetched) {
           setLoading(true);
           setError(null);
           
           let q;
+          const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+          const orderDir = sortOrderDirection;
 
           if (activeTab === 'all') {
             q = query(
               collection(db, 'posts'),
               where('category', '==', 'research'),
-              orderBy('createdAt', 'desc'),
-              limit(1000)
+              orderBy(orderField, orderDir),
+              limit(24)
             );
           } else {
             q = query(
               collection(db, 'posts'),
               where('category', '==', 'research'),
               where('researchCategoryId', '==', activeTab),
-              orderBy('createdAt', 'desc'),
-              limit(1000)
+              orderBy(orderField, orderDir),
+              limit(24)
             );
           }
 
           const snapshot = await getDocs(q);
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
           const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-          const hasMore = snapshot.docs.length === 1000;
+          const hasMore = snapshot.docs.length === 24;
           
           setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
         }
@@ -97,30 +96,32 @@ export default function ResearchLab() {
 
     try {
       let q;
+      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderDir = sortOrderDirection;
 
       if (activeTab === 'all') {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'research'),
-          orderBy('createdAt', 'desc'),
+          orderBy(orderField, orderDir),
           startAfter(currentResearch.lastDoc),
-          limit(1000)
+          limit(24)
         );
       } else {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'research'),
           where('researchCategoryId', '==', activeTab),
-          orderBy('createdAt', 'desc'),
+          orderBy(orderField, orderDir),
           startAfter(currentResearch.lastDoc),
-          limit(1000)
+          limit(24)
         );
       }
 
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 1000;
+      const hasMore = snapshot.docs.length === 24;
       
       appendCategoryCollection('research', activeTab, data, lastDoc, hasMore);
     } catch (error: any) {
@@ -140,27 +141,30 @@ export default function ResearchLab() {
     setError(null);
     try {
       let q;
+      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderDir = sortOrderDirection;
+
       if (activeTab === 'all') {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'research'),
-          orderBy('createdAt', 'desc'),
-          limit(1000)
+          orderBy(orderField, orderDir),
+          limit(24)
         );
       } else {
         q = query(
           collection(db, 'posts'),
           where('category', '==', 'research'),
           where('researchCategoryId', '==', activeTab),
-          orderBy('createdAt', 'desc'),
-          limit(1000)
+          orderBy(orderField, orderDir),
+          limit(24)
         );
       }
 
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 1000;
+      const hasMore = snapshot.docs.length === 24;
       
       setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
     } catch (error: any) {
@@ -172,44 +176,27 @@ export default function ResearchLab() {
   };
 
   const sortedPosts = React.useMemo(() => {
-    const getSortKey = (s: string) => {
-      const re = /(\d+)|(\D+)/g;
-      return Array.from(s.matchAll(re)).map(m => {
-        const n = parseInt(m[1], 10);
-        return isNaN(n) ? (m[2] || '').toLowerCase() : n;
-      });
-    };
+    // 1. Filter
+    const filtered = currentResearch.data.filter(post => {
+      if (!activeTab || activeTab === 'all') return true;
+      return post.researchCategoryId === activeTab;
+    });
 
-    const itemsWithKeys = currentResearch.data.map(item => ({
-      item,
-      key: sortBy === 'title' ? getSortKey(item.title || '') : null
-    }));
-
-    itemsWithKeys.sort((a, b) => {
+    // 2. Sort
+    const result = [...filtered].sort((a, b) => {
       if (sortBy === 'title') {
-        const ak = a.key!;
-        const bk = b.key!;
-        const len = Math.min(ak.length, bk.length);
-        for (let i = 0; i < len; i++) {
-          const av = ak[i];
-          const bv = bk[i];
-          if (typeof av === 'number' && typeof bv === 'number') {
-            if (av !== bv) return av - bv;
-          } else if (av !== bv) {
-            return String(av).localeCompare(String(bv), 'ko-KR', { sensitivity: 'base' });
-          }
-        }
-        return ak.length - bk.length;
+        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
+        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
+        return orderA - orderB;
       } else {
-        const dateA = a.item.createdAt?.toDate?.()?.getTime() || 0;
-        const dateB = b.item.createdAt?.toDate?.()?.getTime() || 0;
+        const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
+        const dateB = b.createdAt?.toDate?.()?.getTime() || 0;
         return dateA - dateB;
       }
     });
 
-    const result = itemsWithKeys.map(x => x.item);
-    return sortOrder === 'desc' ? result.reverse() : result;
-  }, [currentResearch.data, sortBy, sortOrder]);
+    return sortOrderDirection === 'desc' ? result.reverse() : result;
+  }, [currentResearch.data, activeTab, sortBy, sortOrderDirection]);
 
   const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
 
@@ -268,9 +255,9 @@ export default function ResearchLab() {
                 const newSortBy = e.target.value as 'date' | 'title';
                 setSortBy(newSortBy);
                 if (newSortBy === 'title') {
-                  setSortOrder('asc');
+                  setSortOrderDirection('asc');
                 } else {
-                  setSortOrder('desc');
+                  setSortOrderDirection('desc');
                 }
               }}
               className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-bold cursor-pointer py-1"
@@ -280,10 +267,10 @@ export default function ResearchLab() {
             </select>
           </div>
           <button
-            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+            onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
             className="px-4 py-1.5 text-sm font-bold text-wood-700 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
           >
-            {sortOrder === 'desc' ? '내림차순' : '오름차순'}
+            {sortOrderDirection === 'desc' ? '내림차순' : '오름차순'}
           </button>
         </div>
       </div>

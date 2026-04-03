@@ -171,7 +171,7 @@ service cloud.firestore {
 
     // Rules
     match /fcm_tokens/{tokenId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create, update: if isAuthenticated() && isValidFCMToken(request.resource.data);
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }

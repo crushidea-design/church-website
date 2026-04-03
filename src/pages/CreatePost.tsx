@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth';
 import { useStore } from '../store/useStore';
 import { sendPushNotification } from '../services/notificationService';
 import { ArrowLeft, FileText, X, Plus } from 'lucide-react';
+import { generateSortOrder } from '../lib/sortUtils';
 
 interface SermonCategory {
   id: string;
@@ -262,6 +263,7 @@ export default function CreatePost() {
         content: content.trim(),
         category: type,
         subCategory: subCategory,
+        sortOrder: generateSortOrder(title.trim()),
         authorId: user.uid,
         authorName: user.displayName || '익명',
         commentCount: 0,

@@ -247,6 +247,7 @@ export default function AdminNotifications() {
             title, 
             body, 
             targetUrl, 
+            imageUrl,
             useTopic: true 
           }),
         });

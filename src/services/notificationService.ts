@@ -65,13 +65,13 @@ export const requestNotificationPermission = async (userId: string) => {
         console.log('FCM Token generated:', token.substring(0, 10) + '...');
         // Store token in Firestore
         const tokensRef = collection(db, 'fcm_tokens');
-        const q = query(tokensRef, where('token', '==', token));
+        const q = query(tokensRef, where('userId', '==', userId), where('token', '==', token));
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
           console.log('Saving new token to Firestore...');
           await addDoc(tokensRef, {
-            userId,
+            userId: userId || 'anonymous',
             token,
             updatedAt: serverTimestamp()
           });
@@ -82,24 +82,24 @@ export const requestNotificationPermission = async (userId: string) => {
           const { updateDoc, doc } = await import('firebase/firestore');
           await updateDoc(doc(db, 'fcm_tokens', docId), {
             updatedAt: serverTimestamp(),
-            userId // Update userId in case it changed (e.g. logged in)
+            userId: userId || 'anonymous' // Update userId in case it changed (e.g. logged in)
           });
           console.log('Token updatedAt refreshed');
-      }
+        }
 
-      // Subscribe to all_members topic for zero-read broadcasts
-      try {
-        await fetch('/api/notifications/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, topic: 'all_members' })
-        });
-        console.log('Subscribed to all_members topic');
-      } catch (subError) {
-        console.error('Failed to subscribe to topic:', subError);
-      }
+        // Subscribe to all_members topic for zero-read broadcasts
+        try {
+          await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, topic: 'all_members' })
+          });
+          console.log('Subscribed to all_members topic');
+        } catch (subError) {
+          console.error('Failed to subscribe to topic:', subError);
+        }
 
-      return token;
+        return token;
       } else {
         console.warn('No FCM token received. Check if VAPID key is correct and service worker is registered.');
       }

@@ -4,13 +4,39 @@ import { useAuth } from '../lib/auth';
 import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db } from '../lib/firebase';
-import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where, updateDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { generateSortOrder } from '../lib/sortUtils';
 
 export default function AdminDashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  const migrateSortOrder = async () => {
+    if (isMigrating) return;
+    setIsMigrating(true);
+    try {
+      const postsRef = collection(db, 'posts');
+      const snapshot = await getDocs(postsRef);
+      let count = 0;
+      for (const document of snapshot.docs) {
+        const data = document.data();
+        if (data.category === 'sermon' || data.category === 'research') {
+          const sortOrder = generateSortOrder(data.title || '');
+          await updateDoc(doc(db, 'posts', document.id), { sortOrder });
+          count++;
+        }
+      }
+      toast.success(`마이그레이션 완료: ${count}개의 게시물 업데이트됨.`);
+    } catch (error) {
+      console.error('Error migrating sort order:', error);
+      toast.error('마이그레이션 중 오류가 발생했습니다.');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const refreshLatestSummary = async () => {
     if (isRefreshing) return;
@@ -85,6 +111,14 @@ export default function AdminDashboard() {
       onClick: refreshLatestSummary,
       isLoading: isRefreshing,
       color: 'bg-indigo-50 text-indigo-600 border-indigo-100'
+    },
+    {
+      title: '정렬 순서(sortOrder) 마이그레이션',
+      description: '기존 말씀 서재 및 연구실 게시물에 자동 생성된 정렬 순서를 부여합니다.',
+      icon: RefreshCw,
+      onClick: migrateSortOrder,
+      isLoading: isMigrating,
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100'
     },
     {
       title: '할당량 초과 플래그 초기화',

@@ -133,8 +133,8 @@ async function startServer() {
                 data: { url: '/archive/today' },
                 webpush: {
                   notification: {
-                    icon: '/icons/church-logo-96x96.png',
-                    badge: '/icons/badge-monochrome.png',
+                    icon: '/pwa-icon-192-v6.png',
+                    badge: '/favicon-48x48-final.png',
                     vibrate: [100, 50, 100]
                   },
                   fcm_options: { link: '/archive/today' }
@@ -185,8 +185,8 @@ async function startServer() {
               },
               webpush: {
                 notification: {
-                  icon: '/icons/church-logo-96x96.png',
-                  badge: '/icons/badge-monochrome.png',
+                  icon: '/pwa-icon-192-v6.png',
+                  badge: '/favicon-48x48-final.png',
                   vibrate: [100, 50, 100],
                   ...(notif.imageUrl && { image: notif.imageUrl }),
                 },
@@ -266,8 +266,8 @@ async function startServer() {
         },
         webpush: {
           notification: {
-            icon: '/icons/church-logo-96x96.png',
-            badge: '/icons/badge-monochrome.png',
+            icon: '/pwa-icon-192-v6.png',
+            badge: '/favicon-48x48-final.png',
             vibrate: [100, 50, 100],
             ...(imageUrl && { image: imageUrl }),
           },
