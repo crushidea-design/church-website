@@ -180,11 +180,19 @@ export default function PostDetail() {
           }
           
           const [prevSnap, nextSnap] = await Promise.all([getDocs(prevQuery), getDocs(nextQuery)]);
-          if (!prevSnap.empty) setPrevPost({ id: prevSnap.docs[0].id, title: prevSnap.docs[0].data().title });
-          else setPrevPost(null);
+          if (!prevSnap.empty) {
+            const data = prevSnap.docs[0].data() as any;
+            setPrevPost({ id: prevSnap.docs[0].id, title: data.title });
+          } else {
+            setPrevPost(null);
+          }
           
-          if (!nextSnap.empty) setNextPost({ id: nextSnap.docs[0].id, title: nextSnap.docs[0].data().title });
-          else setNextPost(null);
+          if (!nextSnap.empty) {
+            const data = nextSnap.docs[0].data() as any;
+            setNextPost({ id: nextSnap.docs[0].id, title: data.title });
+          } else {
+            setNextPost(null);
+          }
         } catch (e) {
           console.error("Error fetching prev/next posts", e);
         }

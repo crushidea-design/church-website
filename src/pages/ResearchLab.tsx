@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { BookOpen, Plus, ArrowUpDown, ChevronDown, RefreshCw } from 'lucide-react';
+import { BookOpen, Plus, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 interface ResearchCategory {
@@ -20,6 +20,11 @@ export default function ResearchLab() {
   const { research, researchCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
   
   const [activeTab, setActiveTab] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
+  const pageSize = 10;
+  
   const currentResearch = research[activeTab] || { data: [], lastDoc: null, hasMore: true, fetched: false };
   
   const [loading, setLoading] = useState(!currentResearch.fetched);
@@ -40,43 +45,62 @@ export default function ResearchLab() {
           setCategories('researchCategories', cats);
         }
 
-        // Fetch Research Posts for current tab if not fetched
-        const tabResearch = research[activeTab];
-        if (!tabResearch || !tabResearch.fetched) {
-          setLoading(true);
-          setError(null);
-          
-          let q;
-          const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
-          const orderDir = sortOrderDirection;
+        // Fetch Research Posts for current tab (Page 1)
+        setLoading(true);
+        setError(null);
+        
+        // Reset pagination when tab changes
+        setCurrentPage(1);
+        setPageLastDocs({});
 
-          if (activeTab === 'all') {
-            q = query(
-              collection(db, 'posts'),
-              where('category', '==', 'research'),
-              orderBy(orderField, orderDir),
-              limit(24)
-            );
-          } else {
-            q = query(
-              collection(db, 'posts'),
-              where('category', '==', 'research'),
-              where('researchCategoryId', '==', activeTab),
-              orderBy(orderField, orderDir),
-              limit(24)
-            );
-          }
+        // Fetch Total Count
+        let countQ;
+        if (activeTab === 'all') {
+          countQ = query(collection(db, 'posts'), where('category', '==', 'research'));
+        } else {
+          countQ = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', activeTab));
+        }
+        const countSnap = await getCountFromServer(countQ);
+        setTotalCount(countSnap.data().count);
 
-          const snapshot = await getDocs(q);
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-          const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-          const hasMore = snapshot.docs.length === 24;
-          
-          setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
+        let q;
+        const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+        const orderDir = sortOrderDirection;
+
+        if (activeTab === 'all') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'research'),
+            orderBy(orderField, orderDir),
+            limit(pageSize)
+          );
+        } else {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'research'),
+            where('researchCategoryId', '==', activeTab),
+            orderBy(orderField, orderDir),
+            limit(pageSize)
+          );
+        }
+
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+        const hasMore = snapshot.docs.length === pageSize;
+        
+        setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
+        if (lastDoc) {
+          setPageLastDocs({ 1: lastDoc });
         }
       } catch (error: any) {
         console.error('Error fetching data:', error);
-        setError('데이터를 불러오는 중 오류가 발생했습니다.');
+        let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
+        if (error.message && error.message.includes('index')) {
+          errorMessage = '데이터 정렬을 위한 인덱스가 필요합니다. 브라우저 콘솔(F12)에 표시된 링크를 클릭하여 인덱스를 생성해주세요.';
+          console.error('Firestore Index Error:', error.message);
+        }
+        setError(errorMessage);
         try {
           handleFirestoreError(error, OperationType.GET, 'posts');
         } catch (e) {}
@@ -86,12 +110,12 @@ export default function ResearchLab() {
     };
 
     fetchInitialData();
-  }, [activeTab, researchCategories.length, research[activeTab]?.fetched]);
+  }, [activeTab, researchCategories.length, sortBy, sortOrderDirection]);
 
-  const handleLoadMore = async () => {
-    if (!currentResearch.lastDoc || !currentResearch.hasMore || loadingMore) return;
+  const handlePageChange = async (page: number) => {
+    if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
     
-    setLoadingMore(true);
+    setLoading(true);
     setError(null);
 
     try {
@@ -99,40 +123,78 @@ export default function ResearchLab() {
       const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
       const orderDir = sortOrderDirection;
 
-      if (activeTab === 'all') {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'research'),
-          orderBy(orderField, orderDir),
-          startAfter(currentResearch.lastDoc),
-          limit(24)
-        );
+      const anchorDoc = pageLastDocs[page - 1];
+
+      if (page > 1 && anchorDoc) {
+        if (activeTab === 'all') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'research'),
+            orderBy(orderField, orderDir),
+            startAfter(anchorDoc),
+            limit(pageSize)
+          );
+        } else {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'research'),
+            where('researchCategoryId', '==', activeTab),
+            orderBy(orderField, orderDir),
+            startAfter(anchorDoc),
+            limit(pageSize)
+          );
+        }
       } else {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'research'),
-          where('researchCategoryId', '==', activeTab),
-          orderBy(orderField, orderDir),
-          startAfter(currentResearch.lastDoc),
-          limit(24)
-        );
+        const jumpLimit = page * pageSize;
+        if (activeTab === 'all') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'research'),
+            orderBy(orderField, orderDir),
+            limit(jumpLimit)
+          );
+        } else {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'research'),
+            where('researchCategoryId', '==', activeTab),
+            orderBy(orderField, orderDir),
+            limit(jumpLimit)
+          );
+        }
       }
 
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-      const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 24;
+      let docs = snapshot.docs;
       
-      appendCategoryCollection('research', activeTab, data, lastDoc, hasMore);
+      if (page > 1 && !anchorDoc) {
+        docs = docs.slice(-pageSize);
+      }
+
+      const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
+      const lastDoc = docs[docs.length - 1] || null;
+      const hasMore = docs.length === pageSize;
+      
+      setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
+      setCurrentPage(page);
+      
+      if (lastDoc) {
+        setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
+      }
     } catch (error: any) {
-      console.error('Error loading more research:', error);
-      setError('데이터를 더 불러오는 중 오류가 발생했습니다.');
-      try {
-        handleFirestoreError(error, OperationType.GET, 'posts');
-      } catch (e) {}
+      console.error('Error changing page:', error);
+      let errorMessage = '페이지를 이동하는 중 오류가 발생했습니다.';
+      if (error.message && error.message.includes('index')) {
+        errorMessage = '데이터 정렬을 위한 인덱스가 필요합니다. 브라우저 콘솔(F12)에 표시된 링크를 클릭하여 인덱스를 생성해주세요.';
+      }
+      setError(errorMessage);
     } finally {
-      setLoadingMore(false);
+      setLoading(false);
     }
+  };
+
+  const handleLoadMore = async () => {
+    // Replaced by handlePageChange
   };
 
   const handleRefresh = async () => {
@@ -149,7 +211,7 @@ export default function ResearchLab() {
           collection(db, 'posts'),
           where('category', '==', 'research'),
           orderBy(orderField, orderDir),
-          limit(24)
+          limit(pageSize)
         );
       } else {
         q = query(
@@ -157,16 +219,18 @@ export default function ResearchLab() {
           where('category', '==', 'research'),
           where('researchCategoryId', '==', activeTab),
           orderBy(orderField, orderDir),
-          limit(24)
+          limit(pageSize)
         );
       }
 
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 24;
+      const hasMore = snapshot.docs.length === pageSize;
       
       setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
+      setCurrentPage(1);
+      setPageLastDocs({ 1: lastDoc });
     } catch (error: any) {
       console.error('Error refreshing data:', error);
       setError('데이터를 새로고침하는 중 오류가 발생했습니다.');
@@ -176,27 +240,9 @@ export default function ResearchLab() {
   };
 
   const sortedPosts = React.useMemo(() => {
-    // 1. Filter
-    const filtered = currentResearch.data.filter(post => {
-      if (!activeTab || activeTab === 'all') return true;
-      return post.researchCategoryId === activeTab;
-    });
-
-    // 2. Sort
-    const result = [...filtered].sort((a, b) => {
-      if (sortBy === 'title') {
-        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
-        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
-        return orderA - orderB;
-      } else {
-        const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
-        const dateB = b.createdAt?.toDate?.()?.getTime() || 0;
-        return dateA - dateB;
-      }
-    });
-
-    return sortOrderDirection === 'desc' ? result.reverse() : result;
-  }, [currentResearch.data, activeTab, sortBy, sortOrderDirection]);
+    // The query already filters and sorts the data from Firestore.
+    return currentResearch.data;
+  }, [currentResearch.data]);
 
   const canWrite = !authLoading && (role === 'admin' || user?.email === 'crushidea@gmail.com');
 
@@ -292,6 +338,12 @@ export default function ResearchLab() {
           <BookOpen className="mx-auto h-16 w-16 text-wood-200 mb-6" />
           <h3 className="text-xl font-bold text-wood-900">등록된 연구글이 없습니다</h3>
           <p className="mt-2 text-wood-500">곧 새로운 연구 내용이 업데이트될 예정입니다.</p>
+          {sortBy === 'title' && totalCount > 0 && (
+            <p className="mt-4 text-amber-600 text-sm font-medium px-4">
+              제목순 정렬 데이터가 생성되지 않았을 수 있습니다.<br />
+              관리자 페이지에서 '정렬 순서 마이그레이션'을 실행해 주세요.
+            </p>
+          )}
         </div>
       ) : (
         <>
@@ -345,24 +397,55 @@ export default function ResearchLab() {
             ))}
           </div>
 
-          {currentResearch.hasMore && (
-            <div className="mt-16 flex justify-center">
+          {/* Pagination */}
+          {totalCount > pageSize && (
+            <div className="flex justify-center items-center gap-2 mt-16">
               <button
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="flex items-center gap-2 px-10 py-4 bg-white border-2 border-wood-900 text-wood-900 rounded-2xl font-bold hover:bg-wood-900 hover:text-white transition-all duration-300 shadow-lg disabled:opacity-50 group"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1 || loading}
+                className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm"
               >
-                {loadingMore ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
-                    불러오는 중...
-                  </>
-                ) : (
-                  <>
-                    더 보기
-                    <ChevronDown size={20} className="group-hover:translate-y-1 transition-transform" />
-                  </>
-                )}
+                <ChevronLeft size={20} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => {
+                  const pageNum = i + 1;
+                  if (
+                    pageNum === 1 || 
+                    pageNum === Math.ceil(totalCount / pageSize) || 
+                    (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={loading}
+                        className={`w-11 h-11 rounded-xl text-sm font-bold transition-all ${
+                          currentPage === pageNum
+                            ? 'bg-wood-900 text-white shadow-lg transform scale-110'
+                            : 'text-wood-600 hover:bg-wood-50 border border-transparent'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  } else if (
+                    pageNum === currentPage - 3 || 
+                    pageNum === currentPage + 3
+                  ) {
+                    return <span key={pageNum} className="text-wood-300 px-1">...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === Math.ceil(totalCount / pageSize) || loading}
+                className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm"
+              >
+                <ChevronRight size={20} />
               </button>
             </div>
           )}

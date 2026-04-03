@@ -28,8 +28,15 @@ import PrayerRoom from './pages/PrayerRoom';
 
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import QuotaExceededView from './components/QuotaExceededView';
 
 export default function App() {
+  const isQuotaExceeded = localStorage.getItem('firestore_quota_exceeded') === 'true';
+
+  if (isQuotaExceeded) {
+    return <QuotaExceededView />;
+  }
+
   return (
     <ErrorBoundary>
       <AuthProvider>

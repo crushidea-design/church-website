@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw } from 'lucide-react';
+import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 interface SermonCategory {
@@ -21,6 +21,11 @@ export default function Sermons() {
   const { sermons, sermonCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
   
   const [activeTab, setActiveTab] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
+  const pageSize = 10;
+  
   const currentSermons = sermons[activeTab] || { data: [], lastDoc: null, hasMore: true, fetched: false };
   
   const [loading, setLoading] = useState(!currentSermons.fetched);
@@ -65,49 +70,72 @@ export default function Sermons() {
 
         if (!tab) return;
 
-        // Fetch Sermons for current tab if not fetched
-        const tabSermons = sermons[tab];
-        if (!tabSermons || !tabSermons.fetched) {
-          setLoading(true);
-          setError(null);
-          
-          let q;
-          
-          if (tab === 'uncategorized') {
-            q = query(
-              collection(db, 'posts'),
-              where('category', '==', 'sermon'),
-              orderBy('createdAt', 'desc'),
-              limit(24)
-            );
-          } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
-            q = query(
-              collection(db, 'posts'),
-              where('category', '==', 'sermon'),
-              where('subCategory', '==', tab),
-              orderBy('createdAt', 'desc'),
-              limit(24)
-            );
-          } else {
-            q = query(
-              collection(db, 'posts'),
-              where('category', '==', 'sermon'),
-              where('sermonCategoryId', '==', tab),
-              orderBy('createdAt', 'desc'),
-              limit(24)
-            );
-          }
+        // Reset pagination when tab changes
+        setCurrentPage(1);
+        setPageLastDocs({});
 
-          const snapshot = await getDocs(q);
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-          const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-          const hasMore = snapshot.docs.length === 24;
-          
-          setCategoryCollection('sermons', tab, data, lastDoc, hasMore);
+        // Fetch Total Count
+        let countQ;
+        if (tab === 'uncategorized') {
+          countQ = query(collection(db, 'posts'), where('category', '==', 'sermon'));
+        } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
+          countQ = query(collection(db, 'posts'), where('category', '==', 'sermon'), where('subCategory', '==', tab));
+        } else {
+          countQ = query(collection(db, 'posts'), where('category', '==', 'sermon'), where('sermonCategoryId', '==', tab));
+        }
+        const countSnap = await getCountFromServer(countQ);
+        setTotalCount(countSnap.data().count);
+
+        // Fetch Sermons for current tab (Page 1)
+        setLoading(true);
+        setError(null);
+        
+        let q;
+        const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+        const orderDir = sortOrderDirection;
+        
+        if (tab === 'uncategorized') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            orderBy(orderField, orderDir),
+            limit(pageSize)
+          );
+        } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            where('subCategory', '==', tab),
+            orderBy(orderField, orderDir),
+            limit(pageSize)
+          );
+        } else {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            where('sermonCategoryId', '==', tab),
+            orderBy(orderField, orderDir),
+            limit(pageSize)
+          );
+        }
+
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+        const hasMore = snapshot.docs.length === pageSize;
+        
+        setCategoryCollection('sermons', tab, data, lastDoc, hasMore);
+        if (lastDoc) {
+          setPageLastDocs({ 1: lastDoc });
         }
       } catch (error: any) {
         console.error('Error fetching data:', error);
-        setError('데이터를 불러오는 중 오류가 발생했습니다.');
+        let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
+        if (error.message && error.message.includes('index')) {
+          errorMessage = '데이터 정렬을 위한 인덱스가 필요합니다. 브라우저 콘솔(F12)에 표시된 링크를 클릭하여 인덱스를 생성해주세요.';
+          console.error('Firestore Index Error:', error.message);
+        }
+        setError(errorMessage);
         try {
           handleFirestoreError(error, OperationType.GET, 'posts');
         } catch (e) {}
@@ -117,12 +145,12 @@ export default function Sermons() {
     };
 
     fetchInitialData();
-  }, [authLoading, isRegularMember, activeTab, sermonCategories.length, sermons[activeTab]?.fetched]);
+  }, [authLoading, isRegularMember, activeTab, sermonCategories.length, sortBy, sortOrderDirection]);
 
-  const handleLoadMore = async () => {
-    if (!currentSermons.lastDoc || !currentSermons.hasMore || loadingMore) return;
+  const handlePageChange = async (page: number) => {
+    if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
     
-    setLoadingMore(true);
+    setLoading(true);
     setError(null);
 
     try {
@@ -130,49 +158,102 @@ export default function Sermons() {
       const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
       const orderDir = sortOrderDirection;
 
-      if (activeTab === 'uncategorized') {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          orderBy(orderField, orderDir),
-          startAfter(currentSermons.lastDoc),
-          limit(24)
-        );
-      } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          where('subCategory', '==', activeTab),
-          orderBy(orderField, orderDir),
-          startAfter(currentSermons.lastDoc),
-          limit(24)
-        );
+      // If we have the anchor for the previous page, use it
+      const anchorDoc = pageLastDocs[page - 1];
+
+      if (page > 1 && anchorDoc) {
+        if (activeTab === 'uncategorized') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            orderBy(orderField, orderDir),
+            startAfter(anchorDoc),
+            limit(pageSize)
+          );
+        } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            where('subCategory', '==', activeTab),
+            orderBy(orderField, orderDir),
+            startAfter(anchorDoc),
+            limit(pageSize)
+          );
+        } else {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            where('sermonCategoryId', '==', activeTab),
+            orderBy(orderField, orderDir),
+            startAfter(anchorDoc),
+            limit(pageSize)
+          );
+        }
       } else {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          where('sermonCategoryId', '==', activeTab),
-          orderBy(orderField, orderDir),
-          startAfter(currentSermons.lastDoc),
-          limit(24)
-        );
+        // If jumping to a page we don't have an anchor for, or going back to page 1
+        // For simplicity and cost, if jumping forward we might need to fetch intermediate pages
+        // But for now, let's handle the jump by fetching with a larger limit and taking the last 10
+        // (This is still better than limit(1000))
+        const jumpLimit = page * pageSize;
+        
+        if (activeTab === 'uncategorized') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            orderBy(orderField, orderDir),
+            limit(jumpLimit)
+          );
+        } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            where('subCategory', '==', activeTab),
+            orderBy(orderField, orderDir),
+            limit(jumpLimit)
+          );
+        } else {
+          q = query(
+            collection(db, 'posts'),
+            where('category', '==', 'sermon'),
+            where('sermonCategoryId', '==', activeTab),
+            orderBy(orderField, orderDir),
+            limit(jumpLimit)
+          );
+        }
       }
 
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-      const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 24;
+      let docs = snapshot.docs;
       
-      appendCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
+      // If we did a jump fetch, take only the last pageSize docs
+      if (page > 1 && !anchorDoc) {
+        docs = docs.slice(-pageSize);
+      }
+
+      const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
+      const lastDoc = docs[docs.length - 1] || null;
+      const hasMore = docs.length === pageSize;
+      
+      setCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
+      setCurrentPage(page);
+      
+      if (lastDoc) {
+        setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
+      }
     } catch (error: any) {
-      console.error('Error loading more sermons:', error);
-      setError('데이터를 더 불러오는 중 오류가 발생했습니다.');
-      try {
-        handleFirestoreError(error, OperationType.GET, 'posts');
-      } catch (e) {}
+      console.error('Error changing page:', error);
+      let errorMessage = '페이지를 이동하는 중 오류가 발생했습니다.';
+      if (error.message && error.message.includes('index')) {
+        errorMessage = '데이터 정렬을 위한 인덱스가 필요합니다. 관리자에게 문의하거나 잠시 후 다시 시도해주세요.';
+      }
+      setError(errorMessage);
     } finally {
-      setLoadingMore(false);
+      setLoading(false);
     }
+  };
+
+  const handleLoadMore = async () => {
+    // This is now replaced by handlePageChange
   };
 
   const getYouTubeId = (content: string) => {
@@ -195,7 +276,7 @@ export default function Sermons() {
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
           orderBy(orderField, orderDir),
-          limit(24)
+          limit(pageSize)
         );
       } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
         q = query(
@@ -203,7 +284,7 @@ export default function Sermons() {
           where('category', '==', 'sermon'),
           where('subCategory', '==', activeTab),
           orderBy(orderField, orderDir),
-          limit(24)
+          limit(pageSize)
         );
       } else {
         q = query(
@@ -211,16 +292,18 @@ export default function Sermons() {
           where('category', '==', 'sermon'),
           where('sermonCategoryId', '==', activeTab),
           orderBy(orderField, orderDir),
-          limit(24)
+          limit(pageSize)
         );
       }
 
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === 24;
+      const hasMore = snapshot.docs.length === pageSize;
       
       setCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
+      setCurrentPage(1);
+      setPageLastDocs({ 1: lastDoc });
     } catch (error: any) {
       console.error('Error refreshing data:', error);
       setError('데이터를 새로고침하는 중 오류가 발생했습니다.');
@@ -238,36 +321,17 @@ export default function Sermons() {
   );
 
   const sortedVideos = React.useMemo(() => {
-    // 1. Filter
-    const filtered = currentSermons.data.filter(video => {
-      if (!activeTab) return false;
-      
-      if (activeTab === 'uncategorized') {
+    // The query already filters and sorts the data from Firestore.
+    if (activeTab === 'uncategorized') {
+      return currentSermons.data.filter(video => {
         const hasValidCategory = sermonCategories.some(c => c.id === video.sermonCategoryId);
         const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
         return !hasValidCategory && !isLegacy;
-      }
+      });
+    }
 
-      return video.sermonCategoryId === activeTab || 
-             (activeTab === 'past_sermons' && video.subCategory === 'past_sermons') ||
-             (activeTab === 'pilgrims_progress' && video.subCategory === 'pilgrims_progress');
-    });
-
-    // 2. Sort
-    const result = [...filtered].sort((a, b) => {
-      if (sortBy === 'title') {
-        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
-        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
-        return orderA - orderB;
-      } else {
-        const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
-        const dateB = b.createdAt?.toDate?.()?.getTime() || 0;
-        return dateA - dateB;
-      }
-    });
-
-    return sortOrderDirection === 'desc' ? result.reverse() : result;
-  }, [currentSermons.data, activeTab, sermonCategories, sortBy, sortOrderDirection]);
+    return currentSermons.data;
+  }, [currentSermons.data, activeTab, sermonCategories]);
 
   if (!authLoading && !isRegularMember) {
     return (
@@ -381,9 +445,9 @@ export default function Sermons() {
             <select
               value={sortBy}
               onChange={(e) => {
-                const newSortBy = e.target.value as 'date' | 'order';
+                const newSortBy = e.target.value as 'date' | 'title';
                 setSortBy(newSortBy);
-                if (newSortBy === 'order') {
+                if (newSortBy === 'title') {
                   setSortOrderDirection('asc');
                 } else {
                   setSortOrderDirection('desc');
@@ -392,7 +456,7 @@ export default function Sermons() {
               className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-medium cursor-pointer py-1"
             >
               <option value="date">날짜순</option>
-              <option value="order">순서 정렬</option>
+              <option value="title">순서 정렬</option>
             </select>
           </div>
           <button
@@ -419,6 +483,12 @@ export default function Sermons() {
           <Video className="mx-auto h-12 w-12 text-wood-300 mb-4" />
           <h3 className="text-lg font-medium text-wood-900">등록된 영상이 없습니다</h3>
           <p className="mt-2 text-wood-500">곧 새로운 말씀 영상이 업데이트될 예정입니다.</p>
+          {sortBy === 'title' && totalCount > 0 && (
+            <p className="mt-4 text-amber-600 text-sm font-medium px-4">
+              제목순 정렬 데이터가 생성되지 않았을 수 있습니다.<br />
+              관리자 페이지에서 '정렬 순서 마이그레이션'을 실행해 주세요.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-12">
@@ -472,19 +542,56 @@ export default function Sermons() {
             })}
           </div>
 
-          {currentSermons.hasMore && (
-            <div className="flex justify-center pt-4">
+          {/* Pagination */}
+          {totalCount > pageSize && (
+            <div className="flex justify-center items-center gap-2 pt-8">
               <button
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="inline-flex items-center px-8 py-3 bg-white border border-wood-200 text-wood-700 rounded-full hover:bg-wood-50 transition shadow-sm font-medium disabled:opacity-50"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1 || loading}
+                className="p-2 rounded-lg border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
               >
-                {loadingMore ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-wood-900 mr-2"></div>
-                ) : (
-                  <ChevronDown size={20} className="mr-2" />
-                )}
-                더 보기
+                <ChevronLeft size={20} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => {
+                  const pageNum = i + 1;
+                  // Show limited page numbers if there are too many
+                  if (
+                    pageNum === 1 || 
+                    pageNum === Math.ceil(totalCount / pageSize) || 
+                    (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={loading}
+                        className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
+                          currentPage === pageNum
+                            ? 'bg-wood-900 text-white shadow-md'
+                            : 'text-wood-600 hover:bg-wood-50 border border-transparent'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  } else if (
+                    pageNum === currentPage - 3 || 
+                    pageNum === currentPage + 3
+                  ) {
+                    return <span key={pageNum} className="text-wood-300 px-1">...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === Math.ceil(totalCount / pageSize) || loading}
+                className="p-2 rounded-lg border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight size={20} />
               </button>
             </div>
           )}
