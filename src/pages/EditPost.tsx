@@ -50,8 +50,29 @@ export default function EditPost() {
         
         if (docSnap.exists()) {
           const data = docSnap.data();
+          let fullContent = data.content;
+
+          // Handle long content reassembly for editing
+          if (data.isLongContent) {
+            console.log('Long content detected in edit. Fetching chunks...');
+            try {
+              const chunksQuery = query(
+                collection(db, 'post_contents'),
+                where('postId', '==', id),
+                orderBy('index', 'asc')
+              );
+              const chunksSnap = await getDocs(chunksQuery);
+              if (!chunksSnap.empty) {
+                fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
+                console.log('Long content reassembled for editing.');
+              }
+            } catch (e) {
+              console.error('Error reassembling long content for editing:', e);
+            }
+          }
+
           setTitle(data.title);
-          setContent(data.content);
+          setContent(fullContent);
           setType(data.category);
           setSubCategory(data.subCategory || 'general');
           setSermonCategoryId(data.sermonCategoryId || '');
@@ -191,6 +212,18 @@ export default function EditPost() {
         updatedAt: serverTimestamp(),
       };
 
+      // Handle long content for Datastore mode
+      const isLongContent = new TextEncoder().encode(content).length > 1400;
+      if (isLongContent) {
+        console.log('Content is long in edit, splitting into chunks...');
+        updateData.content = content.substring(0, 400); // Snippet
+        updateData.isLongContent = true;
+        updateData.fullContentLength = content.length;
+      } else {
+        updateData.isLongContent = deleteField();
+        updateData.fullContentLength = deleteField();
+      }
+
       // Handle PDF fields explicitly to ensure they are cleared if needed
       if (pdfFile) {
         updateData.pdfName = pdfName;
@@ -229,6 +262,38 @@ export default function EditPost() {
 
       await Promise.race([updatePromise, timeoutPromise]);
       console.log('Post updated successfully');
+
+      // Handle long content chunks update
+      if (isLongContent) {
+        // Delete old chunks first
+        const oldChunksQuery = query(collection(db, 'post_contents'), where('postId', '==', id));
+        const oldChunksSnap = await getDocs(oldChunksQuery);
+        await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
+
+        console.log('Uploading new full content chunks...');
+        const FULL_CHUNK_SIZE = 10000;
+        const chunks = [];
+        for (let i = 0; i < content.length; i += FULL_CHUNK_SIZE) {
+          chunks.push(content.substring(i, i + FULL_CHUNK_SIZE));
+        }
+        
+        for (let i = 0; i < chunks.length; i++) {
+          await setDoc(doc(db, 'post_contents', `${id}_${i}`), {
+            postId: id,
+            index: i,
+            content: chunks[i],
+            createdAt: serverTimestamp()
+          });
+        }
+        console.log('Full content chunks updated.');
+      } else {
+        // If not long anymore, delete any existing chunks
+        const oldChunksQuery = query(collection(db, 'post_contents'), where('postId', '==', id));
+        const oldChunksSnap = await getDocs(oldChunksQuery);
+        if (!oldChunksSnap.empty) {
+          await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
+        }
+      }
 
       // Update latest posts summary for Home page optimization
       try {

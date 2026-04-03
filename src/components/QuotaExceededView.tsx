@@ -24,7 +24,10 @@ export default function QuotaExceededView() {
         <div className="space-y-4">
           <button
             className="w-full py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-bold flex items-center justify-center gap-2"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              localStorage.removeItem('firestore_quota_exceeded');
+              window.location.reload();
+            }}
           >
             <RefreshCw size={18} />
             새로고침하여 다시 시도

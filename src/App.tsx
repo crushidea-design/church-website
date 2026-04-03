@@ -31,7 +31,22 @@ import Profile from './pages/Profile';
 import QuotaExceededView from './components/QuotaExceededView';
 
 export default function App() {
-  const isQuotaExceeded = localStorage.getItem('firestore_quota_exceeded') === 'true';
+  const [isQuotaExceeded, setIsQuotaExceeded] = React.useState(
+    localStorage.getItem('firestore_quota_exceeded') === 'true'
+  );
+
+  React.useEffect(() => {
+    // Check periodically or after a short delay to see if the connection test cleared the flag
+    const checkQuota = () => {
+      const currentStatus = localStorage.getItem('firestore_quota_exceeded') === 'true';
+      if (currentStatus !== isQuotaExceeded) {
+        setIsQuotaExceeded(currentStatus);
+      }
+    };
+
+    const interval = setInterval(checkQuota, 1000);
+    return () => clearInterval(interval);
+  }, [isQuotaExceeded]);
 
   if (isQuotaExceeded) {
     return <QuotaExceededView />;

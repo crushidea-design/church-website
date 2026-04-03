@@ -55,6 +55,26 @@ export default function PostDetail() {
         }
         const postData: any = { id: postSnap.id, ...postSnap.data() };
         
+        // Handle long content reassembly
+        if (postData.isLongContent) {
+          console.log('Long content detected. Fetching chunks...');
+          try {
+            const chunksQuery = query(
+              collection(db, 'post_contents'),
+              where('postId', '==', id),
+              orderBy('index', 'asc')
+            );
+            const chunksSnap = await getDocs(chunksQuery);
+            if (!chunksSnap.empty) {
+              const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
+              postData.content = fullContent;
+              console.log('Long content reassembled successfully.');
+            }
+          } catch (e) {
+            console.error('Error reassembling long content:', e);
+          }
+        }
+        
         // Double check access for sermon category (in case rules were bypassed or changed)
         const isRegularMember = role === 'regular' || role === 'admin' || user?.email === 'crushidea@gmail.com';
         if (postData.category === 'sermon' && !isRegularMember) {
@@ -272,6 +292,14 @@ export default function PostDetail() {
         const oldChunksSnap = await getDocs(oldChunksQuery);
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
       }
+      
+      // Delete long content chunks if they exist
+      if (post?.isLongContent) {
+        const contentChunksQuery = query(collection(db, 'post_contents'), where('postId', '==', id));
+        const contentChunksSnap = await getDocs(contentChunksQuery);
+        await Promise.all(contentChunksSnap.docs.map(d => deleteDoc(d.ref)));
+      }
+
       await deleteDoc(doc(db, 'posts', id));
       
       // Update latest posts summary for Home page optimization

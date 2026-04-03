@@ -316,6 +316,17 @@ export default function CreatePost() {
 
       console.log('Adding document to Firestore...', postData);
       
+      // Handle long content for Datastore mode (1500 byte limit for indexed fields)
+      // If content is long, we'll store it in chunks or a separate non-indexed field if possible.
+      // Since we can't easily set indexed:false in Web SDK, we'll use the "long content" pattern.
+      const isLongContent = new TextEncoder().encode(content).length > 1400;
+      if (isLongContent) {
+        console.log('Content is long, splitting into chunks for Datastore compatibility...');
+        postData.content = content.substring(0, 400); // Store a snippet in the main field
+        postData.isLongContent = true;
+        postData.fullContentLength = content.length;
+      }
+
       // Use a timeout for Firestore operation
       const addDocPromise = addDoc(collection(db, 'posts'), postData);
       const firestoreTimeoutPromise = new Promise((_, reject) => 
@@ -325,6 +336,26 @@ export default function CreatePost() {
       console.log('Awaiting addDoc...');
       const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
       console.log('Post created successfully with ID:', docRef.id);
+
+      // If content was long, store the full content in a subcollection or separate doc
+      if (isLongContent) {
+        console.log('Uploading full content in chunks...');
+        const FULL_CHUNK_SIZE = 10000; // 10KB per chunk is safe
+        const chunks = [];
+        for (let i = 0; i < content.length; i += FULL_CHUNK_SIZE) {
+          chunks.push(content.substring(i, i + FULL_CHUNK_SIZE));
+        }
+        
+        for (let i = 0; i < chunks.length; i++) {
+          await setDoc(doc(db, 'post_contents', `${docRef.id}_${i}`), {
+            postId: docRef.id,
+            index: i,
+            content: chunks[i],
+            createdAt: serverTimestamp()
+          });
+        }
+        console.log('Full content chunks uploaded.');
+      }
       
       // Send push notification for Today's Word if not scheduled
       if (type === 'today_word' && postData.isPublished) {

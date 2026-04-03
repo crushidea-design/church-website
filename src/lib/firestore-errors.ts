@@ -76,8 +76,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
  */
 export async function testFirestoreConnection(db: Firestore) {
   try {
-    // Attempt to fetch a non-existent document just to test connectivity
-    await getDocFromServer(doc(db, '_internal_', 'connection_test'));
+    // Attempt to fetch a publicly readable document to test connectivity
+    // 'settings/church_info' is allowed read: if true;
+    await getDocFromServer(doc(db, 'settings', 'church_info'));
     console.log('Firestore connection verified');
     
     // Clear quota flag if it was set
@@ -85,12 +86,20 @@ export async function testFirestoreConnection(db: Firestore) {
       localStorage.removeItem('firestore_quota_exceeded');
     }
   } catch (error: any) {
-    if (error.message?.includes('the client is offline')) {
+    const errorMessage = error.message || String(error);
+    
+    if (errorMessage.includes('the client is offline')) {
       console.error("CRITICAL: Firestore is offline. Check your Firebase configuration and network.");
-    } else if (error.message?.includes('Quota limit exceeded')) {
+    } else if (errorMessage.includes('Quota limit exceeded')) {
       console.warn("Firestore Quota limit exceeded on initial connection test.");
       localStorage.setItem('firestore_quota_exceeded', 'true');
+    } else {
+      // If it's any other error (like permission denied or not found), 
+      // it still means the server is reachable and NOT over quota.
+      console.log('Firestore responded with non-quota error:', errorMessage);
+      if (localStorage.getItem('firestore_quota_exceeded')) {
+        localStorage.removeItem('firestore_quota_exceeded');
+      }
     }
-    // We don't throw here to avoid crashing the app immediately if it's just a transient issue
   }
 }

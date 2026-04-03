@@ -16,11 +16,6 @@ const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (firebaseConfig.apiKey !== "REDACTED" ? firebaseConfig.apiKey : "")
 };
 
-// Validate configuration
-if (!config.apiKey) {
-  console.error("CRITICAL: Firebase API Key is missing! Check environment variables or firebase-applet-config.json.");
-}
-
 // Initialize Firebase
 const app = initializeApp(config);
 export const db = getFirestore(app, config.firestoreDatabaseId);

@@ -184,6 +184,27 @@ export default function TodayWord() {
             
             if (validPosts.length > 0) {
               const postData = validPosts[0];
+              
+              // Handle long content reassembly
+              if (postData.isLongContent) {
+                console.log('Long content detected in TodayWord. Fetching chunks...');
+                try {
+                  const chunksQuery = query(
+                    collection(db, 'post_contents'),
+                    where('postId', '==', postData.id),
+                    orderBy('index', 'asc')
+                  );
+                  const chunksSnap = await getDocs(chunksQuery);
+                  if (!chunksSnap.empty) {
+                    const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
+                    postData.content = fullContent;
+                    console.log('Long content reassembled for TodayWord.');
+                  }
+                } catch (e) {
+                  console.error('Error reassembling long content in TodayWord:', e);
+                }
+              }
+
               if (!ignore) setLatestPost(postData);
               setTodayWord(dateStr, postData);
             } else {
@@ -208,6 +229,27 @@ export default function TodayWord() {
 
               if (validLatestPosts.length > 0) {
                 const postData = validLatestPosts[0];
+
+                // Handle long content reassembly for latest post
+                if (postData.isLongContent) {
+                  console.log('Long content detected in TodayWord (latest). Fetching chunks...');
+                  try {
+                    const chunksQuery = query(
+                      collection(db, 'post_contents'),
+                      where('postId', '==', postData.id),
+                      orderBy('index', 'asc')
+                    );
+                    const chunksSnap = await getDocs(chunksQuery);
+                    if (!chunksSnap.empty) {
+                      const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
+                      postData.content = fullContent;
+                      console.log('Long content reassembled for TodayWord (latest).');
+                    }
+                  } catch (e) {
+                    console.error('Error reassembling long content in TodayWord (latest):', e);
+                  }
+                }
+
                 if (!ignore) setLatestPost(postData);
                 setTodayWord(dateStr, postData);
               } else {
