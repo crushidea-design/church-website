@@ -92,12 +92,12 @@ export default function AdminSermonCategories() {
 
   const handleDeleteCategory = async (id: string, name: string) => {
     // Check if there are posts using this category
-    const q = query(collection(db, 'posts'), where('sermonCategoryId', '==', id));
+    const q = query(collection(db, 'posts'), where('sermonCategoryId', '==', id), limit(1));
     const snapshot = await getCountFromServer(q);
     const count = snapshot.data().count;
     
     if (count > 0) {
-      alert(`'${name}' 카테고리를 사용하는 영상이 ${count}개 있습니다. 먼저 영상들의 카테고리를 변경하거나 삭제해주세요.`);
+      alert(`'${name}' 카테고리를 사용하는 영상이 존재합니다. 먼저 영상들의 카테고리를 변경하거나 삭제해주세요.`);
       return;
     }
 
@@ -279,16 +279,23 @@ export default function AdminSermonCategories() {
 
         <AnimatePresence>
           {deletingId && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-wood-200"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white rounded-[2rem] p-10 max-w-md w-full shadow-2xl border border-red-100 relative overflow-hidden"
               >
-                <h3 className="text-xl font-bold text-wood-900 mb-4">카테고리 삭제</h3>
-                <p className="text-wood-600 mb-8">
-                   정말로 '<span className="font-bold text-wood-900">{deletingName}</span>' 카테고리를 삭제하시겠습니까?
+                <div className="absolute top-0 left-0 w-full h-2 bg-red-500" />
+                <div className="mb-6 flex justify-center">
+                  <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600">
+                    <Trash2 size={32} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-serif font-bold text-wood-900 mb-4 text-center">카테고리 영구 삭제</h3>
+                <p className="text-wood-600 mb-8 text-center leading-relaxed">
+                  '<span className="font-bold text-red-600">{deletingName}</span>' 카테고리를 삭제하시겠습니까?<br />
+                  <span className="text-sm text-red-500 mt-2 block font-medium">※ 이 작업은 되돌릴 수 없으며, 모든 관련 데이터가 정리됩니다.</span>
                 </p>
                 <div className="flex gap-4">
                   <button
@@ -296,15 +303,15 @@ export default function AdminSermonCategories() {
                       setDeletingId(null);
                       setDeletingName('');
                     }}
-                    className="flex-1 px-6 py-3 border border-wood-200 rounded-xl text-wood-600 hover:bg-wood-50 transition font-medium"
+                    className="flex-1 px-6 py-4 border border-wood-200 rounded-2xl text-wood-600 hover:bg-wood-50 transition-all font-bold"
                   >
                     취소
                   </button>
                   <button
                     onClick={confirmDelete}
-                    className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium shadow-sm"
+                    className="flex-1 px-6 py-4 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all font-bold shadow-lg shadow-red-200"
                   >
-                    삭제
+                    삭제 확정
                   </button>
                 </div>
               </motion.div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc, getDoc, where, getCountFromServer } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc, getDoc, where, getCountFromServer, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -119,7 +119,8 @@ export default function CreatePost() {
       
       const tokensQuery = query(
         collection(db, 'fcm_tokens'),
-        where('updatedAt', '>=', thirtyDaysAgo)
+        where('updatedAt', '>=', thirtyDaysAgo),
+        limit(100)
       );
       const tokensSnap = await getDocs(tokensQuery);
       const uidsWithTokens = Array.from(new Set(tokensSnap.docs.map(doc => doc.data().userId).filter(Boolean)));

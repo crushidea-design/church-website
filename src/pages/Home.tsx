@@ -28,6 +28,24 @@ export default function Home() {
         return;
       }
 
+      // Check cache first
+      const CACHE_KEY = 'home_latest_posts_cache';
+      const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+      const cachedData = localStorage.getItem(CACHE_KEY);
+      
+      if (cachedData) {
+        try {
+          const { posts, timestamp } = JSON.parse(cachedData);
+          if (Date.now() - timestamp < CACHE_TTL) {
+            setHomeLatestPosts(posts);
+            setLoadingPosts(false);
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem(CACHE_KEY);
+        }
+      }
+
       setLoadingPosts(true);
       try {
         // Optimization: Read from a pre-computed summary document
@@ -55,7 +73,15 @@ export default function Home() {
             return dateB - dateA;
           });
 
-          setHomeLatestPosts(postsData.slice(0, 3));
+          const finalPosts = postsData.slice(0, 3);
+          setHomeLatestPosts(finalPosts);
+          
+          // Cache the result
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            posts: finalPosts,
+            timestamp: Date.now()
+          }));
+          
           setLoadingPosts(false);
           return;
         }

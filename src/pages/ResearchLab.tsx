@@ -64,7 +64,7 @@ export default function ResearchLab() {
         setTotalCount(countSnap.data().count);
 
         let q;
-        const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+        const orderField = sortBy === 'title' ? 'title' : 'createdAt';
         const orderDir = sortOrderDirection;
 
         if (activeTab === 'all') {
@@ -120,7 +120,7 @@ export default function ResearchLab() {
 
     try {
       let q;
-      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderField = sortBy === 'title' ? 'title' : 'createdAt';
       const orderDir = sortOrderDirection;
 
       const anchorDoc = pageLastDocs[page - 1];
@@ -203,7 +203,7 @@ export default function ResearchLab() {
     setError(null);
     try {
       let q;
-      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderField = sortBy === 'title' ? 'title' : 'createdAt';
       const orderDir = sortOrderDirection;
 
       if (activeTab === 'all') {
@@ -250,7 +250,6 @@ export default function ResearchLab() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-wood-200 pb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-wood-900 mb-2">연구실</h1>
           <p className="text-wood-600 text-lg">목사님의 연구 내용과 묵상을 나눕니다.</p>
         </div>
         {canWrite && (
@@ -308,9 +307,9 @@ export default function ResearchLab() {
               }}
               className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-bold cursor-pointer py-1"
             >
-              <option value="date">날짜순</option>
-              <option value="title">제목순</option>
-            </select>
+            <option value="date">날짜순</option>
+            <option value="title">이름순</option>
+          </select>
           </div>
           <button
             onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
@@ -340,8 +339,8 @@ export default function ResearchLab() {
           <p className="mt-2 text-wood-500">곧 새로운 연구 내용이 업데이트될 예정입니다.</p>
           {sortBy === 'title' && totalCount > 0 && (
             <p className="mt-4 text-amber-600 text-sm font-medium px-4">
-              제목순 정렬 데이터가 생성되지 않았을 수 있습니다.<br />
-              관리자 페이지에서 '정렬 순서 마이그레이션'을 실행해 주세요.
+              이름순 정렬을 위한 인덱스가 생성되지 않았을 수 있습니다.<br />
+              오류가 발생하면 잠시 후 다시 시도해 주세요.
             </p>
           )}
         </div>

@@ -7,13 +7,15 @@ import { formatDate } from '../lib/utils';
 import { Users, Shield, User as UserIcon, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { UserRole } from '../types';
+
 export default function AdminUsers() {
   const { user, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [showRoleConfirm, setShowRoleConfirm] = useState<{ userId: string, role: string } | null>(null);
+  const [showRoleConfirm, setShowRoleConfirm] = useState<{ userId: string, role: UserRole } | null>(null);
 
   useEffect(() => {
     if (!authLoading && role !== 'admin') {
@@ -38,7 +40,7 @@ export default function AdminUsers() {
     fetchUsers();
   }, [role, authLoading, navigate]);
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'regular' | 'user') => {
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
     if (updating) return;
     
     setUpdating(userId);

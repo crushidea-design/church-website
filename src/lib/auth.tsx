@@ -2,10 +2,13 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { UserRole } from '../types';
+
+const ADMIN_EMAIL = 'crushidea@gmail.com';
 
 interface AuthContextType {
   user: User | null;
-  role: 'admin' | 'regular' | 'user' | null;
+  role: UserRole | null;
   loading: boolean;
 }
 
@@ -13,7 +16,7 @@ const AuthContext = createContext<AuthContextType>({ user: null, role: null, loa
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<'admin' | 'regular' | 'user' | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,47 +26,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    console.log('AuthProvider: Setting up onAuthStateChanged listener');
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      console.log('AuthProvider: onAuthStateChanged fired, user:', currentUser?.email);
       setUser(currentUser);
       if (currentUser) {
         try {
-          // Hardcoded Admin Check
-          const isAdminEmail = currentUser.email === 'crushidea@gmail.com';
+          const isAdminEmail = currentUser.email === ADMIN_EMAIL;
           
           // Check session storage first to save read units
           const cachedRole = sessionStorage.getItem(`user_role_${currentUser.uid}`);
           if (cachedRole) {
-            console.log('AuthProvider: Using cached role:', cachedRole);
-            setRole(isAdminEmail ? 'admin' : cachedRole as any);
+            setRole(isAdminEmail ? 'admin' : cachedRole as UserRole);
             setLoading(false);
             return;
           }
 
-          console.log('AuthProvider: Fetching user role for:', currentUser.uid);
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          let finalRole: 'admin' | 'regular' | 'user' = 'user';
+          let finalRole: UserRole = 'user';
           
           if (userDoc.exists()) {
             const data = userDoc.data();
-            console.log('AuthProvider: User document found, role:', data.role);
-            finalRole = isAdminEmail ? 'admin' : data.role;
-          } else {
-            console.log('AuthProvider: User document not found, defaulting to user role');
-            finalRole = isAdminEmail ? 'admin' : 'user';
+            finalRole = isAdminEmail ? 'admin' : (data.role as UserRole || 'user');
+          } else if (isAdminEmail) {
+            finalRole = 'admin';
           }
           
           setRole(finalRole);
           sessionStorage.setItem(`user_role_${currentUser.uid}`, finalRole);
         } catch (error: any) {
           console.error("AuthProvider: Error fetching user role:", error);
-          const isAdminEmail = currentUser.email === 'crushidea@gmail.com';
+          const isAdminEmail = currentUser.email === ADMIN_EMAIL;
           setRole(isAdminEmail ? 'admin' : 'user');
         }
       } else {
-        console.log('AuthProvider: No user logged in');
         setRole(null);
+        // We don't necessarily need to clear session storage here as it's per-user
       }
       setLoading(false);
     });

@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db } from '../lib/firebase';
-import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where, updateDoc, startAfter } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { generateSortOrder } from '../lib/sortUtils';
 
@@ -13,26 +13,58 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationDone, setMigrationDone] = useState(localStorage.getItem('migration_done') === 'true');
 
   const migrateSortOrder = async () => {
-    if (isMigrating) return;
+    if (isMigrating || migrationDone) return;
     if (!window.confirm('주의: 이 작업은 대량의 읽기 비용을 발생시킵니다. 계속하시겠습니까?')) return;
     
     setIsMigrating(true);
     try {
       const postsRef = collection(db, 'posts');
-      const q = query(postsRef, limit(100)); // 한 번에 100개씩만 불러오도록 제한
-      const snapshot = await getDocs(q);
-      let count = 0;
-      for (const document of snapshot.docs) {
-        const data = document.data();
-        if (data.category === 'sermon' || data.category === 'research') {
-          const sortOrder = generateSortOrder(data.title || '');
-          await updateDoc(doc(db, 'posts', document.id), { sortOrder });
-          count++;
+      let totalProcessed = 0;
+      let totalUpdated = 0;
+      let lastDoc = null;
+      const BATCH_LIMIT = 500; // Max docs to scan per click to avoid excessive costs
+      
+      while (totalProcessed < BATCH_LIMIT && totalUpdated < 100) {
+        let q = query(
+          postsRef, 
+          where('category', 'in', ['sermon', 'research']), 
+          orderBy('createdAt', 'asc'),
+          limit(100)
+        );
+        
+        if (lastDoc) {
+          q = query(q, startAfter(lastDoc));
         }
+        
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) break;
+        
+        lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        totalProcessed += snapshot.docs.length;
+        
+        for (const document of snapshot.docs) {
+          const data = document.data();
+          if (!data.sortOrder) {
+            const sortOrder = generateSortOrder(data.title || '');
+            await updateDoc(doc(db, 'posts', document.id), { sortOrder });
+            totalUpdated++;
+            if (totalUpdated >= 100) break;
+          }
+        }
+        
+        if (snapshot.docs.length < 100) break;
       }
-      toast.success(`마이그레이션 완료: ${count}개의 게시물 업데이트됨. (추가 작업이 필요하면 다시 눌러주세요)`);
+      
+      if (totalUpdated === 0 && totalProcessed < BATCH_LIMIT) {
+        setMigrationDone(true);
+        localStorage.setItem('migration_done', 'true');
+        toast.success('모든 게시물의 정렬 순서가 이미 설정되어 있습니다.');
+      } else {
+        toast.success(`마이그레이션 진행됨: ${totalUpdated}개 업데이트됨. (남은 작업이 있을 수 있으니 완료될 때까지 반복해 주세요)`);
+      }
     } catch (error) {
       console.error('Error migrating sort order:', error);
       toast.error('마이그레이션 중 오류가 발생했습니다.');
@@ -117,11 +149,12 @@ export default function AdminDashboard() {
     },
     {
       title: '정렬 순서(sortOrder) 마이그레이션',
-      description: '기존 말씀 서재 및 연구실 게시물에 자동 생성된 정렬 순서를 부여합니다.',
+      description: migrationDone ? '모든 게시물에 정렬 순서가 부여되었습니다.' : '기존 말씀 서재 및 연구실 게시물에 자동 생성된 정렬 순서를 부여합니다.',
       icon: RefreshCw,
-      onClick: migrateSortOrder,
+      onClick: migrationDone ? undefined : migrateSortOrder,
       isLoading: isMigrating,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100'
+      disabled: migrationDone,
+      color: migrationDone ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
     },
     {
       title: '할당량 초과 플래그 초기화',
@@ -233,8 +266,8 @@ export default function AdminDashboard() {
                 {item.onClick ? (
                   <button
                     onClick={item.onClick}
-                    disabled={item.isLoading}
-                    className="w-full text-left block bg-white rounded-3xl p-8 border border-wood-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group h-full disabled:opacity-50"
+                    disabled={item.isLoading || item.disabled}
+                    className="w-full text-left block bg-white rounded-3xl p-8 border border-wood-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group h-full disabled:opacity-50 disabled:hover:translate-y-0"
                   >
                     {Content}
                   </button>

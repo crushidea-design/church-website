@@ -221,8 +221,12 @@ async function startServer() {
             }
           }
         }
-      } catch (error) {
-        console.error('Error in scheduled tasks cron job:', error);
+      } catch (error: any) {
+        if (error.code === 8 || (error.message && error.message.includes('RESOURCE_EXHAUSTED'))) {
+          console.warn('Firestore quota exceeded. Scheduled tasks will pause until quota resets.');
+        } else {
+          console.error('Error in scheduled tasks cron job:', error);
+        }
       }
     });
   }

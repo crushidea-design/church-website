@@ -38,7 +38,7 @@ export default function PrayerRoom() {
     if (role !== 'regular' && role !== 'admin') return;
     
     try {
-      const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'), limit(50));
+      const q = query(collection(db, 'prayer_requests'), orderBy('createdAt', 'desc'), limit(20));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any as PrayerRequest));
       const filtered = data.filter(r => 
@@ -85,19 +85,12 @@ export default function PrayerRoom() {
   }, [role, user]);
 
   useEffect(() => {
-    // Focus Refresh
-    const handleFocus = () => {
-      fetchPrayers();
-    };
-    window.addEventListener('focus', handleFocus);
-
     // 5-minute Polling
     const interval = setInterval(() => {
       checkForNewPosts();
     }, 5 * 60 * 1000);
 
     return () => {
-      window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
   }, [lastFetchedAt, role, user]);

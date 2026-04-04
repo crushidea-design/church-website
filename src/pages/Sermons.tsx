@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer, doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate, getYouTubeId } from '../lib/utils';
@@ -91,7 +91,7 @@ export default function Sermons() {
         setError(null);
         
         let q;
-        const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+        const orderField = sortBy === 'title' ? 'title' : 'createdAt';
         const orderDir = sortOrderDirection;
         
         if (tab === 'uncategorized') {
@@ -155,7 +155,7 @@ export default function Sermons() {
 
     try {
       let q;
-      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderField = sortBy === 'title' ? 'title' : 'createdAt';
       const orderDir = sortOrderDirection;
 
       // If we have the anchor for the previous page, use it
@@ -262,7 +262,7 @@ export default function Sermons() {
     setError(null);
     try {
       let q;
-      const orderField = sortBy === 'title' ? 'sortOrder' : 'createdAt';
+      const orderField = sortBy === 'title' ? 'title' : 'createdAt';
       const orderDir = sortOrderDirection;
 
       if (activeTab === 'uncategorized') {
@@ -449,9 +449,9 @@ export default function Sermons() {
               }}
               className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-medium cursor-pointer py-1"
             >
-              <option value="date">날짜순</option>
-              <option value="title">순서 정렬</option>
-            </select>
+            <option value="date">날짜순</option>
+            <option value="title">이름순</option>
+          </select>
           </div>
           <button
             onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
@@ -479,8 +479,8 @@ export default function Sermons() {
           <p className="mt-2 text-wood-500">곧 새로운 말씀 영상이 업데이트될 예정입니다.</p>
           {sortBy === 'title' && totalCount > 0 && (
             <p className="mt-4 text-amber-600 text-sm font-medium px-4">
-              제목순 정렬 데이터가 생성되지 않았을 수 있습니다.<br />
-              관리자 페이지에서 '정렬 순서 마이그레이션'을 실행해 주세요.
+              이름순 정렬을 위한 인덱스가 생성되지 않았을 수 있습니다.<br />
+              오류가 발생하면 잠시 후 다시 시도해 주세요.
             </p>
           )}
         </div>
