@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate, getYouTubeId } from '../lib/utils';
+import { generateSortOrder } from '../lib/sortUtils';
 import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
@@ -90,7 +91,7 @@ export default function Sermons() {
         setError(null);
         
         let q;
-        const orderField = 'title';
+        const orderField = 'sortOrder';
         const orderDir = sortOrderDirection;
         
         if (tab === 'uncategorized') {
@@ -98,6 +99,7 @@ export default function Sermons() {
             collection(db, 'posts'),
             where('category', '==', 'sermon'),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             limit(pageSize)
           );
         } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
@@ -106,6 +108,7 @@ export default function Sermons() {
             where('category', '==', 'sermon'),
             where('subCategory', '==', tab),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             limit(pageSize)
           );
         } else {
@@ -114,6 +117,7 @@ export default function Sermons() {
             where('category', '==', 'sermon'),
             where('sermonCategoryId', '==', tab),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             limit(pageSize)
           );
         }
@@ -154,7 +158,7 @@ export default function Sermons() {
 
     try {
       let q;
-      const orderField = 'title';
+      const orderField = 'sortOrder';
       const orderDir = sortOrderDirection;
 
       // If we have the anchor for the previous page, use it
@@ -166,6 +170,7 @@ export default function Sermons() {
             collection(db, 'posts'),
             where('category', '==', 'sermon'),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             startAfter(anchorDoc),
             limit(pageSize)
           );
@@ -175,6 +180,7 @@ export default function Sermons() {
             where('category', '==', 'sermon'),
             where('subCategory', '==', activeTab),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             startAfter(anchorDoc),
             limit(pageSize)
           );
@@ -184,6 +190,7 @@ export default function Sermons() {
             where('category', '==', 'sermon'),
             where('sermonCategoryId', '==', activeTab),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             startAfter(anchorDoc),
             limit(pageSize)
           );
@@ -200,6 +207,7 @@ export default function Sermons() {
             collection(db, 'posts'),
             where('category', '==', 'sermon'),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             limit(jumpLimit)
           );
         } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
@@ -208,6 +216,7 @@ export default function Sermons() {
             where('category', '==', 'sermon'),
             where('subCategory', '==', activeTab),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             limit(jumpLimit)
           );
         } else {
@@ -216,6 +225,7 @@ export default function Sermons() {
             where('category', '==', 'sermon'),
             where('sermonCategoryId', '==', activeTab),
             orderBy(orderField, orderDir),
+            orderBy('createdAt', 'desc'),
             limit(jumpLimit)
           );
         }
@@ -224,9 +234,9 @@ export default function Sermons() {
       const snapshot = await getDocs(q);
       let docs = snapshot.docs;
       
-      // If we did a jump fetch, take only the last pageSize docs
+      // If we did a jump fetch, take only the docs for the current page
       if (page > 1 && !anchorDoc) {
-        docs = docs.slice(-pageSize);
+        docs = docs.slice((page - 1) * pageSize, page * pageSize);
       }
 
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
@@ -261,7 +271,7 @@ export default function Sermons() {
     setError(null);
     try {
       let q;
-      const orderField = 'title';
+      const orderField = 'sortOrder';
       const orderDir = sortOrderDirection;
 
       if (activeTab === 'uncategorized') {
@@ -269,6 +279,7 @@ export default function Sermons() {
           collection(db, 'posts'),
           where('category', '==', 'sermon'),
           orderBy(orderField, orderDir),
+          orderBy('createdAt', 'desc'),
           limit(pageSize)
         );
       } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
@@ -277,6 +288,7 @@ export default function Sermons() {
           where('category', '==', 'sermon'),
           where('subCategory', '==', activeTab),
           orderBy(orderField, orderDir),
+          orderBy('createdAt', 'desc'),
           limit(pageSize)
         );
       } else {
@@ -285,6 +297,7 @@ export default function Sermons() {
           where('category', '==', 'sermon'),
           where('sermonCategoryId', '==', activeTab),
           orderBy(orderField, orderDir),
+          orderBy('createdAt', 'desc'),
           limit(pageSize)
         );
       }
@@ -572,9 +585,43 @@ export default function Sermons() {
             </div>
           )}
 
-          {/* Manual Refresh Button (Admin Only) */}
+          {/* Admin Tools */}
           {canWrite && (
-            <div className="flex justify-end pt-8">
+            <div className="flex justify-end items-center gap-4 pt-8">
+              <button
+                onClick={async () => {
+                  if (!window.confirm('모든 말씀 영상의 정렬 데이터를 재계산하여 업데이트하시겠습니까? (데이터가 많을 경우 시간이 걸릴 수 있습니다)')) return;
+                  setLoading(true);
+                  try {
+                    const q = query(collection(db, 'posts'), where('category', '==', 'sermon'));
+                    const snapshot = await getDocs(q);
+                    let updatedCount = 0;
+                    
+                    for (const docSnap of snapshot.docs) {
+                      const data = docSnap.data();
+                      const newSortOrder = generateSortOrder(data.title || '');
+                      if (data.sortOrder !== newSortOrder) {
+                        await setDoc(doc(db, 'posts', docSnap.id), { sortOrder: newSortOrder }, { merge: true });
+                        updatedCount++;
+                      }
+                    }
+                    alert(`${updatedCount}개의 영상 정렬 데이터가 복구되었습니다.`);
+                    handleRefresh();
+                  } catch (err) {
+                    console.error('Error repairing sort order:', err);
+                    alert('정렬 데이터 복구 중 오류가 발생했습니다.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="inline-flex items-center px-4 py-2 text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 border border-amber-200 rounded-lg hover:bg-amber-50"
+                title="정렬 데이터 복구"
+              >
+                <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+                정렬 데이터 복구
+              </button>
+
               <button
                 onClick={handleRefresh}
                 disabled={loading}

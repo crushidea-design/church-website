@@ -46,10 +46,7 @@ export default function ResearchLab() {
     
     try {
       // 1. pdfUrl이 없고 pdfChunkCount가 있는 옛날 게시글들 찾기
-      const q = query(
-        collection(db, 'posts'),
-        where('category', '==', 'research')
-      );
+      const q = query(collection(db, 'posts'), where('category', '==', 'research'));
       const snapshot = await getDocs(q);
       const oldPosts = snapshot.docs.filter(doc => !doc.data().pdfUrl && doc.data().pdfChunkCount > 0);
       
@@ -59,7 +56,7 @@ export default function ResearchLab() {
         return;
       }
 
-      setMigrationStatus(`${oldPosts.length}개의 자료 발견. 이사를 시작합니다...`);
+      setMigrationStatus(`${oldPosts.length}개의 자료 발견. 복구를 시작합니다...`);
 
       for (let i = 0; i < oldPosts.length; i++) {
         const postDoc = oldPosts[i];
@@ -67,31 +64,32 @@ export default function ResearchLab() {
         const postId = postDoc.id;
         const pdfName = postData.pdfName || `restored_${Date.now()}.pdf`;
 
-        setMigrationStatus(`[${i + 1}/${oldPosts.length}] ${postData.title} 복구 중...`);
+        setMigrationStatus(`[${i + 1}/${oldPosts.length}] ${postData.title} 처리 중...`);
 
-        // 2. post_pdfs 컬렉션에서 쪼개진 데이터 조각들 가져오기
-        const chunksQ = query(
-          collection(db, 'post_pdfs'),
-          where('postId', '==', postId),
-          orderBy('index', 'asc')
-        );
+        // 2. 조각들 가져오기
+        const chunksQ = query(collection(db, 'post_pdfs'), where('postId', '==', postId), orderBy('index', 'asc'));
         const chunksSnap = await getDocs(chunksQ);
         
         if (chunksSnap.empty) continue;
 
-        // 3. 조각들을 하나로 합치기
+        // 3. [개선된 부분] Fetch 대신 직접 메모리에서 합치기
         const fullBase64 = chunksSnap.docs.map(d => d.data().data).join('');
         
-        // Base64를 Blob으로 변환
-        const response = await fetch(`data:application/pdf;base64,${fullBase64}`);
-        const blob = await response.blob();
+        // Base64를 안전하게 Blob으로 변환 (용량 제한 없음)
+        const byteCharacters = atob(fullBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let j = 0; j < byteCharacters.length; j++) {
+          byteNumbers[j] = byteCharacters.charCodeAt(j);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
 
-        // 4. Firebase Storage에 파일로 업로드
+        // 4. Storage 업로드
         const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfName}`);
         await uploadBytes(fileRef, blob);
         const downloadUrl = await getDownloadURL(fileRef);
 
-        // 5. 게시글 문서 업데이트 (pdfUrl 추가)
+        // 5. 게시글 업데이트
         await updateDoc(doc(db, 'posts', postId), {
           pdfUrl: downloadUrl,
           updatedAt: new Date()
@@ -99,16 +97,15 @@ export default function ResearchLab() {
       }
 
       setMigrationStatus('모든 자료 복구가 완료되었습니다!');
-      alert("이사가 완료되었습니다. 이제 모든 옛날 PDF가 정상적으로 보입니다.");
-      window.location.reload(); // 새로고침하여 반영
+      alert("모든 자료가 성공적으로 복구되었습니다.");
+      window.location.reload();
     } catch (err: any) {
       console.error("Migration error:", err);
-      alert("복구 중 오류가 발생했습니다: " + err.message);
+      alert(`복구 중 오류가 발생했습니다: ${err.message}`);
     } finally {
       setIsMigrating(false);
     }
   };
-  // --- [Jarvis] 데이터 이사(Migration) 로직 끝 ---
 
   useEffect(() => {
     const fetchInitialData = async () => {
