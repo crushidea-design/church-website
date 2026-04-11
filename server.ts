@@ -127,7 +127,7 @@ async function startServer() {
             for (const post of postsToNotify) {
               const baseMessage: any = {
                 notification: { 
-                  title: '오늘의 말씀 가이드라인이 올라왔습니다!', 
+                  title: '오늘의 묵상 가이드라인이 올라왔습니다!', 
                   body: post.title 
                 },
                 data: { url: '/archive/today' },
@@ -250,7 +250,7 @@ async function startServer() {
 
   // API Route to send notifications
   app.post('/api/notifications/send', async (req, res) => {
-    const { title, body, targetUrl, targetTokens, imageUrl, useTopic } = req.body;
+    const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic } = req.body;
 
     if (!admin.apps.length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
@@ -288,18 +288,39 @@ async function startServer() {
           topic: useTopic === true ? 'all_members' : useTopic,
         });
         res.json({ success: true, messageId: response });
-      } else if (targetTokens && targetTokens.length > 0) {
-        response = await admin.messaging().sendEachForMulticast({
-          ...baseMessage,
-          tokens: targetTokens,
-        });
-        res.json({
-          success: true,
-          successCount: response.successCount,
-          failureCount: response.failureCount,
-        });
       } else {
-        res.status(400).json({ error: 'No target specified' });
+        let tokensToUse = targetTokens || [];
+        
+        if (targetUserIds && targetUserIds.length > 0) {
+          const db = admin.firestore();
+          
+          for (let i = 0; i < targetUserIds.length; i += 30) {
+            const chunk = targetUserIds.slice(i, i + 30);
+            const snapshot = await db.collection('fcm_tokens')
+              .where('userId', 'in', chunk)
+              .get();
+            
+            snapshot.forEach(doc => {
+              tokensToUse.push(doc.data().token);
+            });
+          }
+        }
+        
+        tokensToUse = Array.from(new Set(tokensToUse));
+
+        if (tokensToUse.length > 0) {
+          response = await admin.messaging().sendEachForMulticast({
+            ...baseMessage,
+            tokens: tokensToUse,
+          });
+          res.json({
+            success: true,
+            successCount: response.successCount,
+            failureCount: response.failureCount,
+          });
+        } else {
+          res.status(400).json({ error: 'No target specified or no tokens found' });
+        }
       }
     } catch (error) {
       console.error('Error sending notification:', error);

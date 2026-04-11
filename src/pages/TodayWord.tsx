@@ -212,54 +212,8 @@ export default function TodayWord() {
               setTodayWord(dateStr, null);
             }
           } else {
-            // If no post for the specific date, try to get the latest one if it's today
-            if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
-              const latestQ = query(
-                collection(db, 'posts'),
-                where('category', '==', 'today_word'),
-                orderBy('createdAt', 'desc'),
-                limit(10) // Fetch a few to filter client-side
-              );
-              const latestSnap = await getDocs(latestQ);
-              
-              let validLatestPosts = latestSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-              if (role !== 'admin') {
-                validLatestPosts = validLatestPosts.filter(p => p.isPublished !== false);
-              }
-
-              if (validLatestPosts.length > 0) {
-                const postData = validLatestPosts[0];
-
-                // Handle long content reassembly for latest post
-                if (postData.isLongContent) {
-                  console.log('Long content detected in TodayWord (latest). Fetching chunks...');
-                  try {
-                    const chunksQuery = query(
-                      collection(db, 'post_contents'),
-                      where('postId', '==', postData.id),
-                      orderBy('index', 'asc')
-                    );
-                    const chunksSnap = await getDocs(chunksQuery);
-                    if (!chunksSnap.empty) {
-                      const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
-                      postData.content = fullContent;
-                      console.log('Long content reassembled for TodayWord (latest).');
-                    }
-                  } catch (e) {
-                    console.error('Error reassembling long content in TodayWord (latest):', e);
-                  }
-                }
-
-                if (!ignore) setLatestPost(postData);
-                setTodayWord(dateStr, postData);
-              } else {
-                if (!ignore) setLatestPost(null);
-                setTodayWord(dateStr, null);
-              }
-            } else {
-              if (!ignore) setLatestPost(null);
-              setTodayWord(dateStr, null);
-            }
+            if (!ignore) setLatestPost(null);
+            setTodayWord(dateStr, null);
           }
         }
 
@@ -365,12 +319,12 @@ export default function TodayWord() {
 
   return (
     <div className="space-y-8">
-      {/* 오늘의 말씀 설명 섹션 */}
+      {/* 오늘의 묵상 설명 섹션 */}
       <div className="mb-8 border-b border-wood-200 pb-6">
         <p className="text-lg text-wood-600">매일의 성경 읽기와 묵상 가이드라인을 통해 하나님의 말씀을 깊이 있게 만나는 시간입니다.</p>
       </div>
 
-      {/* 오늘의 말씀 읽기표 섹션 */}
+      {/* 오늘의 묵상 읽기표 섹션 */}
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
         <div className="bg-wood-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h2 className="text-xl font-serif font-bold text-white flex items-center gap-2">
@@ -484,7 +438,7 @@ export default function TodayWord() {
       {/* 묵상 가이드라인 섹션 */}
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-6 md:p-8">
         <div className="flex justify-between items-center mb-6 border-b border-wood-100 pb-4">
-          <h3 className="text-2xl font-serif font-bold text-wood-900">오늘의 묵상 가이드라인</h3>
+          <h3 className="text-2xl font-serif font-bold text-wood-900">오늘의 묵상</h3>
           {role === 'admin' && (
             <Link
               to="/create-post?type=today_word"

@@ -11,6 +11,9 @@ export const requestNotificationPermission = async (userId: string) => {
   
   if (typeof window === 'undefined') return null;
 
+  // [최적화 1] 로컬 캐시 확인: 이미 동기화된 토큰이면 DB 조회를 건너뜁니다.
+  const cachedToken = localStorage.getItem(`fcm_synced_${userId}`);
+
   try {
     const supported = await isSupported();
     if (!supported) {
@@ -63,6 +66,13 @@ export const requestNotificationPermission = async (userId: string) => {
 
       if (token) {
         console.log('FCM Token generated:', token.substring(0, 10) + '...');
+        
+        // 로컬 스토리지에 저장된 토큰과 동일하면 Firestore 읽기를 하지 않음
+        if (cachedToken === token) {
+          console.log('Token already synced (cached)');
+          return token;
+        }
+
         // Store token in Firestore
         const tokensRef = collection(db, 'fcm_tokens');
         const q = query(tokensRef, where('userId', '==', userId), where('token', '==', token));
@@ -99,6 +109,8 @@ export const requestNotificationPermission = async (userId: string) => {
           console.error('Failed to subscribe to topic:', subError);
         }
 
+        // 동기화 완료 후 로컬에 기록 (다음번엔 읽기 발생 안 함)
+        localStorage.setItem(`fcm_synced_${userId}`, token);
         return token;
       } else {
         console.warn('No FCM token received. Check if VAPID key is correct and service worker is registered.');
@@ -141,35 +153,9 @@ export const onMessageListener = (callback: (payload: any) => void) => {
 
 export const sendPushNotification = async (title: string, body: string, targetUrl: string = '/', targetUserIds?: string[]) => {
   try {
-    // Optimization: Only fetch tokens updated in the last 30 days to reduce read costs
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // [최적화 2] 클라이언트에서 토큰을 직접 getDocs하지 않습니다.
+    // 대신 서버 API(/api/notifications/send)에 정보만 넘깁니다.
     
-    let tokens: string[] = [];
-    
-    if (targetUserIds && targetUserIds.length > 0) {
-      // Optimization: Fetch tokens only for specific users, chunked by 30 due to 'in' query limits
-      for (let i = 0; i < targetUserIds.length; i += 30) {
-        const chunk = targetUserIds.slice(i, i + 30);
-        const q = query(collection(db, 'fcm_tokens'), where('userId', 'in', chunk));
-        const snapshot = await getDocs(q);
-        tokens.push(...snapshot.docs.map(doc => doc.data().token));
-      }
-    } else {
-      // Fallback for all users (though usually handled by topic)
-      const tokensRef = collection(db, 'fcm_tokens');
-      const q = query(tokensRef, where('updatedAt', '>=', thirtyDaysAgo), limit(1000));
-      const snapshot = await getDocs(q);
-      tokens = snapshot.docs.map(doc => doc.data().token);
-    }
-    
-    tokens = Array.from(new Set(tokens));
-
-    if (tokens.length === 0) {
-      console.log('No matching FCM tokens found in Firestore');
-      return { success: false, error: '수신 가능한 기기가 없습니다.' };
-    }
-
     const response = await fetch('/api/notifications/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -177,12 +163,12 @@ export const sendPushNotification = async (title: string, body: string, targetUr
         title, 
         body, 
         targetUrl, 
-        targetTokens: tokens 
+        targetUserIds, // 토큰 대신 대상 ID만 보냄
+        useTopic: !targetUserIds // 대상이 없으면 전체 토픽(all_members) 사용 요청
       }),
     });
 
-    const result = await response.json();
-    return result;
+    return await response.json();
   } catch (error) {
     console.error('Error sending push notification:', error);
     return { success: false, error: '알림 발송 중 오류가 발생했습니다.' };

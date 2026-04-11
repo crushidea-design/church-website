@@ -5,11 +5,13 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import Logo from '../components/Logo';
+import { useStore } from '../store/useStore';
 
 const DEFAULT_INTRO_IMAGE = "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
 
 export default function Introduction() {
   const { role } = useAuth();
+  const { introFetched, setIntroFetched } = useStore();
   const [introImage, setIntroImage] = useState(DEFAULT_INTRO_IMAGE);
   const [isEditing, setIsEditing] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
@@ -68,6 +70,8 @@ export default function Introduction() {
     };
 
     const fetchIntroData = async () => {
+      if (introFetched) return;
+
       try {
         const introDoc = await getDoc(doc(db, 'settings', 'intro'));
         if (introDoc.exists()) {
@@ -117,6 +121,8 @@ export default function Introduction() {
           if (data.ciPoint5Title) setCiPoint5Title(data.ciPoint5Title);
           if (data.ciPoint5Desc) setCiPoint5Desc(data.ciPoint5Desc);
         }
+        
+        setIntroFetched(true);
       } catch (error) {
         console.error('Error fetching intro data:', error);
         handleFirestoreError(error, OperationType.GET, 'settings');
@@ -124,7 +130,7 @@ export default function Introduction() {
     };
 
     fetchIntroData();
-  }, []);
+  }, [introFetched, setIntroFetched]);
 
   const handleUpdateImage = async () => {
     let url = newImageUrl.trim();

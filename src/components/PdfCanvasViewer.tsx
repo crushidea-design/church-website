@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 
-// Set worker source from CDN for better compatibility
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// Set worker source from local build for better compatibility and avoiding CORS/CDN issues
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface PdfCanvasViewerProps {
   url: string;

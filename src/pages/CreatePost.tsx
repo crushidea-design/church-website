@@ -363,7 +363,7 @@ export default function CreatePost() {
         try {
           console.log('Sending push notification for Today\'s Word...');
           await sendPushNotification(
-            '오늘의 말씀 가이드라인이 올라왔습니다!',
+            '오늘의 묵상 가이드라인이 올라왔습니다!',
             title.trim(),
             `/archive/today`,
             postData.targetUserIds
@@ -433,7 +433,7 @@ export default function CreatePost() {
       case 'research': return '연구글 작성';
       case 'sermon': return '말씀 서재 등록';
       case 'journal': return '개척 일지 작성';
-      case 'today_word': return '오늘의 묵상 가이드라인 작성';
+      case 'today_word': return '오늘의 묵상 작성';
       default: return '게시글 작성';
     }
   };

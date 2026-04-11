@@ -43,17 +43,13 @@ export default function Login() {
 
   const ensureUserDocument = async (user: any, customDisplayName?: string) => {
     const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: customDisplayName || user.displayName || user.email?.split('@')[0] || 'User',
-        role: 'user',
-        createdAt: new Date()
-      });
-    }
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email,
+      displayName: customDisplayName || user.displayName || user.email?.split('@')[0] || 'User',
+      role: 'user',
+      createdAt: new Date()
+    }, { merge: true });
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {

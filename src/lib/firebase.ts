@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -18,7 +18,13 @@ const config = {
 
 // Initialize Firebase
 const app = initializeApp(config);
-export const db = getFirestore(app, config.firestoreDatabaseId);
+
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}, config.firestoreDatabaseId);
+
 export const storage = getStorage(app, `gs://${config.storageBucket}`);
 export const auth = getAuth(app);
 
@@ -63,18 +69,13 @@ export const googleProvider = new GoogleAuthProvider();
 async function ensureUserDocument(user: any) {
   const userRef = doc(db, 'users', user.uid);
   try {
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || 'User',
-        role: 'user',
-        createdAt: new Date()
-      });
-      console.log('New user document created');
-    }
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || 'User',
+      role: 'user',
+      createdAt: new Date()
+    }, { merge: true });
   } catch (error: any) {
     console.error("Error ensuring user document:", error);
     // Don't block login if it's just a quota error or transient issue

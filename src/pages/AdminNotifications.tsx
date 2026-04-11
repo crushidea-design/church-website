@@ -9,7 +9,7 @@ import { requestNotificationPermission } from '../services/notificationService';
 
 const CATEGORIES = [
   { id: 'home', name: '홈페이지', path: '/' },
-  { id: 'today_word', name: '오늘의 말씀', path: '/archive/today' },
+  { id: 'today_word', name: '오늘의 묵상', path: '/archive/today' },
   { id: 'sermon', name: '말씀 서재', path: '/archive/sermons' },
   { id: 'research', name: '교회 연구실', path: '/archive/research' },
   { id: 'community', name: '소통 게시판', path: '/community' },

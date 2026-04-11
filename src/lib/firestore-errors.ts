@@ -1,6 +1,6 @@
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
-import { getDocFromServer, doc } from 'firebase/firestore';
+import { getDoc, doc } from 'firebase/firestore';
 
 export enum OperationType {
   CREATE = 'create',
@@ -78,7 +78,7 @@ export async function testFirestoreConnection(db: Firestore) {
   try {
     // Attempt to fetch a publicly readable document to test connectivity
     // 'settings/church_info' is allowed read: if true;
-    await getDocFromServer(doc(db, 'settings', 'church_info'));
+    await getDoc(doc(db, 'settings', 'church_info'));
     console.log('Firestore connection verified');
     
     // Clear quota flag if it was set

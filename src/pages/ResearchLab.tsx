@@ -30,8 +30,7 @@ export default function ResearchLab() {
   const [loading, setLoading] = useState(!currentResearch.fetched);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
-  const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -64,7 +63,7 @@ export default function ResearchLab() {
         setTotalCount(countSnap.data().count);
 
         let q;
-        const orderField = sortBy === 'title' ? 'title' : 'createdAt';
+        const orderField = 'title';
         const orderDir = sortOrderDirection;
 
         if (activeTab === 'all') {
@@ -110,7 +109,7 @@ export default function ResearchLab() {
     };
 
     fetchInitialData();
-  }, [activeTab, researchCategories.length, sortBy, sortOrderDirection]);
+  }, [activeTab, researchCategories.length, sortOrderDirection]);
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
@@ -120,7 +119,7 @@ export default function ResearchLab() {
 
     try {
       let q;
-      const orderField = sortBy === 'title' ? 'title' : 'createdAt';
+      const orderField = 'title';
       const orderDir = sortOrderDirection;
 
       const anchorDoc = pageLastDocs[page - 1];
@@ -203,7 +202,7 @@ export default function ResearchLab() {
     setError(null);
     try {
       let q;
-      const orderField = sortBy === 'title' ? 'title' : 'createdAt';
+      const orderField = 'title';
       const orderDir = sortOrderDirection;
 
       if (activeTab === 'all') {
@@ -292,29 +291,11 @@ export default function ResearchLab() {
         </div>
 
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-wood-200 shadow-sm self-end md:self-auto">
-          <div className="flex items-center gap-2 px-3 border-r border-wood-100">
-            <ArrowUpDown size={16} className="text-wood-400" />
-            <select
-              value={sortBy}
-              onChange={(e) => {
-                const newSortBy = e.target.value as 'date' | 'title';
-                setSortBy(newSortBy);
-                if (newSortBy === 'title') {
-                  setSortOrderDirection('asc');
-                } else {
-                  setSortOrderDirection('desc');
-                }
-              }}
-              className="text-sm bg-transparent border-none focus:ring-0 text-wood-700 font-bold cursor-pointer py-1"
-            >
-            <option value="date">날짜순</option>
-            <option value="title">이름순</option>
-          </select>
-          </div>
           <button
             onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
             className="px-4 py-1.5 text-sm font-bold text-wood-700 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
           >
+            <ArrowUpDown size={16} className="text-wood-400" />
             {sortOrderDirection === 'desc' ? '내림차순' : '오름차순'}
           </button>
         </div>
@@ -337,7 +318,7 @@ export default function ResearchLab() {
           <BookOpen className="mx-auto h-16 w-16 text-wood-200 mb-6" />
           <h3 className="text-xl font-bold text-wood-900">등록된 연구글이 없습니다</h3>
           <p className="mt-2 text-wood-500">곧 새로운 연구 내용이 업데이트될 예정입니다.</p>
-          {sortBy === 'title' && totalCount > 0 && (
+          {totalCount > 0 && (
             <p className="mt-4 text-amber-600 text-sm font-medium px-4">
               이름순 정렬을 위한 인덱스가 생성되지 않았을 수 있습니다.<br />
               오류가 발생하면 잠시 후 다시 시도해 주세요.

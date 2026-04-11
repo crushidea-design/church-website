@@ -7,7 +7,7 @@ export default function ArchiveLayout() {
   const location = useLocation();
 
   const tabs = [
-    { name: '오늘의 말씀', path: '/archive/today', icon: BookOpen },
+    { name: '오늘의 묵상', path: '/archive/today', icon: BookOpen },
     { name: '말씀 서재', path: '/archive/sermons', icon: Book },
     { name: '교회 연구실', path: '/archive/research', icon: FileText },
   ];
