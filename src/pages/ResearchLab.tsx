@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { 
+  collection, query, where, orderBy, getDocs, limit, 
+  startAfter, getCountFromServer, doc, updateDoc 
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Storage 관련 추가
+import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { BookOpen, Plus, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, Plus, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight, Wrench } from 'lucide-react'; // Wrench 아이콘 추가
 import { useStore } from '../store/useStore';
 
 interface ResearchCategory {
@@ -16,8 +20,7 @@ interface ResearchCategory {
 
 export default function ResearchLab() {
   const { user, role, loading: authLoading } = useAuth();
-  
-  const { research, researchCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
+  const { research, researchCategories, setCategoryCollection, setCategories } = useStore();
   
   const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -28,14 +31,88 @@ export default function ResearchLab() {
   const currentResearch = research[activeTab] || { data: [], lastDoc: null, hasMore: true, fetched: false };
   
   const [loading, setLoading] = useState(!currentResearch.fetched);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('asc');
+
+  // --- [Jarvis] 데이터 이사(Migration) 로직 시작 ---
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState('');
+
+  const handleMigrateOldPdfs = async () => {
+    if (!window.confirm("옛날 PDF 자료들을 현재 방식으로 일괄 복구하시겠습니까?")) return;
+    
+    setIsMigrating(true);
+    setMigrationStatus('복구 대상 게시글을 찾는 중...');
+    
+    try {
+      // 1. pdfUrl이 없고 pdfChunkCount가 있는 옛날 게시글들 찾기
+      const q = query(
+        collection(db, 'posts'),
+        where('category', '==', 'research')
+      );
+      const snapshot = await getDocs(q);
+      const oldPosts = snapshot.docs.filter(doc => !doc.data().pdfUrl && doc.data().pdfChunkCount > 0);
+      
+      if (oldPosts.length === 0) {
+        alert("복구할 옛날 자료가 없습니다.");
+        setIsMigrating(false);
+        return;
+      }
+
+      setMigrationStatus(`${oldPosts.length}개의 자료 발견. 이사를 시작합니다...`);
+
+      for (let i = 0; i < oldPosts.length; i++) {
+        const postDoc = oldPosts[i];
+        const postData = postDoc.data();
+        const postId = postDoc.id;
+        const pdfName = postData.pdfName || `restored_${Date.now()}.pdf`;
+
+        setMigrationStatus(`[${i + 1}/${oldPosts.length}] ${postData.title} 복구 중...`);
+
+        // 2. post_pdfs 컬렉션에서 쪼개진 데이터 조각들 가져오기
+        const chunksQ = query(
+          collection(db, 'post_pdfs'),
+          where('postId', '==', postId),
+          orderBy('index', 'asc')
+        );
+        const chunksSnap = await getDocs(chunksQ);
+        
+        if (chunksSnap.empty) continue;
+
+        // 3. 조각들을 하나로 합치기
+        const fullBase64 = chunksSnap.docs.map(d => d.data().data).join('');
+        
+        // Base64를 Blob으로 변환
+        const response = await fetch(`data:application/pdf;base64,${fullBase64}`);
+        const blob = await response.blob();
+
+        // 4. Firebase Storage에 파일로 업로드
+        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfName}`);
+        await uploadBytes(fileRef, blob);
+        const downloadUrl = await getDownloadURL(fileRef);
+
+        // 5. 게시글 문서 업데이트 (pdfUrl 추가)
+        await updateDoc(doc(db, 'posts', postId), {
+          pdfUrl: downloadUrl,
+          updatedAt: new Date()
+        });
+      }
+
+      setMigrationStatus('모든 자료 복구가 완료되었습니다!');
+      alert("이사가 완료되었습니다. 이제 모든 옛날 PDF가 정상적으로 보입니다.");
+      window.location.reload(); // 새로고침하여 반영
+    } catch (err: any) {
+      console.error("Migration error:", err);
+      alert("복구 중 오류가 발생했습니다: " + err.message);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+  // --- [Jarvis] 데이터 이사(Migration) 로직 끝 ---
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        // Fetch Categories if not fetched
         let cats = researchCategories;
         if (cats.length === 0) {
           const catQ = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
@@ -44,15 +121,11 @@ export default function ResearchLab() {
           setCategories('researchCategories', cats);
         }
 
-        // Fetch Research Posts for current tab (Page 1)
         setLoading(true);
         setError(null);
-        
-        // Reset pagination when tab changes
         setCurrentPage(1);
         setPageLastDocs({});
 
-        // Fetch Total Count
         let countQ;
         if (activeTab === 'all') {
           countQ = query(collection(db, 'posts'), where('category', '==', 'research'));
@@ -67,186 +140,101 @@ export default function ResearchLab() {
         const orderDir = sortOrderDirection;
 
         if (activeTab === 'all') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'research'),
-            orderBy(orderField, orderDir),
-            limit(pageSize)
-          );
+          q = query(collection(db, 'posts'), where('category', '==', 'research'), orderBy(orderField, orderDir), limit(pageSize));
         } else {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'research'),
-            where('researchCategoryId', '==', activeTab),
-            orderBy(orderField, orderDir),
-            limit(pageSize)
-          );
+          q = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', activeTab), orderBy(orderField, orderDir), limit(pageSize));
         }
 
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
         const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-        const hasMore = snapshot.docs.length === pageSize;
-        
-        setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
-        if (lastDoc) {
-          setPageLastDocs({ 1: lastDoc });
-        }
+        setCategoryCollection('research', activeTab, data, lastDoc, snapshot.docs.length === pageSize);
+        if (lastDoc) setPageLastDocs({ 1: lastDoc });
       } catch (error: any) {
         console.error('Error fetching data:', error);
-        let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
-        if (error.message && error.message.includes('index')) {
-          errorMessage = '데이터 정렬을 위한 인덱스가 필요합니다. 브라우저 콘솔(F12)에 표시된 링크를 클릭하여 인덱스를 생성해주세요.';
-          console.error('Firestore Index Error:', error.message);
-        }
-        setError(errorMessage);
-        try {
-          handleFirestoreError(error, OperationType.GET, 'posts');
-        } catch (e) {}
+        setError('데이터를 불러오는 중 오류가 발생했습니다.');
       } finally {
         setLoading(false);
       }
     };
-
     fetchInitialData();
-  }, [activeTab, researchCategories.length, sortOrderDirection]);
+  }, [activeTab, sortOrderDirection]);
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
-    
     setLoading(true);
-    setError(null);
-
     try {
       let q;
       const orderField = 'title';
       const orderDir = sortOrderDirection;
-
       const anchorDoc = pageLastDocs[page - 1];
 
       if (page > 1 && anchorDoc) {
-        if (activeTab === 'all') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'research'),
-            orderBy(orderField, orderDir),
-            startAfter(anchorDoc),
-            limit(pageSize)
-          );
-        } else {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'research'),
-            where('researchCategoryId', '==', activeTab),
-            orderBy(orderField, orderDir),
-            startAfter(anchorDoc),
-            limit(pageSize)
-          );
-        }
+        q = query(collection(db, 'posts'), where('category', '==', 'research'), 
+            ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
+            orderBy(orderField, orderDir), startAfter(anchorDoc), limit(pageSize));
       } else {
-        const jumpLimit = page * pageSize;
-        if (activeTab === 'all') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'research'),
-            orderBy(orderField, orderDir),
-            limit(jumpLimit)
-          );
-        } else {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'research'),
-            where('researchCategoryId', '==', activeTab),
-            orderBy(orderField, orderDir),
-            limit(jumpLimit)
-          );
-        }
+        q = query(collection(db, 'posts'), where('category', '==', 'research'),
+            ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
+            orderBy(orderField, orderDir), limit(page * pageSize));
       }
 
       const snapshot = await getDocs(q);
       let docs = snapshot.docs;
-      
-      if (page > 1 && !anchorDoc) {
-        docs = docs.slice(-pageSize);
-      }
+      if (page > 1 && !anchorDoc) docs = docs.slice(-pageSize);
 
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = docs[docs.length - 1] || null;
-      const hasMore = docs.length === pageSize;
-      
-      setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
+      setCategoryCollection('research', activeTab, data, lastDoc, docs.length === pageSize);
       setCurrentPage(page);
-      
-      if (lastDoc) {
-        setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
-      }
-    } catch (error: any) {
-      console.error('Error changing page:', error);
-      let errorMessage = '페이지를 이동하는 중 오류가 발생했습니다.';
-      if (error.message && error.message.includes('index')) {
-        errorMessage = '데이터 정렬을 위한 인덱스가 필요합니다. 브라우저 콘솔(F12)에 표시된 링크를 클릭하여 인덱스를 생성해주세요.';
-      }
-      setError(errorMessage);
+      if (lastDoc) setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
+    } catch (err) {
+      setError('페이지 이동 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLoadMore = async () => {
-    // Replaced by handlePageChange
   };
 
   const handleRefresh = async () => {
-    if (!activeTab) return;
-    setLoading(true);
-    setError(null);
-    try {
-      let q;
-      const orderField = 'title';
-      const orderDir = sortOrderDirection;
-
-      if (activeTab === 'all') {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'research'),
-          orderBy(orderField, orderDir),
-          limit(pageSize)
-        );
-      } else {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'research'),
-          where('researchCategoryId', '==', activeTab),
-          orderBy(orderField, orderDir),
-          limit(pageSize)
-        );
-      }
-
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-      const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === pageSize;
-      
-      setCategoryCollection('research', activeTab, data, lastDoc, hasMore);
-      setCurrentPage(1);
-      setPageLastDocs({ 1: lastDoc });
-    } catch (error: any) {
-      console.error('Error refreshing data:', error);
-      setError('데이터를 새로고침하는 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
+    window.location.reload();
   };
 
-  const sortedPosts = React.useMemo(() => {
-    // The query already filters and sorts the data from Firestore.
-    return currentResearch.data;
-  }, [currentResearch.data]);
-
+  const sortedPosts = React.useMemo(() => currentResearch.data, [currentResearch.data]);
   const canWrite = !authLoading && role === 'admin';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* 관리자 복구 도구 (Admin Only) */}
+      {canWrite && (
+        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-200 rounded-3xl shadow-sm">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-lg font-bold text-amber-900 flex items-center">
+                <Wrench size={20} className="mr-2" />
+                옛날 PDF 자료 일괄 복구 도구
+              </h2>
+              <p className="text-sm text-amber-700 mt-1">
+                저장 방식이 바뀌기 전(2026년 3월 이전)에 올린 자료들을 한꺼번에 현재 방식으로 이사시킵니다.
+              </p>
+            </div>
+            <button
+              onClick={handleMigrateOldPdfs}
+              disabled={isMigrating}
+              className={`px-6 py-3 rounded-xl font-bold transition flex items-center ${
+                isMigrating ? 'bg-amber-300 text-amber-800' : 'bg-amber-600 text-white hover:bg-amber-700'
+              }`}
+            >
+              {isMigrating ? (
+                <>
+                  <RefreshCw size={18} className="mr-2 animate-spin" />
+                  {migrationStatus}
+                </>
+              ) : '이삿짐 옮기기 시작'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-wood-200 pb-6 gap-4">
         <div>
           <p className="text-wood-600 text-lg">목사님의 연구 내용과 묵상을 나눕니다.</p>
@@ -262,7 +250,7 @@ export default function ResearchLab() {
         )}
       </div>
 
-      {/* Filters and Sorting */}
+      {/* 필터 및 정렬 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <button
@@ -301,13 +289,9 @@ export default function ResearchLab() {
         </div>
       </div>
 
-      {error && (
-        <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-center font-medium">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-center font-medium">{error}</div>}
 
-      {/* Posts Grid */}
+      {/* 게시글 그리드 */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900 mb-4"></div>
@@ -317,59 +301,29 @@ export default function ResearchLab() {
         <div className="text-center py-32 bg-white rounded-3xl border border-wood-200 shadow-sm">
           <BookOpen className="mx-auto h-16 w-16 text-wood-200 mb-6" />
           <h3 className="text-xl font-bold text-wood-900">등록된 연구글이 없습니다</h3>
-          <p className="mt-2 text-wood-500">곧 새로운 연구 내용이 업데이트될 예정입니다.</p>
-          {totalCount > 0 && (
-            <p className="mt-4 text-amber-600 text-sm font-medium px-4">
-              이름순 정렬을 위한 인덱스가 생성되지 않았을 수 있습니다.<br />
-              오류가 발생하면 잠시 후 다시 시도해 주세요.
-            </p>
-          )}
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {sortedPosts.map((post, index) => (
-              <motion.div
-                key={post.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  delay: Math.min(index * 0.03, 0.4),
-                  ease: "easeOut"
-                }}
-              >
+              <motion.div key={post.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.03, 0.4) }}>
                 <Link to={`/post/${post.id}`} className="block h-full group">
                   <div className="bg-white rounded-3xl shadow-sm border border-wood-100 p-8 h-full hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 flex flex-col relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-wood-900 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
-                    
                     <div className="flex items-center justify-between mb-6">
                       <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-wood-50 text-wood-800 border border-wood-100">
                         {researchCategories.find(c => c.id === post.researchCategoryId)?.name || '연구글'}
                       </span>
-                      <span className="text-xs font-medium text-wood-400">
-                        {formatDate(post.createdAt)}
-                      </span>
+                      <span className="text-xs font-medium text-wood-400">{formatDate(post.createdAt)}</span>
                     </div>
-                    
-                    <h3 className="text-xl font-bold text-wood-900 mb-4 line-clamp-2 leading-tight group-hover:text-wood-700 transition-colors">
-                      {post.title}
-                    </h3>
-                    
-                    <p className="text-wood-600 line-clamp-3 mb-8 flex-grow text-sm leading-relaxed">
-                      {post.content.replace(/<[^>]*>?/gm, '')}
-                    </p>
-                    
+                    <h3 className="text-xl font-bold text-wood-900 mb-4 line-clamp-2 leading-tight group-hover:text-wood-700 transition-colors">{post.title}</h3>
+                    <p className="text-wood-600 line-clamp-3 mb-8 flex-grow text-sm leading-relaxed">{post.content.replace(/<[^>]*>?/gm, '')}</p>
                     <div className="flex items-center justify-between text-xs font-bold text-wood-500 pt-5 border-t border-wood-50">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-wood-100 flex items-center justify-center text-[10px] text-wood-600">
-                          {post.authorName?.[0] || 'M'}
-                        </div>
+                        <div className="w-6 h-6 rounded-full bg-wood-100 flex items-center justify-center text-[10px] text-wood-600">{post.authorName?.[0] || 'M'}</div>
                         <span>{post.authorName}</span>
                       </div>
-                      <span className="bg-wood-50 px-2 py-1 rounded-md">
-                        댓글 {post.commentCount || 0}
-                      </span>
+                      <span className="bg-wood-50 px-2 py-1 rounded-md">댓글 {post.commentCount || 0}</span>
                     </div>
                   </div>
                 </Link>
@@ -377,70 +331,21 @@ export default function ResearchLab() {
             ))}
           </div>
 
-          {/* Pagination */}
+          {/* 페이지네이션 */}
           {totalCount > pageSize && (
             <div className="flex justify-center items-center gap-2 mt-16">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1 || loading}
-                className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm"
-              >
+              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
                 <ChevronLeft size={20} />
               </button>
-              
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => {
-                  const pageNum = i + 1;
-                  if (
-                    pageNum === 1 || 
-                    pageNum === Math.ceil(totalCount / pageSize) || 
-                    (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
-                  ) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        disabled={loading}
-                        className={`w-11 h-11 rounded-xl text-sm font-bold transition-all ${
-                          currentPage === pageNum
-                            ? 'bg-wood-900 text-white shadow-lg transform scale-110'
-                            : 'text-wood-600 hover:bg-wood-50 border border-transparent'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  } else if (
-                    pageNum === currentPage - 3 || 
-                    pageNum === currentPage + 3
-                  ) {
-                    return <span key={pageNum} className="text-wood-300 px-1">...</span>;
-                  }
-                  return null;
-                })}
+                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => (
+                  <button key={i} onClick={() => handlePageChange(i + 1)} disabled={loading} className={`w-11 h-11 rounded-xl text-sm font-bold transition-all ${currentPage === i + 1 ? 'bg-wood-900 text-white shadow-lg' : 'text-wood-600 hover:bg-wood-50'}`}>
+                    {i + 1}
+                  </button>
+                ))}
               </div>
-
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === Math.ceil(totalCount / pageSize) || loading}
-                className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm"
-              >
+              <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === Math.ceil(totalCount / pageSize) || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
                 <ChevronRight size={20} />
-              </button>
-            </div>
-          )}
-
-          {/* Manual Refresh Button (Admin Only) */}
-          {canWrite && (
-            <div className="flex justify-end pt-8">
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="inline-flex items-center px-4 py-2 text-sm text-wood-500 hover:text-wood-900 transition-colors disabled:opacity-50"
-                title="데이터 새로고침"
-              >
-                <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
-                새로고침
               </button>
             </div>
           )}
