@@ -69,6 +69,7 @@ const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   
   const { sermons, sermonCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
   
@@ -119,15 +120,12 @@ export default function Sermons() {
         }
 
         // Set Active Tab
-        let tab = activeTab || ALL_SERMONS_TAB;
-        const tabParam = searchParams.get('tab');
+        let tab = ALL_SERMONS_TAB;
         if (tabParam && (tabParam === ALL_SERMONS_TAB || cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
           tab = tabParam;
-          if (activeTab !== tabParam) {
-            setActiveTab(tabParam);
-          }
-        } else if (!activeTab) {
-          tab = ALL_SERMONS_TAB;
+        }
+
+        if (activeTab !== tab) {
           setActiveTab(tab);
         }
 
@@ -155,7 +153,7 @@ export default function Sermons() {
     };
 
     fetchInitialData();
-  }, [authLoading, isRegularMember, activeTab, sermonCategories.length, sortOrderDirection]);
+  }, [authLoading, isRegularMember, tabParam, sermonCategories.length, sortOrderDirection]);
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
