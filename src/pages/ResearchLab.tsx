@@ -3,14 +3,14 @@ import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { 
   collection, query, where, orderBy, getDocs, limit, 
-  startAfter, getCountFromServer, doc, updateDoc 
+  startAfter, getCountFromServer
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Storage 관련 추가
-import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { BookOpen, Plus, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight, Wrench } from 'lucide-react'; // Wrench 아이콘 추가
+import { BookOpen, Plus, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import ArchiveIntroSection from '../components/ArchiveIntroSection';
 
 interface ResearchCategory {
   id: string;
@@ -33,79 +33,6 @@ export default function ResearchLab() {
   const [loading, setLoading] = useState(!currentResearch.fetched);
   const [error, setError] = useState<string | null>(null);
   const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('asc');
-
-  // --- [Jarvis] 데이터 이사(Migration) 로직 시작 ---
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState('');
-
-  const handleMigrateOldPdfs = async () => {
-    if (!window.confirm("옛날 PDF 자료들을 현재 방식으로 일괄 복구하시겠습니까?")) return;
-    
-    setIsMigrating(true);
-    setMigrationStatus('복구 대상 게시글을 찾는 중...');
-    
-    try {
-      // 1. pdfUrl이 없고 pdfChunkCount가 있는 옛날 게시글들 찾기
-      const q = query(collection(db, 'posts'), where('category', '==', 'research'));
-      const snapshot = await getDocs(q);
-      const oldPosts = snapshot.docs.filter(doc => !doc.data().pdfUrl && doc.data().pdfChunkCount > 0);
-      
-      if (oldPosts.length === 0) {
-        alert("복구할 옛날 자료가 없습니다.");
-        setIsMigrating(false);
-        return;
-      }
-
-      setMigrationStatus(`${oldPosts.length}개의 자료 발견. 복구를 시작합니다...`);
-
-      for (let i = 0; i < oldPosts.length; i++) {
-        const postDoc = oldPosts[i];
-        const postData = postDoc.data();
-        const postId = postDoc.id;
-        const pdfName = postData.pdfName || `restored_${Date.now()}.pdf`;
-
-        setMigrationStatus(`[${i + 1}/${oldPosts.length}] ${postData.title} 처리 중...`);
-
-        // 2. 조각들 가져오기
-        const chunksQ = query(collection(db, 'post_pdfs'), where('postId', '==', postId), orderBy('index', 'asc'));
-        const chunksSnap = await getDocs(chunksQ);
-        
-        if (chunksSnap.empty) continue;
-
-        // 3. [개선된 부분] Fetch 대신 직접 메모리에서 합치기
-        const fullBase64 = chunksSnap.docs.map(d => d.data().data).join('');
-        
-        // Base64를 안전하게 Blob으로 변환 (용량 제한 없음)
-        const byteCharacters = atob(fullBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let j = 0; j < byteCharacters.length; j++) {
-          byteNumbers[j] = byteCharacters.charCodeAt(j);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
-
-        // 4. Storage 업로드
-        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfName}`);
-        await uploadBytes(fileRef, blob);
-        const downloadUrl = await getDownloadURL(fileRef);
-
-        // 5. 게시글 업데이트
-        await updateDoc(doc(db, 'posts', postId), {
-          pdfUrl: downloadUrl,
-          updatedAt: new Date()
-        });
-      }
-
-      setMigrationStatus('모든 자료 복구가 완료되었습니다!');
-      alert("모든 자료가 성공적으로 복구되었습니다.");
-      window.location.reload();
-    } catch (err: any) {
-      console.error("Migration error:", err);
-      alert(`복구 중 오류가 발생했습니다: ${err.message}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -201,54 +128,22 @@ export default function ResearchLab() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* 관리자 복구 도구 (Admin Only) */}
-      {canWrite && (
-        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-200 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-lg font-bold text-amber-900 flex items-center">
-                <Wrench size={20} className="mr-2" />
-                옛날 PDF 자료 일괄 복구 도구
-              </h2>
-              <p className="text-sm text-amber-700 mt-1">
-                저장 방식이 바뀌기 전(2026년 3월 이전)에 올린 자료들을 한꺼번에 현재 방식으로 이사시킵니다.
-              </p>
-            </div>
-            <button
-              onClick={handleMigrateOldPdfs}
-              disabled={isMigrating}
-              className={`px-6 py-3 rounded-xl font-bold transition flex items-center ${
-                isMigrating ? 'bg-amber-300 text-amber-800' : 'bg-amber-600 text-white hover:bg-amber-700'
-              }`}
+      <div className="space-y-8">
+        <ArchiveIntroSection
+          description="목사님의 연구 내용과 묵상을 나눕니다."
+          action={canWrite ? (
+            <Link
+              to="/create-post?type=research"
+              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
             >
-              {isMigrating ? (
-                <>
-                  <RefreshCw size={18} className="mr-2 animate-spin" />
-                  {migrationStatus}
-                </>
-              ) : '이삿짐 옮기기 시작'}
-            </button>
-          </div>
-        </div>
-      )}
+              <Plus size={20} className="mr-2" />
+              연구글 작성
+            </Link>
+          ) : null}
+        />
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-wood-200 pb-6 gap-4">
-        <div>
-          <p className="text-wood-600 text-lg">목사님의 연구 내용과 묵상을 나눕니다.</p>
-        </div>
-        {canWrite && (
-          <Link
-            to="/create-post?type=research"
-            className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
-          >
-            <Plus size={20} className="mr-2" />
-            연구글 작성
-          </Link>
-        )}
-      </div>
-
-      {/* 필터 및 정렬 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        {/* 필터 및 정렬 */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <button
             onClick={() => setActiveTab('all')}
@@ -348,6 +243,7 @@ export default function ResearchLab() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { formatDate, getYouTubeId } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import ArchiveIntroSection from '../components/ArchiveIntroSection';
 
 const ALL_SERMONS_TAB = 'all';
 
@@ -69,6 +70,7 @@ const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   
   const { sermons, sermonCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
   
@@ -119,15 +121,12 @@ export default function Sermons() {
         }
 
         // Set Active Tab
-        let tab = activeTab || ALL_SERMONS_TAB;
-        const tabParam = searchParams.get('tab');
+        let tab = ALL_SERMONS_TAB;
         if (tabParam && (tabParam === ALL_SERMONS_TAB || cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
           tab = tabParam;
-          if (activeTab !== tabParam) {
-            setActiveTab(tabParam);
-          }
-        } else if (!activeTab) {
-          tab = ALL_SERMONS_TAB;
+        }
+
+        if (activeTab !== tab) {
           setActiveTab(tab);
         }
 
@@ -155,7 +154,7 @@ export default function Sermons() {
     };
 
     fetchInitialData();
-  }, [authLoading, isRegularMember, activeTab, sermonCategories.length, sortOrderDirection]);
+  }, [authLoading, isRegularMember, tabParam, sermonCategories.length, sortOrderDirection]);
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
@@ -242,22 +241,21 @@ export default function Sermons() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-end mb-8 border-b border-wood-200 pb-6">
-        <div className="text-left">
-          <p className="text-lg text-wood-600">유튜브에 업로드된 설교와 성경 공부 영상을 확인하세요.</p>
-        </div>
-        {canWrite && (
-          <Link
-            to={`/create-post?type=sermon${activeTab && activeTab !== ALL_SERMONS_TAB ? `&categoryId=${activeTab}` : ''}`}
-            className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
-          >
-            <Plus size={20} className="mr-2" />
-            영상 등록
-          </Link>
-        )}
-      </div>
+      <div className="space-y-8">
+        <ArchiveIntroSection
+          description="유튜브에 업로드된 설교와 성경 공부 영상을 확인하세요."
+          action={canWrite ? (
+            <Link
+              to={`/create-post?type=sermon${activeTab && activeTab !== ALL_SERMONS_TAB ? `&categoryId=${activeTab}` : ''}`}
+              className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
+            >
+              <Plus size={20} className="mr-2" />
+              영상 등록
+            </Link>
+          ) : null}
+        />
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <button
             onClick={() => {
@@ -526,6 +524,7 @@ export default function Sermons() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

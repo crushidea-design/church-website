@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { BookOpen, Calendar as CalendarIcon, Edit, ExternalLink, CheckCircle2, Circle } from 'lucide-react';
 import { format, getDayOfYear, startOfDay, endOfDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import ArchiveIntroSection from '../components/ArchiveIntroSection';
 // @ts-ignore
 import ReadingPlan from 'bible-in-one-year';
 
@@ -320,9 +321,7 @@ export default function TodayWord() {
   return (
     <div className="space-y-8">
       {/* 오늘의 묵상 설명 섹션 */}
-      <div className="mb-8 border-b border-wood-200 pb-6">
-        <p className="text-lg text-wood-600">매일의 성경 읽기와 묵상 가이드라인을 통해 하나님의 말씀을 깊이 있게 만나는 시간입니다.</p>
-      </div>
+      <ArchiveIntroSection description="매일의 성경 읽기와 묵상 가이드라인을 통해 하나님의 말씀을 깊이 있게 만나는 시간입니다." />
 
       {/* 오늘의 묵상 읽기표 섹션 */}
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
