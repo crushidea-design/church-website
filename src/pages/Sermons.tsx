@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, limit, startAfter, getCountFromServer, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate, getYouTubeId } from '../lib/utils';
@@ -9,11 +9,62 @@ import { generateSortOrder } from '../lib/sortUtils';
 import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
+const ALL_SERMONS_TAB = 'all';
+
 interface SermonCategory {
   id: string;
   name: string;
   order: number;
 }
+
+interface SermonPost {
+  id: string;
+  title?: string;
+  createdAt?: any;
+  sortOrder?: number;
+  sermonCategoryId?: string;
+  subCategory?: string;
+  [key: string]: any;
+}
+
+const getTime = (value: any) => {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  return 0;
+};
+
+const getSortOrder = (post: SermonPost) => {
+  return typeof post.sortOrder === 'number' ? post.sortOrder : generateSortOrder(post.title || '');
+};
+
+const isLegacySermon = (post: SermonPost) => {
+  return post.subCategory === 'past_sermons' || post.subCategory === 'pilgrims_progress';
+};
+
+const isUncategorizedSermon = (post: SermonPost, categories: SermonCategory[]) => {
+  const hasValidCategory = categories.some(category => category.id === post.sermonCategoryId);
+  return !hasValidCategory && !isLegacySermon(post);
+};
+
+const filterSermonsByTab = (posts: SermonPost[], tab: string, categories: SermonCategory[]) => {
+  if (tab === ALL_SERMONS_TAB) return posts;
+  if (tab === 'uncategorized') return posts.filter(post => isUncategorizedSermon(post, categories));
+  if (tab === 'past_sermons' || tab === 'pilgrims_progress') return posts.filter(post => post.subCategory === tab);
+  return posts.filter(post => post.sermonCategoryId === tab);
+};
+
+const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
+  return [...posts].sort((a, b) => {
+    const sortDelta = getSortOrder(a) - getSortOrder(b);
+    if (sortDelta !== 0) {
+      return direction === 'asc' ? sortDelta : -sortDelta;
+    }
+
+    return getTime(b.createdAt) - getTime(a.createdAt);
+  });
+};
 
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
@@ -24,7 +75,6 @@ export default function Sermons() {
   const [activeTab, setActiveTab] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
   const pageSize = 10;
   
   const currentSermons = sermons[activeTab] || { data: [], lastDoc: null, hasMore: true, fetched: false };
@@ -36,6 +86,19 @@ export default function Sermons() {
 
   const canWrite = !authLoading && role === 'admin';
   const isRegularMember = role === 'regular' || role === 'admin';
+
+  const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
+    const sermonsQuery = query(collection(db, 'posts'), where('category', '==', 'sermon'));
+    const snapshot = await getDocs(sermonsQuery);
+    const allSermons = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SermonPost[];
+    const filtered = filterSermonsByTab(allSermons, tab, categories);
+    const sorted = sortSermons(filtered, sortOrderDirection);
+    const startIndex = (page - 1) * pageSize;
+    const data = sorted.slice(startIndex, startIndex + pageSize);
+
+    setTotalCount(sorted.length);
+    setCategoryCollection('sermons', tab, data, null, startIndex + pageSize < sorted.length);
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -56,81 +119,25 @@ export default function Sermons() {
         }
 
         // Set Active Tab
-        let tab = activeTab;
+        let tab = activeTab || ALL_SERMONS_TAB;
         const tabParam = searchParams.get('tab');
-        if (tabParam && (cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
+        if (tabParam && (tabParam === ALL_SERMONS_TAB || cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
           tab = tabParam;
           if (activeTab !== tabParam) {
             setActiveTab(tabParam);
           }
-        } else if (cats.length > 0 && !activeTab) {
-          tab = cats[0].id;
+        } else if (!activeTab) {
+          tab = ALL_SERMONS_TAB;
           setActiveTab(tab);
         }
 
-        if (!tab) return;
-
         // Reset pagination when tab changes
         setCurrentPage(1);
-        setPageLastDocs({});
-
-        // Fetch Total Count
-        let countQ;
-        if (tab === 'uncategorized') {
-          countQ = query(collection(db, 'posts'), where('category', '==', 'sermon'));
-        } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
-          countQ = query(collection(db, 'posts'), where('category', '==', 'sermon'), where('subCategory', '==', tab));
-        } else {
-          countQ = query(collection(db, 'posts'), where('category', '==', 'sermon'), where('sermonCategoryId', '==', tab));
-        }
-        const countSnap = await getCountFromServer(countQ);
-        setTotalCount(countSnap.data().count);
 
         // Fetch Sermons for current tab (Page 1)
         setLoading(true);
         setError(null);
-        
-        let q;
-        const orderField = 'sortOrder';
-        const orderDir = sortOrderDirection;
-        
-        if (tab === 'uncategorized') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            limit(pageSize)
-          );
-        } else if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            where('subCategory', '==', tab),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            limit(pageSize)
-          );
-        } else {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            where('sermonCategoryId', '==', tab),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            limit(pageSize)
-          );
-        }
-
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-        const hasMore = snapshot.docs.length === pageSize;
-        
-        setCategoryCollection('sermons', tab, data, lastDoc, hasMore);
-        if (lastDoc) {
-          setPageLastDocs({ 1: lastDoc });
-        }
+        await fetchSermonsPage(tab, 1, cats);
       } catch (error: any) {
         console.error('Error fetching data:', error);
         let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
@@ -152,93 +159,13 @@ export default function Sermons() {
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
-    if (page > 1 && !pageLastDocs[page - 1]) return;
     
     setLoading(true);
     setError(null);
 
     try {
-      let q;
-      const orderField = 'sortOrder';
-      const orderDir = sortOrderDirection;
-
-      // If we have the anchor for the previous page, use it
-      const anchorDoc = pageLastDocs[page - 1];
-
-      if (page > 1 && anchorDoc) {
-        if (activeTab === 'uncategorized') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            startAfter(anchorDoc),
-            limit(pageSize)
-          );
-        } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            where('subCategory', '==', activeTab),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            startAfter(anchorDoc),
-            limit(pageSize)
-          );
-        } else {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            where('sermonCategoryId', '==', activeTab),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            startAfter(anchorDoc),
-            limit(pageSize)
-          );
-        }
-      } else {
-        if (activeTab === 'uncategorized') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            limit(pageSize)
-          );
-        } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            where('subCategory', '==', activeTab),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            limit(pageSize)
-          );
-        } else {
-          q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'sermon'),
-            where('sermonCategoryId', '==', activeTab),
-            orderBy(orderField, orderDir),
-            orderBy('createdAt', 'desc'),
-            limit(pageSize)
-          );
-        }
-      }
-
-      const snapshot = await getDocs(q);
-      let docs = snapshot.docs;
-      
-      const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-      const lastDoc = docs[docs.length - 1] || null;
-      const hasMore = docs.length === pageSize;
-      
-      setCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
+      await fetchSermonsPage(activeTab || ALL_SERMONS_TAB, page, sermonCategories);
       setCurrentPage(page);
-      
-      if (lastDoc) {
-        setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
-      }
     } catch (error: any) {
       console.error('Error changing page:', error);
       let errorMessage = '페이지를 이동하는 중 오류가 발생했습니다.';
@@ -256,50 +183,11 @@ export default function Sermons() {
   };
 
   const handleRefresh = async () => {
-    if (!activeTab) return;
     setLoading(true);
     setError(null);
     try {
-      let q;
-      const orderField = 'sortOrder';
-      const orderDir = sortOrderDirection;
-
-      if (activeTab === 'uncategorized') {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          orderBy(orderField, orderDir),
-          orderBy('createdAt', 'desc'),
-          limit(pageSize)
-        );
-      } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          where('subCategory', '==', activeTab),
-          orderBy(orderField, orderDir),
-          orderBy('createdAt', 'desc'),
-          limit(pageSize)
-        );
-      } else {
-        q = query(
-          collection(db, 'posts'),
-          where('category', '==', 'sermon'),
-          where('sermonCategoryId', '==', activeTab),
-          orderBy(orderField, orderDir),
-          orderBy('createdAt', 'desc'),
-          limit(pageSize)
-        );
-      }
-
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-      const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-      const hasMore = snapshot.docs.length === pageSize;
-      
-      setCategoryCollection('sermons', activeTab, data, lastDoc, hasMore);
+      await fetchSermonsPage(activeTab || ALL_SERMONS_TAB, 1, sermonCategories);
       setCurrentPage(1);
-      setPageLastDocs({ 1: lastDoc });
     } catch (error: any) {
       console.error('Error refreshing data:', error);
       setError('데이터를 새로고침하는 중 오류가 발생했습니다.');
@@ -360,7 +248,7 @@ export default function Sermons() {
         </div>
         {canWrite && (
           <Link
-            to={`/create-post?type=sermon${activeTab ? `&categoryId=${activeTab}` : ''}`}
+            to={`/create-post?type=sermon${activeTab && activeTab !== ALL_SERMONS_TAB ? `&categoryId=${activeTab}` : ''}`}
             className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
           >
             <Plus size={20} className="mr-2" />
@@ -371,6 +259,19 @@ export default function Sermons() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+          <button
+            onClick={() => {
+              setActiveTab(ALL_SERMONS_TAB);
+              setSearchParams({ tab: ALL_SERMONS_TAB });
+            }}
+            className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+              activeTab === ALL_SERMONS_TAB
+                ? 'bg-wood-900 text-white shadow-sm'
+                : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+            }`}
+          >
+            전체
+          </button>
           {sermonCategories.map((tab) => (
             <button
               key={tab.id}
@@ -541,17 +442,14 @@ export default function Sermons() {
                     pageNum === Math.ceil(totalCount / pageSize) || 
                     (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
                   ) {
-                    const canVisitPage = pageNum === 1 || !!pageLastDocs[pageNum - 1];
                     return (
                       <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
-                        disabled={loading || !canVisitPage}
+                        disabled={loading}
                         className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
                           currentPage === pageNum
                             ? 'bg-wood-900 text-white shadow-md'
-                            : !canVisitPage
-                              ? 'text-wood-300 cursor-not-allowed'
                             : 'text-wood-600 hover:bg-wood-50 border border-transparent'
                         }`}
                       >
