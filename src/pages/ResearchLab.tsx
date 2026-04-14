@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { BookOpen, Plus, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import ArchiveIntroSection from '../components/ArchiveIntroSection';
 
 interface ResearchCategory {
   id: string;
@@ -127,23 +128,22 @@ export default function ResearchLab() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-wood-200 pb-6 gap-4">
-        <div>
-          <p className="text-wood-600 text-lg">목사님의 연구 내용과 묵상을 나눕니다.</p>
-        </div>
-        {canWrite && (
-          <Link
-            to="/create-post?type=research"
-            className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
-          >
-            <Plus size={20} className="mr-2" />
-            연구글 작성
-          </Link>
-        )}
-      </div>
+      <div className="space-y-8">
+        <ArchiveIntroSection
+          description="목사님의 연구 내용과 묵상을 나눕니다."
+          action={canWrite ? (
+            <Link
+              to="/create-post?type=research"
+              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
+            >
+              <Plus size={20} className="mr-2" />
+              연구글 작성
+            </Link>
+          ) : null}
+        />
 
-      {/* 필터 및 정렬 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        {/* 필터 및 정렬 */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <button
             onClick={() => setActiveTab('all')}
@@ -243,6 +243,7 @@ export default function ResearchLab() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
