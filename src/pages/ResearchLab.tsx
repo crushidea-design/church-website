@@ -127,7 +127,7 @@ export default function ResearchLab() {
   const canWrite = !authLoading && role === 'admin';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
       <div className="space-y-8">
         <ArchiveIntroSection
           description="목사님의 연구 내용과 묵상을 나눕니다."
