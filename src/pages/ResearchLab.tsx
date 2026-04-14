@@ -159,6 +159,7 @@ export default function ResearchLab() {
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
+    if (page > 1 && !pageLastDocs[page - 1]) return;
     setLoading(true);
     try {
       let q;
@@ -173,12 +174,11 @@ export default function ResearchLab() {
       } else {
         q = query(collection(db, 'posts'), where('category', '==', 'research'),
             ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
-            orderBy(orderField, orderDir), limit(page * pageSize));
+            orderBy(orderField, orderDir), limit(pageSize));
       }
 
       const snapshot = await getDocs(q);
       let docs = snapshot.docs;
-      if (page > 1 && !anchorDoc) docs = docs.slice(-pageSize);
 
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = docs[docs.length - 1] || null;
@@ -336,7 +336,7 @@ export default function ResearchLab() {
               </button>
               <div className="flex items-center gap-1">
                 {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => (
-                  <button key={i} onClick={() => handlePageChange(i + 1)} disabled={loading} className={`w-11 h-11 rounded-xl text-sm font-bold transition-all ${currentPage === i + 1 ? 'bg-wood-900 text-white shadow-lg' : 'text-wood-600 hover:bg-wood-50'}`}>
+                  <button key={i} onClick={() => handlePageChange(i + 1)} disabled={loading || (i + 1 > 1 && !pageLastDocs[i])} className={`w-11 h-11 rounded-xl text-sm font-bold transition-all ${currentPage === i + 1 ? 'bg-wood-900 text-white shadow-lg' : (i + 1 > 1 && !pageLastDocs[i]) ? 'text-wood-300 cursor-not-allowed' : 'text-wood-600 hover:bg-wood-50'}`}>
                     {i + 1}
                   </button>
                 ))}

@@ -152,6 +152,7 @@ export default function Sermons() {
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
+    if (page > 1 && !pageLastDocs[page - 1]) return;
     
     setLoading(true);
     setError(null);
@@ -196,19 +197,13 @@ export default function Sermons() {
           );
         }
       } else {
-        // If jumping to a page we don't have an anchor for, or going back to page 1
-        // For simplicity and cost, if jumping forward we might need to fetch intermediate pages
-        // But for now, let's handle the jump by fetching with a larger limit and taking the last 10
-        // (This is still better than limit(1000))
-        const jumpLimit = page * pageSize;
-        
         if (activeTab === 'uncategorized') {
           q = query(
             collection(db, 'posts'),
             where('category', '==', 'sermon'),
             orderBy(orderField, orderDir),
             orderBy('createdAt', 'desc'),
-            limit(jumpLimit)
+            limit(pageSize)
           );
         } else if (activeTab === 'past_sermons' || activeTab === 'pilgrims_progress') {
           q = query(
@@ -217,7 +212,7 @@ export default function Sermons() {
             where('subCategory', '==', activeTab),
             orderBy(orderField, orderDir),
             orderBy('createdAt', 'desc'),
-            limit(jumpLimit)
+            limit(pageSize)
           );
         } else {
           q = query(
@@ -226,7 +221,7 @@ export default function Sermons() {
             where('sermonCategoryId', '==', activeTab),
             orderBy(orderField, orderDir),
             orderBy('createdAt', 'desc'),
-            limit(jumpLimit)
+            limit(pageSize)
           );
         }
       }
@@ -234,11 +229,6 @@ export default function Sermons() {
       const snapshot = await getDocs(q);
       let docs = snapshot.docs;
       
-      // If we did a jump fetch, take only the docs for the current page
-      if (page > 1 && !anchorDoc) {
-        docs = docs.slice((page - 1) * pageSize, page * pageSize);
-      }
-
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = docs[docs.length - 1] || null;
       const hasMore = docs.length === pageSize;
@@ -551,14 +541,17 @@ export default function Sermons() {
                     pageNum === Math.ceil(totalCount / pageSize) || 
                     (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
                   ) {
+                    const canVisitPage = pageNum === 1 || !!pageLastDocs[pageNum - 1];
                     return (
                       <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
-                        disabled={loading}
+                        disabled={loading || !canVisitPage}
                         className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
                           currentPage === pageNum
                             ? 'bg-wood-900 text-white shadow-md'
+                            : !canVisitPage
+                              ? 'text-wood-300 cursor-not-allowed'
                             : 'text-wood-600 hover:bg-wood-50 border border-transparent'
                         }`}
                       >

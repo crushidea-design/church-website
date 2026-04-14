@@ -14,6 +14,11 @@ export default function Profile() {
   const [readings, setReadings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'comments' | 'readings'>('posts');
+  const [loadedTabs, setLoadedTabs] = useState<Record<'posts' | 'comments' | 'readings', boolean>>({
+    posts: false,
+    comments: false,
+    readings: false,
+  });
   const [notificationStatus, setNotificationStatus] = useState<string>('default');
 
   // Meditation Editing State
@@ -28,6 +33,14 @@ export default function Profile() {
       setNotificationStatus('unsupported');
     }
   }, []);
+
+  useEffect(() => {
+    setPosts([]);
+    setComments([]);
+    setReadings([]);
+    setLoadedTabs({ posts: false, comments: false, readings: false });
+    setLoading(!!user);
+  }, [user?.uid]);
 
   const handleEnableNotifications = async () => {
     if (user) {
@@ -65,52 +78,57 @@ export default function Profile() {
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user) return;
+      if (loadedTabs[activeTab]) {
+        setLoading(false);
+        return;
+      }
       
       try {
         setLoading(true);
-        
-        // Fetch user's posts
-        const postsQuery = query(
-          collection(db, 'posts'),
-          where('authorId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-        const postsSnapshot = await getDocs(postsQuery);
-        const postsData = postsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()
-        }));
-        setPosts(postsData);
 
-        // Fetch user's comments
-        const commentsQuery = query(
-          collection(db, 'comments'),
-          where('authorId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-        const commentsSnapshot = await getDocs(commentsQuery);
-        const commentsData = commentsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()
-        }));
-        setComments(commentsData);
+        if (activeTab === 'posts') {
+          const postsQuery = query(
+            collection(db, 'posts'),
+            where('authorId', '==', user.uid),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+          const postsSnapshot = await getDocs(postsQuery);
+          const postsData = postsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate()
+          }));
+          setPosts(postsData);
+        } else if (activeTab === 'comments') {
+          const commentsQuery = query(
+            collection(db, 'comments'),
+            where('authorId', '==', user.uid),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+          const commentsSnapshot = await getDocs(commentsQuery);
+          const commentsData = commentsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate()
+          }));
+          setComments(commentsData);
+        } else {
+          const readingsQuery = query(
+            collection(db, 'users', user.uid, 'readings'),
+            orderBy('date', 'desc'),
+            limit(30)
+          );
+          const readingsSnapshot = await getDocs(readingsQuery);
+          const readingsData = readingsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setReadings(readingsData);
+        }
 
-        // Fetch user's reading history
-        const readingsQuery = query(
-          collection(db, 'users', user.uid, 'readings'),
-          orderBy('date', 'desc'),
-          limit(30) // Show last 30 days
-        );
-        const readingsSnapshot = await getDocs(readingsQuery);
-        const readingsData = readingsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setReadings(readingsData);
+        setLoadedTabs(prev => ({ ...prev, [activeTab]: true }));
         
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -120,7 +138,7 @@ export default function Profile() {
     };
 
     fetchUserData();
-  }, [user]);
+  }, [user, activeTab, loadedTabs]);
 
   const handleUpdateMeditation = async (readingId: string) => {
     if (!user) return;
