@@ -1,13 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { 
   handleFirestoreError as baseHandleFirestoreError, 
-  OperationType, 
-  testFirestoreConnection 
+  OperationType
 } from './firestore-errors';
 
 // Configuration with environment variable fallback
@@ -57,9 +56,6 @@ if (typeof window !== 'undefined') {
     console.warn('Error checking messaging support:', err);
   });
 }
-
-// Test connection on boot
-testFirestoreConnection(db);
 
 export const googleProvider = new GoogleAuthProvider();
 

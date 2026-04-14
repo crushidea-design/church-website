@@ -1,6 +1,6 @@
 import { messaging, db } from '../lib/firebase';
 import { getToken, onMessage, isSupported } from 'firebase/messaging';
-import { collection, addDoc, query, where, getDocs, serverTimestamp, limit } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // IMPORTANT: This VAPID key must be replaced with the one from your Firebase Console
 // Project Settings -> Cloud Messaging -> Web configuration -> Web Push certificates
@@ -73,29 +73,13 @@ export const requestNotificationPermission = async (userId: string) => {
           return token;
         }
 
-        // Store token in Firestore
-        const tokensRef = collection(db, 'fcm_tokens');
-        const q = query(tokensRef, where('userId', '==', userId), where('token', '==', token));
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-          console.log('Saving new token to Firestore...');
-          await addDoc(tokensRef, {
-            userId: userId || 'anonymous',
-            token,
-            updatedAt: serverTimestamp()
-          });
-          console.log('Token saved successfully');
-        } else {
-          console.log('Token already exists in Firestore, updating updatedAt...');
-          const docId = snapshot.docs[0].id;
-          const { updateDoc, doc } = await import('firebase/firestore');
-          await updateDoc(doc(db, 'fcm_tokens', docId), {
-            updatedAt: serverTimestamp(),
-            userId: userId || 'anonymous' // Update userId in case it changed (e.g. logged in)
-          });
-          console.log('Token updatedAt refreshed');
-        }
+        const tokenDocId = btoa(token).replace(/[^a-zA-Z0-9]/g, '').slice(0, 120);
+        await setDoc(doc(db, 'fcm_tokens', tokenDocId), {
+          userId: userId || 'anonymous',
+          token,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        console.log('Token synced to Firestore');
 
         // Subscribe to all_members topic for zero-read broadcasts
         try {

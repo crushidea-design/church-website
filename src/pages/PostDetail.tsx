@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment, serverTimestamp, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment, serverTimestamp, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -15,6 +15,9 @@ export default function PostDetail() {
   
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
+  const [lastCommentDoc, setLastCommentDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [hasMoreComments, setHasMoreComments] = useState(false);
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -92,11 +95,14 @@ export default function PostDetail() {
         const q = query(
           collection(db, 'comments'),
           where('postId', '==', id),
-          orderBy('createdAt', 'asc')
+          orderBy('createdAt', 'asc'),
+          limit(20)
         );
         const commentsSnap = await getDocs(q);
         const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setComments(commentsData);
+        setLastCommentDoc(commentsSnap.docs[commentsSnap.docs.length - 1] || null);
+        setHasMoreComments(commentsSnap.docs.length === 20);
 
         // Fetch prev/next posts
         try {
@@ -163,16 +169,6 @@ export default function PostDetail() {
           console.error("Error fetching prev/next posts", e);
         }
 
-        // Auto-heal comment count if it mismatches
-        const actualCommentCount = commentsData.length;
-        if ((postData.commentCount || 0) !== actualCommentCount) {
-          try {
-            await updateDoc(postRef, { commentCount: actualCommentCount });
-            setPost((prev: any) => prev ? { ...prev, commentCount: actualCommentCount } : null);
-          } catch (e) {
-            console.error('Failed to auto-heal comment count', e);
-          }
-        }
       } catch (error) {
         console.error('Error fetching data:', error);
         handleFirestoreError(error, OperationType.GET, 'posts/comments');
@@ -183,6 +179,31 @@ export default function PostDetail() {
 
     fetchPostAndComments();
   }, [id, navigate, role, user]);
+
+  const handleLoadMoreComments = async () => {
+    if (!id || !lastCommentDoc || loadingMoreComments || !hasMoreComments) return;
+
+    setLoadingMoreComments(true);
+    try {
+      const q = query(
+        collection(db, 'comments'),
+        where('postId', '==', id),
+        orderBy('createdAt', 'asc'),
+        startAfter(lastCommentDoc),
+        limit(20)
+      );
+      const commentsSnap = await getDocs(q);
+      const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setComments(prev => [...prev, ...commentsData]);
+      setLastCommentDoc(commentsSnap.docs[commentsSnap.docs.length - 1] || null);
+      setHasMoreComments(commentsSnap.docs.length === 20);
+    } catch (error) {
+      console.error('Error loading more comments:', error);
+      handleFirestoreError(error, OperationType.GET, 'comments');
+    } finally {
+      setLoadingMoreComments(false);
+    }
+  };
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +229,7 @@ export default function PostDetail() {
         updatedAt: serverTimestamp()
       });
 
-      setComments([newCommentObj, ...comments]);
+      setComments([...comments, newCommentObj]);
       setPost({ ...post, commentCount: (post.commentCount || 0) + 1, updatedAt: new Date() });
       setNewComment('');
     } catch (error) {
@@ -461,7 +482,7 @@ export default function PostDetail() {
                 <span>&bull;</span>
                 <span>{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
                 <span>&bull;</span>
-                <span className="flex items-center gap-1"><MessageSquare size={14} /> {comments.length}</span>
+                <span className="flex items-center gap-1"><MessageSquare size={14} /> {post.commentCount || comments.length}</span>
               </div>
             </div>
             
@@ -678,6 +699,17 @@ export default function PostDetail() {
               </div>
             ))}
           </div>
+          {hasMoreComments && (
+            <div className="mt-8 flex justify-center">
+              <button
+                onClick={handleLoadMoreComments}
+                disabled={loadingMoreComments}
+                className="px-6 py-2.5 bg-wood-50 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200 disabled:opacity-50"
+              >
+                {loadingMoreComments ? '遺덈윭?ㅻ뒗 以?..' : '?볤? ??蹂닿린'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
