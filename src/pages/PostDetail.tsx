@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth';
 import { formatDate, YOUTUBE_REGEX, getYouTubeId } from '../lib/utils';
 import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText, Plus } from 'lucide-react';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
+import { useStore } from '../store/useStore';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -91,9 +92,17 @@ export default function PostDetail() {
 
         if (postData.category === 'research' && postData.researchCategoryId) {
           try {
-            const categorySnap = await getDoc(doc(db, 'research_categories', postData.researchCategoryId));
-            if (categorySnap.exists()) {
-              setResearchCategoryName(categorySnap.data().name || '');
+            const storeState = useStore.getState();
+            const cachedCategory = storeState.researchCategories.find((category: any) => category.id === postData.researchCategoryId);
+
+            if (cachedCategory?.name) {
+              setResearchCategoryName(cachedCategory.name);
+            } else {
+              const categoryQ = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
+              const categorySnap = await getDocs(categoryQ);
+              const categories = categorySnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+              storeState.setCategories('researchCategories', categories);
+              setResearchCategoryName(categories.find((category: any) => category.id === postData.researchCategoryId)?.name || '');
             }
           } catch (e) {
             console.error('Error fetching research category:', e);
@@ -226,6 +235,7 @@ export default function PostDetail() {
     try {
       const commentData = {
         postId: id,
+        postCategory: post?.category || 'community',
         content: newComment.trim(),
         authorId: user.uid,
         authorName: user.displayName || '익명',

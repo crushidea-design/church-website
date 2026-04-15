@@ -72,16 +72,26 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == resource.data.authorId;
     }
     
+    function currentUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && 
-        ((request.auth.token.email == "crushidea@gmail.com") ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+      return isAuthenticated() &&
+        (request.auth.token.email == "crushidea@gmail.com" ||
+         currentUserData().role == 'admin');
     }
 
     function isRegularMember() {
-      return isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'regular');
+      return isAuthenticated() &&
+        (request.auth.token.email == "crushidea@gmail.com" ||
+         currentUserData().role in ['admin', 'regular']);
+    }
+
+    function canReadPostData(postData) {
+      return postData.category != 'sermon' ||
+             isRegularMember() ||
+             (isAuthenticated() && postData.authorId == request.auth.uid);
     }
     
     function hasOnlyAllowedFields(fields) {
@@ -105,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'uid', 'viewCount', 'isPublished', 'scheduledAt', 'targetUserIds'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -116,6 +126,9 @@ service cloud.firestore {
              (!('updatedAt' in data) || data.updatedAt is timestamp) &&
              (!('commentCount' in data) || (data.commentCount is number && data.commentCount >= 0)) &&
              (!('viewCount' in data) || (data.viewCount is number && data.viewCount >= 0)) &&
+             (!('sortOrder' in data) || data.sortOrder is number) &&
+             (!('isLongContent' in data) || data.isLongContent is bool) &&
+             (!('fullContentLength' in data) || (data.fullContentLength is number && data.fullContentLength >= 0)) &&
              (!('pdfUrl' in data) || (data.pdfUrl is string && data.pdfUrl.size() < 2000)) &&
              (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500)) &&
              (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1000000)) &&
@@ -134,8 +147,9 @@ service cloud.firestore {
     }
 
     function isValidComment(data) {
-      return hasOnlyAllowedFields(['postId', 'content', 'authorId', 'authorName', 'createdAt']) &&
+      return hasOnlyAllowedFields(['postId', 'postCategory', 'content', 'authorId', 'authorName', 'createdAt']) &&
              data.postId is string && data.postId.size() > 0 &&
+             (!('postCategory' in data) || data.postCategory in ['research', 'community', 'sermon', 'journal', 'today_word']) &&
              data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
              data.authorId is string && data.authorId == request.auth.uid &&
              data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
@@ -203,7 +217,7 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if resource.data.category != 'sermon' || isRegularMember() || resource.data.authorId == request.auth.uid;
+      allow read: if canReadPostData(resource.data);
       allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
                     request.resource.data.authorId == request.auth.uid &&
                     (request.resource.data.category == 'community' || isAdmin()); // Only admin can post research/sermon
@@ -220,9 +234,7 @@ service cloud.firestore {
     }
 
     match /post_pdfs/{chunkId} {
-      allow read: if !exists(/databases/$(database)/documents/posts/$(resource.data.postId)) || 
-                     get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.category != 'sermon' || 
-                     isRegularMember();
+      allow read: if canReadPostData(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data);
       allow create: if isAuthenticated() && 
                     request.resource.data.keys().hasAll(['postId', 'index', 'data']) &&
                     request.resource.data.data is string && request.resource.data.data.size() <= 1000000 &&
@@ -233,15 +245,30 @@ service cloud.firestore {
                     (isAdmin() || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorId == request.auth.uid);
     }
 
+    match /post_contents/{chunkId} {
+      allow read: if canReadPostData(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data);
+      allow create, update: if isAuthenticated() &&
+                    request.resource.data.keys().hasOnly(['postId', 'index', 'content', 'createdAt']) &&
+                    request.resource.data.postId is string &&
+                    request.resource.data.index is number &&
+                    request.resource.data.content is string &&
+                    request.resource.data.content.size() <= 50000 &&
+                    request.resource.data.createdAt is timestamp &&
+                    (isAdmin() || get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.authorId == request.auth.uid);
+      allow delete: if isAuthenticated() &&
+                    (isAdmin() || get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorId == request.auth.uid);
+    }
+
     match /comments/{commentId} {
-      allow read: if resource.data.authorId == request.auth.uid ||
-                     !exists(/databases/$(database)/documents/posts/$(resource.data.postId)) || 
-                     get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.category != 'sermon' || 
-                     isRegularMember();
+      allow read: if (isAuthenticated() && resource.data.authorId == request.auth.uid) ||
+                     (('postCategory' in resource.data)
+                       ? (resource.data.postCategory != 'sermon' || isRegularMember())
+                       : canReadPostData(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data));
       allow create: if isAuthenticated() && isValidComment(request.resource.data);
       allow update: if isAuthenticated() && isDocOwner() && isValidComment(request.resource.data) &&
                     request.resource.data.authorId == resource.data.authorId &&
                     request.resource.data.postId == resource.data.postId &&
+                    request.resource.data.postCategory == resource.data.postCategory &&
                     request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
     }

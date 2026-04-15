@@ -127,10 +127,14 @@ export default function TodayWord() {
   const [selectedLink, setSelectedLink] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
 
-  const readingPlan = getMcheyneReadingPlan(selectedDate);
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  const readingPlan = React.useMemo(() => getMcheyneReadingPlan(selectedDate), [dateStr]);
   
-  const { todayWords, todayWordProgress, setTodayWord, setTodayWordProgress } = useStore();
+  const cachedTodayWord = useStore((state) => state.todayWords[dateStr]);
+  const progressCacheKey = user ? `${user.uid}_${dateStr}` : '';
+  const cachedProgress = useStore((state) => progressCacheKey ? state.todayWordProgress[progressCacheKey] : undefined);
+  const setTodayWord = useStore((state) => state.setTodayWord);
+  const setTodayWordProgress = useStore((state) => state.setTodayWordProgress);
 
   const openBridgeModal = (link: string, version: string) => {
     setSelectedLink(link);
@@ -160,8 +164,8 @@ export default function TodayWord() {
       setLoading(true);
       try {
         // 1. Fetch Post
-        if (todayWords[dateStr] !== undefined) {
-          if (!ignore) setLatestPost(todayWords[dateStr]);
+        if (cachedTodayWord !== undefined) {
+          if (!ignore) setLatestPost(cachedTodayWord);
         } else {
           const start = startOfDay(selectedDate);
           const end = endOfDay(selectedDate);
@@ -221,8 +225,8 @@ export default function TodayWord() {
         // 2. Fetch User Progress
         if (user) {
           const cacheKey = `${user.uid}_${dateStr}`;
-          if (todayWordProgress[cacheKey]) {
-            const data = todayWordProgress[cacheKey];
+          if (cachedProgress) {
+            const data = cachedProgress;
             if (!ignore) {
               setReadingProgress(data.progress || new Array(readingPlan.length).fill(false));
               setMeditation(data.meditation || '');
@@ -264,7 +268,7 @@ export default function TodayWord() {
     return () => {
       ignore = true;
     };
-  }, [selectedDate, user, dateStr, readingPlan.length, todayWords, todayWordProgress, setTodayWord, setTodayWordProgress]);
+  }, [selectedDate, user, role, dateStr, readingPlan.length, cachedTodayWord, cachedProgress, setTodayWord, setTodayWordProgress]);
 
   const handleToggleProgress = async (index: number) => {
     if (!user) {
