@@ -13,7 +13,7 @@ const DEFAULT_HERO_IMAGE = "https://lh3.googleusercontent.com/d/1V0VulPP6zYJLhZC
 
 export default function Home() {
   const { user, role } = useAuth();
-  const { homeLatestPosts, homeLatestPostsFetched, setHomeLatestPosts } = useStore();
+  const { homeLatestPosts, homeLatestPostsFetched, researchCategories, setHomeLatestPosts, setCategories } = useStore();
   
   const [heroImage, setHeroImage] = useState(DEFAULT_HERO_IMAGE);
   const [isEditing, setIsEditing] = useState(false);
@@ -36,10 +36,14 @@ export default function Home() {
       if (cachedData) {
         try {
           const { posts, timestamp } = JSON.parse(cachedData);
-          if (Date.now() - timestamp < CACHE_TTL) {
+          const cacheNeedsCategoryId = posts.some((post: any) => post.category === 'research' && !post.researchCategoryId);
+          if (!cacheNeedsCategoryId && Date.now() - timestamp < CACHE_TTL) {
             setHomeLatestPosts(posts);
             setLoadingPosts(false);
             return;
+          }
+          if (cacheNeedsCategoryId) {
+            localStorage.removeItem(CACHE_KEY);
           }
         } catch (e) {
           localStorage.removeItem(CACHE_KEY);
@@ -65,6 +69,17 @@ export default function Home() {
               postsData.push(summaryData[cat]);
             }
           });
+
+          await Promise.all(postsData.map(async (post) => {
+            if (post.category !== 'research' || post.researchCategoryId || !post.id) return;
+
+            const postSnap = await getDoc(doc(db, 'posts', post.id));
+            if (postSnap.exists()) {
+              const data = postSnap.data();
+              post.researchCategoryId = data.researchCategoryId || null;
+              post.subCategory = data.subCategory || post.subCategory;
+            }
+          }));
 
           // Sort by createdAt descending
           postsData.sort((a, b) => {
@@ -168,6 +183,24 @@ export default function Home() {
     fetchHeroImage();
   }, []);
 
+  useEffect(() => {
+    const hasResearchPost = homeLatestPosts.some((post: any) => post.category === 'research');
+    if (!hasResearchPost) return;
+
+    const fetchResearchCategories = async () => {
+      try {
+        const catQ = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
+        const catSnap = await getDocs(catQ);
+        const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCategories('researchCategories', cats);
+      } catch (error) {
+        console.error('Error fetching research categories for home:', error);
+      }
+    };
+
+    fetchResearchCategories();
+  }, [homeLatestPosts, setCategories]);
+
   const handleUpdateHero = async () => {
     let url = newImageUrl.trim();
     if (!url) return;
@@ -211,6 +244,9 @@ export default function Home() {
 
   const getCategoryName = (post: any) => {
     if (post.category === 'research') {
+      const categoryName = researchCategories.find((category: any) => category.id === post.researchCategoryId)?.name;
+      if (categoryName) return categoryName;
+
       return post.subCategory === 'worship' ? '예배' :
              post.subCategory === 'preaching' ? '설교' :
              post.subCategory === 'pastoring' ? '목양' :

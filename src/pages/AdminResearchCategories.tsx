@@ -5,6 +5,7 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { FlaskConical, Plus, Trash2, ChevronUp, ChevronDown, Edit2, Save, X, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useStore } from '../store/useStore';
 
 interface ResearchCategory {
   id: string;
@@ -15,6 +16,8 @@ interface ResearchCategory {
 
 export default function AdminResearchCategories() {
   const { role, loading: authLoading } = useAuth();
+  const setStoreCategories = useStore((state) => state.setCategories);
+  const invalidateCache = useStore((state) => state.invalidateCache);
   const [categories, setCategories] = useState<ResearchCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -39,6 +42,8 @@ export default function AdminResearchCategories() {
         ...doc.data()
       })) as ResearchCategory[];
       setCategories(data);
+      setStoreCategories('researchCategories', data);
+      invalidateCache('research');
       setLoading(false);
     }, (error) => {
       console.error('Error fetching research categories:', error);

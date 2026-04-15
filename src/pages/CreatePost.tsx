@@ -393,6 +393,8 @@ export default function CreatePost() {
           content: content.trim().substring(0, 500), // Store a snippet
           category: type,
           subCategory: subCategory,
+          sermonCategoryId: postData.sermonCategoryId || null,
+          researchCategoryId: postData.researchCategoryId || null,
           createdAt: new Date().toISOString(), // Use ISO string for summary to avoid timestamp issues in simple doc
           authorName: user.displayName || '익명'
         };

@@ -301,6 +301,8 @@ export default function EditPost() {
               content: content.trim().substring(0, 500),
               category: type,
               subCategory: subCategory,
+              sermonCategoryId: updateData.sermonCategoryId || sermonCategoryId || null,
+              researchCategoryId: updateData.researchCategoryId || researchCategoryId || null,
               createdAt: summaryData[type].createdAt, // Keep original creation date
               authorName: user?.displayName || '익명'
             };
