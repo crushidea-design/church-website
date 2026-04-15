@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
   collection, query, where, orderBy, getDocs, limit, 
   startAfter, getCountFromServer
@@ -20,9 +20,11 @@ interface ResearchCategory {
 
 export default function ResearchLab() {
   const { user, role, loading: authLoading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const { research, researchCategories, setCategoryCollection, setCategories } = useStore();
   
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(tabParam || 'all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
@@ -37,12 +39,21 @@ export default function ResearchLab() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        let cats = researchCategories;
-        if (cats.length === 0) {
-          const catQ = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
-          const catSnap = await getDocs(catQ);
-          cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ResearchCategory[];
-          setCategories('researchCategories', cats);
+        const catQ = query(collection(db, 'research_categories'), orderBy('order', 'asc'));
+        const catSnap = await getDocs(catQ);
+        const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ResearchCategory[];
+        setCategories('researchCategories', cats);
+
+        const requestedTab = tabParam || activeTab || 'all';
+        const effectiveTab = requestedTab === 'all' || cats.some(cat => cat.id === requestedTab)
+          ? requestedTab
+          : 'all';
+
+        if (effectiveTab !== activeTab) {
+          setActiveTab(effectiveTab);
+        }
+        if (tabParam && tabParam !== effectiveTab) {
+          setSearchParams(effectiveTab === 'all' ? {} : { tab: effectiveTab }, { replace: true });
         }
 
         setLoading(true);
@@ -51,10 +62,10 @@ export default function ResearchLab() {
         setPageLastDocs({});
 
         let countQ;
-        if (activeTab === 'all') {
+        if (effectiveTab === 'all') {
           countQ = query(collection(db, 'posts'), where('category', '==', 'research'));
         } else {
-          countQ = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', activeTab));
+          countQ = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab));
         }
         const countSnap = await getCountFromServer(countQ);
         setTotalCount(countSnap.data().count);
@@ -63,16 +74,16 @@ export default function ResearchLab() {
         const orderField = 'title';
         const orderDir = sortOrderDirection;
 
-        if (activeTab === 'all') {
+        if (effectiveTab === 'all') {
           q = query(collection(db, 'posts'), where('category', '==', 'research'), orderBy(orderField, orderDir), limit(pageSize));
         } else {
-          q = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', activeTab), orderBy(orderField, orderDir), limit(pageSize));
+          q = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab), orderBy(orderField, orderDir), limit(pageSize));
         }
 
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
         const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-        setCategoryCollection('research', activeTab, data, lastDoc, snapshot.docs.length === pageSize);
+        setCategoryCollection('research', effectiveTab, data, lastDoc, snapshot.docs.length === pageSize);
         if (lastDoc) setPageLastDocs({ 1: lastDoc });
       } catch (error: any) {
         console.error('Error fetching data:', error);
@@ -82,7 +93,12 @@ export default function ResearchLab() {
       }
     };
     fetchInitialData();
-  }, [activeTab, sortOrderDirection]);
+  }, [activeTab, tabParam, sortOrderDirection]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'all' ? {} : { tab });
+  };
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
@@ -133,7 +149,7 @@ export default function ResearchLab() {
           description="목사님의 연구 내용과 묵상을 나눕니다."
           action={canWrite ? (
             <Link
-              to="/create-post?type=research"
+              to={`/create-post?type=research${activeTab && activeTab !== 'all' ? `&categoryId=${activeTab}` : ''}`}
               className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
             >
               <Plus size={20} className="mr-2" />
@@ -146,7 +162,7 @@ export default function ResearchLab() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <button
-            onClick={() => setActiveTab('all')}
+            onClick={() => handleTabChange('all')}
             className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
               activeTab === 'all'
                 ? 'bg-wood-900 text-white shadow-md transform scale-105'
@@ -158,7 +174,7 @@ export default function ResearchLab() {
           {researchCategories.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setActiveTab(cat.id)}
+              onClick={() => handleTabChange(cat.id)}
               className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
                 activeTab === cat.id
                   ? 'bg-wood-900 text-white shadow-md transform scale-105'

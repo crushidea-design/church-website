@@ -27,6 +27,7 @@ export default function PostDetail() {
   const [isDeletingComment, setIsDeletingComment] = useState<string | null>(null);
   const [prevPost, setPrevPost] = useState<{ id: string, title: string } | null>(null);
   const [nextPost, setNextPost] = useState<{ id: string, title: string } | null>(null);
+  const [researchCategoryName, setResearchCategoryName] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -86,6 +87,18 @@ export default function PostDetail() {
         }
 
         setPost(postData);
+        setResearchCategoryName('');
+
+        if (postData.category === 'research' && postData.researchCategoryId) {
+          try {
+            const categorySnap = await getDoc(doc(db, 'research_categories', postData.researchCategoryId));
+            if (categorySnap.exists()) {
+              setResearchCategoryName(categorySnap.data().name || '');
+            }
+          } catch (e) {
+            console.error('Error fetching research category:', e);
+          }
+        }
 
         if (postData.pdfUrl) {
           console.log('PDF Data detected (URL):', postData.pdfUrl);
@@ -293,6 +306,8 @@ export default function PostDetail() {
                 content: nextData.content.substring(0, 500),
                 category: category,
                 subCategory: nextData.subCategory || 'general',
+                sermonCategoryId: nextData.sermonCategoryId || null,
+                researchCategoryId: nextData.researchCategoryId || null,
                 createdAt: nextData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
                 authorName: nextData.authorName || '익명'
               };
@@ -416,6 +431,25 @@ export default function PostDetail() {
   if (!post) return null;
 
   const isAdmin = role === 'admin';
+  const getPostCategoryLabel = () => {
+    if (post.category === 'research') {
+      if (researchCategoryName) return researchCategoryName;
+      return post.subCategory === 'worship' ? '예배' :
+        post.subCategory === 'preaching' ? '설교' :
+        post.subCategory === 'pastoring' ? '목양' :
+        post.subCategory === 'governing' ? '치리' :
+        post.subCategory === 'general' ? '일반' : '연구실';
+    }
+
+    if (post.category === 'sermon') {
+      return post.subCategory === 'past_sermons' ? '지난 설교들' :
+        post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재';
+    }
+
+    if (post.category === 'today_word') return '오늘의 묵상';
+    if (post.category === 'journal') return '개척 일지';
+    return '소통 게시판';
+  };
 
   return (
     <div className="bg-wood-100 min-h-screen py-12">
@@ -439,6 +473,8 @@ export default function PostDetail() {
               } else if (post?.category === 'sermon' && post.subCategory) {
                 // Fallback for legacy subCategory
                 path += `?tab=${post.subCategory}`;
+              } else if (post?.category === 'research' && post.researchCategoryId) {
+                path += `?tab=${post.researchCategoryId}`;
               }
               
               navigate(path);
@@ -465,17 +501,7 @@ export default function PostDetail() {
           <div className="p-8 md:p-12">
             <div className="flex items-center justify-between mb-6">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-wood-50 text-wood-800">
-                {post.category === 'research' ? (
-                  post.subCategory === 'worship' ? '예배' :
-                  post.subCategory === 'preaching' ? '설교' :
-                  post.subCategory === 'pastoring' ? '목양' :
-                  post.subCategory === 'governing' ? '치리' :
-                  post.subCategory === 'general' ? '일반' : '연구실'
-                ) : post.category === 'sermon' ? (
-                  post.subCategory === 'past_sermons' ? '지난 설교들' :
-                  post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재'
-                ) : post.category === 'today_word' ? '오늘의 묵상' :
-                post.category === 'journal' ? '개척 일지' : '소통 게시판'}
+                {getPostCategoryLabel()}
               </span>
               <div className="flex items-center text-sm text-wood-600 gap-4">
                 <span>{post.authorName}</span>
