@@ -37,6 +37,29 @@ const isUncategorizedSermon = (post: SermonPost, categories: SermonCategory[]) =
   return !hasValidCategory && !isLegacySermon(post);
 };
 
+const getCreatedAtTime = (value: any) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return value;
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const getSermonSortOrder = (post: SermonPost) => {
+  return typeof post.sortOrder === 'number' ? post.sortOrder : generateSortOrder(post.title || '');
+};
+
+const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
+  return [...posts].sort((a, b) => {
+    const sortDiff = getSermonSortOrder(a) - getSermonSortOrder(b);
+    if (sortDiff !== 0) return direction === 'asc' ? sortDiff : -sortDiff;
+
+    return getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt);
+  });
+};
+
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,7 +83,6 @@ export default function Sermons() {
   const isRegularMember = role === 'regular' || role === 'admin';
 
   const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
-    const orderDir = sortOrderDirection;
     const anchorDoc = page > 1 ? pageLastDocs[page - 1] : null;
 
     if (page > 1 && !anchorDoc) return;
@@ -74,8 +96,6 @@ export default function Sermons() {
     }
 
     const paginationConstraints = [
-      orderBy('sortOrder', orderDir),
-      orderBy('createdAt', 'desc'),
       ...(anchorDoc ? [startAfter(anchorDoc)] : []),
       limit(tab === 'uncategorized' ? 100 : pageSize + 1)
     ];
@@ -154,7 +174,7 @@ export default function Sermons() {
     };
 
     fetchInitialData();
-  }, [authLoading, isRegularMember, tabParam, sermonCategories.length, sortOrderDirection]);
+  }, [authLoading, isRegularMember, tabParam, sermonCategories.length]);
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || loading) return;
@@ -202,17 +222,20 @@ export default function Sermons() {
   );
 
   const sortedVideos = React.useMemo(() => {
-    // The query already filters and sorts the data from Firestore.
+    const videos = currentSermons.data as SermonPost[];
+
     if (activeTab === 'uncategorized') {
-      return currentSermons.data.filter(video => {
+      const uncategorizedVideos = videos.filter(video => {
         const hasValidCategory = sermonCategories.some(c => c.id === video.sermonCategoryId);
         const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
         return !hasValidCategory && !isLegacy;
       });
+
+      return sortSermons(uncategorizedVideos, sortOrderDirection);
     }
 
-    return currentSermons.data;
-  }, [currentSermons.data, activeTab, sermonCategories]);
+    return sortSermons(videos, sortOrderDirection);
+  }, [currentSermons.data, activeTab, sermonCategories, sortOrderDirection]);
 
   if (!authLoading && !isRegularMember) {
     return (
