@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   collection, query, where, orderBy, getDocs, limit, 
-  startAfter, getCountFromServer
+  startAfter
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -26,7 +26,6 @@ export default function ResearchLab() {
   
   const [activeTab, setActiveTab] = useState(tabParam || 'all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
   const pageSize = 10;
   
@@ -61,29 +60,21 @@ export default function ResearchLab() {
         setCurrentPage(1);
         setPageLastDocs({});
 
-        let countQ;
-        if (effectiveTab === 'all') {
-          countQ = query(collection(db, 'posts'), where('category', '==', 'research'));
-        } else {
-          countQ = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab));
-        }
-        const countSnap = await getCountFromServer(countQ);
-        setTotalCount(countSnap.data().count);
-
         let q;
         const orderField = 'title';
         const orderDir = sortOrderDirection;
 
         if (effectiveTab === 'all') {
-          q = query(collection(db, 'posts'), where('category', '==', 'research'), orderBy(orderField, orderDir), limit(pageSize));
+          q = query(collection(db, 'posts'), where('category', '==', 'research'), orderBy(orderField, orderDir), limit(pageSize + 1));
         } else {
-          q = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab), orderBy(orderField, orderDir), limit(pageSize));
+          q = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab), orderBy(orderField, orderDir), limit(pageSize + 1));
         }
 
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
-        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-        setCategoryCollection('research', effectiveTab, data, lastDoc, snapshot.docs.length === pageSize);
+        const pageDocs = snapshot.docs.slice(0, pageSize);
+        const data = pageDocs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
+        const lastDoc = pageDocs[pageDocs.length - 1] || null;
+        setCategoryCollection('research', effectiveTab, data, lastDoc, snapshot.docs.length > pageSize);
         if (lastDoc) setPageLastDocs({ 1: lastDoc });
       } catch (error: any) {
         console.error('Error fetching data:', error);
@@ -101,7 +92,7 @@ export default function ResearchLab() {
   };
 
   const handlePageChange = async (page: number) => {
-    if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
+    if (page === currentPage || page < 1 || loading) return;
     if (page > 1 && !pageLastDocs[page - 1]) return;
     setLoading(true);
     try {
@@ -113,19 +104,19 @@ export default function ResearchLab() {
       if (page > 1 && anchorDoc) {
         q = query(collection(db, 'posts'), where('category', '==', 'research'), 
             ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
-            orderBy(orderField, orderDir), startAfter(anchorDoc), limit(pageSize));
+            orderBy(orderField, orderDir), startAfter(anchorDoc), limit(pageSize + 1));
       } else {
         q = query(collection(db, 'posts'), where('category', '==', 'research'),
             ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
-            orderBy(orderField, orderDir), limit(pageSize));
+            orderBy(orderField, orderDir), limit(pageSize + 1));
       }
 
       const snapshot = await getDocs(q);
-      let docs = snapshot.docs;
+      let docs = snapshot.docs.slice(0, pageSize);
 
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = docs[docs.length - 1] || null;
-      setCategoryCollection('research', activeTab, data, lastDoc, docs.length === pageSize);
+      setCategoryCollection('research', activeTab, data, lastDoc, snapshot.docs.length > pageSize);
       setCurrentPage(page);
       if (lastDoc) setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
     } catch (err) {
@@ -240,19 +231,15 @@ export default function ResearchLab() {
           </div>
 
           {/* 페이지네이션 */}
-          {totalCount > pageSize && (
+          {(currentPage > 1 || currentResearch.hasMore) && (
             <div className="flex justify-center items-center gap-2 mt-16">
               <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
                 <ChevronLeft size={20} />
               </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => (
-                  <button key={i} onClick={() => handlePageChange(i + 1)} disabled={loading || (i + 1 > 1 && !pageLastDocs[i])} className={`w-11 h-11 rounded-xl text-sm font-bold transition-all ${currentPage === i + 1 ? 'bg-wood-900 text-white shadow-lg' : (i + 1 > 1 && !pageLastDocs[i]) ? 'text-wood-300 cursor-not-allowed' : 'text-wood-600 hover:bg-wood-50'}`}>
-                    {i + 1}
-                  </button>
-                ))}
+              <div className="px-5 py-3 rounded-xl bg-white border border-wood-200 text-sm font-bold text-wood-700 shadow-sm">
+                {currentPage}
               </div>
-              <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === Math.ceil(totalCount / pageSize) || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
+              <button onClick={() => handlePageChange(currentPage + 1)} disabled={!currentResearch.hasMore || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
                 <ChevronRight size={20} />
               </button>
             </div>

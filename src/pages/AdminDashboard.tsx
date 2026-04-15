@@ -97,6 +97,8 @@ export default function AdminDashboard() {
             content: data.content.substring(0, 500),
             category: cat,
             subCategory: data.subCategory || 'general',
+            sermonCategoryId: data.sermonCategoryId || null,
+            researchCategoryId: data.researchCategoryId || null,
             createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
             authorName: data.authorName || '익명'
           };
@@ -110,7 +112,7 @@ export default function AdminDashboard() {
       
       toast.success('최신 게시물 요약 정보가 성공적으로 갱신되었습니다.');
       // Clear local cache to show changes immediately
-      localStorage.removeItem('latest_posts_data');
+      localStorage.removeItem('home_latest_posts_cache');
     } catch (error) {
       console.error('Error refreshing summary:', error);
       toast.error('요약 정보 갱신 중 오류가 발생했습니다.');

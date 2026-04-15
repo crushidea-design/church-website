@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, doc, setDoc, limit, startAfter } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate, getYouTubeId } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
-import { PlayCircle, Plus, Video, ArrowUpDown, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlayCircle, Plus, Video, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import ArchiveIntroSection from '../components/ArchiveIntroSection';
 
@@ -28,18 +28,6 @@ interface SermonPost {
   [key: string]: any;
 }
 
-const getTime = (value: any) => {
-  if (!value) return 0;
-  if (value instanceof Date) return value.getTime();
-  if (typeof value.toDate === 'function') return value.toDate().getTime();
-  if (typeof value.seconds === 'number') return value.seconds * 1000;
-  return 0;
-};
-
-const getSortOrder = (post: SermonPost) => {
-  return typeof post.sortOrder === 'number' ? post.sortOrder : generateSortOrder(post.title || '');
-};
-
 const isLegacySermon = (post: SermonPost) => {
   return post.subCategory === 'past_sermons' || post.subCategory === 'pilgrims_progress';
 };
@@ -49,34 +37,16 @@ const isUncategorizedSermon = (post: SermonPost, categories: SermonCategory[]) =
   return !hasValidCategory && !isLegacySermon(post);
 };
 
-const filterSermonsByTab = (posts: SermonPost[], tab: string, categories: SermonCategory[]) => {
-  if (tab === ALL_SERMONS_TAB) return posts;
-  if (tab === 'uncategorized') return posts.filter(post => isUncategorizedSermon(post, categories));
-  if (tab === 'past_sermons' || tab === 'pilgrims_progress') return posts.filter(post => post.subCategory === tab);
-  return posts.filter(post => post.sermonCategoryId === tab);
-};
-
-const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
-  return [...posts].sort((a, b) => {
-    const sortDelta = getSortOrder(a) - getSortOrder(b);
-    if (sortDelta !== 0) {
-      return direction === 'asc' ? sortDelta : -sortDelta;
-    }
-
-    return getTime(b.createdAt) - getTime(a.createdAt);
-  });
-};
-
 export default function Sermons() {
   const { user, role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   
-  const { sermons, sermonCategories, setCategoryCollection, appendCategoryCollection, setCategories, resetCategory } = useStore();
+  const { sermons, sermonCategories, setCategoryCollection, setCategories } = useStore();
   
   const [activeTab, setActiveTab] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
+  const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
   const pageSize = 10;
   
   const currentSermons = sermons[activeTab] || { data: [], lastDoc: null, hasMore: true, fetched: false };
@@ -90,16 +60,45 @@ export default function Sermons() {
   const isRegularMember = role === 'regular' || role === 'admin';
 
   const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
-    const sermonsQuery = query(collection(db, 'posts'), where('category', '==', 'sermon'));
-    const snapshot = await getDocs(sermonsQuery);
-    const allSermons = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SermonPost[];
-    const filtered = filterSermonsByTab(allSermons, tab, categories);
-    const sorted = sortSermons(filtered, sortOrderDirection);
-    const startIndex = (page - 1) * pageSize;
-    const data = sorted.slice(startIndex, startIndex + pageSize);
+    const orderDir = sortOrderDirection;
+    const anchorDoc = page > 1 ? pageLastDocs[page - 1] : null;
 
-    setTotalCount(sorted.length);
-    setCategoryCollection('sermons', tab, data, null, startIndex + pageSize < sorted.length);
+    if (page > 1 && !anchorDoc) return;
+
+    let baseConstraints: any[] = [where('category', '==', 'sermon')];
+
+    if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
+      baseConstraints.push(where('subCategory', '==', tab));
+    } else if (tab !== ALL_SERMONS_TAB && tab !== 'uncategorized') {
+      baseConstraints.push(where('sermonCategoryId', '==', tab));
+    }
+
+    const paginationConstraints = [
+      orderBy('sortOrder', orderDir),
+      orderBy('createdAt', 'desc'),
+      ...(anchorDoc ? [startAfter(anchorDoc)] : []),
+      limit(tab === 'uncategorized' ? 100 : pageSize + 1)
+    ];
+
+    const sermonsQuery = query(
+      collection(db, 'posts'),
+      ...baseConstraints,
+      ...paginationConstraints
+    );
+    const snapshot = await getDocs(sermonsQuery);
+    let docs = snapshot.docs;
+
+    if (tab === 'uncategorized') {
+      docs = docs.filter(doc => isUncategorizedSermon({ id: doc.id, ...(doc.data() as object) } as SermonPost, categories));
+    }
+
+    const pageDocs = docs.slice(0, pageSize);
+    const data = pageDocs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SermonPost[];
+    const lastDoc = pageDocs[pageDocs.length - 1] || null;
+    const hasMore = tab === 'uncategorized' ? false : snapshot.docs.length > pageSize;
+
+    setCategoryCollection('sermons', tab, data, lastDoc, hasMore);
+    if (lastDoc) setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
   };
 
   useEffect(() => {
@@ -132,6 +131,7 @@ export default function Sermons() {
 
         // Reset pagination when tab changes
         setCurrentPage(1);
+        setPageLastDocs({});
 
         // Fetch Sermons for current tab (Page 1)
         setLoading(true);
@@ -157,7 +157,8 @@ export default function Sermons() {
   }, [authLoading, isRegularMember, tabParam, sermonCategories.length, sortOrderDirection]);
 
   const handlePageChange = async (page: number) => {
-    if (page === currentPage || page < 1 || page > Math.ceil(totalCount / pageSize) || loading) return;
+    if (page === currentPage || page < 1 || loading) return;
+    if (page > 1 && !pageLastDocs[page - 1]) return;
     
     setLoading(true);
     setError(null);
@@ -177,14 +178,11 @@ export default function Sermons() {
     }
   };
 
-  const handleLoadMore = async () => {
-    // This is now replaced by handlePageChange
-  };
-
   const handleRefresh = async () => {
     setLoading(true);
     setError(null);
     try {
+      setPageLastDocs({});
       await fetchSermonsPage(activeTab || ALL_SERMONS_TAB, 1, sermonCategories);
       setCurrentPage(1);
     } catch (error: any) {
@@ -360,12 +358,6 @@ export default function Sermons() {
           <Video className="mx-auto h-12 w-12 text-wood-300 mb-4" />
           <h3 className="text-lg font-medium text-wood-900">등록된 영상이 없습니다</h3>
           <p className="mt-2 text-wood-500">곧 새로운 말씀 영상이 업데이트될 예정입니다.</p>
-          {totalCount > 0 && (
-            <p className="mt-4 text-amber-600 text-sm font-medium px-4">
-              이름순 정렬을 위한 인덱스가 생성되지 않았을 수 있습니다.<br />
-              오류가 발생하면 잠시 후 다시 시도해 주세요.
-            </p>
-          )}
         </div>
       ) : (
         <div className="space-y-12">
@@ -421,7 +413,7 @@ export default function Sermons() {
           </div>
 
           {/* Pagination */}
-          {totalCount > pageSize && (
+          {(currentPage > 1 || currentSermons.hasMore) && (
             <div className="flex justify-center items-center gap-2 pt-8">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
@@ -431,42 +423,13 @@ export default function Sermons() {
                 <ChevronLeft size={20} />
               </button>
               
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => {
-                  const pageNum = i + 1;
-                  // Show limited page numbers if there are too many
-                  if (
-                    pageNum === 1 || 
-                    pageNum === Math.ceil(totalCount / pageSize) || 
-                    (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
-                  ) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        disabled={loading}
-                        className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
-                          currentPage === pageNum
-                            ? 'bg-wood-900 text-white shadow-md'
-                            : 'text-wood-600 hover:bg-wood-50 border border-transparent'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  } else if (
-                    pageNum === currentPage - 3 || 
-                    pageNum === currentPage + 3
-                  ) {
-                    return <span key={pageNum} className="text-wood-300 px-1">...</span>;
-                  }
-                  return null;
-                })}
+              <div className="px-4 py-2 rounded-lg bg-white border border-wood-200 text-sm font-bold text-wood-700">
+                {currentPage}
               </div>
 
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === Math.ceil(totalCount / pageSize) || loading}
+                disabled={!currentSermons.hasMore || loading}
                 className="p-2 rounded-lg border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
               >
                 <ChevronRight size={20} />
@@ -479,10 +442,10 @@ export default function Sermons() {
             <div className="flex justify-end items-center gap-4 pt-8">
               <button
                 onClick={async () => {
-                  if (!window.confirm('모든 말씀 영상의 정렬 데이터를 재계산하여 업데이트하시겠습니까? (데이터가 많을 경우 시간이 걸릴 수 있습니다)')) return;
+                  if (!window.confirm('최대 500개의 말씀 영상만 확인해 정렬 데이터를 복구합니다. 계속하시겠습니까?')) return;
                   setLoading(true);
                   try {
-                    const q = query(collection(db, 'posts'), where('category', '==', 'sermon'));
+                    const q = query(collection(db, 'posts'), where('category', '==', 'sermon'), orderBy('createdAt', 'asc'), limit(500));
                     const snapshot = await getDocs(q);
                     let updatedCount = 0;
                     
