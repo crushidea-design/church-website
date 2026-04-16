@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc, getDoc, where, getCountFromServer, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { useStore } from '../store/useStore';
-import { sendPushNotification } from '../services/notificationService';
 import { ArrowLeft, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
 
@@ -19,6 +18,11 @@ interface ResearchCategory {
   name: string;
 }
 
+const getLocalDateKey = (date = new Date()) => {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().split('T')[0];
+};
+
 export default function CreatePost() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -29,7 +33,7 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
-  const [subCategory, setSubCategory] = useState(searchParams.get('subCategory') || (type === 'sermon' ? 'past_sermons' : 'general'));
+  const [subCategory, setSubCategory] = useState(searchParams.get('subCategory') || 'general');
   const [sermonCategoryId, setSermonCategoryId] = useState('');
   const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
   const [researchCategoryId, setResearchCategoryId] = useState('');
@@ -38,14 +42,6 @@ export default function CreatePost() {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
-  const [scheduledTime, setScheduledTime] = useState('09:00');
-  const [targetUserIds, setTargetUserIds] = useState<string[]>([]);
-  const [fcmUsers, setFcmUsers] = useState<{uid: string, displayName: string, email: string}[]>([]);
-  const [loadingFcmUsers, setLoadingFcmUsers] = useState(false);
-  const [isAllMembers, setIsAllMembers] = useState(true);
-  const [tokenCount, setTokenCount] = useState(0);
 
   useEffect(() => {
     if (type === 'sermon') {
@@ -87,67 +83,7 @@ export default function CreatePost() {
       };
       fetchCategories();
     }
-    
-    // Fetch token count for Today's Word
-    if (type === 'today_word' && role === 'admin') {
-      const fetchTokenCount = async () => {
-        try {
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
-          const tokensQuery = query(
-            collection(db, 'fcm_tokens'),
-            where('updatedAt', '>=', thirtyDaysAgo)
-          );
-          const countSnap = await getCountFromServer(tokensQuery);
-          setTokenCount(countSnap.data().count);
-        } catch (err) {
-          console.error('Error fetching token count:', err);
-        }
-      };
-      fetchTokenCount();
-    }
-  }, [type, role]);
-
-  const fetchFcmUsers = async () => {
-    if (fcmUsers.length > 0 || loadingFcmUsers) return;
-    
-    setLoadingFcmUsers(true);
-    try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      const tokensQuery = query(
-        collection(db, 'fcm_tokens'),
-        where('updatedAt', '>=', thirtyDaysAgo),
-        limit(100)
-      );
-      const tokensSnap = await getDocs(tokensQuery);
-      const uidsWithTokens = Array.from(new Set(tokensSnap.docs.map(doc => doc.data().userId).filter(Boolean)));
-      
-      if (uidsWithTokens.length > 0) {
-        // Optimization: Only fetch users that have tokens, in chunks of 30 due to Firestore 'in' limit
-        const users: any[] = [];
-        for (let i = 0; i < uidsWithTokens.length; i += 30) {
-          const chunk = uidsWithTokens.slice(i, i + 30);
-          const usersQuery = query(collection(db, 'users'), where('uid', 'in', chunk));
-          const usersSnap = await getDocs(usersQuery);
-          users.push(...usersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
-        }
-        setFcmUsers(users);
-      }
-    } catch (err) {
-      console.error('Error fetching FCM users:', err);
-    } finally {
-      setLoadingFcmUsers(false);
-    }
-  };
-
-  useEffect(() => {
-    if (type === 'today_word' && !isAllMembers) {
-      fetchFcmUsers();
-    }
-  }, [type, isAllMembers]);
+  }, [type, searchParams]);
 
   if (authLoading) {
     return (
@@ -270,23 +206,12 @@ export default function CreatePost() {
         commentCount: 0,
         viewCount: 0,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        isPublished: true
       };
 
-      if (type === 'today_word' && isScheduled && scheduledDate && scheduledTime) {
-        const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-        if (scheduledDateTime > new Date()) {
-          postData.scheduledAt = scheduledDateTime;
-          postData.isPublished = false;
-        } else {
-          postData.isPublished = true;
-        }
-      } else {
-        postData.isPublished = true;
-      }
-
-      if (type === 'today_word' && !isAllMembers && targetUserIds.length > 0) {
-        postData.targetUserIds = targetUserIds;
+      if (type === 'today_word') {
+        postData.dateKey = getLocalDateKey();
       }
 
       if (pdfUrl) {
@@ -305,6 +230,7 @@ export default function CreatePost() {
         const finalCategoryId = sermonCategoryId || (sermonCategories.length > 0 ? sermonCategories[0].id : '');
         if (finalCategoryId) {
           postData.sermonCategoryId = finalCategoryId;
+          delete postData.subCategory;
         }
       }
 
@@ -357,29 +283,14 @@ export default function CreatePost() {
         }
         console.log('Full content chunks uploaded.');
       }
-      
-      // Send push notification for Today's Word if not scheduled
-      if (type === 'today_word' && postData.isPublished) {
-        try {
-          console.log('Sending push notification for Today\'s Word...');
-          await sendPushNotification(
-            '오늘의 묵상 가이드라인이 올라왔습니다!',
-            title.trim(),
-            `/archive/today`,
-            postData.targetUserIds
-          );
-          console.log('Push notification sent.');
-        } catch (pushErr) {
-          console.error('Error sending push notification:', pushErr);
-        }
-      }
-      
+
       // Invalidate cache for the created category and home page
       if (type === 'journal' || type === 'community' || type === 'sermon' || type === 'research' || type === 'today_word') {
         const cacheKey = type === 'sermon' ? 'sermons' : type;
         invalidateCache(cacheKey as any);
       }
       invalidateCache('home');
+      localStorage.removeItem('home_latest_posts_cache');
       
       // Update latest posts summary for Home page optimization
       try {
@@ -392,7 +303,7 @@ export default function CreatePost() {
           title: title.trim(),
           content: content.trim().substring(0, 500), // Store a snippet
           category: type,
-          subCategory: subCategory,
+          subCategory: postData.subCategory || null,
           sermonCategoryId: postData.sermonCategoryId || null,
           researchCategoryId: postData.researchCategoryId || null,
           createdAt: new Date().toISOString(), // Use ISO string for summary to avoid timestamp issues in simple doc
@@ -435,7 +346,7 @@ export default function CreatePost() {
       case 'research': return '연구글 작성';
       case 'sermon': return '말씀 서재 등록';
       case 'journal': return '개척 일지 작성';
-      case 'today_word': return '오늘의 묵상 작성';
+      case 'today_word': return '오늘의 말씀 작성';
       default: return '게시글 작성';
     }
   };
@@ -588,135 +499,6 @@ export default function CreatePost() {
                   className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   required
                 />
-              </div>
-            )}
-
-            {type === 'today_word' && (
-              <div className="bg-wood-50 p-6 rounded-xl border border-wood-200">
-                <div className="flex items-center justify-between mb-4">
-                  <label className="block text-sm font-medium text-wood-900">
-                    예약 발송
-                  </label>
-                  <label className="flex items-center cursor-pointer">
-                    <div className="relative">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only" 
-                        checked={isScheduled}
-                        onChange={(e) => setIsScheduled(e.target.checked)}
-                      />
-                      <div className={`block w-10 h-6 rounded-full transition-colors ${isScheduled ? 'bg-wood-900' : 'bg-wood-300'}`}></div>
-                      <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${isScheduled ? 'transform translate-x-4' : ''}`}></div>
-                    </div>
-                    <span className="ml-3 text-sm font-medium text-wood-700">
-                      {isScheduled ? '예약 켜짐' : '예약 꺼짐'}
-                    </span>
-                  </label>
-                </div>
-                
-                {isScheduled && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label htmlFor="scheduledDate" className="block text-xs font-medium text-wood-500 mb-1">
-                        예약 날짜
-                      </label>
-                      <input
-                        type="date"
-                        id="scheduledDate"
-                        value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
-                        className="block w-full rounded-lg border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-2.5 bg-white"
-                        required={isScheduled}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="scheduledTime" className="block text-xs font-medium text-wood-500 mb-1">
-                        예약 시간 (정각 단위)
-                      </label>
-                      <select
-                        id="scheduledTime"
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
-                        className="block w-full rounded-lg border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-2.5 bg-white"
-                        required={isScheduled}
-                      >
-                        {Array.from({ length: 24 }).map((_, i) => {
-                          const hour = i.toString().padStart(2, '0');
-                          return (
-                            <option key={hour} value={`${hour}:00`}>
-                              {hour}:00
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </div>
-                )}
-                <p className="mt-3 text-xs text-wood-500">
-                  예약 발송을 설정하면 지정된 시간에 게시글이 등록되고 성도들에게 알림이 발송됩니다.
-                </p>
-
-                <div className="mt-6 pt-6 border-t border-wood-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-sm font-medium text-wood-900">
-                      알림 대상 설정
-                    </label>
-                    <div className="flex bg-wood-200 p-1 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => setIsAllMembers(true)}
-                        className={`px-3 py-1 text-xs font-medium rounded-md transition ${isAllMembers ? 'bg-white text-wood-900 shadow-sm' : 'text-wood-600 hover:text-wood-900'}`}
-                      >
-                        전체
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsAllMembers(false)}
-                        className={`px-3 py-1 text-xs font-medium rounded-md transition ${!isAllMembers ? 'bg-white text-wood-900 shadow-sm' : 'text-wood-600 hover:text-wood-900'}`}
-                      >
-                        선택
-                      </button>
-                    </div>
-                  </div>
-
-                  {!isAllMembers && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto p-2 bg-white rounded-lg border border-wood-200">
-                      {loadingFcmUsers ? (
-                        <div className="flex flex-col items-center justify-center py-8 gap-2">
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-wood-900"></div>
-                          <p className="text-xs text-wood-500">회원 목록을 불러오는 중...</p>
-                        </div>
-                      ) : fcmUsers.length === 0 ? (
-                        <p className="text-xs text-wood-400 text-center py-4">알림 수신이 가능한 회원이 없습니다.</p>
-                      ) : (
-                        fcmUsers.map(u => (
-                          <label key={u.uid} className="flex items-center p-2 hover:bg-wood-50 rounded-md cursor-pointer transition">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 text-wood-900 border-wood-300 rounded focus:ring-wood-500"
-                              checked={targetUserIds.includes(u.uid)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setTargetUserIds([...targetUserIds, u.uid]);
-                                } else {
-                                  setTargetUserIds(targetUserIds.filter(id => id !== u.uid));
-                                }
-                              }}
-                            />
-                            <div className="ml-3">
-                              <p className="text-sm font-medium text-wood-900">{u.displayName}</p>
-                              <p className="text-xs text-wood-500">{u.email}</p>
-                            </div>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  <p className="mt-2 text-xs text-wood-500">
-                    {isAllMembers ? `알림을 허용한 모든 회원(${tokenCount}명)에게 알림이 발송됩니다.` : `선택한 ${targetUserIds.length}명의 회원에게만 알림이 발송됩니다.`}
-                  </p>
-                </div>
               </div>
             )}
 

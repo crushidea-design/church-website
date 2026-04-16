@@ -1,10 +1,19 @@
-import { messaging, db } from '../lib/firebase';
+import { messaging, db, auth } from '../lib/firebase';
 import { getToken, onMessage, isSupported } from 'firebase/messaging';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // IMPORTANT: This VAPID key must be replaced with the one from your Firebase Console
 // Project Settings -> Cloud Messaging -> Web configuration -> Web Push certificates
 const VAPID_KEY = "BBpJh2G328v2gR5RIPIl4p4clTa5WEQFRzlufKWGiB2EfositXsJQHaqME57pL0zzj_orvkl-zXFC3EJU_huFV4"; 
+const TOKEN_SYNC_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const getAuthHeaders = async () => {
+  const idToken = await auth.currentUser?.getIdToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+  };
+};
 
 export const requestNotificationPermission = async (userId: string) => {
   console.log('requestNotificationPermission called for user:', userId);
@@ -13,6 +22,7 @@ export const requestNotificationPermission = async (userId: string) => {
 
   // [최적화 1] 로컬 캐시 확인: 이미 동기화된 토큰이면 DB 조회를 건너뜁니다.
   const cachedToken = localStorage.getItem(`fcm_synced_${userId}`);
+  const lastSyncedAt = Number(localStorage.getItem(`fcm_synced_at_${userId}`) || 0);
 
   try {
     const supported = await isSupported();
@@ -67,9 +77,10 @@ export const requestNotificationPermission = async (userId: string) => {
       if (token) {
         console.log('FCM Token generated:', token.substring(0, 10) + '...');
         
-        // 로컬 스토리지에 저장된 토큰과 동일하면 Firestore 읽기를 하지 않음
-        if (cachedToken === token) {
-          console.log('Token already synced (cached)');
+        // Keep Firestore updated often enough for the 30-day active-device count.
+        const tokenRecentlySynced = cachedToken === token && Date.now() - lastSyncedAt < TOKEN_SYNC_TTL_MS;
+        if (tokenRecentlySynced) {
+          console.log('Token already synced recently');
           return token;
         }
 
@@ -82,12 +93,17 @@ export const requestNotificationPermission = async (userId: string) => {
         console.log('Token synced to Firestore');
 
         // Subscribe to all_members topic for zero-read broadcasts
+        let subscribedToTopic = false;
         try {
-          await fetch('/api/notifications/subscribe', {
+          const subscribeResponse = await fetch('/api/notifications/subscribe', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await getAuthHeaders(),
             body: JSON.stringify({ token, topic: 'all_members' })
           });
+          if (!subscribeResponse.ok) {
+            throw new Error(`Topic subscription failed with status ${subscribeResponse.status}`);
+          }
+          subscribedToTopic = true;
           console.log('Subscribed to all_members topic');
         } catch (subError) {
           console.error('Failed to subscribe to topic:', subError);
@@ -95,6 +111,9 @@ export const requestNotificationPermission = async (userId: string) => {
 
         // 동기화 완료 후 로컬에 기록 (다음번엔 읽기 발생 안 함)
         localStorage.setItem(`fcm_synced_${userId}`, token);
+        if (subscribedToTopic) {
+          localStorage.setItem(`fcm_synced_at_${userId}`, String(Date.now()));
+        }
         return token;
       } else {
         console.warn('No FCM token received. Check if VAPID key is correct and service worker is registered.');
@@ -142,7 +161,7 @@ export const sendPushNotification = async (title: string, body: string, targetUr
     
     const response = await fetch('/api/notifications/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ 
         title, 
         body, 

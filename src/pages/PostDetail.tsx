@@ -23,6 +23,7 @@ export default function PostDetail() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [commentError, setCommentError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCommentDeleteConfirm, setShowCommentDeleteConfirm] = useState<string | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState<string | null>(null);
@@ -113,18 +114,34 @@ export default function PostDetail() {
           console.log('PDF Data detected (URL):', postData.pdfUrl);
         }
 
-        // Fetch comments
-        const q = query(
-          collection(db, 'comments'),
-          where('postId', '==', id),
-          orderBy('createdAt', 'asc'),
-          limit(20)
-        );
-        const commentsSnap = await getDocs(q);
-        const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setComments(commentsData);
-        setLastCommentDoc(commentsSnap.docs[commentsSnap.docs.length - 1] || null);
-        setHasMoreComments(commentsSnap.docs.length === 20);
+        if (postData.category === 'today_word') {
+          setComments([]);
+          setLastCommentDoc(null);
+          setHasMoreComments(false);
+          setCommentError('');
+        } else {
+          // Fetch comments without letting comment query/index issues blank the whole post.
+          try {
+            const q = query(
+              collection(db, 'comments'),
+              where('postId', '==', id),
+              orderBy('createdAt', 'asc'),
+              limit(20)
+            );
+            const commentsSnap = await getDocs(q);
+            const commentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setComments(commentsData);
+            setLastCommentDoc(commentsSnap.docs[commentsSnap.docs.length - 1] || null);
+            setHasMoreComments(commentsSnap.docs.length === 20);
+            setCommentError('');
+          } catch (e) {
+            console.error('Error fetching comments:', e);
+            setComments([]);
+            setLastCommentDoc(null);
+            setHasMoreComments(false);
+            setCommentError('댓글을 불러오지 못했습니다. 게시글은 정상적으로 볼 수 있습니다.');
+          }
+        }
 
         // Fetch prev/next posts
         try {
@@ -221,7 +238,7 @@ export default function PostDetail() {
       setHasMoreComments(commentsSnap.docs.length === 20);
     } catch (error) {
       console.error('Error loading more comments:', error);
-      handleFirestoreError(error, OperationType.GET, 'comments');
+      setCommentError('댓글을 더 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setLoadingMoreComments(false);
     }
@@ -338,6 +355,14 @@ export default function PostDetail() {
         console.error('Error updating latest posts summary on delete:', summaryErr);
       }
 
+      const { invalidateCache } = useStore.getState();
+      if (post?.category === 'journal' || post?.category === 'community' || post?.category === 'sermon' || post?.category === 'research' || post?.category === 'today_word') {
+        const cacheKey = post.category === 'sermon' ? 'sermons' : post.category;
+        invalidateCache(cacheKey as any);
+      }
+      invalidateCache('home');
+      localStorage.removeItem('home_latest_posts_cache');
+
       navigate(-1);
     } catch (error) {
       console.error('Error deleting post:', error);
@@ -452,11 +477,15 @@ export default function PostDetail() {
     }
 
     if (post.category === 'sermon') {
+      if (post.sermonCategoryId) {
+        const categoryName = useStore.getState().sermonCategories.find((category: any) => category.id === post.sermonCategoryId)?.name;
+        return categoryName || '말씀 서재';
+      }
       return post.subCategory === 'past_sermons' ? '지난 설교들' :
         post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재';
     }
 
-    if (post.category === 'today_word') return '오늘의 묵상';
+    if (post.category === 'today_word') return '오늘의 말씀';
     if (post.category === 'journal') return '개척 일지';
     return '소통 게시판';
   };
@@ -517,8 +546,12 @@ export default function PostDetail() {
                 <span>{post.authorName}</span>
                 <span>&bull;</span>
                 <span>{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
-                <span>&bull;</span>
-                <span className="flex items-center gap-1"><MessageSquare size={14} /> {post.commentCount || comments.length}</span>
+                {post.category !== 'today_word' && (
+                  <>
+                    <span>&bull;</span>
+                    <span className="flex items-center gap-1"><MessageSquare size={14} /> {post.commentCount || comments.length}</span>
+                  </>
+                )}
               </div>
             </div>
             
@@ -645,11 +678,18 @@ export default function PostDetail() {
         </article>
 
         {/* Comments Section */}
+        {post.category !== 'today_word' && (
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
           <h3 className="text-xl font-bold text-wood-900 mb-8 flex items-center">
             <MessageSquare className="mr-2 text-wood-900" />
             댓글 {post.commentCount || 0}
           </h3>
+
+          {commentError && (
+            <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+              {commentError}
+            </div>
+          )}
 
           {/* Comment Form */}
           {user ? (
@@ -747,6 +787,7 @@ export default function PostDetail() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

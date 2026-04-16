@@ -197,7 +197,7 @@ export default function Profile() {
                 </div>
               ) : (
                 <p className="text-sm text-wood-600 mb-4 leading-relaxed">
-                  오늘의 묵상 가이드라인이 올라오면 휴대폰으로 즉시 알려드립니다. 
+                  묵상 가이드가 올라오면 휴대폰으로 즉시 알려드립니다. 
                   중요한 묵상 시간을 놓치지 마세요.
                 </p>
               )}
@@ -453,7 +453,7 @@ export default function Profile() {
                 <BookOpen className="w-12 h-12 mx-auto mb-4 text-wood-300" />
                 <p>성경 읽기 기록이 없습니다.</p>
                 <Link to="/archive/today" className="inline-block mt-4 text-gold-600 hover:underline">
-                  오늘의 묵상 보러가기
+                  오늘의 말씀 보러가기
                 </Link>
               </div>
             )

@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, where, limit, getCountFromServer, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Bell, Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2, ChevronDown, Calendar, Clock } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Send, ArrowLeft, Users, CheckCircle, AlertCircle, Loader2, ChevronDown, Calendar, Clock } from 'lucide-react';
 import { requestNotificationPermission } from '../services/notificationService';
 
 const CATEGORIES = [
   { id: 'home', name: '홈페이지', path: '/' },
-  { id: 'today_word', name: '오늘의 묵상', path: '/archive/today' },
+  { id: 'today_word', name: '오늘의 말씀', path: '/archive/today' },
   { id: 'sermon', name: '말씀 서재', path: '/archive/sermons' },
   { id: 'research', name: '교회 연구실', path: '/archive/research' },
   { id: 'community', name: '소통 게시판', path: '/community' },
@@ -39,6 +38,14 @@ export default function AdminNotifications() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
   const [scheduledTime, setScheduledTime] = useState('09:00');
+
+  const getRequestHeaders = async () => {
+    const idToken = await user?.getIdToken();
+    return {
+      'Content-Type': 'application/json',
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+    };
+  };
 
   useEffect(() => {
     if (role !== 'admin') {
@@ -206,15 +213,12 @@ export default function AdminNotifications() {
           return;
         }
 
-        let targetTokens: string[] = [];
         if (targetAudience === 'specific') {
           if (selectedUserIds.length === 0) {
             setStatus({ type: 'error', message: '알림을 받을 사용자를 선택해 주세요.' });
             setLoading(false);
             return;
           }
-          const selectedUsers = usersWithTokens.filter(u => selectedUserIds.includes(u.uid));
-          targetTokens = Array.from(new Set(selectedUsers.flatMap(u => u.tokens)));
         }
 
         await addDoc(collection(db, 'scheduled_notifications'), {
@@ -224,7 +228,7 @@ export default function AdminNotifications() {
           imageUrl,
           targetAudience,
           targetUserIds: targetAudience === 'specific' ? selectedUserIds : null,
-          targetTokens: targetAudience === 'specific' ? targetTokens : null,
+          targetTokens: null,
           scheduledAt: scheduledDateTime,
           status: 'pending',
           createdAt: serverTimestamp(),
@@ -243,7 +247,7 @@ export default function AdminNotifications() {
         // Zero-read broadcast using topics
         const response = await fetch('/api/notifications/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await getRequestHeaders(),
           body: JSON.stringify({ 
             title, 
             body, 
@@ -284,7 +288,7 @@ export default function AdminNotifications() {
 
       const response = await fetch('/api/notifications/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getRequestHeaders(),
         body: JSON.stringify({ title, body, targetUrl, imageUrl, targetTokens: tokens }),
       });
 
@@ -351,7 +355,11 @@ export default function AdminNotifications() {
               </div>
             )}
 
-            <form onSubmit={handleSend} className="space-y-6">
+            <form onSubmit={handleSend} className="space-y-6 [&>div:nth-of-type(1)]:hidden [&>div:nth-of-type(2)]:hidden">
+            {false && (
+              <>
+              </>
+            )}
             <div>
               <label className="block text-sm font-medium text-wood-700 mb-2">발송 설정</label>
               <div className="bg-wood-50 p-6 rounded-2xl border border-wood-200 space-y-6">
@@ -583,7 +591,7 @@ export default function AdminNotifications() {
                     }
                     const response = await fetch('/api/notifications/send', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: await getRequestHeaders(),
                       body: JSON.stringify({ title, body, targetUrl, imageUrl, targetTokens: [token] }),
                     });
                     const result = await response.json();
