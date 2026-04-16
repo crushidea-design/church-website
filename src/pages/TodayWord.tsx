@@ -109,6 +109,24 @@ const getMcheyneReadingPlan = (date: Date): ReadingPassage[] => {
 
 import { useStore } from '../store/useStore';
 
+const toLocalDateKey = (date: Date) => {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().split('T')[0];
+};
+
+const toDate = (value: any) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const isSameLocalDate = (value: any, dateKey: string) => {
+  const date = toDate(value);
+  return date ? toLocalDateKey(date) === dateKey : false;
+};
+
 export default function TodayWord() {
   const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -130,10 +148,8 @@ export default function TodayWord() {
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const readingPlan = React.useMemo(() => getMcheyneReadingPlan(selectedDate), [dateStr]);
   
-  const cachedTodayWord = useStore((state) => state.todayWords[dateStr]);
   const progressCacheKey = user ? `${user.uid}_${dateStr}` : '';
   const cachedProgress = useStore((state) => progressCacheKey ? state.todayWordProgress[progressCacheKey] : undefined);
-  const setTodayWord = useStore((state) => state.setTodayWord);
   const setTodayWordProgress = useStore((state) => state.setTodayWordProgress);
 
   const openBridgeModal = (link: string, version: string) => {
@@ -163,63 +179,86 @@ export default function TodayWord() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 1. Fetch Post
-        if (cachedTodayWord !== undefined) {
-          if (!ignore) setLatestPost(cachedTodayWord);
-        } else {
-          const start = startOfDay(selectedDate);
-          const end = endOfDay(selectedDate);
-          
-          const q = query(
-            collection(db, 'posts'),
-            where('category', '==', 'today_word'),
-            where('createdAt', '>=', start),
-            where('createdAt', '<=', end),
-            limit(10) // Fetch a few to filter client-side
-          );
-          const snapshot = await getDocs(q);
-          
-          if (!snapshot.empty) {
-            let validPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-            
-            // Filter out unpublished scheduled posts for non-admins
-            if (role !== 'admin') {
-              validPosts = validPosts.filter(p => p.isPublished !== false);
-            }
-            
-            if (validPosts.length > 0) {
-              const postData = validPosts[0];
-              
-              // Handle long content reassembly
-              if (postData.isLongContent) {
-                console.log('Long content detected in TodayWord. Fetching chunks...');
-                try {
-                  const chunksQuery = query(
-                    collection(db, 'post_contents'),
-                    where('postId', '==', postData.id),
-                    orderBy('index', 'asc')
-                  );
-                  const chunksSnap = await getDocs(chunksQuery);
-                  if (!chunksSnap.empty) {
-                    const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
-                    postData.content = fullContent;
-                    console.log('Long content reassembled for TodayWord.');
-                  }
-                } catch (e) {
-                  console.error('Error reassembling long content in TodayWord:', e);
-                }
-              }
+        // 1. Fetch Post fresh so edits are visible immediately.
+        let postDocs: any[] = [];
 
-              if (!ignore) setLatestPost(postData);
-              setTodayWord(dateStr, postData);
-            } else {
-              if (!ignore) setLatestPost(null);
-              setTodayWord(dateStr, null);
-            }
-          } else {
-            if (!ignore) setLatestPost(null);
-            setTodayWord(dateStr, null);
+        try {
+          const byDateKeyQuery = query(
+            collection(db, 'posts'),
+            where('dateKey', '==', dateStr),
+            limit(10)
+          );
+          const byDateKeySnap = await getDocs(byDateKeyQuery);
+          postDocs = byDateKeySnap.docs;
+        } catch (dateKeyError) {
+          console.warn('TodayWord dateKey query failed, falling back:', dateKeyError);
+        }
+
+        if (postDocs.length === 0) {
+          try {
+            const start = startOfDay(selectedDate);
+            const end = endOfDay(selectedDate);
+            const byCreatedAtQuery = query(
+              collection(db, 'posts'),
+              where('category', '==', 'today_word'),
+              where('createdAt', '>=', start),
+              where('createdAt', '<=', end),
+              limit(10)
+            );
+            const byCreatedAtSnap = await getDocs(byCreatedAtQuery);
+            postDocs = byCreatedAtSnap.docs;
+          } catch (createdAtError) {
+            console.warn('TodayWord createdAt query failed, using compatibility fallback:', createdAtError);
+            const fallbackQuery = query(
+              collection(db, 'posts'),
+              where('category', '==', 'today_word'),
+              limit(500)
+            );
+            const fallbackSnap = await getDocs(fallbackQuery);
+            postDocs = fallbackSnap.docs.filter(doc => isSameLocalDate((doc.data() as any).createdAt, dateStr));
           }
+        }
+
+        let validPosts = postDocs
+          .map(doc => ({ id: doc.id, ...doc.data() as any }))
+          .filter(post => post.category === 'today_word');
+
+        if (role !== 'admin') {
+          validPosts = validPosts.filter(p => p.isPublished !== false);
+        }
+
+        validPosts.sort((a, b) => {
+          const dateA = toDate(a.updatedAt)?.getTime() || toDate(a.createdAt)?.getTime() || 0;
+          const dateB = toDate(b.updatedAt)?.getTime() || toDate(b.createdAt)?.getTime() || 0;
+          return dateB - dateA;
+        });
+
+        if (validPosts.length > 0) {
+          const postData = validPosts[0];
+          
+          // Handle long content reassembly
+          if (postData.isLongContent) {
+            console.log('Long content detected in TodayWord. Fetching chunks...');
+            try {
+              const chunksQuery = query(
+                collection(db, 'post_contents'),
+                where('postId', '==', postData.id),
+                orderBy('index', 'asc')
+              );
+              const chunksSnap = await getDocs(chunksQuery);
+              if (!chunksSnap.empty) {
+                const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
+                postData.content = fullContent;
+                console.log('Long content reassembled for TodayWord.');
+              }
+            } catch (e) {
+              console.error('Error reassembling long content in TodayWord:', e);
+            }
+          }
+
+          if (!ignore) setLatestPost(postData);
+        } else {
+          if (!ignore) setLatestPost(null);
         }
 
         // 2. Fetch User Progress
@@ -268,7 +307,7 @@ export default function TodayWord() {
     return () => {
       ignore = true;
     };
-  }, [selectedDate, user, role, dateStr, readingPlan.length, cachedTodayWord, cachedProgress, setTodayWord, setTodayWordProgress]);
+  }, [selectedDate, user, role, dateStr, readingPlan.length, cachedProgress, setTodayWordProgress]);
 
   const handleToggleProgress = async (index: number) => {
     if (!user) {
@@ -441,7 +480,7 @@ export default function TodayWord() {
       {/* 묵상 가이드라인 섹션 */}
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-6 md:p-8">
         <div className="flex justify-between items-center mb-6 border-b border-wood-100 pb-4">
-          <h3 className="text-2xl font-serif font-bold text-wood-900">오늘의 묵상</h3>
+          <h3 className="text-2xl font-serif font-bold text-wood-900">묵상 가이드</h3>
           {role === 'admin' && (
             <Link
               to="/create-post?type=today_word"
@@ -466,14 +505,6 @@ export default function TodayWord() {
             </div>
             <div className="prose prose-wood max-w-none whitespace-pre-wrap text-wood-800 leading-relaxed mb-8">
               {latestPost.content}
-            </div>
-            <div className="pt-6 border-t border-wood-100 flex justify-end mb-8">
-              <Link 
-                to={`/post/${latestPost.id}`}
-                className="text-gold-600 hover:text-gold-700 font-medium text-sm flex items-center gap-1"
-              >
-                자세히 보기 및 댓글 달기 &rarr;
-              </Link>
             </div>
           </div>
         ) : (

@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, ge
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
+import { useStore } from '../store/useStore';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
 
@@ -17,6 +18,19 @@ interface ResearchCategory {
   name: string;
 }
 
+const getLocalDateKey = (date = new Date()) => {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().split('T')[0];
+};
+
+const getDateFromFirestoreValue = (value: any) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export default function EditPost() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -25,6 +39,7 @@ export default function EditPost() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [type, setType] = useState('');
+  const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
   const [sermonCategoryId, setSermonCategoryId] = useState('');
   const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
@@ -74,6 +89,7 @@ export default function EditPost() {
           setTitle(data.title);
           setContent(fullContent);
           setType(data.category);
+          setDateKey(data.dateKey || getLocalDateKey(getDateFromFirestoreValue(data.createdAt) || new Date()));
           setSubCategory(data.subCategory || 'general');
           setSermonCategoryId(data.sermonCategoryId || '');
           setResearchCategoryId(data.researchCategoryId || '');
@@ -204,6 +220,10 @@ export default function EditPost() {
         updatedAt: serverTimestamp(),
       };
 
+      if (type === 'today_word') {
+        updateData.dateKey = dateKey || getLocalDateKey();
+      }
+
       // Handle long content for Datastore mode
       const isLongContent = new TextEncoder().encode(content).length > 1400;
       if (isLongContent) {
@@ -323,6 +343,14 @@ export default function EditPost() {
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
       }
 
+      const { invalidateCache } = useStore.getState();
+      if (type === 'journal' || type === 'community' || type === 'sermon' || type === 'research' || type === 'today_word') {
+        const cacheKey = type === 'sermon' ? 'sermons' : type;
+        invalidateCache(cacheKey as any);
+      }
+      invalidateCache('home');
+      localStorage.removeItem('home_latest_posts_cache');
+
       navigate(`/post/${id}`);
     } catch (err: any) {
       console.error('Error updating post:', err);
@@ -359,7 +387,7 @@ export default function EditPost() {
       case 'research': return '연구글 수정';
       case 'sermon': return '말씀 서재 수정';
       case 'journal': return '개척 일지 수정';
-      case 'today_word': return '오늘의 묵상 가이드라인 수정';
+      case 'today_word': return '묵상 가이드 수정';
       default: return '게시글 수정';
     }
   };

@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -134,6 +134,7 @@ service cloud.firestore {
              (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1000000)) &&
              (!('pdfChunkCount' in data) || (data.pdfChunkCount is number && data.pdfChunkCount >= 0 && data.pdfChunkCount <= 10)) &&
              (!('journalDate' in data) || data.journalDate is timestamp) &&
+             (!('dateKey' in data) || (data.dateKey is string && data.dateKey.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
              (!('sermonCategoryId' in data) || data.sermonCategoryId is string) &&
              (!('researchCategoryId' in data) || data.researchCategoryId is string) &&
              (!('uid' in data) || data.uid is string) &&
@@ -183,11 +184,38 @@ service cloud.firestore {
              data.updatedAt is timestamp;
     }
 
+    function isValidScheduledNotification(data) {
+      return data.keys().hasOnly(['title', 'body', 'targetUrl', 'imageUrl', 'targetAudience', 'targetUserIds', 'targetTokens', 'scheduledAt', 'status', 'createdAt', 'authorId', 'sentAt', 'error']) &&
+             data.keys().hasAll(['title', 'body', 'targetAudience', 'scheduledAt', 'status', 'createdAt', 'authorId']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.body is string && data.body.size() > 0 && data.body.size() <= 2000 &&
+             (!('targetUrl' in data) || data.targetUrl is string) &&
+             (!('imageUrl' in data) || data.imageUrl is string) &&
+             data.targetAudience in ['all', 'specific'] &&
+             (!('targetUserIds' in data) || data.targetUserIds == null || data.targetUserIds is list) &&
+             (!('targetTokens' in data) || data.targetTokens == null || data.targetTokens is list) &&
+             data.scheduledAt is timestamp &&
+             data.status in ['pending', 'sent', 'failed'] &&
+             data.createdAt is timestamp &&
+             data.authorId is string &&
+             (!('sentAt' in data) || data.sentAt is timestamp) &&
+             (!('error' in data) || data.error is string);
+    }
+
     // Rules
     match /fcm_tokens/{tokenId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create, update: if isAuthenticated() && isValidFCMToken(request.resource.data);
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /scheduled_notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+                    isValidScheduledNotification(request.resource.data) &&
+                    request.resource.data.status == 'pending' &&
+                    request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
 
     match /activity_logs/{logId} {

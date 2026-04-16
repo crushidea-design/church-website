@@ -27,8 +27,8 @@ messaging.onBackgroundMessage((payload) => {
     const notificationTitle = payload.data.title || '새로운 알림';
     const notificationOptions = {
       body: payload.data.body || '',
-      icon: '/icons/church-logo-96x96.png',
-      badge: '/icons/badge-monochrome.png',
+      icon: '/pwa-icon-192-v7.png',
+      badge: '/favicon-48x48-v7.png',
       vibrate: [100, 50, 100],
       data: {
         url: payload.data.url || '/'

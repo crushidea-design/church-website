@@ -253,6 +253,7 @@ export default function Home() {
              post.subCategory === 'governing' ? '치리' :
              post.subCategory === 'general' ? '일반' : '연구실';
     } else if (post.category === 'sermon') {
+      if (post.sermonCategoryId) return '말씀 서재';
       return post.subCategory === 'past_sermons' ? '지난 설교들' :
              post.subCategory === 'pilgrims_progress' ? '천로역정' : '말씀 서재';
     } else if (post.category === 'journal') {

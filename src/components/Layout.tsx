@@ -310,7 +310,7 @@ export default function Layout() {
               <ul className="grid grid-cols-2 gap-y-2 gap-x-6 w-fit text-sm text-wood-300">
                 <li><Link to="/intro" className="hover:text-gold-400 transition">교회 소개</Link></li>
                 <li><Link to="/journal" className="hover:text-gold-400 transition">개척 일지</Link></li>
-                <li><Link to="/archive/today" className="hover:text-gold-400 transition">오늘의 묵상</Link></li>
+                <li><Link to="/archive/today" className="hover:text-gold-400 transition">오늘의 말씀</Link></li>
                 <li><Link to="/archive/sermons" className="hover:text-gold-400 transition">말씀 서재</Link></li>
                 <li><Link to="/archive/research" className="hover:text-gold-400 transition">교회 연구실</Link></li>
                 <li><Link to="/community" className="hover:text-gold-400 transition">소통 게시판</Link></li>

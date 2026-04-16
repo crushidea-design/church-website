@@ -29,7 +29,11 @@ interface SermonPost {
 }
 
 const isLegacySermon = (post: SermonPost) => {
-  return post.subCategory === 'past_sermons' || post.subCategory === 'pilgrims_progress';
+  return !post.sermonCategoryId && (post.subCategory === 'past_sermons' || post.subCategory === 'pilgrims_progress');
+};
+
+const isHiddenLegacyCategory = (category: SermonCategory) => {
+  return category.id === 'past_sermons' || category.name === '지난 설교들';
 };
 
 const isUncategorizedSermon = (post: SermonPost, categories: SermonCategory[]) => {
@@ -81,12 +85,13 @@ export default function Sermons() {
 
   const canWrite = !authLoading && role === 'admin';
   const isRegularMember = role === 'regular' || role === 'admin';
+  const visibleSermonCategories = React.useMemo(
+    () => sermonCategories.filter(category => !isHiddenLegacyCategory(category)),
+    [sermonCategories]
+  );
 
   const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
     const orderDir = sortOrderDirection;
-    const anchorDoc = page > 1 ? pageLastDocs[page - 1] : null;
-
-    if (page > 1 && !anchorDoc) return;
 
     let baseConstraints: any[] = [where('category', '==', 'sermon')];
 
@@ -96,17 +101,10 @@ export default function Sermons() {
       baseConstraints.push(where('sermonCategoryId', '==', tab));
     }
 
-    const paginationConstraints = [
-      orderBy('sortOrder', orderDir),
-      orderBy('createdAt', 'desc'),
-      ...(anchorDoc ? [startAfter(anchorDoc)] : []),
-      limit(tab === 'uncategorized' ? 100 : pageSize + 1)
-    ];
-
     const sermonsQuery = query(
       collection(db, 'posts'),
       ...baseConstraints,
-      ...paginationConstraints
+      limit(1000)
     );
     const snapshot = await getDocs(sermonsQuery);
     let docs = snapshot.docs;
@@ -115,13 +113,15 @@ export default function Sermons() {
       docs = docs.filter(doc => isUncategorizedSermon({ id: doc.id, ...(doc.data() as object) } as SermonPost, categories));
     }
 
-    const pageDocs = docs.slice(0, pageSize);
-    const data = pageDocs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SermonPost[];
-    const lastDoc = pageDocs[pageDocs.length - 1] || null;
-    const hasMore = tab === 'uncategorized' ? false : snapshot.docs.length > pageSize;
+    const allData = sortSermons(
+      docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SermonPost[],
+      orderDir
+    );
+    const startIndex = (page - 1) * pageSize;
+    const data = allData.slice(startIndex, startIndex + pageSize);
+    const hasMore = allData.length > startIndex + pageSize;
 
-    setCategoryCollection('sermons', tab, data, lastDoc, hasMore);
-    if (lastDoc) setPageLastDocs(prev => ({ ...prev, [page]: lastDoc }));
+    setCategoryCollection('sermons', tab, data, null, hasMore);
   };
 
   useEffect(() => {
@@ -144,7 +144,8 @@ export default function Sermons() {
 
         // Set Active Tab
         let tab = ALL_SERMONS_TAB;
-        if (tabParam && (tabParam === ALL_SERMONS_TAB || cats.some(c => c.id === tabParam) || tabParam === 'past_sermons' || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
+        const visibleCats = cats.filter(category => !isHiddenLegacyCategory(category));
+        if (tabParam && (tabParam === ALL_SERMONS_TAB || visibleCats.some(c => c.id === tabParam) || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
           tab = tabParam;
         }
 
@@ -181,7 +182,6 @@ export default function Sermons() {
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || loading) return;
-    if (page > 1 && !pageLastDocs[page - 1]) return;
     
     setLoading(true);
     setError(null);
@@ -273,7 +273,7 @@ export default function Sermons() {
 
   const hasUncategorized = Object.values(sermons).some(cat => 
     cat?.data?.some(video => {
-      const hasValidCategory = sermonCategories.some(c => c.id === video.sermonCategoryId);
+      const hasValidCategory = visibleSermonCategories.some(c => c.id === video.sermonCategoryId);
       const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
       return !hasValidCategory && !isLegacy;
     })
@@ -284,7 +284,7 @@ export default function Sermons() {
 
     if (activeTab === 'uncategorized') {
       const uncategorizedVideos = videos.filter(video => {
-        const hasValidCategory = sermonCategories.some(c => c.id === video.sermonCategoryId);
+        const hasValidCategory = visibleSermonCategories.some(c => c.id === video.sermonCategoryId);
         const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
         return !hasValidCategory && !isLegacy;
       });
@@ -293,7 +293,7 @@ export default function Sermons() {
     }
 
     return sortSermons(videos, sortOrderDirection);
-  }, [currentSermons.data, activeTab, sermonCategories, sortOrderDirection]);
+  }, [currentSermons.data, activeTab, visibleSermonCategories, sortOrderDirection]);
 
   const adminTools = canWrite ? (
     <div className="flex justify-end items-center gap-4 pt-8">
@@ -373,7 +373,7 @@ export default function Sermons() {
           >
             전체
           </button>
-          {sermonCategories.map((tab) => (
+          {visibleSermonCategories.map((tab) => (
             <button
               key={tab.id}
               onClick={() => {
@@ -405,7 +405,7 @@ export default function Sermons() {
             </button>
           )}
           {/* Fallback for legacy tabs if they don't exist in categories */}
-          {!sermonCategories.find(c => c.id === 'past_sermons') && Object.values(sermons).some(cat => cat?.data?.some(v => v.subCategory === 'past_sermons')) && (
+          {false && !sermonCategories.find(c => c.id === 'past_sermons') && Object.values(sermons).some(cat => cat?.data?.some(v => v.subCategory === 'past_sermons')) && (
             <button
               onClick={() => {
                 setActiveTab('past_sermons');

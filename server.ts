@@ -16,6 +16,58 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const ADMIN_EMAIL = 'crushidea@gmail.com';
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  let firebaseConfig: any = {};
+
+  try {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    console.warn('firebase-applet-config.json not found or invalid. Falling back to the default Firestore database.');
+  }
+
+  const getAppDb = () => firebaseConfig.firestoreDatabaseId
+    ? getFirestore(firebaseConfig.firestoreDatabaseId)
+    : admin.firestore();
+
+  const verifyRequestUser = async (req: any) => {
+    const authHeader = req.headers.authorization || '';
+    const idToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : null;
+
+    if (!idToken || !admin.apps.length) {
+      return null;
+    }
+
+    return admin.auth().verifyIdToken(idToken);
+  };
+
+  const requireAdmin = async (req: any, res: any) => {
+    try {
+      const decoded = await verifyRequestUser(req);
+      if (!decoded) {
+        res.status(401).json({ error: 'Authentication required' });
+        return null;
+      }
+
+      if (decoded.email === ADMIN_EMAIL) {
+        return decoded;
+      }
+
+      const userDoc = await getAppDb().collection('users').doc(decoded.uid).get();
+      if (userDoc.exists && userDoc.data()?.role === 'admin') {
+        return decoded;
+      }
+
+      res.status(403).json({ error: 'Admin permission required' });
+      return null;
+    } catch (error) {
+      console.error('Error verifying admin request:', error);
+      res.status(401).json({ error: 'Invalid authentication token' });
+      return null;
+    }
+  };
 
   // Initialize Firebase Admin
   const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -70,7 +122,7 @@ async function startServer() {
         });
         console.log(`Firebase Admin initialized for project: ${serviceAccount.project_id}`);
         
-        // Start cron job for scheduled posts and notifications
+        // Start cron job for scheduled notifications
         startScheduledTasksCron();
       } else {
         throw new Error('Could not parse valid service account key from FIREBASE_SERVICE_ACCOUNT_KEY');
@@ -91,82 +143,10 @@ async function startServer() {
     // Run every hour
     cron.schedule('0 * * * *', async () => {
       try {
-        const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        const db = getFirestore(firebaseConfig.firestoreDatabaseId);
+        const db = getAppDb();
         const now = new Date();
         
-        // 1. Handle Scheduled Posts
-        const postsSnapshot = await db.collection('posts')
-          .where('isPublished', '==', false)
-          .where('scheduledAt', '<=', now)
-          .get();
-
-        if (!postsSnapshot.empty) {
-          console.log(`Found ${postsSnapshot.size} scheduled posts to publish.`);
-          const batch = db.batch();
-          const postsToNotify: any[] = [];
-
-          postsSnapshot.docs.forEach(doc => {
-            const postData = doc.data();
-            batch.update(doc.ref, {
-              isPublished: true,
-              updatedAt: FieldValue.serverTimestamp()
-            });
-            
-            if (postData.category === 'today_word') {
-              postsToNotify.push({ id: doc.id, ...postData });
-            }
-          });
-
-          await batch.commit();
-          console.log(`Successfully published ${postsSnapshot.size} posts.`);
-
-          // Send notifications for published 'today_word' posts
-          if (postsToNotify.length > 0) {
-            for (const post of postsToNotify) {
-              const baseMessage: any = {
-                notification: { 
-                  title: '오늘의 묵상 가이드라인이 올라왔습니다!', 
-                  body: post.title 
-                },
-                data: { url: '/archive/today' },
-                webpush: {
-                  notification: {
-                    icon: '/pwa-icon-192-v6.png',
-                    badge: '/favicon-48x48-final.png',
-                    vibrate: [100, 50, 100]
-                  },
-                  fcm_options: { link: '/archive/today' }
-                }
-              };
-
-              try {
-                if (post.targetUserIds && post.targetUserIds.length > 0) {
-                  // Only fetch tokens if we have specific target users
-                  const thirtyDaysAgo = new Date();
-                  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                  const tokensSnapshot = await db.collection('fcm_tokens')
-                    .where('userId', 'in', post.targetUserIds)
-                    .where('updatedAt', '>=', thirtyDaysAgo)
-                    .get();
-                  const targetTokens = Array.from(new Set(tokensSnapshot.docs.map(t => t.data().token)));
-                  
-                  if (targetTokens.length > 0) {
-                    await admin.messaging().sendEachForMulticast({ ...baseMessage, tokens: targetTokens });
-                  }
-                } else {
-                  // Zero-read broadcast using topic
-                  await admin.messaging().send({ ...baseMessage, topic: 'all_members' });
-                }
-              } catch (err) {
-                console.error(`Failed to send scheduled notification for post ${post.id}:`, err);
-              }
-            }
-          }
-        }
-
-        // 2. Handle Scheduled Notifications
+        // Handle Scheduled Notifications
         const notificationsSnapshot = await db.collection('scheduled_notifications')
           .where('status', '==', 'pending')
           .where('scheduledAt', '<=', now)
@@ -185,8 +165,8 @@ async function startServer() {
               },
               webpush: {
                 notification: {
-                  icon: '/pwa-icon-192-v6.png',
-                  badge: '/favicon-48x48-final.png',
+                  icon: '/pwa-icon-192-v7.png',
+                  badge: '/favicon-48x48-v7.png',
                   vibrate: [100, 50, 100],
                   ...(notif.imageUrl && { image: notif.imageUrl }),
                 },
@@ -203,11 +183,16 @@ async function startServer() {
                 if (targetTokens.length === 0 && notif.targetUserIds?.length > 0) {
                   const thirtyDaysAgo = new Date();
                   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                  const tokensSnapshot = await db.collection('fcm_tokens')
-                    .where('userId', 'in', notif.targetUserIds)
-                    .where('updatedAt', '>=', thirtyDaysAgo)
-                    .get();
-                  targetTokens = Array.from(new Set(tokensSnapshot.docs.map(t => t.data().token)));
+                  const tokenSet = new Set<string>();
+                  for (let i = 0; i < notif.targetUserIds.length; i += 30) {
+                    const chunk = notif.targetUserIds.slice(i, i + 30);
+                    const tokensSnapshot = await db.collection('fcm_tokens')
+                      .where('userId', 'in', chunk)
+                      .where('updatedAt', '>=', thirtyDaysAgo)
+                      .get();
+                    tokensSnapshot.docs.forEach(t => tokenSet.add(t.data().token));
+                  }
+                  targetTokens = Array.from(tokenSet);
                 }
 
                 if (targetTokens.length > 0) {
@@ -239,6 +224,17 @@ async function startServer() {
     if (!admin.apps.length || !token) {
       return res.status(400).json({ error: 'Invalid request' });
     }
+    if (topic !== 'all_members') {
+      return res.status(400).json({ error: 'Unsupported topic' });
+    }
+    const decoded = await verifyRequestUser(req).catch(error => {
+      console.error('Error verifying subscribe request:', error);
+      return null;
+    });
+    if (!decoded) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     try {
       await admin.messaging().subscribeToTopic(token, topic);
       res.json({ success: true });
@@ -261,6 +257,9 @@ async function startServer() {
     }
 
     try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
       let response;
       const baseMessage: any = {
         notification: { title, body },
@@ -270,8 +269,8 @@ async function startServer() {
         },
         webpush: {
           notification: {
-            icon: '/pwa-icon-192-v6.png',
-            badge: '/favicon-48x48-final.png',
+            icon: '/pwa-icon-192-v7.png',
+            badge: '/favicon-48x48-v7.png',
             vibrate: [100, 50, 100],
             ...(imageUrl && { image: imageUrl }),
           },
@@ -292,12 +291,15 @@ async function startServer() {
         let tokensToUse = targetTokens || [];
         
         if (targetUserIds && targetUserIds.length > 0) {
-          const db = admin.firestore();
+          const db = getAppDb();
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
           
           for (let i = 0; i < targetUserIds.length; i += 30) {
             const chunk = targetUserIds.slice(i, i + 30);
             const snapshot = await db.collection('fcm_tokens')
               .where('userId', 'in', chunk)
+              .where('updatedAt', '>=', thirtyDaysAgo)
               .get();
             
             snapshot.forEach(doc => {

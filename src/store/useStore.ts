@@ -112,7 +112,7 @@ export const useStore = create<AppState>()(
       setCategories: (key, cats) => set({ [key]: cats }),
       
       setTodayWord: (dateStr, post) => set((state) => ({
-        todayWords: { ...state.todayWords, [dateStr]: post }
+        todayWords: { ...state.todayWords, [dateStr]: { post, fetchedAt: Date.now() } }
       })),
       
       setTodayWordProgress: (dateStr, progress) => set((state) => ({
