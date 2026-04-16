@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs, doc, setDoc, limit, startAfter } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, doc, writeBatch, limit, startAfter } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate, getYouTubeId } from '../lib/utils';
@@ -83,6 +83,7 @@ export default function Sermons() {
   const isRegularMember = role === 'regular' || role === 'admin';
 
   const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
+    const orderDir = sortOrderDirection;
     const anchorDoc = page > 1 ? pageLastDocs[page - 1] : null;
 
     if (page > 1 && !anchorDoc) return;
@@ -96,6 +97,8 @@ export default function Sermons() {
     }
 
     const paginationConstraints = [
+      orderBy('sortOrder', orderDir),
+      orderBy('createdAt', 'desc'),
       ...(anchorDoc ? [startAfter(anchorDoc)] : []),
       limit(tab === 'uncategorized' ? 100 : pageSize + 1)
     ];
@@ -174,7 +177,7 @@ export default function Sermons() {
     };
 
     fetchInitialData();
-  }, [authLoading, isRegularMember, tabParam, sermonCategories.length]);
+  }, [authLoading, isRegularMember, tabParam, sermonCategories.length, sortOrderDirection]);
 
   const handlePageChange = async (page: number) => {
     if (page === currentPage || page < 1 || loading) return;
@@ -213,6 +216,61 @@ export default function Sermons() {
     }
   };
 
+  const handleRepairSortOrder = async () => {
+    if (!window.confirm('말씀 영상 전체를 확인해 정렬 데이터를 복구합니다. 이 작업은 관리자용 1회성 정비 작업입니다. 계속하시겠습니까?')) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      let checkedCount = 0;
+      let updatedCount = 0;
+      let lastDoc: any = null;
+
+      while (true) {
+        const repairQuery = query(
+          collection(db, 'posts'),
+          where('category', '==', 'sermon'),
+          ...(lastDoc ? [startAfter(lastDoc)] : []),
+          limit(500)
+        );
+        const snapshot = await getDocs(repairQuery);
+
+        if (snapshot.empty) break;
+
+        const batch = writeBatch(db);
+        let batchUpdates = 0;
+
+        for (const docSnap of snapshot.docs) {
+          checkedCount++;
+          const data = docSnap.data();
+          const newSortOrder = generateSortOrder(data.title || '');
+
+          if (data.sortOrder !== newSortOrder) {
+            batch.set(doc(db, 'posts', docSnap.id), { sortOrder: newSortOrder }, { merge: true });
+            batchUpdates++;
+            updatedCount++;
+          }
+        }
+
+        if (batchUpdates > 0) {
+          await batch.commit();
+        }
+
+        lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        if (snapshot.docs.length < 500) break;
+      }
+
+      alert(`${checkedCount}개의 말씀 영상을 확인했고, ${updatedCount}개의 정렬 데이터를 복구했습니다.`);
+      await handleRefresh();
+    } catch (err) {
+      console.error('Error repairing sort order:', err);
+      alert('정렬 데이터 복구 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const hasUncategorized = Object.values(sermons).some(cat => 
     cat?.data?.some(video => {
       const hasValidCategory = sermonCategories.some(c => c.id === video.sermonCategoryId);
@@ -236,6 +294,30 @@ export default function Sermons() {
 
     return sortSermons(videos, sortOrderDirection);
   }, [currentSermons.data, activeTab, sermonCategories, sortOrderDirection]);
+
+  const adminTools = canWrite ? (
+    <div className="flex justify-end items-center gap-4 pt-8">
+      <button
+        onClick={handleRepairSortOrder}
+        disabled={loading}
+        className="inline-flex items-center px-4 py-2 text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 border border-amber-200 rounded-lg hover:bg-amber-50"
+        title="정렬 데이터 복구"
+      >
+        <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+        정렬 데이터 복구
+      </button>
+
+      <button
+        onClick={handleRefresh}
+        disabled={loading}
+        className="inline-flex items-center px-4 py-2 text-sm text-wood-500 hover:text-wood-900 transition-colors disabled:opacity-50"
+        title="데이터 새로고침"
+      >
+        <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+        새로고침
+      </button>
+    </div>
+  ) : null;
 
   if (!authLoading && !isRegularMember) {
     return (
@@ -460,56 +542,9 @@ export default function Sermons() {
             </div>
           )}
 
-          {/* Admin Tools */}
-          {canWrite && (
-            <div className="flex justify-end items-center gap-4 pt-8">
-              <button
-                onClick={async () => {
-                  if (!window.confirm('최대 500개의 말씀 영상만 확인해 정렬 데이터를 복구합니다. 계속하시겠습니까?')) return;
-                  setLoading(true);
-                  try {
-                    const q = query(collection(db, 'posts'), where('category', '==', 'sermon'), orderBy('createdAt', 'asc'), limit(500));
-                    const snapshot = await getDocs(q);
-                    let updatedCount = 0;
-                    
-                    for (const docSnap of snapshot.docs) {
-                      const data = docSnap.data();
-                      const newSortOrder = generateSortOrder(data.title || '');
-                      if (data.sortOrder !== newSortOrder) {
-                        await setDoc(doc(db, 'posts', docSnap.id), { sortOrder: newSortOrder }, { merge: true });
-                        updatedCount++;
-                      }
-                    }
-                    alert(`${updatedCount}개의 영상 정렬 데이터가 복구되었습니다.`);
-                    handleRefresh();
-                  } catch (err) {
-                    console.error('Error repairing sort order:', err);
-                    alert('정렬 데이터 복구 중 오류가 발생했습니다.');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-                className="inline-flex items-center px-4 py-2 text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 border border-amber-200 rounded-lg hover:bg-amber-50"
-                title="정렬 데이터 복구"
-              >
-                <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
-                정렬 데이터 복구
-              </button>
-
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="inline-flex items-center px-4 py-2 text-sm text-wood-500 hover:text-wood-900 transition-colors disabled:opacity-50"
-                title="데이터 새로고침"
-              >
-                <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
-                새로고침
-              </button>
-            </div>
-          )}
         </div>
       )}
+      {adminTools}
       </div>
     </div>
   );
