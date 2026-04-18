@@ -27,6 +27,7 @@ export default function CreatePost() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const type = searchParams.get('type') || 'community';
+  const isNextGeneration = type === 'next_generation';
   const { user, role, loading: authLoading } = useAuth();
   const { invalidateCache } = useStore();
   
@@ -104,7 +105,7 @@ export default function CreatePost() {
     );
   }
 
-  if ((type === 'research' || type === 'sermon' || type === 'today_word') && role !== 'admin') {
+  if ((type === 'research' || type === 'sermon' || type === 'today_word' || isNextGeneration) && role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-wood-50">
         <div className="text-center">
@@ -322,7 +323,7 @@ export default function CreatePost() {
       }
       
       console.log('Navigating to post detail...');
-      navigate(`/post/${docRef.id}`);
+      navigate(isNextGeneration ? `/next-generation/post/${docRef.id}` : `/post/${docRef.id}`);
     } catch (err: any) {
       console.error('Error in handleSubmit:', err);
       const errorMessage = err.message || '게시글 등록 중 오류가 발생했습니다.';
@@ -347,6 +348,7 @@ export default function CreatePost() {
       case 'sermon': return '말씀 서재 등록';
       case 'journal': return '개척 일지 작성';
       case 'today_word': return '오늘의 말씀 작성';
+      case 'next_generation': return '다음세대 자료 등록';
       default: return '게시글 작성';
     }
   };
@@ -520,7 +522,7 @@ export default function CreatePost() {
               />
             </div>
 
-            {(type === 'research' || type === 'sermon') && (
+            {(type === 'research' || type === 'sermon' || isNextGeneration) && (
               <div>
                 <label className="block text-sm font-medium text-wood-700 mb-2">
                   PDF 파일 첨부 (선택)

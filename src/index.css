@@ -19,6 +19,11 @@
   
   --color-gold-500: #c5a059;
   --color-gold-400: #d4b47a;
+
+  --color-coral-800: #9f2f23;
+  --color-coral-700: #c84032;
+  --color-coral-600: #e95440;
+  --color-coral-100: #ffe1dc;
   
   --font-serif: "Cormorant Garamond", "Playfair Display", serif;
   --font-sans: "Inter", system-ui, sans-serif;

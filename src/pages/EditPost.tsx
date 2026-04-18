@@ -39,6 +39,7 @@ export default function EditPost() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [type, setType] = useState('');
+  const isNextGeneration = type === 'next_generation';
   const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
   const [sermonCategoryId, setSermonCategoryId] = useState('');
@@ -351,7 +352,7 @@ export default function EditPost() {
       invalidateCache('home');
       localStorage.removeItem('home_latest_posts_cache');
 
-      navigate(`/post/${id}`);
+      navigate(isNextGeneration ? `/next-generation/post/${id}` : `/post/${id}`);
     } catch (err: any) {
       console.error('Error updating post:', err);
       const errorMessage = err.message || '게시글 수정 중 오류가 발생했습니다.';
@@ -388,6 +389,7 @@ export default function EditPost() {
       case 'sermon': return '말씀 서재 수정';
       case 'journal': return '개척 일지 수정';
       case 'today_word': return '묵상 가이드 수정';
+      case 'next_generation': return '다음세대 자료 수정';
       default: return '게시글 수정';
     }
   };
@@ -509,7 +511,7 @@ export default function EditPost() {
               />
             </div>
 
-            {(type === 'research' || type === 'sermon') && (
+            {(type === 'research' || type === 'sermon' || isNextGeneration) && (
               <div>
                 <label className="block text-sm font-medium text-wood-700 mb-2">
                   PDF 파일 첨부

@@ -301,7 +301,8 @@ export default function Profile() {
                       <span className="text-xs font-medium px-2.5 py-1 bg-wood-100 text-wood-600 rounded-full whitespace-nowrap ml-4">
                         {post.category === 'journal' ? '개척일지' : 
                          post.category === 'sermon' ? '설교' : 
-                         post.category === 'research' ? '연구소' : '소통게시판'}
+                         post.category === 'research' ? '연구소' :
+                         post.category === 'next_generation' ? '다음세대' : '소통게시판'}
                       </span>
                     </div>
                     <div className="flex items-center text-sm text-wood-500 gap-4">
