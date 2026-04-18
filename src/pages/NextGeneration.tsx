@@ -30,10 +30,23 @@ const introImage = '/next-generation-2026.png';
 const elementaryImage = '/next-generation-2026.png';
 const youngAdultsImage = '/young-adults-pilgrims-progress.png';
 
+const elementaryWeeklyResourceIds = [
+  'elementary_script',
+  'elementary_workbook',
+  'elementary_guide',
+  'family_column',
+];
+
 const elementaryResourceTabs = [
   {
+    id: 'elementary_weekly',
+    name: '이번주 강의자료',
+    description: '해당 주일에 필요한 강의원고, 공과, 공과 가이드, 예배를 잇는 가정을 한곳에서 확인합니다.',
+    icon: CalendarDays,
+  },
+  {
     id: 'elementary_script',
-    name: '이번주 강의원고',
+    name: '강의원고',
     description: '이번 주 말씀 흐름과 교사의 진행 메모를 함께 봅니다.',
     icon: FileText,
   },
@@ -79,6 +92,11 @@ const youngAdultResourceTabs = [
 ];
 
 const allResourceTabs = [...elementaryResourceTabs, ...youngAdultResourceTabs];
+const elementaryWeeklyResourceTabs = elementaryResourceTabs.filter((tab) => elementaryWeeklyResourceIds.includes(tab.id));
+
+const isElementaryWeeklyResource = (id?: string) => {
+  return !!id && elementaryWeeklyResourceIds.includes(id);
+};
 
 const sectionTabs = [
   {
@@ -121,6 +139,32 @@ const getCreatedAtTime = (value: any) => {
 
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getSundayDate = (baseDate = new Date()) => {
+  const date = new Date(baseDate);
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + ((7 - date.getDay()) % 7));
+  return date;
+};
+
+const getCurrentSundayKey = () => toLocalDateKey(getSundayDate());
+
+const getPostWeekKey = (post: NextGenerationPost) => {
+  if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
+    return post.nextGenerationWeekKey;
+  }
+
+  const createdAtTime = getCreatedAtTime(post.createdAt);
+  if (!createdAtTime) return '';
+  return toLocalDateKey(getSundayDate(new Date(createdAtTime)));
 };
 
 const getResourceLabel = (id?: string) => {
@@ -383,6 +427,8 @@ function ResourceLibraryPage({
   const [error, setError] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
   const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
+  const isWeeklyTab = activeTab.id === 'elementary_weekly';
+  const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
 
   useEffect(() => {
@@ -416,10 +462,16 @@ function ResourceLibraryPage({
     fetchPosts();
   }, []);
 
-  const filteredPosts = useMemo(
-    () => posts.filter((post) => post.subCategory === activeTab.id),
-    [posts, activeTab.id]
-  );
+  const filteredPosts = useMemo(() => {
+    if (isWeeklyTab) {
+      return posts.filter((post) => (
+        isElementaryWeeklyResource(post.subCategory) &&
+        getPostWeekKey(post) === currentWeekKey
+      ));
+    }
+
+    return posts.filter((post) => post.subCategory === activeTab.id);
+  }, [posts, activeTab.id, currentWeekKey, isWeeklyTab]);
 
   return (
     <div>
@@ -477,6 +529,11 @@ function ResourceLibraryPage({
                 {activeTab.name}
               </h2>
               <p className="mt-3 text-base leading-7 text-slate-700">{activeTab.description}</p>
+              {isWeeklyTab && (
+                <p className="mt-2 text-sm font-bold text-emerald-700">
+                  기준 주일: {currentWeekKey}
+                </p>
+              )}
             </div>
 
             {isAdmin && (
@@ -566,6 +623,11 @@ function NextGenerationCreatePost() {
   const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const activeTab = getResourceTab(searchParams.get('resource') || undefined);
+  const isWeeklyCreate = activeTab.id === 'elementary_weekly';
+  const [selectedResourceId, setSelectedResourceId] = useState(
+    isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id
+  );
+  const [weekKey, setWeekKey] = useState(getCurrentSundayKey());
   const backPath = `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
 
   const [title, setTitle] = useState('');
@@ -574,6 +636,11 @@ function NextGenerationCreatePost() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const usesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(selectedResourceId);
+
+  useEffect(() => {
+    setSelectedResourceId(isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id);
+  }, [activeTab.id, isWeeklyCreate]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -619,7 +686,7 @@ function NextGenerationCreatePost() {
         title: title.trim(),
         content: content.trim(),
         category: NEXT_GENERATION_CATEGORY,
-        subCategory: activeTab.id,
+        subCategory: selectedResourceId,
         sortOrder: generateSortOrder(title.trim()),
         authorId: user.uid,
         authorName: user.displayName || '익명',
@@ -629,6 +696,10 @@ function NextGenerationCreatePost() {
         updatedAt: serverTimestamp(),
         isPublished: true,
       };
+
+      if (usesWeekKey) {
+        postData.nextGenerationWeekKey = weekKey;
+      }
 
       if (pdfUrl) {
         postData.pdfUrl = pdfUrl;
@@ -738,6 +809,48 @@ function NextGenerationCreatePost() {
           )}
 
           <form id="next-generation-create-form" onSubmit={handleSubmit} className="space-y-6">
+            {isWeeklyCreate && (
+              <div>
+                <label htmlFor="next-generation-resource-type" className="mb-2 block text-sm font-black text-emerald-950">
+                  세부 탭
+                </label>
+                <select
+                  id="next-generation-resource-type"
+                  value={selectedResourceId}
+                  onChange={(event) => setSelectedResourceId(event.target.value)}
+                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                >
+                  {elementaryWeeklyResourceTabs.map((tab) => (
+                    <option key={tab.id} value={tab.id}>
+                      {tab.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  선택한 세부 탭에도 같은 자료가 자동으로 모입니다.
+                </p>
+              </div>
+            )}
+
+            {usesWeekKey && (
+              <div>
+                <label htmlFor="next-generation-week" className="mb-2 block text-sm font-black text-emerald-950">
+                  해당 주일
+                </label>
+                <input
+                  id="next-generation-week"
+                  type="date"
+                  value={weekKey}
+                  onChange={(event) => setWeekKey(event.target.value)}
+                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                  required
+                />
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  이번주 강의자료 탭은 이 날짜가 이번 주일과 같은 자료를 모아 보여줍니다.
+                </p>
+              </div>
+            )}
+
             <div>
               <label htmlFor="next-generation-title" className="mb-2 block text-sm font-black text-emerald-950">
                 제목
