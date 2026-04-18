@@ -138,6 +138,79 @@ const getContentPreview = (content?: string) => {
   return content.replace(/\s+/g, ' ').trim().slice(0, 110);
 };
 
+function useNextGenerationHead() {
+  useEffect(() => {
+    const previousTitle = document.title;
+    const previousLinks = Array.from(
+      document.head.querySelectorAll<HTMLLinkElement>('link[rel*="icon"], link[rel="manifest"]')
+    ).map((link) => link.cloneNode(true) as HTMLLinkElement);
+    const previousAppleTitle = document.head.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]')?.content;
+    const previousThemeColor = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content;
+    const hadAppleTitle = document.head.querySelector('meta[name="apple-mobile-web-app-title"]') !== null;
+    const hadThemeColor = document.head.querySelector('meta[name="theme-color"]') !== null;
+
+    document.head
+      .querySelectorAll<HTMLLinkElement>('link[rel*="icon"], link[rel="manifest"]')
+      .forEach((link) => link.remove());
+
+    const addHeadLink = (attributes: Record<string, string>) => {
+      const link = document.createElement('link');
+      Object.entries(attributes).forEach(([key, value]) => link.setAttribute(key, value));
+      link.dataset.nextGenerationHead = 'true';
+      document.head.appendChild(link);
+    };
+
+    const ensureMeta = (name: string) => {
+      let meta = document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = name;
+        meta.dataset.nextGenerationHead = 'true';
+        document.head.appendChild(meta);
+      }
+      return meta;
+    };
+
+    document.title = '다음세대 | 함께 지어져가는 교회';
+    ensureMeta('apple-mobile-web-app-title').content = '다음세대';
+    ensureMeta('theme-color').content = '#16a34a';
+
+    addHeadLink({ rel: 'icon', type: 'image/svg+xml', href: '/next-generation-favicon.svg' });
+    addHeadLink({ rel: 'icon', type: 'image/png', sizes: '48x48', href: '/next-generation-icon-48.png' });
+    addHeadLink({ rel: 'icon', type: 'image/png', sizes: '192x192', href: '/next-generation-icon-192.png' });
+    addHeadLink({ rel: 'icon', type: 'image/png', sizes: '512x512', href: '/next-generation-icon-512.png' });
+    addHeadLink({ rel: 'apple-touch-icon', sizes: '180x180', href: '/next-generation-apple-touch-icon.png' });
+    addHeadLink({ rel: 'manifest', href: '/next-generation.webmanifest' });
+
+    return () => {
+      document.title = previousTitle;
+      document.head
+        .querySelectorAll<HTMLLinkElement>('link[data-next-generation-head="true"]')
+        .forEach((link) => link.remove());
+
+      previousLinks.forEach((link) => document.head.appendChild(link));
+
+      const appleTitle = document.head.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+      if (appleTitle) {
+        if (hadAppleTitle && previousAppleTitle !== undefined) {
+          appleTitle.content = previousAppleTitle;
+        } else {
+          appleTitle.remove();
+        }
+      }
+
+      const themeColor = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+      if (themeColor) {
+        if (hadThemeColor && previousThemeColor !== undefined) {
+          themeColor.content = previousThemeColor;
+        } else {
+          themeColor.remove();
+        }
+      }
+    };
+  }, []);
+}
+
 function NextGenerationHeader() {
   const location = useLocation();
 
@@ -602,6 +675,8 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 }
 
 export default function NextGeneration() {
+  useNextGenerationHead();
+
   const location = useLocation();
   const pathParts = location.pathname.split('/').filter(Boolean);
   const currentSection = pathParts[1];
