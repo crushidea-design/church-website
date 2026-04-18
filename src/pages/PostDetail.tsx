@@ -491,7 +491,10 @@ export default function PostDetail() {
       return post.subCategory === 'elementary_script' ? '이번주 강의원고' :
         post.subCategory === 'elementary_workbook' ? '공과' :
         post.subCategory === 'elementary_guide' ? '공과 가이드' :
-        post.subCategory === 'family_column' ? '예배를 잇는 가정' : '다음세대';
+        post.subCategory === 'family_column' ? '예배를 잇는 가정' :
+        post.subCategory === 'summer_bible_school' ? '여름성경학교' :
+        post.subCategory === 'pilgrim_lecture' ? '천로역정 특강' :
+        post.subCategory === 'retreat_materials' ? '수련회 자료' : '다음세대';
     }
     return '소통 게시판';
   };
@@ -508,7 +511,9 @@ export default function PostDetail() {
                 'research': '/archive/research',
                 'today_word': '/archive/today',
                 'community': '/community',
-                'next_generation': '/next-generation/elementary',
+                'next_generation': post?.subCategory === 'pilgrim_lecture' || post?.subCategory === 'retreat_materials'
+                  ? '/next-generation/young-adults'
+                  : '/next-generation/elementary',
                 'contact': '/contact'
               };
               let path = post ? categoryPaths[post.category] || '/' : '/';

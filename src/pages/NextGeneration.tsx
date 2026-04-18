@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import {
   ArrowLeft,
   BookMarked,
@@ -28,7 +28,7 @@ const introImage = '/next-generation-2026.png';
 const elementaryImage = '/next-generation-2026.png';
 const youngAdultsImage = '/young-adults-pilgrims-progress.png';
 
-const resourceTabs = [
+const elementaryResourceTabs = [
   {
     id: 'elementary_script',
     name: '이번주 강의원고',
@@ -53,7 +53,30 @@ const resourceTabs = [
     description: '부모님과 가정에서 이어 갈 묵상과 대화를 나눕니다.',
     icon: HeartHandshake,
   },
+  {
+    id: 'summer_bible_school',
+    name: '여름성경학교',
+    description: '여름성경학교 준비와 진행 자료를 함께 모읍니다.',
+    icon: Sparkles,
+  },
 ];
+
+const youngAdultResourceTabs = [
+  {
+    id: 'pilgrim_lecture',
+    name: '천로역정 특강',
+    description: '천로역정 특강 자료와 나눔 질문을 확인합니다.',
+    icon: BookMarked,
+  },
+  {
+    id: 'retreat_materials',
+    name: '수련회 자료',
+    description: '청년부 수련회 준비와 모임 자료를 모읍니다.',
+    icon: ClipboardList,
+  },
+];
+
+const allResourceTabs = [...elementaryResourceTabs, ...youngAdultResourceTabs];
 
 const sectionTabs = [
   {
@@ -99,7 +122,15 @@ const getCreatedAtTime = (value: any) => {
 };
 
 const getResourceLabel = (id?: string) => {
-  return resourceTabs.find((tab) => tab.id === id)?.name || '다음세대 자료';
+  return allResourceTabs.find((tab) => tab.id === id)?.name || '다음세대 자료';
+};
+
+const getResourceDepartmentPath = (id?: string) => {
+  if (youngAdultResourceTabs.some((tab) => tab.id === id)) {
+    return '/next-generation/young-adults';
+  }
+
+  return '/next-generation/elementary';
 };
 
 const getContentPreview = (content?: string) => {
@@ -232,15 +263,35 @@ function IntroPage() {
   );
 }
 
-function ElementaryPage() {
+interface ResourceLibraryPageProps {
+  departmentName: string;
+  image: string;
+  imageAlt: string;
+  badgeClassName: string;
+  heroClassName: string;
+  title: string;
+  description: React.ReactNode;
+  tabs: typeof elementaryResourceTabs;
+}
+
+function ResourceLibraryPage({
+  departmentName,
+  image,
+  imageAlt,
+  badgeClassName,
+  heroClassName,
+  title,
+  description,
+  tabs,
+}: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeResource = searchParams.get('resource') || resourceTabs[0].id;
+  const activeResource = searchParams.get('resource') || tabs[0].id;
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
-  const activeTab = resourceTabs.find((tab) => tab.id === activeResource) || resourceTabs[0];
+  const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
   const ActiveIcon = activeTab.icon;
 
   useEffect(() => {
@@ -281,23 +332,22 @@ function ElementaryPage() {
 
   return (
     <div>
-      <section className="bg-amber-50">
+      <section className={heroClassName}>
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
           <img
-            src={elementaryImage}
-            alt="함께 배우는 유초등부"
+            src={image}
+            alt={imageAlt}
             className="h-72 w-full rounded-lg object-cover shadow-sm"
           />
           <div>
-            <span className="mb-4 inline-flex rounded-lg bg-white px-3 py-2 text-sm font-black text-coral-800">
-              유초등부
+            <span className={`mb-4 inline-flex rounded-lg px-3 py-2 text-sm font-black ${badgeClassName}`}>
+              {departmentName}
             </span>
             <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950">
-              아이들의 예배가 한 주의 삶으로 이어지도록
+              {title}
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
-              이번 주 말씀, 공과, 교사용 가이드, 부모 칼럼을 한곳에서 확인합니다.
-              교사는 예배를 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
+              {description}
             </p>
           </div>
         </div>
@@ -306,7 +356,7 @@ function ElementaryPage() {
       <section className="bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex gap-2 overflow-x-auto pb-2">
-            {resourceTabs.map((tab) => {
+            {tabs.map((tab) => {
               const isActive = tab.id === activeTab.id;
               const Icon = tab.icon;
 
@@ -407,26 +457,16 @@ function ElementaryPage() {
 
 function YoungAdultsPage() {
   return (
-    <section className="bg-white">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_1fr] lg:items-center lg:px-8 lg:py-16">
-        <div>
-          <span className="mb-4 inline-flex rounded-lg bg-sky-100 px-3 py-2 text-sm font-black text-emerald-950">
-            청년부
-          </span>
-          <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950">
-            복음 안에서 함께 질문하고 함께 걸어갑니다
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
-            청년부 자료실은 곧 열립니다. 말씀 묵상, 모임 안내, 공동체 훈련 자료를 이곳에 모아 갈 예정입니다.
-          </p>
-        </div>
-        <img
-          src={youngAdultsImage}
-          alt="함께 공부하고 대화하는 청년들"
-          className="h-80 w-full rounded-lg object-cover shadow-sm"
-        />
-      </div>
-    </section>
+    <ResourceLibraryPage
+      departmentName="청년부"
+      image={youngAdultsImage}
+      imageAlt="천로역정 특강 청년부 자료"
+      badgeClassName="bg-sky-100 text-emerald-950"
+      heroClassName="bg-white"
+      title="복음 안에서 함께 질문하고 함께 걸어갑니다"
+      description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
+      tabs={youngAdultResourceTabs}
+    />
   );
 }
 
@@ -456,6 +496,18 @@ function NextGenerationPostDetail({ id }: { id: string }) {
           return;
         }
 
+        if (data.isLongContent) {
+          const chunksQuery = query(
+            collection(db, 'post_contents'),
+            where('postId', '==', id),
+            orderBy('index', 'asc')
+          );
+          const chunksSnap = await getDocs(chunksQuery);
+          if (!chunksSnap.empty) {
+            data.content = chunksSnap.docs.map((chunkDoc) => chunkDoc.data().content).join('');
+          }
+        }
+
         setPost(data);
       } catch (err: any) {
         console.error('Error fetching next generation post:', err);
@@ -480,7 +532,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
   if (!post) return null;
 
-  const backPath = `/next-generation/elementary?resource=${post.subCategory || resourceTabs[0].id}`;
+  const backPath = `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
 
   return (
     <main className="bg-sky-50 py-10">
@@ -560,7 +612,23 @@ export default function NextGeneration() {
   if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
   } else if (currentSection === 'elementary') {
-    content = <ElementaryPage />;
+    content = (
+      <ResourceLibraryPage
+        departmentName="유초등부"
+        image={elementaryImage}
+        imageAlt="함께 배우는 유초등부"
+        badgeClassName="bg-white text-coral-800"
+        heroClassName="bg-amber-50"
+        title="아이들의 예배가 한 주의 삶으로 이어지도록"
+        description={
+          <>
+            이번 주 말씀, 공과, 교사용 가이드, 부모 칼럼을 한곳에서 확인합니다.
+            교사는 예배를 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
+          </>
+        }
+        tabs={elementaryResourceTabs}
+      />
+    );
   } else if (currentSection === 'young-adults') {
     content = <YoungAdultsPage />;
   }

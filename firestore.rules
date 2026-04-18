@@ -143,7 +143,7 @@ service cloud.firestore {
              (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
              (!('targetUserIds' in data) || data.targetUserIds is list);
              
-      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', ''];
+      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
     }
 
