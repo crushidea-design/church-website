@@ -24,12 +24,9 @@ import PdfCanvasViewer from '../components/PdfCanvasViewer';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 
-const introImage =
-  'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80';
-const elementaryImage =
-  'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80';
-const youngAdultsImage =
-  'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80';
+const introImage = '/next-generation-2026.png';
+const elementaryImage = '/next-generation-2026.png';
+const youngAdultsImage = '/next-generation-2026.png';
 
 const resourceTabs = [
   {
@@ -167,14 +164,14 @@ function IntroPage() {
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
-              말씀 안에서 자라나는 초중고 세대
+              말씀 안에서 자라가는 다음 세대
             </span>
             <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
               예배와 가정과 삶이 이어지는 다음세대 공동체
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
-              함께 지어져가는 교회의 다음세대 교육은 아이들이 하나님을 아는 기쁨을 배우고,
-              말씀을 자기 언어로 붙들며, 교회와 가정 안에서 믿음의 걸음을 이어 가도록 돕습니다.
+              다음세대 교육은 아이들이 하나님을 아는 기쁨을 배우고,
+              말씀을 자기 언어로 붙들며, 교회와 가정 안에서 믿음의 걸음을 이어가도록 돕습니다.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {['말씀 중심', '예배의 기쁨', '가정과 연결'].map((item) => (
