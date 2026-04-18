@@ -171,7 +171,7 @@ function useNextGenerationHead() {
       return meta;
     };
 
-    document.title = '다음세대 | 함께 지어져가는 교회';
+    document.title = '다음세대 | 한우리교회';
     ensureMeta('apple-mobile-web-app-title').content = '다음세대';
     ensureMeta('theme-color').content = '#16a34a';
 
@@ -228,7 +228,7 @@ function NextGenerationHeader() {
             <GraduationCap size={28} />
           </span>
           <span>
-            <span className="block text-lg font-black tracking-normal text-emerald-950">함께 지어져가는 다음세대</span>
+            <span className="block text-lg font-black tracking-normal text-emerald-950">한우리교회 다음세대</span>
             <span className="block text-xs font-bold uppercase tracking-normal text-coral-700">Growing in the Word</span>
           </span>
         </Link>
@@ -714,7 +714,7 @@ export default function NextGeneration() {
       {content}
       <footer className="border-t border-emerald-100 bg-emerald-700 py-8 text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm font-bold sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <span>함께 지어져가는 다음세대</span>
+          <span>한우리교회 다음세대</span>
           <span className="text-emerald-100">말씀을 배우고, 예배를 사랑하고, 삶으로 이어갑니다.</span>
         </div>
       </footer>
