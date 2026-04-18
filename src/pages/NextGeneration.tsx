@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft,
   BookMarked,
@@ -14,11 +15,13 @@ import {
   Plus,
   Sparkles,
   Users,
+  X,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
+import { generateSortOrder } from '../lib/sortUtils';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
@@ -130,6 +133,10 @@ const getResourceDepartmentPath = (id?: string) => {
   }
 
   return '/next-generation/elementary';
+};
+
+const getResourceTab = (id?: string) => {
+  return allResourceTabs.find((tab) => tab.id === id) || elementaryResourceTabs[0];
 };
 
 const getContentPreview = (content?: string) => {
@@ -474,7 +481,7 @@ function ResourceLibraryPage({
 
             {isAdmin && (
               <Link
-                to={`/create-post?type=${NEXT_GENERATION_CATEGORY}&subCategory=${activeTab.id}`}
+                to={`/next-generation/create?resource=${activeTab.id}`}
                 className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
               >
                 <Plus size={18} className="mr-2" />
@@ -551,6 +558,267 @@ function YoungAdultsPage() {
       description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
       tabs={youngAdultResourceTabs}
     />
+  );
+}
+
+function NextGenerationCreatePost() {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const activeTab = getResourceTab(searchParams.get('resource') || undefined);
+  const backPath = `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
+
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      setError('PDF 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError('파일 크기는 2MB를 초과할 수 없습니다.');
+      return;
+    }
+
+    setPdfFile(file);
+    setError(null);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user || !title.trim() || !content.trim() || submitting) return;
+
+    setSubmitting(true);
+    setUploadProgress(0);
+    setError(null);
+
+    try {
+      let pdfUrl = '';
+      let pdfName = '';
+
+      if (pdfFile) {
+        setUploadProgress(20);
+        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
+        await uploadBytes(fileRef, pdfFile);
+        setUploadProgress(60);
+        pdfUrl = await getDownloadURL(fileRef);
+        pdfName = pdfFile.name;
+        setUploadProgress(80);
+      }
+
+      const postData: any = {
+        title: title.trim(),
+        content: content.trim(),
+        category: NEXT_GENERATION_CATEGORY,
+        subCategory: activeTab.id,
+        sortOrder: generateSortOrder(title.trim()),
+        authorId: user.uid,
+        authorName: user.displayName || '익명',
+        commentCount: 0,
+        viewCount: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        isPublished: true,
+      };
+
+      if (pdfUrl) {
+        postData.pdfUrl = pdfUrl;
+        postData.pdfName = pdfName;
+      }
+
+      const isLongContent = new TextEncoder().encode(content).length > 1400;
+      if (isLongContent) {
+        postData.content = content.substring(0, 400);
+        postData.isLongContent = true;
+        postData.fullContentLength = content.length;
+      }
+
+      const docRef = await addDoc(collection(db, 'posts'), postData);
+
+      if (isLongContent) {
+        const chunkSize = 10000;
+        const chunks = [];
+        for (let i = 0; i < content.length; i += chunkSize) {
+          chunks.push(content.substring(i, i + chunkSize));
+        }
+
+        for (let i = 0; i < chunks.length; i++) {
+          await setDoc(doc(db, 'post_contents', `${docRef.id}_${i}`), {
+            postId: docRef.id,
+            index: i,
+            content: chunks[i],
+            createdAt: serverTimestamp(),
+          });
+        }
+      }
+
+      navigate(`/next-generation/post/${docRef.id}`);
+    } catch (err: any) {
+      console.error('Error creating next generation post:', err);
+      setError(err.message || '자료 등록 중 오류가 발생했습니다.');
+      try {
+        handleFirestoreError(err, OperationType.CREATE, 'posts');
+      } catch (e) {}
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center bg-sky-50">
+        <Loader2 className="h-10 w-10 animate-spin text-emerald-700" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="bg-sky-50 py-12">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <button
+            onClick={() => navigate(backPath)}
+            className="mb-6 inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-bold text-emerald-950 shadow-sm transition hover:bg-emerald-50"
+          >
+            <ArrowLeft size={16} className="mr-2" />
+            자료실로 돌아가기
+          </button>
+          <div className="rounded-lg border border-sky-100 bg-white p-8 text-center shadow-sm">
+            <h1 className="text-2xl font-black text-emerald-950">로그인이 필요합니다</h1>
+            <p className="mt-3 text-slate-700">자료를 올리려면 먼저 관리자 계정으로 로그인해 주세요.</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="bg-sky-50 py-10">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <button
+          onClick={() => navigate(backPath)}
+          className="mb-6 inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-bold text-emerald-950 shadow-sm transition hover:bg-emerald-50"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          자료실로 돌아가기
+        </button>
+
+        <section className="rounded-lg border border-white bg-white p-6 shadow-sm sm:p-8 lg:p-10">
+          <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
+            {activeTab.name}
+          </span>
+          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-black tracking-normal text-emerald-950">다음세대 자료 등록</h1>
+              <p className="mt-3 text-base leading-7 text-slate-700">{activeTab.description}</p>
+            </div>
+            <button
+              type="submit"
+              form="next-generation-create-form"
+              disabled={submitting || !title.trim() || !content.trim()}
+              className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-coral-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? '등록 중...' : '등록하기'}
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+              {error}
+            </div>
+          )}
+
+          <form id="next-generation-create-form" onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="next-generation-title" className="mb-2 block text-sm font-black text-emerald-950">
+                제목
+              </label>
+              <input
+                id="next-generation-title"
+                type="text"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                placeholder="제목을 입력하세요"
+                required
+                maxLength={200}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="next-generation-content" className="mb-2 block text-sm font-black text-emerald-950">
+                내용
+              </label>
+              <textarea
+                id="next-generation-content"
+                rows={14}
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-4 text-sm leading-7 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                placeholder="자료 안내와 함께 나눌 내용을 입력하세요"
+                required
+                maxLength={50000}
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-black text-emerald-950">
+                PDF 파일 첨부
+              </label>
+              <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 text-center transition hover:bg-sky-100">
+                {pdfFile ? (
+                  <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                    <FileText className="h-8 w-8 text-emerald-700" />
+                    <span className="text-sm font-bold text-emerald-950">{pdfFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPdfFile(null)}
+                      className="inline-flex items-center rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-red-50 hover:text-red-700"
+                    >
+                      <X size={14} className="mr-1" />
+                      제거
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
+                    <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
+                      PDF 파일 선택
+                    </label>
+                    <p className="mt-2 text-xs font-bold text-slate-500">최대 2MB</p>
+                    <input
+                      id="next-generation-file"
+                      type="file"
+                      accept=".pdf"
+                      className="sr-only"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {submitting && uploadProgress > 0 && uploadProgress < 100 && (
+              <div>
+                <div className="h-2.5 w-full rounded-full bg-sky-100">
+                  <div className="h-2.5 rounded-full bg-emerald-600 transition-all" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <p className="mt-2 text-right text-xs font-bold text-slate-500">PDF 업로드 중... {uploadProgress}%</p>
+              </div>
+            )}
+          </form>
+        </section>
+      </div>
+    </main>
   );
 }
 
@@ -697,6 +965,8 @@ export default function NextGeneration() {
 
   if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
+  } else if (currentSection === 'create') {
+    content = <NextGenerationCreatePost />;
   } else if (currentSection === 'elementary') {
     content = (
       <ResourceLibraryPage
