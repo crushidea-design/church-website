@@ -25,6 +25,7 @@ import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import PrayerRoom from './pages/PrayerRoom';
+import NextGeneration from './pages/NextGeneration';
 
 import Login from './pages/Login';
 import Profile from './pages/Profile';
@@ -57,6 +58,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/next-generation/*" element={<NextGeneration />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
               <Route path="login" element={<Login />} />

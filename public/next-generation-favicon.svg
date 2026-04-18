@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">다음세대</title>
+  <rect width="512" height="512" rx="96" fill="#FEF3C7"/>
+  <circle cx="392" cy="118" r="34" fill="#F97316"/>
+  <path d="M392 52v28M392 156v28M326 118h28M430 118h28M345 71l20 20M419 145l20 20M439 71l-20 20M365 145l-20 20" stroke="#F97316" stroke-width="18" stroke-linecap="round"/>
+  <path d="M256 170c0-40 28-76 70-96 12 44-3 92-70 124-67-32-82-80-70-124 42 20 70 56 70 96Z" fill="#16A34A"/>
+  <path d="M256 178v148" stroke="#047857" stroke-width="28" stroke-linecap="round"/>
+  <path d="M102 224c60-18 116-6 154 30v164c-39-36-94-48-154-30V224Z" fill="#FFFFFF"/>
+  <path d="M410 224c-60-18-116-6-154 30v164c39-36 94-48 154-30V224Z" fill="#FFFFFF"/>
+  <path d="M102 224c60-18 116-6 154 30 38-36 94-48 154-30v164c-60-18-116-6-154 30-38-36-94-48-154-30V224Z" fill="none" stroke="#065F46" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M256 254v164" stroke="#065F46" stroke-width="18" stroke-linecap="round"/>
+  <path d="M145 282c34-6 60-1 82 12M145 332c34-6 60-1 82 12M285 294c22-13 48-18 82-12M285 344c22-13 48-18 82-12" stroke="#A7F3D0" stroke-width="18" stroke-linecap="round"/>
+</svg>

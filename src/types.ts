@@ -16,7 +16,7 @@ export interface Post {
   id: string;
   title: string;
   content: string;
-  category: 'sermon' | 'research' | 'community' | 'journal' | 'today_word';
+  category: 'sermon' | 'research' | 'community' | 'journal' | 'today_word' | 'next_generation';
   subCategory?: string;
   sermonCategoryId?: string;
   researchCategoryId?: string;
