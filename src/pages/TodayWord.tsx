@@ -87,6 +87,29 @@ const translatePassage = (passage: string): ReadingPassage => {
   };
 };
 
+const isLeapYear = (year: number) => {
+  return new Date(year, 1, 29).getDate() === 29;
+};
+
+const isLeapDay = (date: Date) => {
+  return date.getMonth() === 1 && date.getDate() === 29;
+};
+
+const getMcheynePlanIndex = (date: Date): number | null => {
+  const dayOfYear = getDayOfYear(date);
+
+  if (!isLeapYear(date.getFullYear())) {
+    return dayOfYear - 1;
+  }
+
+  if (isLeapDay(date)) {
+    return null;
+  }
+
+  const isAfterLeapDay = date.getMonth() > 1;
+  return isAfterLeapDay ? dayOfYear - 2 : dayOfYear - 1;
+};
+
 const getMcheyneReadingPlan = (date: Date): ReadingPassage[] => {
   try {
     // Check if ReadingPlan is a constructor
@@ -94,9 +117,13 @@ const getMcheyneReadingPlan = (date: Date): ReadingPassage[] => {
       console.error('ReadingPlan is not a constructor. Check the bible-in-one-year package export.');
       return [];
     }
+
+    const index = getMcheynePlanIndex(date);
+    if (index === null) {
+      return [];
+    }
+
     const plan = new ReadingPlan('mcheyne');
-    const dayOfYear = getDayOfYear(date);
-    const index = (dayOfYear - 1) % 365;
     const readingsStr = plan.getDay(index);
     if (!readingsStr) return [];
     
@@ -146,6 +173,7 @@ export default function TodayWord() {
   const [selectedVersion, setSelectedVersion] = useState('');
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  const isSelectedLeapDay = isLeapDay(selectedDate);
   const readingPlan = React.useMemo(() => getMcheyneReadingPlan(selectedDate), [dateStr]);
   
   const progressCacheKey = user ? `${user.uid}_${dateStr}` : '';
@@ -400,44 +428,56 @@ export default function TodayWord() {
           </div>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {readingPlan.map((passage, index) => (
-              <div key={index} className="bg-wood-50 rounded-xl p-4 border border-wood-100 flex flex-col items-center justify-center text-center relative overflow-hidden">
-                {/* Checkbox for reading progress */}
-                <button 
-                  onClick={() => handleToggleProgress(index)}
-                  className="absolute top-3 right-3 text-wood-400 hover:text-gold-500 transition-colors"
-                  title={readingProgress[index] ? "읽음 취소" : "읽음 완료"}
-                >
-                  {readingProgress[index] ? (
-                    <CheckCircle2 size={24} className="text-gold-500 fill-gold-50" />
-                  ) : (
-                    <Circle size={24} />
-                  )}
-                </button>
+          {isSelectedLeapDay && (
+            <div className="mb-4 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 text-sm text-wood-800">
+              2월 29일은 윤년 보정일입니다. 맥체인 성경읽기표는 365일 기준이므로 오늘은 밀린 본문을 보충하거나 2월 28일 본문을 다시 읽으며 묵상해 주세요.
+            </div>
+          )}
 
-                <span className={`text-lg font-bold mb-3 mt-2 ${readingProgress[index] ? 'text-wood-400 line-through' : 'text-wood-900'}`}>
-                  {passage.text}
-                </span>
-                <div className="flex gap-2">
+          {readingPlan.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {readingPlan.map((passage, index) => (
+                <div key={index} className="bg-wood-50 rounded-xl p-4 border border-wood-100 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                  {/* Checkbox for reading progress */}
                   <button 
-                    onClick={() => openBridgeModal(passage.gaeLink, '개역개정')}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-wood-100 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-200 hover:text-wood-900 transition-colors"
+                    onClick={() => handleToggleProgress(index)}
+                    className="absolute top-3 right-3 text-wood-400 hover:text-gold-500 transition-colors"
+                    title={readingProgress[index] ? "읽음 취소" : "읽음 완료"}
                   >
-                    <BookOpen size={14} />
-                    개역개정
+                    {readingProgress[index] ? (
+                      <CheckCircle2 size={24} className="text-gold-500 fill-gold-50" />
+                    ) : (
+                      <Circle size={24} />
+                    )}
                   </button>
-                  <button 
-                    onClick={() => openBridgeModal(passage.saeHangeulLink, '새한글성경')}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-wood-100 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-200 hover:text-wood-900 transition-colors"
-                  >
-                    <BookOpen size={14} />
-                    새한글성경
-                  </button>
+
+                  <span className={`text-lg font-bold mb-3 mt-2 ${readingProgress[index] ? 'text-wood-400 line-through' : 'text-wood-900'}`}>
+                    {passage.text}
+                  </span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => openBridgeModal(passage.gaeLink, '개역개정')}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-wood-100 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-200 hover:text-wood-900 transition-colors"
+                    >
+                      <BookOpen size={14} />
+                      개역개정
+                    </button>
+                    <button 
+                      onClick={() => openBridgeModal(passage.saeHangeulLink, '새한글성경')}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-wood-100 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-200 hover:text-wood-900 transition-colors"
+                    >
+                      <BookOpen size={14} />
+                      새한글성경
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-wood-200 bg-wood-50 px-4 py-8 text-center text-wood-600">
+              오늘은 별도의 읽기표를 표시하지 않습니다.
+            </div>
+          )}
         </div>
       </div>
 
