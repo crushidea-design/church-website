@@ -248,7 +248,7 @@ service cloud.firestore {
       allow read: if canReadPostData(resource.data);
       allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
                     request.resource.data.authorId == request.auth.uid &&
-                    (request.resource.data.category == 'community' || isAdmin()); // Only admin can post non-community content
+                    (request.resource.data.category in ['community', 'next_generation'] || isAdmin());
       allow update: if isAuthenticated() && isValidPost(request.resource.data) &&
                     // Allow if owner/admin OR if only incrementing commentCount
                     ((isDocOwner() || isAdmin()) || 
