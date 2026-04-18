@@ -26,7 +26,7 @@ const NEXT_GENERATION_CATEGORY = 'next_generation';
 
 const introImage = '/next-generation-2026.png';
 const elementaryImage = '/next-generation-2026.png';
-const youngAdultsImage = '/next-generation-2026.png';
+const youngAdultsImage = '/young-adults-pilgrims-progress.png';
 
 const resourceTabs = [
   {
