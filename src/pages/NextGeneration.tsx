@@ -9,7 +9,6 @@ import {
   Download,
   Edit3,
   FileText,
-  GraduationCap,
   HeartHandshake,
   Loader2,
   Plus,
@@ -224,12 +223,24 @@ function NextGenerationHeader() {
     <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <Link to="/next-generation" className="flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-300 text-emerald-900 shadow-sm">
-            <GraduationCap size={28} />
+          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
+            <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
           </span>
-          <span>
-            <span className="block text-lg font-black tracking-normal text-emerald-950">한우리교회 다음세대</span>
-            <span className="block text-xs font-bold uppercase tracking-normal text-coral-700">Growing in the Word</span>
+          <span className="flex w-[164px] flex-col">
+            <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
+              {Array.from('한우리교회 다음세대').map((char, index) => (
+                <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
+                  {char}
+                </span>
+              ))}
+            </span>
+            <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
+              {Array.from('GROWING IN THE BIBLE').map((char, index) => (
+                <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
+                  {char}
+                </span>
+              ))}
+            </span>
           </span>
         </Link>
 
