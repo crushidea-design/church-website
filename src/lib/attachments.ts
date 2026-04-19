@@ -16,6 +16,7 @@ export const MATERIAL_FILE_ACCEPT =
 
 export const MAX_MATERIAL_FILE_COUNT = 10;
 export const MAX_MATERIAL_FILE_SIZE = 20 * 1024 * 1024;
+const MATERIAL_ATTACHMENTS_PREFIX = 'material-attachments:';
 
 const allowedExtensions = new Set(['pdf', 'ppt', 'pptx']);
 const allowedContentTypes = new Set([
@@ -127,6 +128,28 @@ export const getPostAttachments = (post: any): MaterialAttachment[] => {
       }));
   }
 
+  if (typeof post.pdfBase64 === 'string' && post.pdfBase64.startsWith(MATERIAL_ATTACHMENTS_PREFIX)) {
+    try {
+      const attachments = JSON.parse(post.pdfBase64.slice(MATERIAL_ATTACHMENTS_PREFIX.length));
+      if (Array.isArray(attachments)) {
+        return attachments
+          .filter((attachment: any) => attachment?.url && attachment?.name)
+          .map((attachment: any) => ({
+            name: attachment.name,
+            url: attachment.url,
+            type: attachment.type === 'presentation' || attachment.type === 'ppt'
+              ? 'presentation'
+              : getMaterialAttachmentType(attachment.name, attachment.contentType),
+            contentType: attachment.contentType,
+            size: attachment.size,
+            storagePath: attachment.storagePath,
+          }));
+      }
+    } catch (error) {
+      console.error('Error parsing material attachments:', error);
+    }
+  }
+
   if (post.pdfUrl) {
     return [
       {
@@ -143,4 +166,8 @@ export const getPostAttachments = (post: any): MaterialAttachment[] => {
 
 export const getFirstPdfAttachment = (attachments: MaterialAttachment[]) => {
   return attachments.find((attachment) => attachment.type === 'pdf');
+};
+
+export const serializeMaterialAttachments = (attachments: MaterialAttachment[]) => {
+  return `${MATERIAL_ATTACHMENTS_PREFIX}${JSON.stringify(attachments)}`;
 };
