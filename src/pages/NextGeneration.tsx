@@ -356,6 +356,22 @@ function IntroPage() {
   const [activePillar, setActivePillar] = useState<string | null>(null);
   const selectedPillar = introPillars.find((pillar) => pillar.title === activePillar);
 
+  useEffect(() => {
+    if (!selectedPillar) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setActivePillar(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [selectedPillar]);
+
   return (
     <div>
       <section className="bg-white">
@@ -378,7 +394,7 @@ function IntroPage() {
                 <button
                   key={pillar.title}
                   type="button"
-                  onClick={() => setActivePillar((current) => (current === pillar.title ? null : pillar.title))}
+                  onClick={() => setActivePillar(pillar.title)}
                   aria-expanded={activePillar === pillar.title}
                   className={`rounded-lg border p-4 text-center text-sm font-black transition ${
                     activePillar === pillar.title
@@ -390,12 +406,6 @@ function IntroPage() {
                 </button>
               ))}
             </div>
-            {selectedPillar && (
-              <div className="mt-4 rounded-lg border border-emerald-100 bg-white p-5 text-base leading-8 text-slate-700 shadow-sm">
-                <h2 className="text-lg font-black text-emerald-950">{selectedPillar.title}</h2>
-                <p className="mt-2">{selectedPillar.description}</p>
-              </div>
-            )}
           </div>
 
           <div className="overflow-hidden rounded-lg border border-sky-100 shadow-sm">
@@ -407,6 +417,36 @@ function IntroPage() {
           </div>
         </div>
       </section>
+
+      {selectedPillar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="next-generation-pillar-title"
+          onClick={() => setActivePillar(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-lg border border-emerald-100 bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h2 id="next-generation-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
+                {selectedPillar.title}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setActivePillar(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-950 transition hover:bg-emerald-100"
+                aria-label="설명 닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p className="mt-5 text-base leading-8 text-slate-700">{selectedPillar.description}</p>
+          </div>
+        </div>
+      )}
 
       <section className="bg-sky-50 py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
