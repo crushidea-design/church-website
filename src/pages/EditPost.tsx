@@ -41,15 +41,21 @@ const getDateFromFirestoreValue = (value: any) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-export default function EditPost() {
-  const { id } = useParams();
+interface EditPostProps {
+  postId?: string;
+  nextGenerationMode?: boolean;
+}
+
+export default function EditPost({ postId, nextGenerationMode = false }: EditPostProps = {}) {
+  const { id: routeId } = useParams();
+  const id = postId || routeId;
   const navigate = useNavigate();
   const { user, role, loading: authLoading } = useAuth();
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [type, setType] = useState('');
-  const isNextGeneration = type === 'next_generation';
+  const isNextGeneration = nextGenerationMode || type === 'next_generation';
   const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
   const [sermonCategoryId, setSermonCategoryId] = useState('');
