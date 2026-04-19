@@ -1,6 +1,7 @@
 {
-  "name": "다음세대",
-  "short_name": "다음세대",
+  "id": "/next",
+  "name": "한우리 다음세대",
+  "short_name": "한우리 다음세대",
   "start_url": "/next",
   "scope": "/next",
   "display": "standalone",

@@ -9,6 +9,12 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     build: {
       target: 'esnext',
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          next: path.resolve(__dirname, 'next.html'),
+        },
+      },
     },
     optimizeDeps: {
       esbuildOptions: {

@@ -232,8 +232,8 @@ function useNextGenerationHead() {
       return meta;
     };
 
-    document.title = '다음세대 | 함께 지어져가는 교회';
-    ensureMeta('apple-mobile-web-app-title').content = '다음세대';
+    document.title = '한우리 다음세대';
+    ensureMeta('apple-mobile-web-app-title').content = '한우리 다음세대';
     ensureMeta('theme-color').content = '#16a34a';
 
     addHeadLink({ rel: 'icon', type: 'image/svg+xml', href: '/next-generation-favicon.svg' });
