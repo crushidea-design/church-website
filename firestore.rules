@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -133,6 +133,7 @@ service cloud.firestore {
              (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() < 500)) &&
              (!('pdfBase64' in data) || (data.pdfBase64 is string && data.pdfBase64.size() < 1000000)) &&
              (!('pdfChunkCount' in data) || (data.pdfChunkCount is number && data.pdfChunkCount >= 0 && data.pdfChunkCount <= 10)) &&
+             (!('attachments' in data) || (data.attachments is list && data.attachments.size() <= 10)) &&
              (!('journalDate' in data) || data.journalDate is timestamp) &&
              (!('dateKey' in data) || (data.dateKey is string && data.dateKey.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
              (!('nextGenerationWeekKey' in data) || (data.nextGenerationWeekKey is string && data.nextGenerationWeekKey.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
