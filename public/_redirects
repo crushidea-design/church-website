@@ -1,1 +1,5 @@
+/next-generation/* /next/:splat 301
+/next-generation /next 301
+/next/* /next.html 200
+/next /next.html 200
 /* /index.html 200
