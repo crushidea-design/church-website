@@ -8,6 +8,7 @@ import { formatDate, YOUTUBE_REGEX, getYouTubeId } from '../lib/utils';
 import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText, Plus } from 'lucide-react';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 import { useStore } from '../store/useStore';
+import { formatFileSize, getMaterialAttachmentLabel, getPostAttachments } from '../lib/attachments';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -286,15 +287,18 @@ export default function PostDetail() {
     
     setIsDeleting(true);
     try {
-      if (post?.pdfUrl) {
-        try {
-          const fileRef = ref(storage, post.pdfUrl);
-          await deleteObject(fileRef);
-          console.log('PDF deleted from storage');
-        } catch (error) {
-          console.error('Error deleting PDF from storage:', error);
-        }
-      }
+      const attachments = getPostAttachments(post);
+      await Promise.all(
+        attachments.map(async (attachment) => {
+          try {
+            const fileRef = ref(storage, attachment.storagePath || attachment.url);
+            await deleteObject(fileRef);
+            console.log('Attachment deleted from storage');
+          } catch (error) {
+            console.error('Error deleting attachment from storage:', error);
+          }
+        })
+      );
       
       // Delete long content chunks if they exist
       if (post?.isLongContent) {
@@ -466,6 +470,7 @@ export default function PostDetail() {
   if (!post) return null;
 
   const isAdmin = role === 'admin';
+  const attachments = getPostAttachments(post);
   const getPostCategoryLabel = () => {
     if (post.category === 'research') {
       if (researchCategoryName) return researchCategoryName;
@@ -618,50 +623,62 @@ export default function PostDetail() {
               {renderContentWithYouTube(post.content)}
             </div>
 
-            {post.pdfUrl && (
+            {attachments.length > 0 && (
               <div className="mt-12 border-t border-wood-100 pt-12">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <h3 className="text-xl font-bold text-wood-900 flex items-center">
                     <FileText className="mr-2 text-wood-900" />
-                    첨부된 PDF 문서
+                    첨부된 자료
                   </h3>
-                  <div className="flex gap-2">
-                    <a
-                      href={post.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
-                    >
-                      새 창에서 열기
-                    </a>
-                    <a
-                      href={post.pdfUrl}
-                      download={post.pdfName || 'document.pdf'}
-                      className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-full text-sm font-medium hover:bg-wood-800 transition"
-                    >
-                      다운로드
-                    </a>
-                  </div>
                 </div>
-                <div className="w-full bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
-                  {post.pdfUrl ? (
-                    <PdfCanvasViewer 
-                      url={post.pdfUrl} 
-                      onDownload={() => {
-                        const link = document.createElement('a');
-                        link.href = post.pdfUrl;
-                        link.download = post.pdfName || 'document.pdf';
-                        link.click();
-                      }}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-96 text-wood-400">
-                      <div className="animate-pulse flex flex-col items-center">
-                        <FileText size={48} className="mb-4 opacity-20" />
-                        <p>문서를 불러오는 중입니다...</p>
+
+                <div className="space-y-4">
+                  {attachments.map((attachment, index) => (
+                    <div key={`${attachment.url}-${index}`} className="rounded-2xl border border-wood-200 bg-white p-4">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <span className="mb-2 inline-flex rounded-full bg-wood-50 px-3 py-1 text-xs font-bold text-wood-700">
+                            {getMaterialAttachmentLabel(attachment)}
+                          </span>
+                          <p className="break-all text-sm font-medium text-wood-900">{attachment.name}</p>
+                          {attachment.size && (
+                            <p className="mt-1 text-xs text-wood-500">{formatFileSize(attachment.size)}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
+                          >
+                            새 창에서 열기
+                          </a>
+                          <a
+                            href={attachment.url}
+                            download={attachment.name}
+                            className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-full text-sm font-medium hover:bg-wood-800 transition"
+                          >
+                            다운로드
+                          </a>
+                        </div>
                       </div>
+
+                      {attachment.type === 'pdf' && (
+                        <div className="mt-4 w-full bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
+                          <PdfCanvasViewer
+                            url={attachment.url}
+                            onDownload={() => {
+                              const link = document.createElement('a');
+                              link.href = attachment.url;
+                              link.download = attachment.name;
+                              link.click();
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
