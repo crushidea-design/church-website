@@ -22,6 +22,7 @@ import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
+import EditPost from './EditPost';
 import {
   formatFileSize,
   getFirstPdfAttachment,
@@ -1040,7 +1041,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
           {isAdmin && (
             <Link
-              to={`/edit-post/${post.id}`}
+              to={`${NEXT_GENERATION_PATH}/edit/${post.id}`}
               className="inline-flex w-fit items-center rounded-lg bg-coral-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-coral-700"
             >
               <Edit3 size={16} className="mr-2" />
@@ -1131,11 +1132,14 @@ export default function NextGeneration() {
   const pathParts = location.pathname.split('/').filter(Boolean);
   const currentSection = pathParts[1];
   const postId = currentSection === 'post' ? pathParts[2] : null;
+  const editId = currentSection === 'edit' ? pathParts[2] : null;
 
   let content = <IntroPage />;
 
   if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
+  } else if (editId) {
+    content = <EditPost postId={editId} nextGenerationMode />;
   } else if (currentSection === 'create') {
     content = <NextGenerationCreatePost />;
   } else if (currentSection === 'elementary') {
