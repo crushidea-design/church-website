@@ -89,7 +89,7 @@ export const uploadMaterialFiles = async (
     const progressBase = total > 0 ? (index / total) * 80 : 0;
     onProgress?.(Math.round(10 + progressBase));
 
-    const storagePath = `materials/${Date.now()}_${index}_${getSafeStorageName(file.name)}`;
+    const storagePath = `pdfs/materials/${Date.now()}_${index}_${getSafeStorageName(file.name)}`;
     const fileRef = ref(storage, storagePath);
     await uploadBytes(fileRef, file, { contentType: file.type || undefined });
     const url = await getDownloadURL(fileRef);
