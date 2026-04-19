@@ -512,8 +512,8 @@ export default function PostDetail() {
                 'today_word': '/archive/today',
                 'community': '/community',
                 'next_generation': post?.subCategory === 'pilgrim_lecture' || post?.subCategory === 'retreat_materials'
-                  ? '/next-generation/young-adults'
-                  : '/next-generation/elementary',
+                  ? '/next/young-adults'
+                  : '/next/elementary',
                 'contact': '/contact'
               };
               let path = post ? categoryPaths[post.category] || '/' : '/';

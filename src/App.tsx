@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './lib/auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Layout from './components/Layout';
@@ -31,6 +31,13 @@ import Login from './pages/Login';
 import Profile from './pages/Profile';
 import QuotaExceededView from './components/QuotaExceededView';
 
+function RedirectNextGeneration() {
+  const location = useLocation();
+  const nextPath = location.pathname.replace(/^\/next-generation/, '/next');
+
+  return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />;
+}
+
 export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = React.useState(
     localStorage.getItem('firestore_quota_exceeded') === 'true'
@@ -58,7 +65,8 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/next-generation/*" element={<NextGeneration />} />
+            <Route path="/next/*" element={<NextGeneration />} />
+            <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
               <Route path="login" element={<Login />} />

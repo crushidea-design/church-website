@@ -25,6 +25,7 @@ import { generateSortOrder } from '../lib/sortUtils';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
+const NEXT_GENERATION_PATH = '/next';
 
 const introImage = '/next-generation-2026.png';
 const elementaryImage = '/next-generation-2026.png';
@@ -102,7 +103,7 @@ const sectionTabs = [
   {
     id: 'elementary',
     name: '유초등부',
-    path: '/next-generation/elementary',
+    path: `${NEXT_GENERATION_PATH}/elementary`,
     image: elementaryImage,
     copy: '말씀을 듣고, 질문하고, 삶으로 이어 가는 어린이 공동체입니다.',
     icon: Sparkles,
@@ -110,7 +111,7 @@ const sectionTabs = [
   {
     id: 'young-adults',
     name: '청년부',
-    path: '/next-generation/young-adults',
+    path: `${NEXT_GENERATION_PATH}/young-adults`,
     image: youngAdultsImage,
     copy: '복음 안에서 부르심을 찾고 함께 자라 가는 청년 공동체입니다.',
     icon: Users,
@@ -173,10 +174,10 @@ const getResourceLabel = (id?: string) => {
 
 const getResourceDepartmentPath = (id?: string) => {
   if (youngAdultResourceTabs.some((tab) => tab.id === id)) {
-    return '/next-generation/young-adults';
+    return `${NEXT_GENERATION_PATH}/young-adults`;
   }
 
-  return '/next-generation/elementary';
+  return `${NEXT_GENERATION_PATH}/elementary`;
 };
 
 const getResourceTab = (id?: string) => {
@@ -221,7 +222,7 @@ function useNextGenerationHead() {
       return meta;
     };
 
-    document.title = '다음세대 | 한우리교회';
+    document.title = '다음세대 | 함께 지어져가는 교회';
     ensureMeta('apple-mobile-web-app-title').content = '다음세대';
     ensureMeta('theme-color').content = '#16a34a';
 
@@ -230,7 +231,7 @@ function useNextGenerationHead() {
     addHeadLink({ rel: 'icon', type: 'image/png', sizes: '192x192', href: '/next-generation-icon-192.png' });
     addHeadLink({ rel: 'icon', type: 'image/png', sizes: '512x512', href: '/next-generation-icon-512.png' });
     addHeadLink({ rel: 'apple-touch-icon', sizes: '180x180', href: '/next-generation-apple-touch-icon.png' });
-    addHeadLink({ rel: 'manifest', href: '/next-generation.webmanifest' });
+    addHeadLink({ rel: 'manifest', href: '/next.webmanifest' });
 
     return () => {
       document.title = previousTitle;
@@ -265,15 +266,15 @@ function NextGenerationHeader() {
   const location = useLocation();
 
   const navItems = [
-    { name: '다음세대 소개', path: '/next-generation' },
-    { name: '유초등부', path: '/next-generation/elementary' },
-    { name: '청년부', path: '/next-generation/young-adults' },
+    { name: '다음세대 소개', path: NEXT_GENERATION_PATH },
+    { name: '유초등부', path: `${NEXT_GENERATION_PATH}/elementary` },
+    { name: '청년부', path: `${NEXT_GENERATION_PATH}/young-adults` },
   ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <Link to="/next-generation" className="flex items-center gap-3">
+        <Link to={NEXT_GENERATION_PATH} className="flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
             <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
           </span>
@@ -298,7 +299,7 @@ function NextGenerationHeader() {
         <nav className="flex gap-2 overflow-x-auto pb-1 lg:pb-0" aria-label="다음세대">
           {navItems.map((item) => {
             const isActive =
-              item.path === '/next-generation'
+              item.path === NEXT_GENERATION_PATH
                 ? location.pathname === item.path
                 : location.pathname.startsWith(item.path);
 
@@ -538,7 +539,7 @@ function ResourceLibraryPage({
 
             {isAdmin && (
               <Link
-                to={`/next-generation/create?resource=${activeTab.id}`}
+                to={`${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`}
                 className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
               >
                 <Plus size={18} className="mr-2" />
@@ -573,7 +574,7 @@ function ResourceLibraryPage({
                   transition={{ delay: Math.min(index * 0.04, 0.25) }}
                   className="rounded-lg border border-sky-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Link to={`/next-generation/post/${post.id}`} className="block">
+                  <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
                     <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
                       {getResourceLabel(post.subCategory)}
                     </span>
@@ -732,7 +733,7 @@ function NextGenerationCreatePost() {
         }
       }
 
-      navigate(`/next-generation/post/${docRef.id}`);
+      navigate(`${NEXT_GENERATION_PATH}/post/${docRef.id}`);
     } catch (err: any) {
       console.error('Error creating next generation post:', err);
       setError(err.message || '자료 등록 중 오류가 발생했습니다.');
@@ -951,13 +952,13 @@ function NextGenerationPostDetail({ id }: { id: string }) {
         const snapshot = await getDoc(postRef);
 
         if (!snapshot.exists()) {
-          navigate('/next-generation/elementary', { replace: true });
+          navigate(`${NEXT_GENERATION_PATH}/elementary`, { replace: true });
           return;
         }
 
         const data = { id: snapshot.id, ...snapshot.data() } as NextGenerationPost;
         if (data.category !== NEXT_GENERATION_CATEGORY) {
-          navigate('/next-generation/elementary', { replace: true });
+          navigate(`${NEXT_GENERATION_PATH}/elementary`, { replace: true });
           return;
         }
 

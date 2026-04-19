@@ -352,7 +352,7 @@ export default function EditPost() {
       invalidateCache('home');
       localStorage.removeItem('home_latest_posts_cache');
 
-      navigate(isNextGeneration ? `/next-generation/post/${id}` : `/post/${id}`);
+      navigate(isNextGeneration ? `/next/post/${id}` : `/post/${id}`);
     } catch (err: any) {
       console.error('Error updating post:', err);
       const errorMessage = err.message || '게시글 수정 중 오류가 발생했습니다.';
