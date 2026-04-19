@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft,
   BookMarked,
@@ -23,6 +22,16 @@ import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
+import {
+  formatFileSize,
+  getFirstPdfAttachment,
+  getMaterialAttachmentLabel,
+  getPostAttachments,
+  MATERIAL_FILE_ACCEPT,
+  MaterialAttachment,
+  uploadMaterialFiles,
+  validateMaterialFiles,
+} from '../lib/attachments';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
@@ -128,6 +137,7 @@ interface NextGenerationPost {
   updatedAt?: any;
   pdfUrl?: string;
   pdfName?: string;
+  attachments?: MaterialAttachment[];
   category?: string;
   [key: string]: any;
 }
@@ -566,36 +576,40 @@ function ResourceLibraryPage({
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {filteredPosts.map((post, index) => (
-                <motion.article
-                  key={post.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(index * 0.04, 0.25) }}
-                  className="rounded-lg border border-sky-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
-                    <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
-                      {getResourceLabel(post.subCategory)}
-                    </span>
-                    <h3 className="line-clamp-2 text-xl font-black leading-7 tracking-normal text-emerald-950">
-                      {post.title}
-                    </h3>
-                    <p className="mt-3 line-clamp-3 min-h-16 text-sm leading-6 text-slate-700">
-                      {getContentPreview(post.content)}
-                    </p>
-                    <div className="mt-5 flex items-center justify-between gap-3 border-t border-sky-50 pt-4 text-sm text-slate-600">
-                      <span>{formatDate(post.createdAt)}</span>
-                      {post.pdfUrl && (
-                        <span className="inline-flex items-center gap-1 font-bold text-coral-700">
-                          <Download size={16} />
-                          PDF
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                </motion.article>
-              ))}
+              {filteredPosts.map((post, index) => {
+                const attachments = getPostAttachments(post);
+
+                return (
+                  <motion.article
+                    key={post.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(index * 0.04, 0.25) }}
+                    className="rounded-lg border border-sky-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
+                      <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
+                        {getResourceLabel(post.subCategory)}
+                      </span>
+                      <h3 className="line-clamp-2 text-xl font-black leading-7 tracking-normal text-emerald-950">
+                        {post.title}
+                      </h3>
+                      <p className="mt-3 line-clamp-3 min-h-16 text-sm leading-6 text-slate-700">
+                        {getContentPreview(post.content)}
+                      </p>
+                      <div className="mt-5 flex items-center justify-between gap-3 border-t border-sky-50 pt-4 text-sm text-slate-600">
+                        <span>{formatDate(post.createdAt)}</span>
+                        {attachments.length > 0 && (
+                          <span className="inline-flex items-center gap-1 font-bold text-coral-700">
+                            <Download size={16} />
+                            자료 {attachments.length}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  </motion.article>
+                );
+              })}
             </div>
           )}
         </div>
@@ -633,7 +647,7 @@ function NextGenerationCreatePost() {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [materialFiles, setMaterialFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -644,21 +658,23 @@ function NextGenerationCreatePost() {
   }, [activeTab.id, isWeeklyCreate]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
 
-    if (file.type !== 'application/pdf') {
-      setError('PDF 파일만 업로드 가능합니다.');
+    const validationError = validateMaterialFiles(files, materialFiles.length);
+    if (validationError) {
+      setError(validationError);
+      event.target.value = '';
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setError('파일 크기는 2MB를 초과할 수 없습니다.');
-      return;
-    }
-
-    setPdfFile(file);
+    setMaterialFiles((currentFiles) => [...currentFiles, ...files]);
     setError(null);
+    event.target.value = '';
+  };
+
+  const removeMaterialFile = (indexToRemove: number) => {
+    setMaterialFiles((currentFiles) => currentFiles.filter((_, index) => index !== indexToRemove));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -670,18 +686,8 @@ function NextGenerationCreatePost() {
     setError(null);
 
     try {
-      let pdfUrl = '';
-      let pdfName = '';
-
-      if (pdfFile) {
-        setUploadProgress(20);
-        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
-        await uploadBytes(fileRef, pdfFile);
-        setUploadProgress(60);
-        pdfUrl = await getDownloadURL(fileRef);
-        pdfName = pdfFile.name;
-        setUploadProgress(80);
-      }
+      const attachments = await uploadMaterialFiles(storage, materialFiles, setUploadProgress);
+      const firstPdfAttachment = getFirstPdfAttachment(attachments);
 
       const postData: any = {
         title: title.trim(),
@@ -702,9 +708,13 @@ function NextGenerationCreatePost() {
         postData.nextGenerationWeekKey = weekKey;
       }
 
-      if (pdfUrl) {
-        postData.pdfUrl = pdfUrl;
-        postData.pdfName = pdfName;
+      if (attachments.length > 0) {
+        postData.attachments = attachments;
+      }
+
+      if (firstPdfAttachment) {
+        postData.pdfUrl = firstPdfAttachment.url;
+        postData.pdfName = firstPdfAttachment.name;
       }
 
       const isLongContent = new TextEncoder().encode(content).length > 1400;
@@ -886,37 +896,52 @@ function NextGenerationCreatePost() {
 
             <div>
               <label className="mb-2 block text-sm font-black text-emerald-950">
-                PDF 파일 첨부
+                자료 파일 첨부
               </label>
-              <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 text-center transition hover:bg-sky-100">
-                {pdfFile ? (
-                  <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-                    <FileText className="h-8 w-8 text-emerald-700" />
-                    <span className="text-sm font-bold text-emerald-950">{pdfFile.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => setPdfFile(null)}
-                      className="inline-flex items-center rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-red-50 hover:text-red-700"
-                    >
-                      <X size={14} className="mr-1" />
-                      제거
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
-                    <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
-                      PDF 파일 선택
-                    </label>
-                    <p className="mt-2 text-xs font-bold text-slate-500">최대 2MB</p>
-                    <input
-                      id="next-generation-file"
-                      type="file"
-                      accept=".pdf"
-                      className="sr-only"
-                      onChange={handleFileChange}
-                    />
-                  </div>
+              <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 transition hover:bg-sky-100">
+                <div className="text-center">
+                  <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
+                  <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
+                    PDF/PPT 파일 선택
+                  </label>
+                  <p className="mt-2 text-xs font-bold text-slate-500">
+                    여러 파일 선택 가능, 파일당 최대 20MB
+                  </p>
+                  <input
+                    id="next-generation-file"
+                    type="file"
+                    accept={MATERIAL_FILE_ACCEPT}
+                    multiple
+                    className="sr-only"
+                    onChange={handleFileChange}
+                  />
+                </div>
+
+                {materialFiles.length > 0 && (
+                  <ul className="mt-5 space-y-2">
+                    {materialFiles.map((file, index) => (
+                      <li
+                        key={`${file.name}-${file.lastModified}-${index}`}
+                        className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
+                          <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
+                          <span>
+                            {file.name}
+                            <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeMaterialFile(index)}
+                          className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
+                        >
+                          <X size={14} className="mr-1" />
+                          제거
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </div>
@@ -926,7 +951,7 @@ function NextGenerationCreatePost() {
                 <div className="h-2.5 w-full rounded-full bg-sky-100">
                   <div className="h-2.5 rounded-full bg-emerald-600 transition-all" style={{ width: `${uploadProgress}%` }} />
                 </div>
-                <p className="mt-2 text-right text-xs font-bold text-slate-500">PDF 업로드 중... {uploadProgress}%</p>
+                <p className="mt-2 text-right text-xs font-bold text-slate-500">자료 업로드 중... {uploadProgress}%</p>
               </div>
             )}
           </form>
@@ -999,6 +1024,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   if (!post) return null;
 
   const backPath = `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
+  const attachments = getPostAttachments(post);
 
   return (
     <main className="bg-sky-50 py-10">
@@ -1040,24 +1066,55 @@ function NextGenerationPostDetail({ id }: { id: string }) {
             {post.content}
           </div>
 
-          {post.pdfUrl && (
+          {attachments.length > 0 && (
             <div className="mt-10 border-t border-sky-100 pt-8">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="flex items-center text-xl font-black text-emerald-950">
                   <FileText className="mr-2 text-coral-700" />
-                  첨부된 PDF 문서
+                  첨부된 자료
                 </h2>
-                <a
-                  href={post.pdfUrl}
-                  download={post.pdfName || 'next-generation.pdf'}
-                  className="inline-flex w-fit items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
-                >
-                  <Download size={16} className="mr-2" />
-                  다운로드
-                </a>
               </div>
-              <div className="overflow-hidden rounded-lg border border-sky-100 bg-white">
-                <PdfCanvasViewer url={post.pdfUrl} />
+
+              <div className="space-y-4">
+                {attachments.map((attachment, index) => (
+                  <div key={`${attachment.url}-${index}`} className="rounded-lg border border-sky-100 bg-white p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <span className="mb-2 inline-flex rounded-lg bg-sky-50 px-2 py-1 text-xs font-black text-emerald-950">
+                          {getMaterialAttachmentLabel(attachment)}
+                        </span>
+                        <p className="break-all text-sm font-bold text-emerald-950">{attachment.name}</p>
+                        {attachment.size && (
+                          <p className="mt-1 text-xs font-bold text-slate-500">{formatFileSize(attachment.size)}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-emerald-950 transition hover:bg-sky-100"
+                        >
+                          새 창에서 열기
+                        </a>
+                        <a
+                          href={attachment.url}
+                          download={attachment.name}
+                          className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                        >
+                          <Download size={14} className="mr-1" />
+                          다운로드
+                        </a>
+                      </div>
+                    </div>
+
+                    {attachment.type === 'pdf' && (
+                      <div className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-white">
+                        <PdfCanvasViewer url={attachment.url} />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

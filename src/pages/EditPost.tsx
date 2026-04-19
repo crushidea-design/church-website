@@ -1,12 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs, deleteField, setDoc, deleteDoc, where } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { useStore } from '../store/useStore';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
+import {
+  formatFileSize,
+  getFirstPdfAttachment,
+  getMaterialAttachmentLabel,
+  getPostAttachments,
+  MATERIAL_FILE_ACCEPT,
+  MaterialAttachment,
+  uploadMaterialFiles,
+  validateMaterialFiles,
+} from '../lib/attachments';
 
 interface SermonCategory {
   id: string;
@@ -51,6 +61,8 @@ export default function EditPost() {
   const [existingPdfBase64, setExistingPdfBase64] = useState('');
   const [existingPdfChunkCount, setExistingPdfChunkCount] = useState(0);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [existingAttachments, setExistingAttachments] = useState<MaterialAttachment[]>([]);
+  const [materialFiles, setMaterialFiles] = useState<File[]>([]);
   const [removeExistingPdf, setRemoveExistingPdf] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +110,7 @@ export default function EditPost() {
           setExistingPdfName(data.pdfName || '');
           setExistingPdfBase64(data.pdfBase64 || '');
           setExistingPdfChunkCount(data.pdfChunkCount || 0);
+          setExistingAttachments(getPostAttachments(data));
           
           // Check permission: only author or admin can edit
           if (!authLoading && user) {
@@ -160,6 +173,23 @@ export default function EditPost() {
   }, [type, sermonCategories, sermonCategoryId, researchCategories, researchCategoryId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isNextGeneration) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+
+      const validationError = validateMaterialFiles(files, existingAttachments.length + materialFiles.length);
+      if (validationError) {
+        alert(validationError);
+        e.target.value = '';
+        return;
+      }
+
+      setMaterialFiles((currentFiles) => [...currentFiles, ...files]);
+      setError(null);
+      e.target.value = '';
+      return;
+    }
+
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (file.type !== 'application/pdf') {
@@ -175,6 +205,16 @@ export default function EditPost() {
     }
   };
 
+  const removeExistingAttachment = (indexToRemove: number) => {
+    setExistingAttachments((currentAttachments) => (
+      currentAttachments.filter((_, index) => index !== indexToRemove)
+    ));
+  };
+
+  const removeMaterialFile = (indexToRemove: number) => {
+    setMaterialFiles((currentFiles) => currentFiles.filter((_, index) => index !== indexToRemove));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !title.trim() || !content.trim()) return;
@@ -186,31 +226,40 @@ export default function EditPost() {
     try {
       let pdfUrl = existingPdfUrl;
       let pdfName = existingPdfName;
+      let nextGenerationAttachments = existingAttachments;
 
-      if (removeExistingPdf) {
-        pdfUrl = '';
-        pdfName = '';
-      }
-
-      if (pdfFile) {
-        console.log('--- PDF PROCESSING (UPDATE) ---');
-        console.log('File:', { name: pdfFile.name, size: pdfFile.size });
-
-        if (pdfFile.size > 2 * 1024 * 1024) {
-          throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
+      if (isNextGeneration) {
+        const uploadedAttachments = await uploadMaterialFiles(storage, materialFiles, setUploadProgress);
+        nextGenerationAttachments = [...existingAttachments, ...uploadedAttachments];
+        const firstPdfAttachment = getFirstPdfAttachment(nextGenerationAttachments);
+        pdfUrl = firstPdfAttachment?.url || '';
+        pdfName = firstPdfAttachment?.name || '';
+      } else {
+        if (removeExistingPdf) {
+          pdfUrl = '';
+          pdfName = '';
         }
 
-        console.log('Uploading PDF to Storage...');
-        setUploadProgress(20);
-        
-        const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
-        await uploadBytes(fileRef, pdfFile);
-        setUploadProgress(60);
-        
-        pdfUrl = await getDownloadURL(fileRef);
-        pdfName = pdfFile.name;
-        setUploadProgress(80);
-        console.log('PDF upload complete. URL:', pdfUrl);
+        if (pdfFile) {
+          console.log('--- PDF PROCESSING (UPDATE) ---');
+          console.log('File:', { name: pdfFile.name, size: pdfFile.size });
+
+          if (pdfFile.size > 2 * 1024 * 1024) {
+            throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
+          }
+
+          console.log('Uploading PDF to Storage...');
+          setUploadProgress(20);
+          
+          const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
+          await uploadBytes(fileRef, pdfFile);
+          setUploadProgress(60);
+          
+          pdfUrl = await getDownloadURL(fileRef);
+          pdfName = pdfFile.name;
+          setUploadProgress(80);
+          console.log('PDF upload complete. URL:', pdfUrl);
+        }
       }
 
       const postRef = doc(db, 'posts', id);
@@ -237,8 +286,25 @@ export default function EditPost() {
         updateData.fullContentLength = deleteField();
       }
 
-      // Handle PDF fields explicitly to ensure they are cleared if needed
-      if (pdfFile) {
+      // Handle attachment fields explicitly to ensure they are cleared if needed
+      if (isNextGeneration) {
+        if (nextGenerationAttachments.length > 0) {
+          updateData.attachments = nextGenerationAttachments;
+        } else {
+          updateData.attachments = deleteField();
+        }
+
+        if (pdfUrl) {
+          updateData.pdfName = pdfName;
+          updateData.pdfUrl = pdfUrl;
+        } else {
+          updateData.pdfUrl = deleteField();
+          updateData.pdfName = deleteField();
+        }
+
+        updateData.pdfBase64 = deleteField();
+        updateData.pdfChunkCount = deleteField();
+      } else if (pdfFile) {
         updateData.pdfName = pdfName;
         updateData.pdfUrl = pdfUrl;
         updateData.pdfBase64 = deleteField();
@@ -338,7 +404,7 @@ export default function EditPost() {
         console.error('Error updating latest posts summary on edit:', summaryErr);
       }
 
-      if (pdfFile || removeExistingPdf) {
+      if (isNextGeneration || pdfFile || removeExistingPdf) {
         const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
         const oldChunksSnap = await getDocs(oldChunksQuery);
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
@@ -514,65 +580,147 @@ export default function EditPost() {
             {(type === 'research' || type === 'sermon' || isNextGeneration) && (
               <div>
                 <label className="block text-sm font-medium text-wood-700 mb-2">
-                  PDF 파일 첨부
+                  {isNextGeneration ? '자료 파일 첨부' : 'PDF 파일 첨부'}
                 </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-wood-300 border-dashed rounded-xl bg-wood-50 hover:bg-wood-100 transition-colors cursor-pointer relative">
-                  <div className="space-y-1 text-center">
-                    {((existingPdfUrl || existingPdfBase64 || existingPdfChunkCount > 0) && !removeExistingPdf) ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <FileText className="h-8 w-8 text-wood-600" />
-                        <span className="text-sm text-wood-900 font-medium">{existingPdfName}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRemoveExistingPdf(true);
-                          }}
-                          className="p-1 hover:bg-wood-200 rounded-full transition"
-                        >
-                          <X className="h-4 w-4 text-wood-500" />
-                        </button>
-                      </div>
-                    ) : pdfFile ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <FileText className="h-8 w-8 text-wood-600" />
-                        <span className="text-sm text-wood-900 font-medium">{pdfFile.name}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPdfFile(null);
-                            if (existingPdfUrl) setRemoveExistingPdf(false);
-                          }}
-                          className="p-1 hover:bg-wood-200 rounded-full transition"
-                        >
-                          <X className="h-4 w-4 text-wood-500" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
+                <div className="mt-1 rounded-xl border-2 border-dashed border-wood-300 bg-wood-50 px-6 pt-5 pb-6 transition-colors hover:bg-wood-100">
+                  {isNextGeneration ? (
+                    <div>
+                      <div className="space-y-1 text-center">
                         <FileText className="mx-auto h-12 w-12 text-wood-400" />
-                        <div className="flex text-sm text-wood-600">
+                        <div className="flex justify-center text-sm text-wood-600">
                           <label
                             htmlFor="file-upload"
                             className="relative cursor-pointer rounded-md font-medium text-wood-900 hover:text-wood-700 focus-within:outline-none"
                           >
-                            <span>파일 업로드</span>
-                            <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".pdf" onChange={handleFileChange} />
+                            <span>PDF/PPT 파일 업로드</span>
+                            <input
+                              id="file-upload"
+                              name="file-upload"
+                              type="file"
+                              className="sr-only"
+                              accept={MATERIAL_FILE_ACCEPT}
+                              multiple
+                              onChange={handleFileChange}
+                            />
                           </label>
-                          <p className="pl-1">또는 드래그 앤 드롭</p>
                         </div>
-                        <p className="text-xs text-wood-500">PDF up to 2MB</p>
-                      </>
-                    )}
-                  </div>
-                  {(!pdfFile && (!existingPdfUrl && !existingPdfBase64 || removeExistingPdf)) && (
-                    <input
-                      type="file"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      accept=".pdf"
-                      onChange={handleFileChange}
-                    />
+                        <p className="text-xs text-wood-500">여러 파일 선택 가능, 파일당 최대 20MB</p>
+                      </div>
+
+                      {(existingAttachments.length > 0 || materialFiles.length > 0) && (
+                        <ul className="mt-5 space-y-2">
+                          {existingAttachments.map((attachment, index) => (
+                            <li
+                              key={`${attachment.url}-${index}`}
+                              className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <span className="flex items-center gap-3 text-sm font-medium text-wood-900">
+                                <FileText className="h-5 w-5 shrink-0 text-wood-600" />
+                                <span>
+                                  <span className="mr-2 rounded-md bg-wood-100 px-2 py-1 text-xs font-bold">
+                                    {getMaterialAttachmentLabel(attachment)}
+                                  </span>
+                                  {attachment.name}
+                                  {attachment.size && (
+                                    <span className="ml-2 text-xs text-wood-500">{formatFileSize(attachment.size)}</span>
+                                  )}
+                                </span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeExistingAttachment(index)}
+                                className="inline-flex w-fit items-center rounded-lg px-3 py-2 text-xs font-bold text-wood-600 transition hover:bg-red-50 hover:text-red-700"
+                              >
+                                <X className="mr-1 h-4 w-4" />
+                                제거
+                              </button>
+                            </li>
+                          ))}
+                          {materialFiles.map((file, index) => (
+                            <li
+                              key={`${file.name}-${file.lastModified}-${index}`}
+                              className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <span className="flex items-center gap-3 text-sm font-medium text-wood-900">
+                                <FileText className="h-5 w-5 shrink-0 text-wood-600" />
+                                <span>
+                                  {file.name}
+                                  <span className="ml-2 text-xs text-wood-500">{formatFileSize(file.size)}</span>
+                                </span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeMaterialFile(index)}
+                                className="inline-flex w-fit items-center rounded-lg px-3 py-2 text-xs font-bold text-wood-600 transition hover:bg-red-50 hover:text-red-700"
+                              >
+                                <X className="mr-1 h-4 w-4" />
+                                제거
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="relative flex justify-center">
+                      <div className="space-y-1 text-center">
+                        {((existingPdfUrl || existingPdfBase64 || existingPdfChunkCount > 0) && !removeExistingPdf) ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <FileText className="h-8 w-8 text-wood-600" />
+                            <span className="text-sm text-wood-900 font-medium">{existingPdfName}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRemoveExistingPdf(true);
+                              }}
+                              className="p-1 hover:bg-wood-200 rounded-full transition"
+                            >
+                              <X className="h-4 w-4 text-wood-500" />
+                            </button>
+                          </div>
+                        ) : pdfFile ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <FileText className="h-8 w-8 text-wood-600" />
+                            <span className="text-sm text-wood-900 font-medium">{pdfFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPdfFile(null);
+                                if (existingPdfUrl) setRemoveExistingPdf(false);
+                              }}
+                              className="p-1 hover:bg-wood-200 rounded-full transition"
+                            >
+                              <X className="h-4 w-4 text-wood-500" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <FileText className="mx-auto h-12 w-12 text-wood-400" />
+                            <div className="flex text-sm text-wood-600">
+                              <label
+                                htmlFor="file-upload"
+                                className="relative cursor-pointer rounded-md font-medium text-wood-900 hover:text-wood-700 focus-within:outline-none"
+                              >
+                                <span>파일 업로드</span>
+                                <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".pdf" onChange={handleFileChange} />
+                              </label>
+                              <p className="pl-1">또는 드래그 앤 드롭</p>
+                            </div>
+                            <p className="text-xs text-wood-500">PDF up to 2MB</p>
+                          </>
+                        )}
+                      </div>
+                      {(!pdfFile && (!existingPdfUrl && !existingPdfBase64 || removeExistingPdf)) && (
+                        <input
+                          type="file"
+                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                          accept=".pdf"
+                          onChange={handleFileChange}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
