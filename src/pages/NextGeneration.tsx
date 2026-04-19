@@ -30,6 +30,7 @@ import {
   getPostAttachments,
   MATERIAL_FILE_ACCEPT,
   MaterialAttachment,
+  serializeMaterialAttachments,
   uploadMaterialFiles,
   validateMaterialFiles,
 } from '../lib/attachments';
@@ -710,7 +711,7 @@ function NextGenerationCreatePost() {
       }
 
       if (attachments.length > 0) {
-        postData.attachments = attachments;
+        postData.pdfBase64 = serializeMaterialAttachments(attachments);
       }
 
       if (firstPdfAttachment) {

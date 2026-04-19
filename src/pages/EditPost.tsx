@@ -14,6 +14,7 @@ import {
   getPostAttachments,
   MATERIAL_FILE_ACCEPT,
   MaterialAttachment,
+  serializeMaterialAttachments,
   uploadMaterialFiles,
   validateMaterialFiles,
 } from '../lib/attachments';
@@ -295,10 +296,12 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
       // Handle attachment fields explicitly to ensure they are cleared if needed
       if (isNextGeneration) {
         if (nextGenerationAttachments.length > 0) {
-          updateData.attachments = nextGenerationAttachments;
+          updateData.pdfBase64 = serializeMaterialAttachments(nextGenerationAttachments);
         } else {
-          updateData.attachments = deleteField();
+          updateData.pdfBase64 = deleteField();
         }
+
+        updateData.attachments = deleteField();
 
         if (pdfUrl) {
           updateData.pdfName = pdfName;
@@ -308,7 +311,6 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           updateData.pdfName = deleteField();
         }
 
-        updateData.pdfBase64 = deleteField();
         updateData.pdfChunkCount = deleteField();
       } else if (pdfFile) {
         updateData.pdfName = pdfName;
@@ -410,7 +412,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         console.error('Error updating latest posts summary on edit:', summaryErr);
       }
 
-      if (isNextGeneration || pdfFile || removeExistingPdf) {
+      if (!isNextGeneration && (pdfFile || removeExistingPdf)) {
         const oldChunksQuery = query(collection(db, 'post_pdfs'), where('postId', '==', id));
         const oldChunksSnap = await getDocs(oldChunksQuery);
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
