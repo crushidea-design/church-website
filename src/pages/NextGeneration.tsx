@@ -290,7 +290,7 @@ function NextGenerationHeader() {
           <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
             <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
           </span>
-          <span className="flex w-[164px] flex-col">
+          <span className="flex w-[198px] flex-col">
             <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
               {Array.from('한우리교회 다음세대').map((char, index) => (
                 <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
@@ -299,7 +299,7 @@ function NextGenerationHeader() {
               ))}
             </span>
             <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
-              {Array.from('GROWING IN THE BIBLE').map((char, index) => (
+              {Array.from('GROWING IN THE COVENANT').map((char, index) => (
                 <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
                   {char}
                 </span>
@@ -336,6 +336,26 @@ function NextGenerationHeader() {
 }
 
 function IntroPage() {
+  const introPillars = [
+    {
+      title: '예배 중심 교육',
+      description:
+        '다음세대 교육의 중심은 전세대가 함께 드리는 언약 공동체의 예배입니다. 아이들은 따로 떨어진 교육이 아니라, 온 교회가 함께 하나님 앞에 서는 예배 가운데 배우고 자라갑니다.',
+    },
+    {
+      title: '가정과 동행',
+      description:
+        '교회는 가정을 대신하지 않고 함께 걸어갑니다. 배운 말씀이 가정에서도 이어져, 부모와 자녀가 함께 신앙 안에서 자라가도록 돕습니다.',
+    },
+    {
+      title: '성경과 교리',
+      description:
+        '성경은 하나님께서 주신 말씀으로, 우리를 가르치고 바르게 하며 의로운 삶으로 자라가게 합니다. 우리는 이 말씀 위에 아이들이 서도록 돕고, 동시에 그 내용을 체계적으로 정리한 교리 교육을 통해 흔들리지 않는 신앙으로 자라가게 합니다.',
+    },
+  ];
+  const [activePillar, setActivePillar] = useState<string | null>(null);
+  const selectedPillar = introPillars.find((pillar) => pillar.title === activePillar);
+
   return (
     <div>
       <section className="bg-white">
@@ -343,22 +363,39 @@ function IntroPage() {
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
-              말씀 안에서 자라가는 다음 세대
+              언약 안에서 자라가는 다음세대
             </span>
             <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
-              예배와 가정과 삶이 이어지는 다음세대 공동체
+              언약 안에서 이어지는 믿음의 세대
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
-              다음세대 교육은 아이들이 하나님을 아는 기쁨을 배우고,
-              말씀을 자기 언어로 붙들며, 교회와 가정 안에서 믿음의 걸음을 이어가도록 돕습니다.
+              한우리교회 다음세대는 언약 안에서 자라가는 아이들이 말씀과 예배 가운데 하나님을 바르게 배우도록 돕는 공동체입니다.
+              우리는 예배 중심의 신앙교육을 지향하며, 교회 교육이 가정과 이어지도록 힘씁니다.
+              성경과 교리 위에 다음세대를 세워, 하나님을 알고 사랑하며 순종하는 삶으로 자라가게 하는 것이 우리의 목표입니다.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {['말씀 중심', '예배의 기쁨', '가정과 연결'].map((item) => (
-                <div key={item} className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-center text-sm font-black text-emerald-950">
-                  {item}
-                </div>
+              {introPillars.map((pillar) => (
+                <button
+                  key={pillar.title}
+                  type="button"
+                  onClick={() => setActivePillar((current) => (current === pillar.title ? null : pillar.title))}
+                  aria-expanded={activePillar === pillar.title}
+                  className={`rounded-lg border p-4 text-center text-sm font-black transition ${
+                    activePillar === pillar.title
+                      ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                      : 'border-emerald-100 bg-emerald-50 text-emerald-950 hover:border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                >
+                  {pillar.title}
+                </button>
               ))}
             </div>
+            {selectedPillar && (
+              <div className="mt-4 rounded-lg border border-emerald-100 bg-white p-5 text-base leading-8 text-slate-700 shadow-sm">
+                <h2 className="text-lg font-black text-emerald-950">{selectedPillar.title}</h2>
+                <p className="mt-2">{selectedPillar.description}</p>
+              </div>
+            )}
           </div>
 
           <div className="overflow-hidden rounded-lg border border-sky-100 shadow-sm">
@@ -1172,7 +1209,7 @@ export default function NextGeneration() {
       <footer className="border-t border-emerald-100 bg-emerald-700 py-8 text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm font-bold sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <span>한우리교회 다음세대</span>
-          <span className="text-emerald-100">말씀을 배우고, 예배를 사랑하고, 삶으로 이어갑니다.</span>
+          <span className="text-emerald-100">예배를 중심으로 가정과 동행하며 성경과 교리를 가르칩니다.</span>
         </div>
       </footer>
     </div>
