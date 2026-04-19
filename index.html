@@ -16,6 +16,30 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v7.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <title>함께 지어져가는 교회</title>
+    <script>
+      (() => {
+        const path = window.location.pathname;
+        const isNextGeneration =
+          path === '/next' ||
+          path.startsWith('/next/') ||
+          path === '/next-generation' ||
+          path.startsWith('/next-generation/');
+        const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        const manifest = document.querySelector('link[rel="manifest"]');
+
+        if (appleTitle) {
+          appleTitle.setAttribute('content', isNextGeneration ? '다음세대' : '함께 지어져가는 교회');
+        }
+
+        if (manifest) {
+          manifest.setAttribute('href', isNextGeneration ? '/next.webmanifest' : '/site.webmanifest');
+        }
+
+        if (isNextGeneration) {
+          document.title = '다음세대 | 함께 지어져가는 교회';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

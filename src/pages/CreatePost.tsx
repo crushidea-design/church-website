@@ -323,7 +323,7 @@ export default function CreatePost() {
       }
       
       console.log('Navigating to post detail...');
-      navigate(isNextGeneration ? `/next-generation/post/${docRef.id}` : `/post/${docRef.id}`);
+      navigate(isNextGeneration ? `/next/post/${docRef.id}` : `/post/${docRef.id}`);
     } catch (err: any) {
       console.error('Error in handleSubmit:', err);
       const errorMessage = err.message || '게시글 등록 중 오류가 발생했습니다.';
