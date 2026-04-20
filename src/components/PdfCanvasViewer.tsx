@@ -124,18 +124,23 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
       try {
         const page = await pdf.getPage(pageNum);
-        
+
         // If the component unmounted or dependencies changed while waiting for getPage, abort.
         if (isCancelled) return;
 
-        const viewport = page.getViewport({ scale });
+        const dpr = window.devicePixelRatio || 1;
+        const viewport = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
 
         if (!context) return;
 
-        canvas.height = viewport.height;
+        // Physical canvas pixels = logical size × DPR (sharp on HiDPI/Retina screens)
         canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        // CSS display size stays at logical dimensions so layout is unchanged
+        canvas.style.width = `${viewport.width / dpr}px`;
+        canvas.style.height = `${viewport.height / dpr}px`;
 
         const renderContext = {
           canvasContext: context,
