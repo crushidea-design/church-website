@@ -22,7 +22,7 @@ const CANDLE_IMAGE = "https://lh3.googleusercontent.com/d/1yzsm7fX2PrakJfFQt0tzE
 const BACKGROUND_IMAGE = "https://lh3.googleusercontent.com/d/1opPxflZvaSvu30ags7dlFhnp76A-yD72";
 
 export default function PrayerRoom() {
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [requests, setRequests] = useState<PrayerRequest[]>([]);
   const [hasNewPosts, setHasNewPosts] = useState(false);
@@ -95,11 +95,21 @@ export default function PrayerRoom() {
     };
   }, [lastFetchedAt, role, user]);
 
-  if (!loading && role !== 'regular' && role !== 'admin') {
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#f5f2ed] flex items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#5a5a40] border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (role !== 'regular' && role !== 'admin') {
     return (
       <div className="min-h-screen bg-[#f5f2ed] text-[#5a5a40] flex items-center justify-center p-4">
-        <div className="bg-[#ffffff]/80 p-8 rounded-2xl text-center shadow-lg border border-[#e5e7eb]">
-          <p className="mb-6">‘기도자의 방’은 정회원 성도님들이 서로의 짐을 나누는 은밀한 공간입니다. 목사님께 등급 조정을 요청해 주세요.</p>
+        <div className="bg-[#ffffff]/80 p-8 rounded-2xl text-center shadow-lg border border-[#e5e7eb] max-w-sm">
+          <Lock className="mx-auto mb-4 h-10 w-10 text-[#5a5a40] opacity-60" />
+          <h2 className="mb-3 text-lg font-bold">'기도자의 방'은 정회원 공간입니다</h2>
+          <p className="mb-6 text-sm leading-6 opacity-80">정회원 성도님들이 서로의 짐을 나누는 은밀한 공간입니다. 목사님께 등급 조정을 요청해 주세요.</p>
           <button onClick={() => navigate('/')} className="bg-[#5a5a40] text-white px-6 py-2 rounded-full font-bold hover:bg-[#4a4a35] transition">홈으로</button>
         </div>
       </div>
