@@ -751,14 +751,26 @@ function ResourceLibraryPage({
             })}
           </div>
 
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="flex items-center gap-3 text-2xl font-black tracking-normal text-emerald-950">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-200 text-emerald-950">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-200 text-emerald-950">
                   <ActiveIcon size={22} />
                 </span>
-                {activeTab.name}
-              </h2>
+                <h2 className="text-2xl font-black tracking-normal text-emerald-950">
+                  {activeTab.name}
+                </h2>
+                {!isWeeklyTab && (
+                  <button
+                    type="button"
+                    onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+                    className="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-emerald-950 transition hover:bg-sky-50"
+                  >
+                    {sortDir === 'desc' ? <ArrowDown01 size={14} /> : <ArrowUp10 size={14} />}
+                    {sortDir === 'desc' ? '최신순' : '오래된순'}
+                  </button>
+                )}
+              </div>
               <p className="mt-3 text-base leading-7 text-slate-700">{activeTab.description}</p>
               {isWeeklyTab && (
                 <p className="mt-2 text-sm font-bold text-emerald-700">
@@ -772,37 +784,25 @@ function ResourceLibraryPage({
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              {!isWeeklyTab && (
-                <button
-                  type="button"
-                  onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
-                  className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-3 text-sm font-bold text-emerald-950 transition hover:bg-sky-50"
-                >
-                  {sortDir === 'desc' ? <ArrowDown01 size={16} /> : <ArrowUp10 size={16} />}
-                  {sortDir === 'desc' ? '최신순' : '오래된순'}
-                </button>
-              )}
-              {isAdmin && (
-                <Link
-                  to={
-                    usesTopicFolders && activeTopicId
-                      ? `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}&topic=${activeTopicId}`
-                      : `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`
-                  }
-                  className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
-                >
-                  <Plus size={18} className="mr-2" />
-                  자료 올리기
-                </Link>
-              )}
-            </div>
+            {isAdmin && (
+              <Link
+                to={
+                  usesTopicFolders && activeTopicId
+                    ? `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}&topic=${activeTopicId}`
+                    : `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`
+                }
+                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
+              >
+                <Plus size={18} className="mr-2" />
+                자료 올리기
+              </Link>
+            )}
           </div>
 
           {usesTopicFolders && topicOptions.length > 0 && (
             <div className="mb-6">
               <h3 className="text-sm font-black text-emerald-950">주제 폴더</h3>
-              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+              <div className="mt-3 grid grid-cols-3 gap-2 sm:flex sm:gap-3">
                 {topicOptions.map((topic) => {
                   const isActive = topic.id === activeTopicId;
                   const count = topicCounts.get(topic.id) || 0;
@@ -812,14 +812,14 @@ function ResourceLibraryPage({
                       key={topic.id}
                       type="button"
                       onClick={() => setSearchParams({ resource: activeTab.id, topic: topic.id })}
-                      className={`min-w-[150px] rounded-lg border px-4 py-4 text-left transition ${
+                      className={`rounded-lg border px-3 py-3 text-left transition sm:min-w-[150px] sm:px-4 sm:py-4 ${
                         isActive
                           ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                           : 'border-sky-100 bg-sky-50 text-emerald-950 hover:border-emerald-200 hover:bg-white'
                       }`}
                     >
-                      <div className="text-sm font-black">{topic.name}</div>
-                      <div className={`mt-2 text-xs font-bold ${isActive ? 'text-emerald-50' : 'text-slate-500'}`}>
+                      <div className="text-xs font-black sm:text-sm">{topic.name}</div>
+                      <div className={`mt-1.5 text-xs font-bold sm:mt-2 ${isActive ? 'text-emerald-50' : 'text-slate-500'}`}>
                         자료 {count}
                       </div>
                     </button>

@@ -103,15 +103,14 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
     fitPageToMobileWidth();
 
-    const resizeObserver = new ResizeObserver(() => {
-      fitPageToMobileWidth();
-    });
-
-    resizeObserver.observe(viewerRef.current);
+    // Use orientationchange instead of ResizeObserver so that manual zoom
+    // button presses are not overridden by incidental viewport size shifts
+    // (e.g. browser address-bar appearing/disappearing on tap).
+    window.addEventListener('orientationchange', fitPageToMobileWidth);
 
     return () => {
       isCancelled = true;
-      resizeObserver.disconnect();
+      window.removeEventListener('orientationchange', fitPageToMobileWidth);
     };
   }, [pdf, pageNum, isMobile]);
 
@@ -265,7 +264,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
         >
-          <canvas ref={canvasRef} className="h-auto max-w-none md:max-w-full" />
+          <canvas ref={canvasRef} />
         </div>
 
         {/* Left Navigation Overlay */}
