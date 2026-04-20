@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import {
+  ArrowDown01,
   ArrowLeft,
+  ArrowUp10,
   BookMarked,
   CalendarDays,
   ClipboardList,
@@ -606,6 +608,7 @@ function ResourceLibraryPage({
   const usesTopicFolders = !isWeeklyTab && supportsNextGenerationTopic(activeTab.id);
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -678,8 +681,10 @@ function ResourceLibraryPage({
   }, [posts, usesTopicFolders]);
 
   const filteredPosts = useMemo(() => {
-    const byDateDesc = (a: NextGenerationPost, b: NextGenerationPost) =>
-      getPostPrimarySortTime(b) - getPostPrimarySortTime(a);
+    const byDate = (a: NextGenerationPost, b: NextGenerationPost) =>
+      sortDir === 'desc'
+        ? getPostPrimarySortTime(b) - getPostPrimarySortTime(a)
+        : getPostPrimarySortTime(a) - getPostPrimarySortTime(b);
 
     if (isWeeklyTab) {
       return elementaryWeeklyResourceIds.flatMap((resourceId) => {
@@ -693,11 +698,11 @@ function ResourceLibraryPage({
     if (usesTopicFolders && activeTopicId) {
       return posts
         .filter((post) => inferNextGenerationTopicId(post) === activeTopicId)
-        .sort(byDateDesc);
+        .sort(byDate);
     }
 
-    return [...posts].sort(byDateDesc);
-  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders]);
+    return [...posts].sort(byDate);
+  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir]);
 
   return (
     <div>
@@ -767,19 +772,31 @@ function ResourceLibraryPage({
               )}
             </div>
 
-            {isAdmin && (
-              <Link
-                to={
-                  usesTopicFolders && activeTopicId
-                    ? `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}&topic=${activeTopicId}`
-                    : `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`
-                }
-                className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
-              >
-                <Plus size={18} className="mr-2" />
-                자료 올리기
-              </Link>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {!isWeeklyTab && (
+                <button
+                  type="button"
+                  onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+                  className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-3 text-sm font-bold text-emerald-950 transition hover:bg-sky-50"
+                >
+                  {sortDir === 'desc' ? <ArrowDown01 size={16} /> : <ArrowUp10 size={16} />}
+                  {sortDir === 'desc' ? '최신순' : '오래된순'}
+                </button>
+              )}
+              {isAdmin && (
+                <Link
+                  to={
+                    usesTopicFolders && activeTopicId
+                      ? `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}&topic=${activeTopicId}`
+                      : `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`
+                  }
+                  className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
+                >
+                  <Plus size={18} className="mr-2" />
+                  자료 올리기
+                </Link>
+              )}
+            </div>
           </div>
 
           {usesTopicFolders && topicOptions.length > 0 && (
