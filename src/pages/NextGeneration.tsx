@@ -188,6 +188,13 @@ const getPostWeekKey = (post: NextGenerationPost) => {
   return toLocalDateKey(getSundayDate(new Date(createdAtTime)));
 };
 
+const getPostPrimarySortTime = (post: NextGenerationPost): number => {
+  if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
+    return new Date(post.nextGenerationWeekKey).getTime();
+  }
+  return getCreatedAtTime(post.createdAt);
+};
+
 const getResourceLabel = (id?: string) => {
   return allResourceTabs.find((tab) => tab.id === id)?.name || '다음세대 자료';
 };
@@ -671,6 +678,9 @@ function ResourceLibraryPage({
   }, [posts, usesTopicFolders]);
 
   const filteredPosts = useMemo(() => {
+    const byDateDesc = (a: NextGenerationPost, b: NextGenerationPost) =>
+      getPostPrimarySortTime(b) - getPostPrimarySortTime(a);
+
     if (isWeeklyTab) {
       return elementaryWeeklyResourceIds.flatMap((resourceId) => {
         const resourcePosts = posts.filter((post) => post.subCategory === resourceId);
@@ -681,10 +691,12 @@ function ResourceLibraryPage({
     }
 
     if (usesTopicFolders && activeTopicId) {
-      return posts.filter((post) => inferNextGenerationTopicId(post) === activeTopicId);
+      return posts
+        .filter((post) => inferNextGenerationTopicId(post) === activeTopicId)
+        .sort(byDateDesc);
     }
 
-    return posts;
+    return [...posts].sort(byDateDesc);
   }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders]);
 
   return (
@@ -821,7 +833,7 @@ function ResourceLibraryPage({
               </p>
             </div>
           ) : (
-            <div className={`grid gap-5 md:grid-cols-2 ${isWeeklyTab ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {filteredPosts.map((post, index) => {
                 const attachments = getPostAttachments(post);
 
