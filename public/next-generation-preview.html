@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="한우리 다음세대" />
+    <link rel="icon" type="image/svg+xml" href="/next-generation-favicon.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/next-generation-icon-48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/next-generation-icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/next-generation-icon-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/next-generation-apple-touch-icon.png" />
+    <title>한우리 다음세대 자료 미리보기</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, system-ui, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(180deg, #f8fafc 0%, #ecfdf5 100%);
+      }
+
+      .shell {
+        width: min(1120px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 24px 0 40px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand img {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+      }
+
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .brand-copy strong {
+        font-size: 18px;
+      }
+
+      .brand-copy span {
+        font-size: 12px;
+        font-weight: 700;
+        color: #047857;
+        text-transform: uppercase;
+      }
+
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #a7f3d0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        background: #ffffff;
+        color: #065f46;
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .card {
+        border: 1px solid #d1fae5;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+
+      .card-header {
+        padding: 18px 20px;
+        border-bottom: 1px solid #d1fae5;
+      }
+
+      .card-header h1 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.4;
+      }
+
+      .image-wrap {
+        padding: 16px;
+      }
+
+      .image-wrap img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+        background: #f8fafc;
+      }
+
+      .empty {
+        padding: 64px 24px;
+        text-align: center;
+        color: #64748b;
+        font-size: 15px;
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100vw - 20px, 1120px);
+          padding-top: 16px;
+        }
+
+        .topbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .card-header h1 {
+          font-size: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <img src="/next-generation-favicon.svg" alt="" />
+          <div class="brand-copy">
+            <strong>한우리교회 다음세대</strong>
+            <span>Growing in the Covenant</span>
+          </div>
+        </div>
+        <a class="back-link" href="/next">다음세대로 돌아가기</a>
+      </div>
+
+      <section class="card">
+        <div class="card-header">
+          <h1 id="preview-title">교육 자료 미리보기</h1>
+        </div>
+        <div id="preview-container" class="image-wrap"></div>
+      </section>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const src = params.get('src');
+      const alt = params.get('alt') || '교육 자료 미리보기';
+      const title = document.getElementById('preview-title');
+      const container = document.getElementById('preview-container');
+
+      document.title = `${alt} | 한우리 다음세대`;
+      title.textContent = alt;
+
+      if (src) {
+        const image = document.createElement('img');
+        image.src = src;
+        image.alt = alt;
+        container.appendChild(image);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '미리볼 자료를 찾지 못했습니다.';
+        container.replaceWith(empty);
+      }
+    </script>
+  </body>
+</html>

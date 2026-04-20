@@ -21,6 +21,13 @@ import { db, handleFirestoreError, OperationType, storage } from '../lib/firebas
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
+import {
+  getNextGenerationTopicLabel,
+  inferNextGenerationTopicId,
+  NEXT_GENERATION_TOPIC_OPTIONS,
+  NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+  supportsNextGenerationTopic,
+} from '../lib/nextGenerationTopics';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 import EditPost from './EditPost';
 import {
@@ -134,6 +141,7 @@ interface NextGenerationPost {
   title?: string;
   content?: string;
   subCategory?: string;
+  nextGenerationTopicId?: string;
   authorName?: string;
   createdAt?: any;
   updatedAt?: any;
@@ -418,10 +426,10 @@ function IntroPage() {
               언약 안에서 자라가는 다음세대
             </span>
             <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
-              언약 안에서 이어지는 믿음의 세대
+              예배하는 유초등부
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
-              한우리교회 다음세대는 언약 안에서 자라가는 아이들이 말씀과 예배 가운데 하나님을 바르게 배우도록 돕는 공동체입니다.
+              한우리교회 유초등부는 언약 안에서 자라가는 아이들이 말씀과 예배 가운데 하나님을 바르게 배우도록 돕는 공동체입니다.
               우리는 예배 중심의 신앙교육을 지향하며, 교회 교육이 가정과 이어지도록 힘씁니다.
               성경과 교리 위에 다음세대를 세워, 하나님을 알고 사랑하며 순종하는 삶으로 자라가게 하는 것이 우리의 목표입니다.
             </p>
@@ -495,12 +503,12 @@ function IntroPage() {
               </div>
             )}
             <div className="mt-6">
-              <h3 className="text-lg font-black text-emerald-950">교육 자료 보기</h3>
+              <h3 className="text-lg font-black text-emerald-950">교육 자료 미리보기</h3>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {selectedPillar.gallery.map((image) => (
                   <a
                     key={image.src}
-                    href={image.src}
+                    href={`/next-generation-preview.html?src=${encodeURIComponent(image.src)}&alt=${encodeURIComponent(image.alt)}`}
                     target="_blank"
                     rel="noreferrer"
                     className="overflow-hidden rounded-lg border border-emerald-100 bg-slate-50 transition hover:border-emerald-300"
@@ -581,12 +589,14 @@ function ResourceLibraryPage({
   const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeResource = searchParams.get('resource') || tabs[0].id;
+  const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
   const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
   const isWeeklyTab = activeTab.id === 'elementary_weekly';
+  const usesTopicFolders = !isWeeklyTab && supportsNextGenerationTopic(activeTab.id);
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
 
@@ -596,15 +606,18 @@ function ResourceLibraryPage({
       setError(null);
 
       try {
-        const q = query(
-          collection(db, 'posts'),
-          where('category', '==', NEXT_GENERATION_CATEGORY),
-          limit(200)
-        );
+        const constraints = [where('category', '==', NEXT_GENERATION_CATEGORY)];
+
+        if (isWeeklyTab) {
+          constraints.push(where('subCategory', 'in', elementaryWeeklyResourceIds));
+        } else {
+          constraints.push(where('subCategory', '==', activeTab.id));
+        }
+
+        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(200));
         const snapshot = await getDocs(q);
         const data = snapshot.docs
-          .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost)
-          .sort((a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt));
+          .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost);
 
         setPosts(data);
       } catch (err: any) {
@@ -619,7 +632,43 @@ function ResourceLibraryPage({
     };
 
     fetchPosts();
-  }, []);
+  }, [activeTab.id, isWeeklyTab]);
+
+  const topicOptions = useMemo(() => {
+    if (!usesTopicFolders) return [];
+
+    const inferredTopics = new Set(posts.map((post) => inferNextGenerationTopicId(post)));
+    const baseTopics = NEXT_GENERATION_TOPIC_OPTIONS.filter((topic) => inferredTopics.has(topic.id));
+    const needsUnassigned = inferredTopics.has(NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
+
+    if (baseTopics.length === 0) {
+      return NEXT_GENERATION_TOPIC_OPTIONS;
+    }
+
+    return needsUnassigned
+      ? [...baseTopics, { id: NEXT_GENERATION_UNASSIGNED_TOPIC_ID, name: '기타', keywords: [] }]
+      : baseTopics;
+  }, [posts, usesTopicFolders]);
+
+  const activeTopicId = useMemo(() => {
+    if (!usesTopicFolders) return null;
+
+    if (requestedTopic && topicOptions.some((topic) => topic.id === requestedTopic)) {
+      return requestedTopic;
+    }
+
+    return topicOptions[0]?.id || NEXT_GENERATION_TOPIC_OPTIONS[0].id;
+  }, [requestedTopic, topicOptions, usesTopicFolders]);
+
+  const topicCounts = useMemo(() => {
+    if (!usesTopicFolders) return new Map<string, number>();
+
+    return posts.reduce((counts, post) => {
+      const topicId = inferNextGenerationTopicId(post);
+      counts.set(topicId, (counts.get(topicId) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+  }, [posts, usesTopicFolders]);
 
   const filteredPosts = useMemo(() => {
     if (isWeeklyTab) {
@@ -629,8 +678,12 @@ function ResourceLibraryPage({
       ));
     }
 
-    return posts.filter((post) => post.subCategory === activeTab.id);
-  }, [posts, activeTab.id, currentWeekKey, isWeeklyTab]);
+    if (usesTopicFolders && activeTopicId) {
+      return posts.filter((post) => inferNextGenerationTopicId(post) === activeTopicId);
+    }
+
+    return posts;
+  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders]);
 
   return (
     <div>
@@ -693,11 +746,20 @@ function ResourceLibraryPage({
                   기준 주일: {currentWeekKey}
                 </p>
               )}
+              {usesTopicFolders && activeTopicId && (
+                <p className="mt-2 text-sm font-bold text-emerald-700">
+                  선택한 주제: {getNextGenerationTopicLabel(activeTopicId)}
+                </p>
+              )}
             </div>
 
             {isAdmin && (
               <Link
-                to={`${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`}
+                to={
+                  usesTopicFolders && activeTopicId
+                    ? `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}&topic=${activeTopicId}`
+                    : `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`
+                }
                 className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
               >
                 <Plus size={18} className="mr-2" />
@@ -705,6 +767,36 @@ function ResourceLibraryPage({
               </Link>
             )}
           </div>
+
+          {usesTopicFolders && topicOptions.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-black text-emerald-950">주제 폴더</h3>
+              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+                {topicOptions.map((topic) => {
+                  const isActive = topic.id === activeTopicId;
+                  const count = topicCounts.get(topic.id) || 0;
+
+                  return (
+                    <button
+                      key={topic.id}
+                      type="button"
+                      onClick={() => setSearchParams({ resource: activeTab.id, topic: topic.id })}
+                      className={`min-w-[150px] rounded-lg border px-4 py-4 text-left transition ${
+                        isActive
+                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                          : 'border-sky-100 bg-sky-50 text-emerald-950 hover:border-emerald-200 hover:bg-white'
+                      }`}
+                    >
+                      <div className="text-sm font-black">{topic.name}</div>
+                      <div className={`mt-2 text-xs font-bold ${isActive ? 'text-emerald-50' : 'text-slate-500'}`}>
+                        자료 {count}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm font-bold text-red-700">
@@ -720,7 +812,11 @@ function ResourceLibraryPage({
             <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50 p-10 text-center">
               <CalendarDays className="mx-auto mb-4 h-12 w-12 text-sky-500" />
               <h3 className="text-xl font-black text-emerald-950">아직 등록된 자료가 없습니다</h3>
-              <p className="mt-3 text-slate-700">이번 주 자료가 준비되면 이곳에 올라옵니다.</p>
+              <p className="mt-3 text-slate-700">
+                {usesTopicFolders && activeTopicId
+                  ? `${getNextGenerationTopicLabel(activeTopicId)} 주제 자료가 준비되면 이곳에 올라옵니다.`
+                  : '이번 주 자료가 준비되면 이곳에 올라옵니다.'}
+              </p>
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -736,9 +832,16 @@ function ResourceLibraryPage({
                     className="rounded-lg border border-sky-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
-                      <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
-                        {getResourceLabel(post.subCategory)}
-                      </span>
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
+                          {getResourceLabel(post.subCategory)}
+                        </span>
+                        {supportsNextGenerationTopic(post.subCategory) && (
+                          <span className="inline-flex rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-black text-emerald-950">
+                            {getNextGenerationTopicLabel(inferNextGenerationTopicId(post))}
+                          </span>
+                        )}
+                      </div>
                       <h3 className="line-clamp-2 text-xl font-black leading-7 tracking-normal text-emerald-950">
                         {post.title}
                       </h3>
@@ -786,12 +889,20 @@ function NextGenerationCreatePost() {
   const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const activeTab = getResourceTab(searchParams.get('resource') || undefined);
+  const requestedTopic = searchParams.get('topic');
   const isWeeklyCreate = activeTab.id === 'elementary_weekly';
   const [selectedResourceId, setSelectedResourceId] = useState(
     isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id
   );
+  const [selectedTopicId, setSelectedTopicId] = useState(
+    NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic)
+      ? requestedTopic!
+      : NEXT_GENERATION_TOPIC_OPTIONS[0].id
+  );
   const [weekKey, setWeekKey] = useState(getCurrentSundayKey());
-  const backPath = `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
+  const backPath = requestedTopic
+    ? `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}&topic=${requestedTopic}`
+    : `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -800,10 +911,27 @@ function NextGenerationCreatePost() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const usesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(selectedResourceId);
+  const usesTopic = supportsNextGenerationTopic(selectedResourceId);
 
   useEffect(() => {
     setSelectedResourceId(isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id);
   }, [activeTab.id, isWeeklyCreate]);
+
+  useEffect(() => {
+    if (!usesTopic) {
+      setSelectedTopicId(NEXT_GENERATION_TOPIC_OPTIONS[0].id);
+    }
+  }, [usesTopic]);
+
+  useEffect(() => {
+    if (
+      requestedTopic &&
+      NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic) &&
+      supportsNextGenerationTopic(selectedResourceId)
+    ) {
+      setSelectedTopicId(requestedTopic);
+    }
+  }, [requestedTopic, selectedResourceId]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -854,6 +982,10 @@ function NextGenerationCreatePost() {
 
       if (usesWeekKey) {
         postData.nextGenerationWeekKey = weekKey;
+      }
+
+      if (usesTopic) {
+        postData.nextGenerationTopicId = selectedTopicId;
       }
 
       if (attachments.length > 0) {
@@ -1006,6 +1138,29 @@ function NextGenerationCreatePost() {
                 />
                 <p className="mt-2 text-xs font-bold text-slate-500">
                   이번주 강의자료 탭은 이 날짜가 이번 주일과 같은 자료를 모아 보여줍니다.
+                </p>
+              </div>
+            )}
+
+            {usesTopic && (
+              <div>
+                <label htmlFor="next-generation-topic" className="mb-2 block text-sm font-black text-emerald-950">
+                  주제 폴더
+                </label>
+                <select
+                  id="next-generation-topic"
+                  value={selectedTopicId}
+                  onChange={(event) => setSelectedTopicId(event.target.value)}
+                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                >
+                  {NEXT_GENERATION_TOPIC_OPTIONS.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  같은 세부 탭 안에서도 시리즈 주제별로 자료를 묶어 보여줍니다.
                 </p>
               </div>
             )}
@@ -1171,7 +1326,10 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
   if (!post) return null;
 
-  const backPath = `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
+  const inferredTopicId = inferNextGenerationTopicId(post);
+  const backPath = supportsNextGenerationTopic(post.subCategory)
+    ? `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
+    : `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
   const attachments = getPostAttachments(post);
 
   return (
@@ -1199,9 +1357,16 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
         <article className="rounded-lg border border-white bg-white p-6 shadow-sm sm:p-8 lg:p-10">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="inline-flex w-fit rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
-              {getResourceLabel(post.subCategory)}
-            </span>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex w-fit rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
+                {getResourceLabel(post.subCategory)}
+              </span>
+              {supportsNextGenerationTopic(post.subCategory) && (
+                <span className="inline-flex w-fit rounded-lg bg-sky-50 px-3 py-2 text-sm font-black text-emerald-950">
+                  {getNextGenerationTopicLabel(inferredTopicId)}
+                </span>
+              )}
+            </div>
             <span className="text-sm font-bold text-slate-500">{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
           </div>
 
