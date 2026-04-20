@@ -133,14 +133,11 @@ export default function Sermons() {
 
     const fetchInitialData = async () => {
       try {
-        // Fetch Categories if not fetched
-        let cats = sermonCategories;
-        if (cats.length === 0) {
-          const catQ = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'));
-          const catSnap = await getDocs(catQ);
-          cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SermonCategory[];
-          setCategories('sermonCategories', cats);
-        }
+        // Always fetch categories from Firestore to pick up additions/deletions
+        const catQ = query(collection(db, 'sermon_categories'), orderBy('order', 'asc'));
+        const catSnap = await getDocs(catQ);
+        const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SermonCategory[];
+        setCategories('sermonCategories', cats);
 
         // Set Active Tab
         let tab = ALL_SERMONS_TAB;

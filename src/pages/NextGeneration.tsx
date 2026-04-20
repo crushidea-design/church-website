@@ -912,6 +912,7 @@ function NextGenerationCreatePost() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [successPostId, setSuccessPostId] = useState<string | null>(null);
   const usesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(selectedResourceId);
   const usesTopic = supportsNextGenerationTopic(selectedResourceId);
 
@@ -1039,7 +1040,11 @@ function NextGenerationCreatePost() {
         }
       }
 
-      navigate(`${NEXT_GENERATION_PATH}/post/${docRef.id}`);
+      setSuccessPostId(docRef.id);
+      setTitle('');
+      setContent('');
+      setMaterialFiles([]);
+      setUploadProgress(0);
     } catch (err: any) {
       console.error('Error creating next generation post:', err);
       setError(err.message || '자료 등록 중 오류가 발생했습니다.');
@@ -1108,6 +1113,27 @@ function NextGenerationCreatePost() {
               {submitting ? '등록 중...' : '등록하기'}
             </button>
           </div>
+
+          {successPostId && (
+            <div className="mb-6 flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-bold text-emerald-700">자료가 성공적으로 등록되었습니다.</p>
+              <div className="flex shrink-0 gap-2">
+                <Link
+                  to={`${NEXT_GENERATION_PATH}/post/${successPostId}`}
+                  className="inline-flex items-center rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  등록된 자료 보기
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setSuccessPostId(null)}
+                  className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                >
+                  자료 추가 등록
+                </button>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">

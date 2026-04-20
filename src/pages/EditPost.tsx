@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
   inferNextGenerationTopicId,
+  isNextGenerationWeeklyResource,
   NEXT_GENERATION_TOPIC_OPTIONS,
   supportsNextGenerationTopic,
 } from '../lib/nextGenerationTopics';
@@ -65,6 +66,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
   const [nextGenerationTopicId, setNextGenerationTopicId] = useState(NEXT_GENERATION_TOPIC_OPTIONS[0].id);
+  const [nextGenerationWeekKey, setNextGenerationWeekKey] = useState('');
   const [sermonCategoryId, setSermonCategoryId] = useState('');
   const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
   const [researchCategoryId, setResearchCategoryId] = useState('');
@@ -118,6 +120,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           setDateKey(data.dateKey || getLocalDateKey(getDateFromFirestoreValue(data.createdAt) || new Date()));
           setSubCategory(data.subCategory || 'general');
           setNextGenerationTopicId(inferNextGenerationTopicId({ ...data, content: fullContent }));
+          setNextGenerationWeekKey(data.nextGenerationWeekKey || '');
           setSermonCategoryId(data.sermonCategoryId || '');
           setResearchCategoryId(data.researchCategoryId || '');
           setExistingPdfUrl(data.pdfUrl || '');
@@ -326,6 +329,12 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           updateData.nextGenerationTopicId = nextGenerationTopicId;
         } else {
           updateData.nextGenerationTopicId = deleteField();
+        }
+
+        if (isNextGenerationWeeklyResource(subCategory) && nextGenerationWeekKey) {
+          updateData.nextGenerationWeekKey = nextGenerationWeekKey;
+        } else {
+          updateData.nextGenerationWeekKey = deleteField();
         }
       } else if (pdfFile) {
         updateData.pdfName = pdfName;
@@ -763,6 +772,21 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {isNextGeneration && isNextGenerationWeeklyResource(subCategory) && (
+              <div>
+                <label htmlFor="nextGenerationWeekKey" className="block text-sm font-medium text-wood-700 mb-2">
+                  해당 주일
+                </label>
+                <input
+                  type="date"
+                  id="nextGenerationWeekKey"
+                  value={nextGenerationWeekKey}
+                  onChange={(e) => setNextGenerationWeekKey(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                />
               </div>
             )}
 
