@@ -938,12 +938,15 @@ function NextGenerationCreatePost() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [materialFiles, setMaterialFiles] = useState<File[]>([]);
+  const createEmptyWeeklyFiles = (): Record<string, File[]> =>
+    Object.fromEntries(elementaryWeeklyResourceTabs.map((tab) => [tab.id, []]));
+  const [weeklyFiles, setWeeklyFiles] = useState<Record<string, File[]>>(createEmptyWeeklyFiles);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [successPostId, setSuccessPostId] = useState<string | null>(null);
+  const [successPostIds, setSuccessPostIds] = useState<string[]>([]);
   const usesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(selectedResourceId);
-  const usesTopic = supportsNextGenerationTopic(selectedResourceId);
+  const usesTopic = isWeeklyCreate || supportsNextGenerationTopic(selectedResourceId);
 
   useEffect(() => {
     setSelectedResourceId(isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id);
@@ -985,91 +988,166 @@ function NextGenerationCreatePost() {
     setMaterialFiles((currentFiles) => currentFiles.filter((_, index) => index !== indexToRemove));
   };
 
+  const handleWeeklyFileChange = (resourceId: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const currentCount = weeklyFiles[resourceId]?.length || 0;
+    const validationError = validateMaterialFiles(files, currentCount);
+    if (validationError) {
+      setError(validationError);
+      event.target.value = '';
+      return;
+    }
+
+    setWeeklyFiles((current) => ({
+      ...current,
+      [resourceId]: [...(current[resourceId] || []), ...files],
+    }));
+    setError(null);
+    event.target.value = '';
+  };
+
+  const removeWeeklyFile = (resourceId: string, indexToRemove: number) => {
+    setWeeklyFiles((current) => ({
+      ...current,
+      [resourceId]: (current[resourceId] || []).filter((_, index) => index !== indexToRemove),
+    }));
+  };
+
+  const createPostForResource = async (
+    resourceId: string,
+    files: File[],
+  ): Promise<string> => {
+    const attachments = await uploadMaterialFiles(storage, files, setUploadProgress);
+    const firstPdfAttachment = getFirstPdfAttachment(attachments);
+
+    const postData: any = {
+      title: title.trim(),
+      content: content.trim(),
+      category: NEXT_GENERATION_CATEGORY,
+      subCategory: resourceId,
+      sortOrder: generateSortOrder(title.trim()),
+      authorId: user!.uid,
+      authorName: user!.displayName || '익명',
+      commentCount: 0,
+      viewCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      isPublished: true,
+    };
+
+    const resourceUsesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(resourceId);
+    const resourceUsesTopic = isWeeklyCreate || supportsNextGenerationTopic(resourceId);
+
+    if (resourceUsesWeekKey) {
+      postData.nextGenerationWeekKey = weekKey;
+    }
+
+    if (resourceUsesTopic) {
+      postData.nextGenerationTopicId = selectedTopicId;
+    }
+
+    if (attachments.length > 0) {
+      postData.pdfBase64 = serializeMaterialAttachments(attachments);
+    }
+
+    if (firstPdfAttachment) {
+      postData.pdfUrl = firstPdfAttachment.url;
+      postData.pdfName = firstPdfAttachment.name;
+    }
+
+    const isLongContent = new TextEncoder().encode(content).length > 1400;
+    if (isLongContent) {
+      postData.content = content.substring(0, 400);
+      postData.isLongContent = true;
+      postData.fullContentLength = content.length;
+    }
+
+    let docRef;
+    try {
+      docRef = await addDoc(collection(db, 'posts'), postData);
+    } catch (postError: any) {
+      const shouldRetryWithoutTopic =
+        postError?.code === 'permission-denied' && 'nextGenerationTopicId' in postData;
+
+      if (!shouldRetryWithoutTopic) {
+        throw postError;
+      }
+
+      const fallbackPostData = { ...postData };
+      delete fallbackPostData.nextGenerationTopicId;
+      docRef = await addDoc(collection(db, 'posts'), fallbackPostData);
+    }
+
+    if (isLongContent) {
+      const chunkSize = 10000;
+      const chunks = [];
+      for (let i = 0; i < content.length; i += chunkSize) {
+        chunks.push(content.substring(i, i + chunkSize));
+      }
+
+      for (let i = 0; i < chunks.length; i++) {
+        await setDoc(doc(db, 'post_contents', `${docRef.id}_${i}`), {
+          postId: docRef.id,
+          index: i,
+          content: chunks[i],
+          createdAt: serverTimestamp(),
+        });
+      }
+    }
+
+    return docRef.id;
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!user || !title.trim() || !content.trim() || submitting) return;
+
+    if (isWeeklyCreate) {
+      const targets = elementaryWeeklyResourceTabs.filter(
+        (tab) => (weeklyFiles[tab.id]?.length || 0) > 0,
+      );
+      if (targets.length === 0) {
+        setError('각 세부 탭 중 최소 한 곳에 파일을 첨부해 주세요.');
+        return;
+      }
+
+      setSubmitting(true);
+      setUploadProgress(0);
+      setError(null);
+
+      try {
+        const createdIds: string[] = [];
+        for (const tab of targets) {
+          const id = await createPostForResource(tab.id, weeklyFiles[tab.id] || []);
+          createdIds.push(id);
+        }
+
+        setSuccessPostIds(createdIds);
+        setTitle('');
+        setContent('');
+        setWeeklyFiles(createEmptyWeeklyFiles());
+        setUploadProgress(0);
+      } catch (err: any) {
+        console.error('Error creating next generation posts:', err);
+        setError(err.message || '자료 등록 중 오류가 발생했습니다.');
+        try {
+          handleFirestoreError(err, OperationType.CREATE, 'posts');
+        } catch (e) {}
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     setSubmitting(true);
     setUploadProgress(0);
     setError(null);
 
     try {
-      const attachments = await uploadMaterialFiles(storage, materialFiles, setUploadProgress);
-      const firstPdfAttachment = getFirstPdfAttachment(attachments);
-
-      const postData: any = {
-        title: title.trim(),
-        content: content.trim(),
-        category: NEXT_GENERATION_CATEGORY,
-        subCategory: selectedResourceId,
-        sortOrder: generateSortOrder(title.trim()),
-        authorId: user.uid,
-        authorName: user.displayName || '익명',
-        commentCount: 0,
-        viewCount: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        isPublished: true,
-      };
-
-      if (usesWeekKey) {
-        postData.nextGenerationWeekKey = weekKey;
-      }
-
-      if (usesTopic) {
-        postData.nextGenerationTopicId = selectedTopicId;
-      }
-
-      if (attachments.length > 0) {
-        postData.pdfBase64 = serializeMaterialAttachments(attachments);
-      }
-
-      if (firstPdfAttachment) {
-        postData.pdfUrl = firstPdfAttachment.url;
-        postData.pdfName = firstPdfAttachment.name;
-      }
-
-      const isLongContent = new TextEncoder().encode(content).length > 1400;
-      if (isLongContent) {
-        postData.content = content.substring(0, 400);
-        postData.isLongContent = true;
-        postData.fullContentLength = content.length;
-      }
-
-      let docRef;
-      try {
-        docRef = await addDoc(collection(db, 'posts'), postData);
-      } catch (postError: any) {
-        const shouldRetryWithoutTopic =
-          postError?.code === 'permission-denied' && 'nextGenerationTopicId' in postData;
-
-        if (!shouldRetryWithoutTopic) {
-          throw postError;
-        }
-
-        const fallbackPostData = { ...postData };
-        delete fallbackPostData.nextGenerationTopicId;
-        docRef = await addDoc(collection(db, 'posts'), fallbackPostData);
-      }
-
-      if (isLongContent) {
-        const chunkSize = 10000;
-        const chunks = [];
-        for (let i = 0; i < content.length; i += chunkSize) {
-          chunks.push(content.substring(i, i + chunkSize));
-        }
-
-        for (let i = 0; i < chunks.length; i++) {
-          await setDoc(doc(db, 'post_contents', `${docRef.id}_${i}`), {
-            postId: docRef.id,
-            index: i,
-            content: chunks[i],
-            createdAt: serverTimestamp(),
-          });
-        }
-      }
-
-      setSuccessPostId(docRef.id);
+      const id = await createPostForResource(selectedResourceId, materialFiles);
+      setSuccessPostIds([id]);
       setTitle('');
       setContent('');
       setMaterialFiles([]);
@@ -1143,19 +1221,25 @@ function NextGenerationCreatePost() {
             </button>
           </div>
 
-          {successPostId && (
+          {successPostIds.length > 0 && (
             <div className="mb-6 flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-bold text-emerald-700">자료가 성공적으로 등록되었습니다.</p>
+              <p className="text-sm font-bold text-emerald-700">
+                {successPostIds.length > 1
+                  ? `자료 ${successPostIds.length}개가 성공적으로 등록되었습니다.`
+                  : '자료가 성공적으로 등록되었습니다.'}
+              </p>
               <div className="flex shrink-0 gap-2">
-                <Link
-                  to={`${NEXT_GENERATION_PATH}/post/${successPostId}`}
-                  className="inline-flex items-center rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  등록된 자료 보기
-                </Link>
+                {successPostIds.length === 1 && (
+                  <Link
+                    to={`${NEXT_GENERATION_PATH}/post/${successPostIds[0]}`}
+                    className="inline-flex items-center rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    등록된 자료 보기
+                  </Link>
+                )}
                 <button
                   type="button"
-                  onClick={() => setSuccessPostId(null)}
+                  onClick={() => setSuccessPostIds([])}
                   className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
                 >
                   자료 추가 등록
@@ -1172,24 +1256,10 @@ function NextGenerationCreatePost() {
 
           <form id="next-generation-create-form" onSubmit={handleSubmit} className="space-y-6">
             {isWeeklyCreate && (
-              <div>
-                <label htmlFor="next-generation-resource-type" className="mb-2 block text-sm font-black text-emerald-950">
-                  세부 탭
-                </label>
-                <select
-                  id="next-generation-resource-type"
-                  value={selectedResourceId}
-                  onChange={(event) => setSelectedResourceId(event.target.value)}
-                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
-                >
-                  {elementaryWeeklyResourceTabs.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
-                      {tab.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs font-bold text-slate-500">
-                  선택한 세부 탭에도 같은 자료가 자동으로 모입니다.
+              <div className="rounded-lg border border-amber-100 bg-amber-50 p-4 text-xs font-bold leading-6 text-emerald-900">
+                <p>
+                  같은 제목/내용으로 아래 네 가지 세부 탭(강의원고, 공과, 공과 가이드, 예배를 잇는 가정)에 파일을
+                  한 번에 등록할 수 있습니다. 각 탭마다 해당 파일을 첨부해 주세요.
                 </p>
               </div>
             )}
@@ -1268,57 +1338,119 @@ function NextGenerationCreatePost() {
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-black text-emerald-950">
-                자료 파일 첨부
-              </label>
-              <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 transition hover:bg-sky-100">
-                <div className="text-center">
-                  <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
-                  <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
-                    PDF/PPT 파일 선택
-                  </label>
-                  <p className="mt-2 text-xs font-bold text-slate-500">
-                    여러 파일 선택 가능, 파일당 최대 20MB
-                  </p>
-                  <input
-                    id="next-generation-file"
-                    type="file"
-                    accept={MATERIAL_FILE_ACCEPT}
-                    multiple
-                    className="sr-only"
-                    onChange={handleFileChange}
-                  />
-                </div>
+            {isWeeklyCreate ? (
+              <div className="space-y-4">
+                {elementaryWeeklyResourceTabs.map((tab) => {
+                  const files = weeklyFiles[tab.id] || [];
+                  const inputId = `next-generation-file-${tab.id}`;
+                  return (
+                    <div key={tab.id}>
+                      <label className="mb-2 block text-sm font-black text-emerald-950">
+                        {tab.name} 파일 첨부
+                      </label>
+                      <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-5 transition hover:bg-sky-100">
+                        <div className="text-center">
+                          <FileText className="mx-auto mb-2 h-8 w-8 text-sky-500" />
+                          <label htmlFor={inputId} className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
+                            PDF/PPT 파일 선택
+                          </label>
+                          <p className="mt-1 text-xs font-bold text-slate-500">
+                            여러 파일 선택 가능, 파일당 최대 20MB
+                          </p>
+                          <input
+                            id={inputId}
+                            type="file"
+                            accept={MATERIAL_FILE_ACCEPT}
+                            multiple
+                            className="sr-only"
+                            onChange={handleWeeklyFileChange(tab.id)}
+                          />
+                        </div>
 
-                {materialFiles.length > 0 && (
-                  <ul className="mt-5 space-y-2">
-                    {materialFiles.map((file, index) => (
-                      <li
-                        key={`${file.name}-${file.lastModified}-${index}`}
-                        className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
-                          <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
-                          <span>
-                            {file.name}
-                            <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
-                          </span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeMaterialFile(index)}
-                          className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
-                        >
-                          <X size={14} className="mr-1" />
-                          제거
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                        {files.length > 0 && (
+                          <ul className="mt-4 space-y-2">
+                            {files.map((file, index) => (
+                              <li
+                                key={`${file.name}-${file.lastModified}-${index}`}
+                                className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
+                                  <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
+                                  <span>
+                                    {file.name}
+                                    <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
+                                  </span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeWeeklyFile(tab.id, index)}
+                                  className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
+                                >
+                                  <X size={14} className="mr-1" />
+                                  제거
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            ) : (
+              <div>
+                <label className="mb-2 block text-sm font-black text-emerald-950">
+                  자료 파일 첨부
+                </label>
+                <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 transition hover:bg-sky-100">
+                  <div className="text-center">
+                    <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
+                    <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
+                      PDF/PPT 파일 선택
+                    </label>
+                    <p className="mt-2 text-xs font-bold text-slate-500">
+                      여러 파일 선택 가능, 파일당 최대 20MB
+                    </p>
+                    <input
+                      id="next-generation-file"
+                      type="file"
+                      accept={MATERIAL_FILE_ACCEPT}
+                      multiple
+                      className="sr-only"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  {materialFiles.length > 0 && (
+                    <ul className="mt-5 space-y-2">
+                      {materialFiles.map((file, index) => (
+                        <li
+                          key={`${file.name}-${file.lastModified}-${index}`}
+                          className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
+                            <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
+                            <span>
+                              {file.name}
+                              <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeMaterialFile(index)}
+                            className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
+                          >
+                            <X size={14} className="mr-1" />
+                            제거
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
 
             {submitting && uploadProgress > 0 && uploadProgress < 100 && (
               <div>

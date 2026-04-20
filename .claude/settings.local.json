@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(gh pr create --base main --title '다음세대 자료 등록 UX 개선 및 말씀 서재 카테고리 캐시 버그 수정' --body ' *)"
+    ]
+  }
+}
