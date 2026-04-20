@@ -4,6 +4,17 @@ export interface NextGenerationTopicOption {
   keywords: string[];
 }
 
+export const NEXT_GENERATION_WEEKLY_RESOURCE_IDS = [
+  'elementary_script',
+  'elementary_workbook',
+  'elementary_guide',
+  'family_column',
+] as const;
+
+export const isNextGenerationWeeklyResource = (resourceId?: string) => {
+  return !!resourceId && NEXT_GENERATION_WEEKLY_RESOURCE_IDS.includes(resourceId as typeof NEXT_GENERATION_WEEKLY_RESOURCE_IDS[number]);
+};
+
 export const NEXT_GENERATION_TOPICABLE_RESOURCE_IDS = [
   'elementary_script',
   'elementary_workbook',
