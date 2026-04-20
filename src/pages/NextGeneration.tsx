@@ -66,25 +66,25 @@ const elementaryResourceTabs = [
   {
     id: 'elementary_script',
     name: '강의원고',
-    description: '이번 주 말씀 흐름과 교사의 진행 메모를 함께 봅니다.',
+    description: '',
     icon: FileText,
   },
   {
     id: 'elementary_workbook',
     name: '공과',
-    description: '아이들과 함께 나눌 질문과 활동지를 확인합니다.',
+    description: '',
     icon: BookMarked,
   },
   {
     id: 'elementary_guide',
     name: '공과 가이드',
-    description: '반별 상황에 맞게 공과를 이끌어 갈 안내를 담습니다.',
+    description: '',
     icon: ClipboardList,
   },
   {
     id: 'family_column',
     name: '예배를 잇는 가정',
-    description: '부모님과 가정에서 이어 갈 묵상과 대화를 나눕니다.',
+    description: '',
     icon: HeartHandshake,
   },
   {
@@ -1462,11 +1462,11 @@ export default function NextGeneration() {
         imageAlt="함께 배우는 유초등부"
         badgeClassName="bg-white text-coral-800"
         heroClassName="bg-amber-50"
-        title="아이들의 예배가 한 주의 삶으로 이어지도록"
+        title="예배가 한 주의 삶으로 이어지도록"
         description={
           <>
-            이번 주 말씀, 공과, 교사용 가이드, 부모 칼럼을 한곳에서 확인합니다.
-            교사는 예배를 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
+            이번 주 강의원고, 공과, 공과가이드, 부모 칼럼을 한곳에서 확인합니다.
+            교사는 수업을 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
           </>
         }
         tabs={elementaryResourceTabs}
