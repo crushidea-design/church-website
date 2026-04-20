@@ -1006,7 +1006,21 @@ function NextGenerationCreatePost() {
         postData.fullContentLength = content.length;
       }
 
-      const docRef = await addDoc(collection(db, 'posts'), postData);
+      let docRef;
+      try {
+        docRef = await addDoc(collection(db, 'posts'), postData);
+      } catch (postError: any) {
+        const shouldRetryWithoutTopic =
+          postError?.code === 'permission-denied' && 'nextGenerationTopicId' in postData;
+
+        if (!shouldRetryWithoutTopic) {
+          throw postError;
+        }
+
+        const fallbackPostData = { ...postData };
+        delete fallbackPostData.nextGenerationTopicId;
+        docRef = await addDoc(collection(db, 'posts'), fallbackPostData);
+      }
 
       if (isLongContent) {
         const chunkSize = 10000;
