@@ -672,10 +672,12 @@ function ResourceLibraryPage({
 
   const filteredPosts = useMemo(() => {
     if (isWeeklyTab) {
-      return posts.filter((post) => (
-        isElementaryWeeklyResource(post.subCategory) &&
-        getPostWeekKey(post) === currentWeekKey
-      ));
+      return elementaryWeeklyResourceIds.flatMap((resourceId) => {
+        const resourcePosts = posts.filter((post) => post.subCategory === resourceId);
+        const weeklyPosts = resourcePosts.filter((post) => getPostWeekKey(post) === currentWeekKey);
+
+        return weeklyPosts.length > 0 ? weeklyPosts : resourcePosts.slice(0, 1);
+      });
     }
 
     if (usesTopicFolders && activeTopicId) {
