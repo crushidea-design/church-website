@@ -819,7 +819,7 @@ function ResourceLibraryPage({
               </p>
             </div>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className={`grid gap-5 md:grid-cols-2 ${isWeeklyTab ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
               {filteredPosts.map((post, index) => {
                 const attachments = getPostAttachments(post);
 
