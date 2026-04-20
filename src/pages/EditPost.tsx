@@ -8,6 +8,11 @@ import { useStore } from '../store/useStore';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
+  inferNextGenerationTopicId,
+  NEXT_GENERATION_TOPIC_OPTIONS,
+  supportsNextGenerationTopic,
+} from '../lib/nextGenerationTopics';
+import {
   formatFileSize,
   getFirstPdfAttachment,
   getMaterialAttachmentLabel,
@@ -59,6 +64,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   const isNextGeneration = nextGenerationMode || type === 'next_generation';
   const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
+  const [nextGenerationTopicId, setNextGenerationTopicId] = useState(NEXT_GENERATION_TOPIC_OPTIONS[0].id);
   const [sermonCategoryId, setSermonCategoryId] = useState('');
   const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
   const [researchCategoryId, setResearchCategoryId] = useState('');
@@ -111,6 +117,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           setType(data.category);
           setDateKey(data.dateKey || getLocalDateKey(getDateFromFirestoreValue(data.createdAt) || new Date()));
           setSubCategory(data.subCategory || 'general');
+          setNextGenerationTopicId(inferNextGenerationTopicId({ ...data, content: fullContent }));
           setSermonCategoryId(data.sermonCategoryId || '');
           setResearchCategoryId(data.researchCategoryId || '');
           setExistingPdfUrl(data.pdfUrl || '');
@@ -295,6 +302,8 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
 
       // Handle attachment fields explicitly to ensure they are cleared if needed
       if (isNextGeneration) {
+        updateData.subCategory = subCategory;
+
         if (nextGenerationAttachments.length > 0) {
           updateData.pdfBase64 = serializeMaterialAttachments(nextGenerationAttachments);
         } else {
@@ -312,6 +321,12 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         }
 
         updateData.pdfChunkCount = deleteField();
+
+        if (supportsNextGenerationTopic(subCategory)) {
+          updateData.nextGenerationTopicId = nextGenerationTopicId;
+        } else {
+          updateData.nextGenerationTopicId = deleteField();
+        }
       } else if (pdfFile) {
         updateData.pdfName = pdfName;
         updateData.pdfUrl = pdfUrl;
@@ -731,6 +746,24 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {isNextGeneration && supportsNextGenerationTopic(subCategory) && (
+              <div>
+                <label htmlFor="nextGenerationTopicId" className="block text-sm font-medium text-wood-700 mb-2">
+                  주제 폴더
+                </label>
+                <select
+                  id="nextGenerationTopicId"
+                  value={nextGenerationTopicId}
+                  onChange={(e) => setNextGenerationTopicId(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                >
+                  {NEXT_GENERATION_TOPIC_OPTIONS.map((topic) => (
+                    <option key={topic.id} value={topic.id}>{topic.name}</option>
+                  ))}
+                </select>
               </div>
             )}
 

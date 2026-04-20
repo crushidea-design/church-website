@@ -12,13 +12,29 @@ interface PdfCanvasViewerProps {
 }
 
 export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProps) {
+  const viewerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pinchDistanceRef = useRef<number | null>(null);
+  const pinchScaleRef = useRef(1.5);
   const [pdf, setPdf] = useState<any>(null);
   const [pageNum, setPageNum] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1.5);
+  const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateIsMobile = () => setIsMobile(mediaQuery.matches);
+
+    updateIsMobile();
+    mediaQuery.addEventListener('change', updateIsMobile);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateIsMobile);
+    };
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
@@ -64,6 +80,40 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
       }
     };
   }, [url]);
+
+  useEffect(() => {
+    if (!pdf || !isMobile || !viewerRef.current) return;
+
+    let isCancelled = false;
+
+    const fitPageToMobileWidth = async () => {
+      try {
+        const page = await pdf.getPage(pageNum);
+        if (isCancelled || !viewerRef.current) return;
+
+        const viewport = page.getViewport({ scale: 1 });
+        const availableWidth = viewerRef.current.clientWidth;
+        const fitScale = Math.min(Math.max(availableWidth / viewport.width, 0.4), 2);
+
+        setScale(fitScale);
+      } catch (err) {
+        console.error('Error fitting PDF page:', err);
+      }
+    };
+
+    fitPageToMobileWidth();
+
+    const resizeObserver = new ResizeObserver(() => {
+      fitPageToMobileWidth();
+    });
+
+    resizeObserver.observe(viewerRef.current);
+
+    return () => {
+      isCancelled = true;
+      resizeObserver.disconnect();
+    };
+  }, [pdf, pageNum, isMobile]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -115,8 +165,42 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
   const goToPrevPage = () => setPageNum(prev => Math.max(prev - 1, 1));
   const goToNextPage = () => setPageNum(prev => Math.min(prev + 1, numPages));
-  const zoomIn = () => setScale(prev => Math.min(prev + 0.5, 3));
-  const zoomOut = () => setScale(prev => Math.max(prev - 0.5, 0.5));
+  const zoomIn = () => setScale(prev => Math.min(prev + (isMobile ? 0.25 : 0.5), isMobile ? 4 : 3));
+  const zoomOut = () => setScale(prev => Math.max(prev - (isMobile ? 0.25 : 0.5), 0.4));
+
+  const getPinchDistance = (touches: React.TouchList) => {
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
+
+    return Math.hypot(
+      firstTouch.clientX - secondTouch.clientX,
+      firstTouch.clientY - secondTouch.clientY
+    );
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile || event.touches.length !== 2) return;
+
+    pinchDistanceRef.current = getPinchDistance(event.touches);
+    pinchScaleRef.current = scale;
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile || event.touches.length !== 2 || !pinchDistanceRef.current) return;
+
+    event.preventDefault();
+
+    const nextDistance = getPinchDistance(event.touches);
+    const nextScale = pinchScaleRef.current * (nextDistance / pinchDistanceRef.current);
+
+    setScale(Math.min(Math.max(nextScale, 0.4), 4));
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length >= 2) return;
+
+    pinchDistanceRef.current = null;
+  };
 
   if (loading) {
     return (
@@ -167,9 +251,16 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
       </div>
 
       {/* Canvas Area with Navigation Overlays */}
-      <div className="relative flex-1 bg-white min-h-[500px] flex flex-col">
-        <div className="flex-1 overflow-auto p-0 flex justify-center">
-          <canvas ref={canvasRef} className="max-w-full h-auto" />
+      <div className="relative flex-1 bg-white md:min-h-[500px] flex flex-col">
+        <div
+          ref={viewerRef}
+          className="flex-1 overflow-auto p-0 flex justify-start md:justify-center"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+        >
+          <canvas ref={canvasRef} className="h-auto max-w-none md:max-w-full" />
         </div>
 
         {/* Left Navigation Overlay */}

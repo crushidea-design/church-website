@@ -21,6 +21,13 @@ import { db, handleFirestoreError, OperationType, storage } from '../lib/firebas
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
+import {
+  getNextGenerationTopicLabel,
+  inferNextGenerationTopicId,
+  NEXT_GENERATION_TOPIC_OPTIONS,
+  NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+  supportsNextGenerationTopic,
+} from '../lib/nextGenerationTopics';
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 import EditPost from './EditPost';
 import {
@@ -59,25 +66,25 @@ const elementaryResourceTabs = [
   {
     id: 'elementary_script',
     name: '강의원고',
-    description: '이번 주 말씀 흐름과 교사의 진행 메모를 함께 봅니다.',
+    description: '',
     icon: FileText,
   },
   {
     id: 'elementary_workbook',
     name: '공과',
-    description: '아이들과 함께 나눌 질문과 활동지를 확인합니다.',
+    description: '',
     icon: BookMarked,
   },
   {
     id: 'elementary_guide',
     name: '공과 가이드',
-    description: '반별 상황에 맞게 공과를 이끌어 갈 안내를 담습니다.',
+    description: '',
     icon: ClipboardList,
   },
   {
     id: 'family_column',
     name: '예배를 잇는 가정',
-    description: '부모님과 가정에서 이어 갈 묵상과 대화를 나눕니다.',
+    description: '',
     icon: HeartHandshake,
   },
   {
@@ -134,6 +141,7 @@ interface NextGenerationPost {
   title?: string;
   content?: string;
   subCategory?: string;
+  nextGenerationTopicId?: string;
   authorName?: string;
   createdAt?: any;
   updatedAt?: any;
@@ -290,7 +298,7 @@ function NextGenerationHeader() {
           <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
             <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
           </span>
-          <span className="flex w-[164px] flex-col">
+          <span className="flex w-[198px] flex-col">
             <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
               {Array.from('한우리교회 다음세대').map((char, index) => (
                 <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
@@ -299,7 +307,7 @@ function NextGenerationHeader() {
               ))}
             </span>
             <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
-              {Array.from('GROWING IN THE BIBLE').map((char, index) => (
+              {Array.from('GROWING IN THE COVENANT').map((char, index) => (
                 <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
                   {char}
                 </span>
@@ -336,6 +344,78 @@ function NextGenerationHeader() {
 }
 
 function IntroPage() {
+  const introPillars = [
+    {
+      title: '예배 중심 교육',
+      paragraphs: [
+        '다음세대 교육의 중심은 전세대가 함께 드리는 언약 공동체의 예배입니다. 주일 오전 10시에 모여 11시 공예배로 자연스럽게 이어지도록 구성하며, 이 시간은 단순한 사전 모임이 아니라 예배를 준비하고 연결하는 교육의 자리입니다. 모임 가운데서는 예배에서 부를 시편 찬송을 미리 배우고, 말씀을 들을 마음을 준비하며 예배자로 서는 훈련을 합니다.',
+        '아이들은 공예배 설교를 듣고 설교노트를 작성하며, 교역자의 확인과 코멘트를 통해 말씀을 더 정확히 이해하도록 돕습니다. 유치부는 본문을 반영한 색칠 도안을 활용하고, “말씀 중 특정 단어가 나오면 표시하기”, “정해진 시간 집중해서 듣기”와 같은 예배 미션을 통해 예배에 능동적으로 참여합니다. 이를 통해 아이들은 예배를 단순히 버티는 시간이 아니라, 하나님 앞에 서는 예배자로 훈련받는 시간으로 경험하게 됩니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/pillars/worship/worship-note-kindergarten-1.jpg', alt: '유치부 설교노트 예시 1' },
+        { src: '/next-generation/pillars/worship/worship-note-kindergarten-2.jpg', alt: '유치부 설교노트 예시 2' },
+        { src: '/next-generation/pillars/worship/worship-note-kindergarten-3.jpg', alt: '유치부 설교노트 예시 3' },
+        { src: '/next-generation/pillars/worship/worship-note-elementary-1.jpg', alt: '초등부 설교노트 예시 1' },
+        { src: '/next-generation/pillars/worship/worship-note-elementary-2.jpg', alt: '초등부 설교노트 예시 2' },
+      ],
+    },
+    {
+      title: '가정과 동행',
+      paragraphs: [
+        '교회는 가정을 대신하지 않고, 부모와 함께 다음세대의 신앙을 세워가는 동역자로 서고자 합니다. 주일에 배우는 말씀은 교회에서 끝나지 않고 가정으로 이어지도록 구성되어, 부모와 자녀가 한 주간 동일한 말씀 안에서 대화하고 실천할 수 있도록 돕습니다.',
+        '이를 위해 매주 ‘예배를 잇는 가정’ 자료를 제공하여, 강의의 핵심을 가정에서 다시 나누고 적용할 수 있도록 안내합니다. 부모가 자녀에게 말씀을 설명하고 함께 기도할 수 있도록 돕는 질문과 실천 과제가 포함되며, 추후 가정예배가 자연스럽게 이루어지도록 돕습니다.',
+        '우리는 부모가 신앙교육의 첫 번째 책임자라는 성경적 원리를 따라, 교회 교육이 가정을 지원하고 세워가는 구조를 지향합니다. 이를 통해 아이들은 교회와 가정이 분리되지 않고 하나의 흐름 안에서 하나님을 배우며 자라가게 됩니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/pillars/family/family-worship-guide-1-1.jpg', alt: '예배를 잇는 가정 1호 예시 1' },
+        { src: '/next-generation/pillars/family/family-worship-guide-1-2.jpg', alt: '예배를 잇는 가정 1호 예시 2' },
+        { src: '/next-generation/pillars/family/family-worship-guide-2-1.jpg', alt: '예배를 잇는 가정 2호 예시 1' },
+        { src: '/next-generation/pillars/family/family-worship-guide-2-2.jpg', alt: '예배를 잇는 가정 2호 예시 2' },
+      ],
+    },
+    {
+      title: '성경과 교리',
+      paragraphs: [
+        '성경은 하나님께서 주신 말씀으로, 우리를 가르치고 바르게 하며 하나님 앞에서 살아가도록 이끕니다. 한우리교회 다음세대는 이 말씀 위에 굳게 서도록 돕고, 그 내용을 체계적으로 정리한 교리 교육을 통해 무엇을 믿어야 하는지 분명히 배우게 합니다. 단편적인 성경 지식이 아니라, 말씀 전체를 바르게 이해하고 삶에 적용할 수 있는 신앙의 틀을 세우는 것이 목표입니다.',
+        '이를 위해 성경과 교리를 함께 배우는 커리큘럼을 구성하여, 아이들이 자연스럽게 신앙의 내용을 쌓아가도록 합니다.',
+        '이 과정을 통해 아이들은 성경 위에 서고, 교리를 통해 정리하며, 삶으로 이어지는 신앙을 갖게 됩니다.',
+        '지금은 2025년 여름부터 예배에 대한 주제를 살피는 가운데 사도신경을 지나 십계명을 공부하고 있습니다.',
+      ],
+      highlights: [
+        '성경: 성경 전체의 흐름을 따라 주요 본문을 배우며, 하나님의 구속사를 이해합니다.',
+        '교리: 웨스트민스터 소요리문답을 중심으로, 믿어야 할 내용을 체계적으로 익힙니다.',
+        '예배 이해: 공예배의 순서와 의미를 배우며, 하나님 중심의 예배를 익힙니다.',
+        '삶의 적용: 배운 말씀과 교리를 실제 삶 속에서 어떻게 살아낼지 구체적으로 나눕니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/pillars/curriculum/curriculum-benefit-of-scripture-1.jpg', alt: '공과 성경의 유익 예시 1' },
+        { src: '/next-generation/pillars/curriculum/curriculum-benefit-of-scripture-2.jpg', alt: '공과 성경의 유익 예시 2' },
+        { src: '/next-generation/pillars/curriculum/curriculum-before-god-1.jpg', alt: '공과 하나님 앞에서 예시 1' },
+        { src: '/next-generation/pillars/curriculum/curriculum-before-god-2.jpg', alt: '공과 하나님 앞에서 예시 2' },
+        { src: '/next-generation/pillars/curriculum/curriculum-power-of-scripture-1.jpg', alt: '공과 성경의 능력 예시 1' },
+        { src: '/next-generation/pillars/curriculum/curriculum-power-of-scripture-2.jpg', alt: '공과 성경의 능력 예시 2' },
+      ],
+    },
+  ];
+  const [activePillar, setActivePillar] = useState<string | null>(null);
+  const selectedPillar = introPillars.find((pillar) => pillar.title === activePillar);
+
+  useEffect(() => {
+    if (!selectedPillar) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setActivePillar(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [selectedPillar]);
+
   return (
     <div>
       <section className="bg-white">
@@ -343,20 +423,31 @@ function IntroPage() {
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
-              말씀 안에서 자라가는 다음 세대
+              언약 안에서 자라가는 다음세대
             </span>
             <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
-              예배와 가정과 삶이 이어지는 다음세대 공동체
+              예배하는 유초등부
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
-              다음세대 교육은 아이들이 하나님을 아는 기쁨을 배우고,
-              말씀을 자기 언어로 붙들며, 교회와 가정 안에서 믿음의 걸음을 이어가도록 돕습니다.
+              한우리교회 유초등부는 언약 안에서 자라가는 아이들이 말씀과 예배 가운데 하나님을 바르게 배우도록 돕는 공동체입니다.
+              우리는 예배 중심의 신앙교육을 지향하며, 교회 교육이 가정과 이어지도록 힘씁니다.
+              성경과 교리 위에 다음세대를 세워, 하나님을 알고 사랑하며 순종하는 삶으로 자라가게 하는 것이 우리의 목표입니다.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {['말씀 중심', '예배의 기쁨', '가정과 연결'].map((item) => (
-                <div key={item} className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-center text-sm font-black text-emerald-950">
-                  {item}
-                </div>
+              {introPillars.map((pillar) => (
+                <button
+                  key={pillar.title}
+                  type="button"
+                  onClick={() => setActivePillar(pillar.title)}
+                  aria-expanded={activePillar === pillar.title}
+                  className={`rounded-lg border p-4 text-center text-sm font-black transition ${
+                    activePillar === pillar.title
+                      ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                      : 'border-emerald-100 bg-emerald-50 text-emerald-950 hover:border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                >
+                  {pillar.title}
+                </button>
               ))}
             </div>
           </div>
@@ -370,6 +461,69 @@ function IntroPage() {
           </div>
         </div>
       </section>
+
+      {selectedPillar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="next-generation-pillar-title"
+          onClick={() => setActivePillar(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-emerald-100 bg-white p-6 shadow-xl sm:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h2 id="next-generation-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
+                {selectedPillar.title}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setActivePillar(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-950 transition hover:bg-emerald-100"
+                aria-label="설명 닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+              {selectedPillar.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            {selectedPillar.highlights && (
+              <div className="mt-6 rounded-lg bg-emerald-50 p-5">
+                <h3 className="text-lg font-black text-emerald-950">교육 커리큘럼</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-700 sm:text-base">
+                  {selectedPillar.highlights.map((highlight) => (
+                    <li key={highlight}>{highlight}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="mt-6">
+              <h3 className="text-lg font-black text-emerald-950">교육 자료 미리보기</h3>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {selectedPillar.gallery.map((image) => (
+                  <a
+                    key={image.src}
+                    href={`/next-generation-preview.html?src=${encodeURIComponent(image.src)}&alt=${encodeURIComponent(image.alt)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="overflow-hidden rounded-lg border border-emerald-100 bg-slate-50 transition hover:border-emerald-300"
+                  >
+                    <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
+                    <div className="border-t border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-950">
+                      {image.alt}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="bg-sky-50 py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -435,12 +589,14 @@ function ResourceLibraryPage({
   const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeResource = searchParams.get('resource') || tabs[0].id;
+  const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
   const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
   const isWeeklyTab = activeTab.id === 'elementary_weekly';
+  const usesTopicFolders = !isWeeklyTab && supportsNextGenerationTopic(activeTab.id);
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
 
@@ -450,15 +606,18 @@ function ResourceLibraryPage({
       setError(null);
 
       try {
-        const q = query(
-          collection(db, 'posts'),
-          where('category', '==', NEXT_GENERATION_CATEGORY),
-          limit(200)
-        );
+        const constraints = [where('category', '==', NEXT_GENERATION_CATEGORY)];
+
+        if (isWeeklyTab) {
+          constraints.push(where('subCategory', 'in', elementaryWeeklyResourceIds));
+        } else {
+          constraints.push(where('subCategory', '==', activeTab.id));
+        }
+
+        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(200));
         const snapshot = await getDocs(q);
         const data = snapshot.docs
-          .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost)
-          .sort((a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt));
+          .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost);
 
         setPosts(data);
       } catch (err: any) {
@@ -473,18 +632,60 @@ function ResourceLibraryPage({
     };
 
     fetchPosts();
-  }, []);
+  }, [activeTab.id, isWeeklyTab]);
+
+  const topicOptions = useMemo(() => {
+    if (!usesTopicFolders) return [];
+
+    const inferredTopics = new Set(posts.map((post) => inferNextGenerationTopicId(post)));
+    const baseTopics = NEXT_GENERATION_TOPIC_OPTIONS.filter((topic) => inferredTopics.has(topic.id));
+    const needsUnassigned = inferredTopics.has(NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
+
+    if (baseTopics.length === 0) {
+      return NEXT_GENERATION_TOPIC_OPTIONS;
+    }
+
+    return needsUnassigned
+      ? [...baseTopics, { id: NEXT_GENERATION_UNASSIGNED_TOPIC_ID, name: '기타', keywords: [] }]
+      : baseTopics;
+  }, [posts, usesTopicFolders]);
+
+  const activeTopicId = useMemo(() => {
+    if (!usesTopicFolders) return null;
+
+    if (requestedTopic && topicOptions.some((topic) => topic.id === requestedTopic)) {
+      return requestedTopic;
+    }
+
+    return topicOptions[0]?.id || NEXT_GENERATION_TOPIC_OPTIONS[0].id;
+  }, [requestedTopic, topicOptions, usesTopicFolders]);
+
+  const topicCounts = useMemo(() => {
+    if (!usesTopicFolders) return new Map<string, number>();
+
+    return posts.reduce((counts, post) => {
+      const topicId = inferNextGenerationTopicId(post);
+      counts.set(topicId, (counts.get(topicId) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+  }, [posts, usesTopicFolders]);
 
   const filteredPosts = useMemo(() => {
     if (isWeeklyTab) {
-      return posts.filter((post) => (
-        isElementaryWeeklyResource(post.subCategory) &&
-        getPostWeekKey(post) === currentWeekKey
-      ));
+      return elementaryWeeklyResourceIds.flatMap((resourceId) => {
+        const resourcePosts = posts.filter((post) => post.subCategory === resourceId);
+        const weeklyPosts = resourcePosts.filter((post) => getPostWeekKey(post) === currentWeekKey);
+
+        return weeklyPosts.length > 0 ? weeklyPosts : resourcePosts.slice(0, 1);
+      });
     }
 
-    return posts.filter((post) => post.subCategory === activeTab.id);
-  }, [posts, activeTab.id, currentWeekKey, isWeeklyTab]);
+    if (usesTopicFolders && activeTopicId) {
+      return posts.filter((post) => inferNextGenerationTopicId(post) === activeTopicId);
+    }
+
+    return posts;
+  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders]);
 
   return (
     <div>
@@ -547,11 +748,20 @@ function ResourceLibraryPage({
                   기준 주일: {currentWeekKey}
                 </p>
               )}
+              {usesTopicFolders && activeTopicId && (
+                <p className="mt-2 text-sm font-bold text-emerald-700">
+                  선택한 주제: {getNextGenerationTopicLabel(activeTopicId)}
+                </p>
+              )}
             </div>
 
             {isAdmin && (
               <Link
-                to={`${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`}
+                to={
+                  usesTopicFolders && activeTopicId
+                    ? `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}&topic=${activeTopicId}`
+                    : `${NEXT_GENERATION_PATH}/create?resource=${activeTab.id}`
+                }
                 className="inline-flex items-center justify-center rounded-lg bg-coral-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-coral-700"
               >
                 <Plus size={18} className="mr-2" />
@@ -559,6 +769,36 @@ function ResourceLibraryPage({
               </Link>
             )}
           </div>
+
+          {usesTopicFolders && topicOptions.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-black text-emerald-950">주제 폴더</h3>
+              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+                {topicOptions.map((topic) => {
+                  const isActive = topic.id === activeTopicId;
+                  const count = topicCounts.get(topic.id) || 0;
+
+                  return (
+                    <button
+                      key={topic.id}
+                      type="button"
+                      onClick={() => setSearchParams({ resource: activeTab.id, topic: topic.id })}
+                      className={`min-w-[150px] rounded-lg border px-4 py-4 text-left transition ${
+                        isActive
+                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                          : 'border-sky-100 bg-sky-50 text-emerald-950 hover:border-emerald-200 hover:bg-white'
+                      }`}
+                    >
+                      <div className="text-sm font-black">{topic.name}</div>
+                      <div className={`mt-2 text-xs font-bold ${isActive ? 'text-emerald-50' : 'text-slate-500'}`}>
+                        자료 {count}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm font-bold text-red-700">
@@ -574,10 +814,14 @@ function ResourceLibraryPage({
             <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50 p-10 text-center">
               <CalendarDays className="mx-auto mb-4 h-12 w-12 text-sky-500" />
               <h3 className="text-xl font-black text-emerald-950">아직 등록된 자료가 없습니다</h3>
-              <p className="mt-3 text-slate-700">이번 주 자료가 준비되면 이곳에 올라옵니다.</p>
+              <p className="mt-3 text-slate-700">
+                {usesTopicFolders && activeTopicId
+                  ? `${getNextGenerationTopicLabel(activeTopicId)} 주제 자료가 준비되면 이곳에 올라옵니다.`
+                  : '이번 주 자료가 준비되면 이곳에 올라옵니다.'}
+              </p>
             </div>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className={`grid gap-5 md:grid-cols-2 ${isWeeklyTab ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
               {filteredPosts.map((post, index) => {
                 const attachments = getPostAttachments(post);
 
@@ -590,9 +834,16 @@ function ResourceLibraryPage({
                     className="rounded-lg border border-sky-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
-                      <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
-                        {getResourceLabel(post.subCategory)}
-                      </span>
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
+                          {getResourceLabel(post.subCategory)}
+                        </span>
+                        {supportsNextGenerationTopic(post.subCategory) && (
+                          <span className="inline-flex rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-black text-emerald-950">
+                            {getNextGenerationTopicLabel(inferNextGenerationTopicId(post))}
+                          </span>
+                        )}
+                      </div>
                       <h3 className="line-clamp-2 text-xl font-black leading-7 tracking-normal text-emerald-950">
                         {post.title}
                       </h3>
@@ -640,12 +891,20 @@ function NextGenerationCreatePost() {
   const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const activeTab = getResourceTab(searchParams.get('resource') || undefined);
+  const requestedTopic = searchParams.get('topic');
   const isWeeklyCreate = activeTab.id === 'elementary_weekly';
   const [selectedResourceId, setSelectedResourceId] = useState(
     isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id
   );
+  const [selectedTopicId, setSelectedTopicId] = useState(
+    NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic)
+      ? requestedTopic!
+      : NEXT_GENERATION_TOPIC_OPTIONS[0].id
+  );
   const [weekKey, setWeekKey] = useState(getCurrentSundayKey());
-  const backPath = `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
+  const backPath = requestedTopic
+    ? `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}&topic=${requestedTopic}`
+    : `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -654,10 +913,27 @@ function NextGenerationCreatePost() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const usesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(selectedResourceId);
+  const usesTopic = supportsNextGenerationTopic(selectedResourceId);
 
   useEffect(() => {
     setSelectedResourceId(isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id);
   }, [activeTab.id, isWeeklyCreate]);
+
+  useEffect(() => {
+    if (!usesTopic) {
+      setSelectedTopicId(NEXT_GENERATION_TOPIC_OPTIONS[0].id);
+    }
+  }, [usesTopic]);
+
+  useEffect(() => {
+    if (
+      requestedTopic &&
+      NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic) &&
+      supportsNextGenerationTopic(selectedResourceId)
+    ) {
+      setSelectedTopicId(requestedTopic);
+    }
+  }, [requestedTopic, selectedResourceId]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -708,6 +984,10 @@ function NextGenerationCreatePost() {
 
       if (usesWeekKey) {
         postData.nextGenerationWeekKey = weekKey;
+      }
+
+      if (usesTopic) {
+        postData.nextGenerationTopicId = selectedTopicId;
       }
 
       if (attachments.length > 0) {
@@ -860,6 +1140,29 @@ function NextGenerationCreatePost() {
                 />
                 <p className="mt-2 text-xs font-bold text-slate-500">
                   이번주 강의자료 탭은 이 날짜가 이번 주일과 같은 자료를 모아 보여줍니다.
+                </p>
+              </div>
+            )}
+
+            {usesTopic && (
+              <div>
+                <label htmlFor="next-generation-topic" className="mb-2 block text-sm font-black text-emerald-950">
+                  주제 폴더
+                </label>
+                <select
+                  id="next-generation-topic"
+                  value={selectedTopicId}
+                  onChange={(event) => setSelectedTopicId(event.target.value)}
+                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                >
+                  {NEXT_GENERATION_TOPIC_OPTIONS.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  같은 세부 탭 안에서도 시리즈 주제별로 자료를 묶어 보여줍니다.
                 </p>
               </div>
             )}
@@ -1025,7 +1328,10 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
   if (!post) return null;
 
-  const backPath = `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
+  const inferredTopicId = inferNextGenerationTopicId(post);
+  const backPath = supportsNextGenerationTopic(post.subCategory)
+    ? `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
+    : `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
   const attachments = getPostAttachments(post);
 
   return (
@@ -1053,9 +1359,16 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
         <article className="rounded-lg border border-white bg-white p-6 shadow-sm sm:p-8 lg:p-10">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="inline-flex w-fit rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
-              {getResourceLabel(post.subCategory)}
-            </span>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex w-fit rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
+                {getResourceLabel(post.subCategory)}
+              </span>
+              {supportsNextGenerationTopic(post.subCategory) && (
+                <span className="inline-flex w-fit rounded-lg bg-sky-50 px-3 py-2 text-sm font-black text-emerald-950">
+                  {getNextGenerationTopicLabel(inferredTopicId)}
+                </span>
+              )}
+            </div>
             <span className="text-sm font-bold text-slate-500">{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
           </div>
 
@@ -1151,11 +1464,11 @@ export default function NextGeneration() {
         imageAlt="함께 배우는 유초등부"
         badgeClassName="bg-white text-coral-800"
         heroClassName="bg-amber-50"
-        title="아이들의 예배가 한 주의 삶으로 이어지도록"
+        title="예배가 한 주의 삶으로 이어지도록"
         description={
           <>
-            이번 주 말씀, 공과, 교사용 가이드, 부모 칼럼을 한곳에서 확인합니다.
-            교사는 예배를 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
+            이번 주 강의원고, 공과, 공과가이드, 부모 칼럼을 한곳에서 확인합니다.
+            교사는 수업을 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
           </>
         }
         tabs={elementaryResourceTabs}
@@ -1172,7 +1485,7 @@ export default function NextGeneration() {
       <footer className="border-t border-emerald-100 bg-emerald-700 py-8 text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm font-bold sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <span>한우리교회 다음세대</span>
-          <span className="text-emerald-100">말씀을 배우고, 예배를 사랑하고, 삶으로 이어갑니다.</span>
+          <span className="text-emerald-100">예배를 중심으로 가정과 동행하며 성경과 교리를 가르칩니다.</span>
         </div>
       </footer>
     </div>
