@@ -357,12 +357,29 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
 
       console.log('Updating document in Firestore...', updateData);
       
-      const updatePromise = updateDoc(postRef, updateData);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('게시글 수정 시간이 초과되었습니다. 네트워크 상태를 확인해 주세요.')), 30000)
-      );
+      const runUpdate = async (payload: any) => {
+        const updatePromise = updateDoc(postRef, payload);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('게시글 수정 시간이 초과되었습니다. 네트워크 상태를 확인해 주세요.')), 30000)
+        );
 
-      await Promise.race([updatePromise, timeoutPromise]);
+        await Promise.race([updatePromise, timeoutPromise]);
+      };
+
+      try {
+        await runUpdate(updateData);
+      } catch (updateError: any) {
+        const shouldRetryWithoutTopic =
+          updateError?.code === 'permission-denied' && 'nextGenerationTopicId' in updateData;
+
+        if (!shouldRetryWithoutTopic) {
+          throw updateError;
+        }
+
+        const fallbackUpdateData = { ...updateData };
+        delete fallbackUpdateData.nextGenerationTopicId;
+        await runUpdate(fallbackUpdateData);
+      }
       console.log('Post updated successfully');
 
       // Handle long content chunks update
