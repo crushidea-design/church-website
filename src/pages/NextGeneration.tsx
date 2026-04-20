@@ -339,18 +339,54 @@ function IntroPage() {
   const introPillars = [
     {
       title: '예배 중심 교육',
-      description:
-        '다음세대 교육의 중심은 전세대가 함께 드리는 언약 공동체의 예배입니다. 아이들은 따로 떨어진 교육이 아니라, 온 교회가 함께 하나님 앞에 서는 예배 가운데 배우고 자라갑니다.',
+      paragraphs: [
+        '다음세대 교육의 중심은 전세대가 함께 드리는 언약 공동체의 예배입니다. 주일 오전 10시에 모여 11시 공예배로 자연스럽게 이어지도록 구성하며, 이 시간은 단순한 사전 모임이 아니라 예배를 준비하고 연결하는 교육의 자리입니다. 모임 가운데서는 예배에서 부를 시편 찬송을 미리 배우고, 말씀을 들을 마음을 준비하며 예배자로 서는 훈련을 합니다.',
+        '아이들은 공예배 설교를 듣고 설교노트를 작성하며, 교역자의 확인과 코멘트를 통해 말씀을 더 정확히 이해하도록 돕습니다. 유치부는 본문을 반영한 색칠 도안을 활용하고, “말씀 중 특정 단어가 나오면 표시하기”, “정해진 시간 집중해서 듣기”와 같은 예배 미션을 통해 예배에 능동적으로 참여합니다. 이를 통해 아이들은 예배를 단순히 버티는 시간이 아니라, 하나님 앞에 서는 예배자로 훈련받는 시간으로 경험하게 됩니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/pillars/worship/worship-note-kindergarten-1.jpg', alt: '유치부 설교노트 예시 1' },
+        { src: '/next-generation/pillars/worship/worship-note-kindergarten-2.jpg', alt: '유치부 설교노트 예시 2' },
+        { src: '/next-generation/pillars/worship/worship-note-kindergarten-3.jpg', alt: '유치부 설교노트 예시 3' },
+        { src: '/next-generation/pillars/worship/worship-note-elementary-1.jpg', alt: '초등부 설교노트 예시 1' },
+        { src: '/next-generation/pillars/worship/worship-note-elementary-2.jpg', alt: '초등부 설교노트 예시 2' },
+      ],
     },
     {
       title: '가정과 동행',
-      description:
-        '교회는 가정을 대신하지 않고 함께 걸어갑니다. 배운 말씀이 가정에서도 이어져, 부모와 자녀가 함께 신앙 안에서 자라가도록 돕습니다.',
+      paragraphs: [
+        '교회는 가정을 대신하지 않고, 부모와 함께 다음세대의 신앙을 세워가는 동역자로 서고자 합니다. 주일에 배우는 말씀은 교회에서 끝나지 않고 가정으로 이어지도록 구성되어, 부모와 자녀가 한 주간 동일한 말씀 안에서 대화하고 실천할 수 있도록 돕습니다.',
+        '이를 위해 매주 ‘예배를 잇는 가정’ 자료를 제공하여, 강의의 핵심을 가정에서 다시 나누고 적용할 수 있도록 안내합니다. 부모가 자녀에게 말씀을 설명하고 함께 기도할 수 있도록 돕는 질문과 실천 과제가 포함되며, 추후 가정예배가 자연스럽게 이루어지도록 돕습니다.',
+        '우리는 부모가 신앙교육의 첫 번째 책임자라는 성경적 원리를 따라, 교회 교육이 가정을 지원하고 세워가는 구조를 지향합니다. 이를 통해 아이들은 교회와 가정이 분리되지 않고 하나의 흐름 안에서 하나님을 배우며 자라가게 됩니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/pillars/family/family-worship-guide-1-1.jpg', alt: '예배를 잇는 가정 1호 예시 1' },
+        { src: '/next-generation/pillars/family/family-worship-guide-1-2.jpg', alt: '예배를 잇는 가정 1호 예시 2' },
+        { src: '/next-generation/pillars/family/family-worship-guide-2-1.jpg', alt: '예배를 잇는 가정 2호 예시 1' },
+        { src: '/next-generation/pillars/family/family-worship-guide-2-2.jpg', alt: '예배를 잇는 가정 2호 예시 2' },
+      ],
     },
     {
       title: '성경과 교리',
-      description:
-        '성경은 하나님께서 주신 말씀으로, 우리를 가르치고 바르게 하며 의로운 삶으로 자라가게 합니다. 우리는 이 말씀 위에 아이들이 서도록 돕고, 동시에 그 내용을 체계적으로 정리한 교리 교육을 통해 흔들리지 않는 신앙으로 자라가게 합니다.',
+      paragraphs: [
+        '성경은 하나님께서 주신 말씀으로, 우리를 가르치고 바르게 하며 하나님 앞에서 살아가도록 이끕니다. 한우리교회 다음세대는 이 말씀 위에 굳게 서도록 돕고, 그 내용을 체계적으로 정리한 교리 교육을 통해 무엇을 믿어야 하는지 분명히 배우게 합니다. 단편적인 성경 지식이 아니라, 말씀 전체를 바르게 이해하고 삶에 적용할 수 있는 신앙의 틀을 세우는 것이 목표입니다.',
+        '이를 위해 성경과 교리를 함께 배우는 커리큘럼을 구성하여, 아이들이 자연스럽게 신앙의 내용을 쌓아가도록 합니다.',
+        '이 과정을 통해 아이들은 성경 위에 서고, 교리를 통해 정리하며, 삶으로 이어지는 신앙을 갖게 됩니다.',
+        '지금은 2025년 여름부터 예배에 대한 주제를 살피는 가운데 사도신경을 지나 십계명을 공부하고 있습니다.',
+      ],
+      highlights: [
+        '성경: 성경 전체의 흐름을 따라 주요 본문을 배우며, 하나님의 구속사를 이해합니다.',
+        '교리: 웨스트민스터 소요리문답을 중심으로, 믿어야 할 내용을 체계적으로 익힙니다.',
+        '예배 이해: 공예배의 순서와 의미를 배우며, 하나님 중심의 예배를 익힙니다.',
+        '삶의 적용: 배운 말씀과 교리를 실제 삶 속에서 어떻게 살아낼지 구체적으로 나눕니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/pillars/curriculum/curriculum-benefit-of-scripture-1.jpg', alt: '공과 성경의 유익 예시 1' },
+        { src: '/next-generation/pillars/curriculum/curriculum-benefit-of-scripture-2.jpg', alt: '공과 성경의 유익 예시 2' },
+        { src: '/next-generation/pillars/curriculum/curriculum-before-god-1.jpg', alt: '공과 하나님 앞에서 예시 1' },
+        { src: '/next-generation/pillars/curriculum/curriculum-before-god-2.jpg', alt: '공과 하나님 앞에서 예시 2' },
+        { src: '/next-generation/pillars/curriculum/curriculum-power-of-scripture-1.jpg', alt: '공과 성경의 능력 예시 1' },
+        { src: '/next-generation/pillars/curriculum/curriculum-power-of-scripture-2.jpg', alt: '공과 성경의 능력 예시 2' },
+      ],
     },
   ];
   const [activePillar, setActivePillar] = useState<string | null>(null);
@@ -427,7 +463,7 @@ function IntroPage() {
           onClick={() => setActivePillar(null)}
         >
           <div
-            className="w-full max-w-lg rounded-lg border border-emerald-100 bg-white p-6 shadow-xl"
+            className="max-h-[85vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-emerald-100 bg-white p-6 shadow-xl sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -443,7 +479,40 @@ function IntroPage() {
                 <X size={20} />
               </button>
             </div>
-            <p className="mt-5 text-base leading-8 text-slate-700">{selectedPillar.description}</p>
+            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+              {selectedPillar.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            {selectedPillar.highlights && (
+              <div className="mt-6 rounded-lg bg-emerald-50 p-5">
+                <h3 className="text-lg font-black text-emerald-950">교육 커리큘럼</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-700 sm:text-base">
+                  {selectedPillar.highlights.map((highlight) => (
+                    <li key={highlight}>{highlight}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="mt-6">
+              <h3 className="text-lg font-black text-emerald-950">교육 자료 보기</h3>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {selectedPillar.gallery.map((image) => (
+                  <a
+                    key={image.src}
+                    href={image.src}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="overflow-hidden rounded-lg border border-emerald-100 bg-slate-50 transition hover:border-emerald-300"
+                  >
+                    <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
+                    <div className="border-t border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-950">
+                      {image.alt}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
