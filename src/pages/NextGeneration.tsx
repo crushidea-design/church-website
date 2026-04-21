@@ -49,8 +49,9 @@ const NEXT_GENERATION_PATH = '/next';
 const RESOURCE_PAGE_SIZE = 10;
 
 const introImage = '/elementary-intro.png';
-const elementaryImage = '/elementary-intro.png';
-const youngAdultsImage = '/young-adults-intro.png';
+const elementaryImage = '/next-generation-2026.png';
+const youngAdultsIntroImage = '/young-adults-intro.png';
+const youngAdultsImage = '/young-adults-pilgrims-progress.png';
 
 const elementaryWeeklyResourceIds = [
   'elementary_script',
@@ -534,7 +535,7 @@ function IntroPage() {
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-2 pb-12 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:pb-16">
           <div className="order-2 overflow-hidden rounded-lg border border-sky-100 shadow-sm lg:order-1">
             <img
-              src={youngAdultsImage}
+              src={youngAdultsIntroImage}
               alt="청년부 자료실에 사용되는 천로역정 이미지"
               className="h-[220px] w-full object-cover sm:h-[340px] md:h-[420px]"
             />
