@@ -105,6 +105,12 @@ const youngAdultResourceTabs = [
     icon: BookMarked,
   },
   {
+    id: 'podcast_review',
+    name: '복습 팟캐스트',
+    description: '주일 천로역정 특강의 내용을 팟캐스트를 통해 복습합니다.',
+    icon: FileText,
+  },
+  {
     id: 'retreat_materials',
     name: '수련회 자료',
     description: '청년부 수련회 준비와 모임 자료를 모읍니다.',
