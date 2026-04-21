@@ -61,45 +61,6 @@ export default function AdminPastoralNotes() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [form, setForm] = React.useState<PastoralNoteInput>(createEmptyPastoralNoteInput);
 
-  React.useEffect(() => {
-    if (role !== 'admin') return;
-
-    const unsubscribe = subscribePastoralNotes(
-      (nextNotes) => {
-        const sortedNotes = sortNotesByDate(nextNotes);
-        setNotes(sortedNotes);
-        setIsLoading(false);
-
-        setSelectedNoteId((currentId) => {
-          if (currentId && sortedNotes.some((note) => note.id === currentId)) {
-            return currentId;
-          }
-
-          return sortedNotes[0]?.id ?? null;
-        });
-      },
-      (error) => {
-        console.error('Error loading pastoral notes:', error);
-        toast.error(getPastoralNoteErrorMessage(error, 'load'));
-        setIsLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, [role]);
-
-  if (role !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-wood-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-wood-900 mb-4">접근 권한이 없습니다</h2>
-          <p className="text-wood-600 mb-4">목양노트는 관리자 전용 비공개 기능입니다.</p>
-          <button onClick={() => navigate('/')} className="text-wood-600 hover:underline">홈으로 돌아가기</button>
-        </div>
-      </div>
-    );
-  }
-
   const normalizedSearch = normalizeMemberName(searchTerm);
   const memberGroups = Array.from(
     notes.reduce((map, note) => {
@@ -156,6 +117,45 @@ export default function AdminPastoralNotes() {
     }
     setIsFormOpen(true);
   }, [memberGroups, resetForm, selectedMember]);
+
+  React.useEffect(() => {
+    if (role !== 'admin') return;
+
+    const unsubscribe = subscribePastoralNotes(
+      (nextNotes) => {
+        const sortedNotes = sortNotesByDate(nextNotes);
+        setNotes(sortedNotes);
+        setIsLoading(false);
+
+        setSelectedNoteId((currentId) => {
+          if (currentId && sortedNotes.some((note) => note.id === currentId)) {
+            return currentId;
+          }
+
+          return sortedNotes[0]?.id ?? null;
+        });
+      },
+      (error) => {
+        console.error('Error loading pastoral notes:', error);
+        toast.error(getPastoralNoteErrorMessage(error, 'load'));
+        setIsLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, [role]);
+
+  if (role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-wood-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-wood-900 mb-4">접근 권한이 없습니다</h2>
+          <p className="text-wood-600 mb-4">목양노트는 관리자 전용 비공개 기능입니다.</p>
+          <button onClick={() => navigate('/')} className="text-wood-600 hover:underline">홈으로 돌아가기</button>
+        </div>
+      </div>
+    );
+  }
 
   const handleChange = (field: keyof PastoralNoteInput, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
