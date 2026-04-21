@@ -205,6 +205,50 @@ service cloud.firestore {
              (!('error' in data) || data.error is string);
     }
 
+    function isValidPastoralNote(data) {
+      return data.keys().hasOnly([
+               'memberName',
+               'memberSearchName',
+               'date',
+               'meetingType',
+               'currentSituation',
+               'encouragement',
+               'prayerTopics',
+               'nextFollowUpDate',
+               'remarks',
+               'createdByUid',
+               'createdByName',
+               'createdAt',
+               'updatedAt'
+             ]) &&
+             data.keys().hasAll([
+               'memberName',
+               'memberSearchName',
+               'date',
+               'meetingType',
+               'currentSituation',
+               'encouragement',
+               'prayerTopics',
+               'createdByUid',
+               'createdByName',
+               'createdAt',
+               'updatedAt'
+             ]) &&
+             data.memberName is string && data.memberName.size() > 0 && data.memberName.size() <= 100 &&
+             data.memberSearchName is string && data.memberSearchName.size() > 0 && data.memberSearchName.size() <= 120 &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.meetingType is string && data.meetingType.size() > 0 && data.meetingType.size() <= 50 &&
+             data.currentSituation is string && data.currentSituation.size() > 0 && data.currentSituation.size() <= 5000 &&
+             data.encouragement is string && data.encouragement.size() > 0 && data.encouragement.size() <= 5000 &&
+             data.prayerTopics is string && data.prayerTopics.size() > 0 && data.prayerTopics.size() <= 5000 &&
+             (!('nextFollowUpDate' in data) || (data.nextFollowUpDate is string && (data.nextFollowUpDate == '' || data.nextFollowUpDate.matches("^\\d{4}-\\d{2}-\\d{2}$")))) &&
+             (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 2000)) &&
+             data.createdByUid is string && data.createdByUid == request.auth.uid &&
+             data.createdByName is string && data.createdByName.size() > 0 && data.createdByName.size() <= 100 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
     // Rules
     match /fcm_tokens/{tokenId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
@@ -308,6 +352,16 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isValidContact(request.resource.data); // Anyone can submit a contact form
       allow update: if isAdmin() && isValidContact(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /pastoral_notes/{noteId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidPastoralNote(request.resource.data);
+      allow update: if isAdmin() &&
+                    isValidPastoralNote(request.resource.data) &&
+                    request.resource.data.createdByUid == resource.data.createdByUid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isAdmin();
     }
 

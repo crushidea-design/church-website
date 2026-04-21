@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw } from 'lucide-react';
+import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw, NotebookPen } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where, updateDoc, startAfter } from 'firebase/firestore';
@@ -134,6 +134,13 @@ export default function AdminDashboard() {
   }
 
   const adminItems = [
+    {
+      title: '목양노트',
+      description: '성도별 목양 기록을 작성하고 저장된 노트를 한눈에 모아보는 관리자 전용 공간입니다.',
+      icon: NotebookPen,
+      path: '/raah',
+      color: 'bg-stone-50 text-stone-700 border-stone-200'
+    },
     {
       title: '디지털 출석부 (중단됨)',
       description: '성도들의 홈페이지 방문 및 활동 로그 확인 기능이 현재 비활성화되었습니다.',
