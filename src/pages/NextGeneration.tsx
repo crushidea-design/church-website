@@ -536,8 +536,14 @@ function NextGenerationHeader() {
                     onClick={() => markNotificationRead(n.id)}
                     className={`cursor-pointer px-4 py-3 text-sm transition hover:bg-gray-50 ${!n.isRead ? 'bg-amber-50' : ''}`}
                   >
-                    <p className={`font-medium ${n.type === 'approved' ? 'text-emerald-700' : 'text-red-600'}`}>
-                      {n.type === 'approved' ? '✓ 가입 승인됨' : '✗ 가입 반려됨'}
+                    <p className={`font-medium ${
+                      n.type === 'approved' ? 'text-emerald-700'
+                      : n.type === 'answered' ? 'text-amber-600'
+                      : 'text-red-600'
+                    }`}>
+                      {n.type === 'approved' && '✓ 가입 승인됨'}
+                      {n.type === 'rejected' && '✗ 가입 반려됨'}
+                      {n.type === 'answered' && '💬 질문 답변 도착'}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
                     {n.rejectionReason && (
@@ -1363,10 +1369,10 @@ function ResourceLibraryPage({
               <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 px-6 py-8 text-center">
                 <Lock className="mx-auto mb-3 h-8 w-8 text-sky-400" />
                 <p className="text-sm font-bold text-emerald-950">
-                  총 {filteredPosts.length}개의 자료 중 {guestPostLimit}개만 미리 볼 수 있습니다.
+                  {filteredPosts.length - guestPostLimit}개의 자료가 더 있습니다.
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  전체 자료는 승인된 회원에게 공개됩니다.
+                  로그인하면 전체 {filteredPosts.length}개 자료를 모두 열람할 수 있습니다.
                 </p>
               </div>
             )}
@@ -2096,9 +2102,9 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                             </a>
                           </>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500" title="다운로드는 승인된 정회원에게만 제공됩니다">
                             <Lock size={13} />
-                            회원 전용
+                            정회원 전용
                           </span>
                         )}
                       </div>
