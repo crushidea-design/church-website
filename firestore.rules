@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl', 'attachmentCount'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -145,7 +145,8 @@ service cloud.firestore {
              (!('isPublished' in data) || data.isPublished is bool) &&
              (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
              (!('targetUserIds' in data) || data.targetUserIds is list) &&
-             (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500));
+             (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500)) &&
+             (!('attachmentCount' in data) || (data.attachmentCount is number && data.attachmentCount >= 0 && data.attachmentCount <= 20));
 
       let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', 'podcast_review', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
@@ -380,6 +381,107 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // ─── 다음세대 독립 섹션 ───────────────────────────────────────────
+
+    function isNextGenerationPastor() {
+      return isAdmin();
+    }
+
+    function isNextGenerationFullMember() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)).data.role == 'member';
+    }
+
+    function isNextGenerationAccess() {
+      return isNextGenerationFullMember() || isNextGenerationPastor();
+    }
+
+    match /next_generation_members/{memberId} {
+      allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
+      allow create: if isAuthenticated() && request.auth.uid == memberId &&
+        request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
+        request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.email is string && isValidEmail(request.resource.data.email) &&
+        request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 100 &&
+        request.resource.data.provider in ['email', 'google'] &&
+        request.resource.data.role == 'pending' &&
+        request.resource.data.department in ['청년', '교사', '학부모'] &&
+        request.resource.data.church is string && request.resource.data.church.size() > 0 &&
+        request.resource.data.intro is string &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated() &&
+        (isNextGenerationPastor() ||
+         (request.auth.uid == memberId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro'])));
+      allow delete: if isNextGenerationPastor() ||
+        (isAuthenticated() && request.auth.uid == memberId && resource.data.role == 'pending');
+    }
+
+    match /next_generation_notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isNextGenerationPastor() &&
+        request.resource.data.keys().hasOnly(['uid', 'type', 'message', 'rejectionReason', 'createdAt', 'isRead']) &&
+        request.resource.data.type in ['approved', 'rejected', 'answered'] &&
+        request.resource.data.isRead == false &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isNextGenerationPastor();
+    }
+
+    match /next_generation_qa/{qaId} {
+      allow read: if isAuthenticated();
+      allow create: if isNextGenerationAccess() &&
+        request.resource.data.keys().hasOnly(['title', 'content', 'authorId', 'authorName', 'createdAt', 'isAnswered']) &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 5000 &&
+        request.resource.data.isAnswered == false &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isNextGenerationPastor() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'answeredAt', 'answeredBy', 'isAnswered']);
+      allow delete: if isNextGenerationPastor() ||
+        (isAuthenticated() && resource.data.authorId == request.auth.uid);
+    }
+
+    match /next_generation_contacts/{contactId} {
+      allow read: if isNextGenerationPastor();
+      allow create: if
+        request.resource.data.keys().hasOnly(['name', 'email', 'message', 'createdAt', 'isRead']) &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 &&
+        request.resource.data.email is string && isValidEmail(request.resource.data.email) &&
+        request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 5000 &&
+        request.resource.data.isRead == false &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isNextGenerationPastor() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isNextGenerationPastor();
+    }
+
+    match /next_generation_post_files/{postId} {
+      // Only approved members (full members) and pastor can read download URLs
+      allow read: if isNextGenerationAccess();
+      // Only the post author (or pastor) can write file data
+      allow create, update: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['postId', 'pdfUrl', 'pdfName', 'pdfBase64', 'attachments', 'updatedAt']) &&
+        request.resource.data.postId == postId &&
+        (!('pdfUrl' in request.resource.data) || (request.resource.data.pdfUrl is string && request.resource.data.pdfUrl.size() < 2000)) &&
+        (!('pdfName' in request.resource.data) || (request.resource.data.pdfName is string && request.resource.data.pdfName.size() < 500)) &&
+        (!('pdfBase64' in request.resource.data) || (request.resource.data.pdfBase64 is string && request.resource.data.pdfBase64.size() < 1000000)) &&
+        (!('attachments' in request.resource.data) || (request.resource.data.attachments is list && request.resource.data.attachments.size() <= 10)) &&
+        request.resource.data.updatedAt is timestamp &&
+        (isAdmin() ||
+          get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+      allow delete: if isAdmin() ||
+        (isAuthenticated() &&
+          exists(/databases/$(database)/documents/posts/$(postId)) &&
+          get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
 
     match /prayer_requests/{requestId} {
       allow read: if isAuthenticated() && isRegularMember();

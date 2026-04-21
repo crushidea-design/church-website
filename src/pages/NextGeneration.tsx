@@ -5,6 +5,7 @@ import {
   ArrowDown01,
   ArrowLeft,
   ArrowUp10,
+  Bell,
   BookMarked,
   CalendarDays,
   ChevronLeft,
@@ -15,7 +16,13 @@ import {
   FileText,
   HeartHandshake,
   Loader2,
+  Lock,
+  LogIn,
+  LogOut,
+  Mail,
+  MessageSquare,
   Plus,
+  Settings,
   Sparkles,
   Users,
   X,
@@ -23,6 +30,11 @@ import {
 import { motion } from 'motion/react';
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
+import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
+import NextGenerationLoginModal from './NextGenerationLoginModal';
+import NextGenerationAdmin from './NextGenerationAdmin';
+import NextGenerationContact from './NextGenerationContact';
+import NextGenerationQA from './NextGenerationQA';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -165,7 +177,7 @@ interface NextGenerationPost {
 }
 
 const getYouTubeVideoId = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+  const match = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([^&\n?#]+)/);
   return match ? match[1] : null;
 };
 
@@ -308,62 +320,257 @@ function useNextGenerationHead() {
 
 function NextGenerationHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const {
+    user, member, loading: authLoading, isPastor, isMember, isPending, isRejected,
+    hasAccess, needsSignUp, notifications, unreadCount, markNotificationRead, signOut,
+  } = useNextGenerationAuth();
+
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Mark all currently-unread notifications as read when the dropdown is opened
+  const handleOpenNotifications = () => {
+    setShowNotifications(v => !v);
+    notifications.filter(n => !n.isRead).forEach(n => markNotificationRead(n.id));
+  };
 
   const navItems = [
     { name: '다음세대 소개', path: NEXT_GENERATION_PATH },
     { name: '유초등부', path: `${NEXT_GENERATION_PATH}/elementary` },
     { name: '청년부', path: `${NEXT_GENERATION_PATH}/young-adults` },
+    { name: '문의하기', path: `${NEXT_GENERATION_PATH}/contact` },
   ];
 
+  // Show login modal when needsSignUp triggers (Google sign-in new user)
+  useEffect(() => {
+    if (needsSignUp) setShowLoginModal(true);
+  }, [needsSignUp]);
+
+  // Show rejected notification on login
+  const [shownRejected, setShownRejected] = useState(false);
+  useEffect(() => {
+    if (isRejected && !shownRejected) {
+      setShownRejected(true);
+      setShowLoginModal(true);
+    }
+  }, [isRejected, shownRejected]);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
-        <Link to={NEXT_GENERATION_PATH} className="flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
-            <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
-          </span>
-          <span className="flex w-[160px] flex-col sm:w-[198px]">
-            <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
-              {Array.from('한우리교회 다음세대').map((char, index) => (
-                <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
-                  {char}
+    <>
+      <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <Link to={NEXT_GENERATION_PATH} className="flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
+                <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
+              </span>
+              <span className="flex w-[160px] flex-col sm:w-[198px]">
+                <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
+                  {Array.from('한우리교회 다음세대').map((char, index) => (
+                    <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
+                      {char}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-            <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
-              {Array.from('GROWING IN THE COVENANT').map((char, index) => (
-                <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
-                  {char}
+                <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
+                  {Array.from('GROWING IN THE COVENANT').map((char, index) => (
+                    <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
+                      {char}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-          </span>
-        </Link>
+              </span>
+            </Link>
 
-        <nav className="flex gap-2 overflow-x-auto pb-1 lg:pb-0" aria-label="다음세대">
-          {navItems.map((item) => {
-            const isActive =
-              item.path === NEXT_GENERATION_PATH
-                ? location.pathname === item.path
-                : location.pathname.startsWith(item.path);
+            {/* Auth controls (mobile: inline with logo) */}
+            <div className="flex items-center gap-2 lg:hidden">
+              {!authLoading && !user && (
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-amber-600 transition"
+                >
+                  <LogIn size={15} /> 로그인
+                </button>
+              )}
+              {!authLoading && isPastor && (
+                <>
+                  <button
+                    onClick={() => setShowAdminModal(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800 hover:bg-amber-200 transition"
+                  >
+                    <Settings size={14} />
+                  </button>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
+              )}
+              {!authLoading && user && !isPastor && (
+                <>
+                  <button
+                    onClick={handleOpenNotifications}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <Bell size={16} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
 
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
-                  isActive
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
-                }`}
-              >
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    </header>
+          <div className="flex items-center gap-3">
+            <nav className="flex gap-2 overflow-x-auto pb-1 lg:pb-0" aria-label="다음세대">
+              {navItems.map((item) => {
+                const isActive =
+                  item.path === NEXT_GENERATION_PATH
+                    ? location.pathname === item.path
+                    : location.pathname.startsWith(item.path);
+
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Auth controls (desktop) */}
+            <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+              {!authLoading && !user && (
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-600 transition"
+                >
+                  <LogIn size={15} /> 로그인
+                </button>
+              )}
+              {!authLoading && isPastor && (
+                <>
+                  <button
+                    onClick={() => setShowAdminModal(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800 hover:bg-amber-200 transition"
+                  >
+                    <Settings size={14} /> 관리
+                  </button>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
+              )}
+              {!authLoading && user && !isPastor && (
+                <>
+                  <button
+                    onClick={handleOpenNotifications}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <Bell size={16} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  {member && (
+                    <span className="text-xs font-bold text-gray-600 max-w-[80px] truncate">
+                      {member.displayName}
+                      {isPending && <span className="ml-1 text-amber-500">(대기)</span>}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => signOut()}
+                    className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Shared notification dropdown — rendered outside breakpoint blocks so it works on mobile too */}
+      {showNotifications && user && !isPastor && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setShowNotifications(false)}
+        >
+          <div
+            className="absolute right-4 top-20 z-40 w-72 rounded-xl border border-gray-200 bg-white shadow-xl sm:right-6 lg:right-8"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+              <p className="text-sm font-bold text-gray-900">알림</p>
+              <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+            {notifications.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-gray-400">알림이 없습니다.</p>
+            ) : (
+              <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                {notifications.map(n => (
+                  <li
+                    key={n.id}
+                    onClick={() => markNotificationRead(n.id)}
+                    className={`cursor-pointer px-4 py-3 text-sm transition hover:bg-gray-50 ${!n.isRead ? 'bg-amber-50' : ''}`}
+                  >
+                    <p className={`font-medium ${
+                      n.type === 'approved' ? 'text-emerald-700'
+                      : n.type === 'answered' ? 'text-amber-600'
+                      : 'text-red-600'
+                    }`}>
+                      {n.type === 'approved' && '✓ 가입 승인됨'}
+                      {n.type === 'rejected' && '✗ 가입 반려됨'}
+                      {n.type === 'answered' && '💬 질문 답변 도착'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                    {n.rejectionReason && (
+                      <p className="text-xs text-red-500 mt-0.5">사유: {n.rejectionReason}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showLoginModal && (
+        <NextGenerationLoginModal
+          onClose={() => setShowLoginModal(false)}
+          initialView={isRejected ? 'rejected' : isPending ? 'pending' : needsSignUp ? 'complete_google' : 'login'}
+        />
+      )}
+      {showAdminModal && <NextGenerationAdmin onClose={() => setShowAdminModal(false)} />}
+    </>
   );
 }
 
@@ -742,33 +949,34 @@ function IntroPage() {
               <X size={20} />
             </button>
 
-            <div className="flex w-full items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setLightboxIndex((i) => (i - 1 + lightboxGallery.length) % lightboxGallery.length)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25 disabled:opacity-30"
-                aria-label="이전 사진"
-                disabled={lightboxGallery.length <= 1}
-              >
-                <ChevronLeft size={24} />
-              </button>
-
+            <div className="relative flex h-[70vh] w-full items-center justify-center">
               <img
                 key={lightboxGallery[lightboxIndex].src}
                 src={lightboxGallery[lightboxIndex].src}
                 alt={lightboxGallery[lightboxIndex].alt}
-                className="max-h-[70vh] w-full rounded-lg object-contain shadow-2xl"
+                className="h-full w-full rounded-lg object-contain shadow-2xl"
               />
 
-              <button
-                type="button"
-                onClick={() => setLightboxIndex((i) => (i + 1) % lightboxGallery.length)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25 disabled:opacity-30"
-                aria-label="다음 사진"
-                disabled={lightboxGallery.length <= 1}
-              >
-                <ChevronRight size={24} />
-              </button>
+              {lightboxGallery.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex((i) => (i - 1 + lightboxGallery.length) % lightboxGallery.length)}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-lg bg-black/40 text-white transition hover:bg-black/60"
+                    aria-label="이전 사진"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex((i) => (i + 1) % lightboxGallery.length)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-lg bg-black/40 text-white transition hover:bg-black/60"
+                    aria-label="다음 사진"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="mt-4 text-center">
@@ -828,6 +1036,11 @@ interface ResourceLibraryPageProps {
   title: string;
   description: React.ReactNode;
   tabs: typeof elementaryResourceTabs;
+  midSection?: React.ReactNode;
+  /** If set, non-members only see this one tab */
+  guestTabId?: string;
+  /** If set, non-members only see this many posts */
+  guestPostLimit?: number;
 }
 
 function ResourceLibraryPage({
@@ -839,16 +1052,24 @@ function ResourceLibraryPage({
   title,
   description,
   tabs,
+  midSection,
+  guestTabId,
+  guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
+  const { hasAccess: ngAccess, user: ngUser } = useNextGenerationAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeResource = searchParams.get('resource') || tabs[0].id;
+  const rawActiveResource = searchParams.get('resource') || tabs[0].id;
+  // Tab/post restrictions apply only to unauthenticated visitors (pending/rejected users see everything)
+  const isGuest = !ngUser;
+  const activeResource = (isGuest && guestTabId) ? guestTabId : rawActiveResource;
+  const visibleTabs = (isGuest && guestTabId) ? tabs.filter(t => t.id === guestTabId) : tabs;
   const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
-  const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
+  const activeTab = visibleTabs.find((tab) => tab.id === activeResource) || visibleTabs[0];
   const isWeeklyTab = activeTab.id === 'elementary_weekly';
   const usesTopicFolders = !isWeeklyTab && supportsNextGenerationTopic(activeTab.id);
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
@@ -981,10 +1202,12 @@ function ResourceLibraryPage({
         </div>
       </section>
 
+      {midSection}
+
       <section className="bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex gap-2 overflow-x-auto pb-2">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const isActive = tab.id === activeTab.id;
               const Icon = tab.icon;
 
@@ -1104,9 +1327,14 @@ function ResourceLibraryPage({
               </p>
             </div>
           ) : (
+            <>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE).map((post, index) => {
-                const attachments = getPostAttachments(post);
+              {((isGuest && guestPostLimit) ? filteredPosts.slice(0, guestPostLimit) : filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE)).map((post, index) => {
+                // attachmentCount is the non-sensitive count stored on the post doc for new posts.
+                // getPostAttachments(post) is the legacy fallback for posts that still have inline attachments.
+                const attachmentCount = typeof post.attachmentCount === 'number'
+                  ? post.attachmentCount
+                  : getPostAttachments(post).length;
 
                 return (
                   <motion.article
@@ -1135,10 +1363,10 @@ function ResourceLibraryPage({
                       </p>
                       <div className="mt-5 flex items-center justify-between gap-3 border-t border-sky-50 pt-4 text-sm text-slate-600">
                         <span>{formatDate(post.createdAt)}</span>
-                        {attachments.length > 0 && (
+                        {attachmentCount > 0 && (
                           <span className="inline-flex items-center gap-1 font-bold text-coral-700">
                             <Download size={16} />
-                            자료 {attachments.length}
+                            자료 {attachmentCount}
                           </span>
                         )}
                       </div>
@@ -1147,9 +1375,21 @@ function ResourceLibraryPage({
                 );
               })}
             </div>
+            {!ngAccess && guestPostLimit && filteredPosts.length > guestPostLimit && (
+              <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 px-6 py-8 text-center">
+                <Lock className="mx-auto mb-3 h-8 w-8 text-sky-400" />
+                <p className="text-sm font-bold text-emerald-950">
+                  {filteredPosts.length - guestPostLimit}개의 자료가 더 있습니다.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  로그인하면 전체 {filteredPosts.length}개 자료를 모두 열람할 수 있습니다.
+                </p>
+              </div>
+            )}
+            </>
           )}
 
-          {!loading && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
+          {!loading && !isGuest || !guestPostLimit && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
             const totalPages = Math.ceil(filteredPosts.length / RESOURCE_PAGE_SIZE);
             const pageNumbers: (number | 'ellipsis')[] = [];
 
@@ -1231,6 +1471,12 @@ function YoungAdultsPage() {
       title="복음 안에서 함께 질문하고 함께 걸어갑니다"
       description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
       tabs={youngAdultResourceTabs}
+      guestPostLimit={4}
+      midSection={
+        <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
+          <NextGenerationQA />
+        </section>
+      }
     />
   );
 }
@@ -1345,13 +1591,11 @@ function NextGenerationCreatePost() {
         postData.youtubeUrl = youtubeUrl.trim();
       }
 
+      // Security (Option B): Do NOT store download URLs in the public post doc.
+      // We only keep a non-sensitive count here so guests/non-members can see
+      // "자료 N개" badge without being able to extract URLs via direct Firestore read.
       if (attachments.length > 0) {
-        postData.pdfBase64 = serializeMaterialAttachments(attachments);
-      }
-
-      if (firstPdfAttachment) {
-        postData.pdfUrl = firstPdfAttachment.url;
-        postData.pdfName = firstPdfAttachment.name;
+        postData.attachmentCount = attachments.length;
       }
 
       const isLongContent = new TextEncoder().encode(content).length > 1400;
@@ -1392,6 +1636,21 @@ function NextGenerationCreatePost() {
             createdAt: serverTimestamp(),
           });
         }
+      }
+
+      // Write downloadable file metadata to a restricted subcollection
+      // that only approved members (and pastor) can read.
+      if (attachments.length > 0) {
+        const fileData: any = {
+          postId: docRef.id,
+          updatedAt: serverTimestamp(),
+          pdfBase64: serializeMaterialAttachments(attachments),
+        };
+        if (firstPdfAttachment) {
+          fileData.pdfUrl = firstPdfAttachment.url;
+          fileData.pdfName = firstPdfAttachment.name;
+        }
+        await setDoc(doc(db, 'next_generation_post_files', docRef.id), fileData);
       }
 
       setSuccessPostId(docRef.id);
@@ -1687,6 +1946,8 @@ function NextGenerationCreatePost() {
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
+  const { hasAccess: ngAccess, user: ngUser } = useNextGenerationAuth();
+  const isGuest = !ngUser;
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
   const isAdmin = role === 'admin';
@@ -1722,6 +1983,24 @@ function NextGenerationPostDetail({ id }: { id: string }) {
           }
         }
 
+        // Load restricted download file metadata only if the user is an approved
+        // member or pastor. Firestore rules block this read for others, so we
+        // guard here to avoid surfacing a permission error in the console.
+        if (ngAccess) {
+          try {
+            const fileSnap = await getDoc(doc(db, 'next_generation_post_files', id));
+            if (fileSnap.exists()) {
+              const fileData = fileSnap.data() as any;
+              if (fileData.pdfUrl) (data as any).pdfUrl = fileData.pdfUrl;
+              if (fileData.pdfName) (data as any).pdfName = fileData.pdfName;
+              if (fileData.pdfBase64) (data as any).pdfBase64 = fileData.pdfBase64;
+              if (fileData.attachments) (data as any).attachments = fileData.attachments;
+            }
+          } catch (e) {
+            // Silent — rule may block for pending/rejected; badge still reflects count
+          }
+        }
+
         setPost(data);
       } catch (err: any) {
         console.error('Error fetching next generation post:', err);
@@ -1734,7 +2013,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
     };
 
     fetchPost();
-  }, [id, navigate]);
+  }, [id, navigate, ngAccess]);
 
   if (loading) {
     return (
@@ -1795,6 +2074,14 @@ function NextGenerationPostDetail({ id }: { id: string }) {
           </h1>
           <p className="mt-3 text-sm font-bold text-slate-500">{post.authorName}</p>
 
+          {isGuest ? (
+            <div className="mt-10 flex flex-col items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-6 py-14 text-center">
+              <Lock className="mb-4 h-10 w-10 text-sky-400" />
+              <p className="text-base font-bold text-emerald-950">로그인 후 내용을 확인할 수 있습니다.</p>
+              <p className="mt-2 text-sm text-slate-500">다음세대 계정으로 로그인하면 자료 내용을 열람할 수 있습니다.</p>
+            </div>
+          ) : (
+            <>
           {post.youtubeUrl && getYouTubeVideoId(post.youtubeUrl) && (
             <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
               <div className="relative aspect-video">
@@ -1836,22 +2123,31 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <a
-                          href={attachment.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-emerald-950 transition hover:bg-sky-100"
-                        >
-                          새 창에서 열기
-                        </a>
-                        <a
-                          href={attachment.url}
-                          download={attachment.name}
-                          className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
-                        >
-                          <Download size={14} className="mr-1" />
-                          다운로드
-                        </a>
+                        {ngAccess ? (
+                          <>
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-emerald-950 transition hover:bg-sky-100"
+                            >
+                              새 창에서 열기
+                            </a>
+                            <a
+                              href={attachment.url}
+                              download={attachment.name}
+                              className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                            >
+                              <Download size={14} className="mr-1" />
+                              다운로드
+                            </a>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500" title="다운로드는 승인된 정회원에게만 제공됩니다">
+                            <Lock size={13} />
+                            정회원 전용
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1865,22 +2161,25 @@ function NextGenerationPostDetail({ id }: { id: string }) {
               </div>
             </div>
           )}
+            </>
+          )}
         </article>
       </div>
     </main>
   );
 }
 
-export default function NextGeneration() {
+function NextGenerationInner() {
   useNextGenerationHead();
 
   const location = useLocation();
+  const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();
   const pathParts = location.pathname.split('/').filter(Boolean);
   const currentSection = pathParts[1];
   const postId = currentSection === 'post' ? pathParts[2] : null;
   const editId = currentSection === 'edit' ? pathParts[2] : null;
 
-  let content = <IntroPage />;
+  let content: React.ReactNode = <IntroPage />;
 
   if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
@@ -1904,10 +2203,17 @@ export default function NextGeneration() {
           </>
         }
         tabs={elementaryResourceTabs}
+        guestTabId="elementary_weekly"
       />
     );
   } else if (currentSection === 'young-adults') {
     content = <YoungAdultsPage />;
+  } else if (currentSection === 'contact') {
+    content = (
+      <div className="min-h-[60vh] bg-white py-10">
+        <NextGenerationContact />
+      </div>
+    );
   }
 
   return (
@@ -1921,5 +2227,13 @@ export default function NextGeneration() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function NextGeneration() {
+  return (
+    <NextGenerationAuthProvider>
+      <NextGenerationInner />
+    </NextGenerationAuthProvider>
   );
 }
