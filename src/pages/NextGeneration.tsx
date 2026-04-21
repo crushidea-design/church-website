@@ -48,9 +48,9 @@ const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
 const RESOURCE_PAGE_SIZE = 10;
 
-const introImage = '/next-generation-2026.png';
-const elementaryImage = '/next-generation-2026.png';
-const youngAdultsImage = '/young-adults-pilgrims-progress.png';
+const introImage = '/elementary-intro.png';
+const elementaryImage = '/elementary-intro.png';
+const youngAdultsImage = '/young-adults-intro.png';
 
 const elementaryWeeklyResourceIds = [
   'elementary_script',
