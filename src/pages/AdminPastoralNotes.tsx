@@ -6,9 +6,39 @@ import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral
 import { PASTORAL_MEETING_TYPES, PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
 import { createEmptyPastoralNoteInput, formatDisplayDate, normalizeMemberName, sortNotesByDate } from '../features/pastoral-notes/utils';
 import { useAuth } from '../lib/auth';
-import { handleFirestoreError, OperationType } from '../lib/firebase';
 
 const QUOTE = '목양은 기억이 아니라 기록을 통해 더 정교해집니다.';
+
+function getPastoralNoteErrorMessage(error: unknown, action: 'load' | 'create') {
+  const fallback =
+    action === 'create'
+      ? '목양노트 저장 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.'
+      : '목양노트를 불러오지 못했습니다.';
+
+  if (!error || typeof error !== 'object') {
+    return fallback;
+  }
+
+  const firebaseError = error as { code?: string; message?: string };
+  const code = firebaseError.code || '';
+  const message = firebaseError.message || '';
+
+  if (code === 'permission-denied' || message.includes('Missing or insufficient permissions')) {
+    return action === 'create'
+      ? '저장 권한이 없습니다. 관리자 계정 권한과 Firestore 규칙 적용 상태를 확인해 주세요.'
+      : '목양노트 읽기 권한이 없습니다. 관리자 계정 권한과 Firestore 규칙 적용 상태를 확인해 주세요.';
+  }
+
+  if (code === 'unauthenticated') {
+    return '로그인이 만료되었습니다. 다시 로그인한 뒤 시도해 주세요.';
+  }
+
+  if (message) {
+    return `${fallback} (${message})`;
+  }
+
+  return fallback;
+}
 
 function DetailRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -50,8 +80,7 @@ export default function AdminPastoralNotes() {
       },
       (error) => {
         console.error('Error loading pastoral notes:', error);
-        handleFirestoreError(error, OperationType.GET, 'pastoral_notes');
-        toast.error('목양노트를 불러오지 못했습니다.');
+        toast.error(getPastoralNoteErrorMessage(error, 'load'));
         setIsLoading(false);
       }
     );
@@ -153,8 +182,7 @@ export default function AdminPastoralNotes() {
       resetForm();
     } catch (error) {
       console.error('Error creating pastoral note:', error);
-      handleFirestoreError(error, OperationType.CREATE, 'pastoral_notes');
-      toast.error('저장 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.');
+      toast.error(getPastoralNoteErrorMessage(error, 'create'));
     } finally {
       setIsSaving(false);
     }
