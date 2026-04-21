@@ -48,7 +48,7 @@ import {
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
-const RESOURCE_PAGE_SIZE = 10;
+const RESOURCE_PAGE_SIZE = 12;
 
 const introImage = '/elementary-intro.png';
 const elementaryImage = '/next-generation-2026.png';
