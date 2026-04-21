@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { ArrowLeft, Save, Loader2, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
+import AdminLayout from '../components/AdminLayout';
 
 export default function AdminChurchInfo() {
   const navigate = useNavigate();
@@ -206,8 +207,12 @@ export default function AdminChurchInfo() {
   ];
 
   return (
-    <div className="bg-wood-100 min-h-screen py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <AdminLayout
+      title="교회 정보 관리"
+      description="교회 소개 페이지의 문구와 구성 요소를 한 곳에서 수정합니다."
+      icon={<Info size={14} />}
+      maxWidthClassName="max-w-4xl"
+    >
         <button
           onClick={() => navigate('/admin')}
           className="inline-flex items-center text-sm font-medium text-wood-600 hover:text-wood-900 mb-8 transition"
@@ -483,7 +488,6 @@ export default function AdminChurchInfo() {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </AdminLayout>
   );
 }

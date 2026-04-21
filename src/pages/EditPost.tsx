@@ -626,6 +626,22 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
               />
             </div>
 
+            {type === 'today_word' && (
+              <div>
+                <label htmlFor="dateKey" className="block text-sm font-medium text-wood-700 mb-2">
+                  묵상 날짜
+                </label>
+                <input
+                  type="date"
+                  id="dateKey"
+                  value={dateKey}
+                  onChange={(e) => setDateKey(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  required
+                />
+              </div>
+            )}
+
             {(type === 'research' || type === 'sermon' || isNextGeneration) && (
               <div>
                 <label className="block text-sm font-medium text-wood-700 mb-2">

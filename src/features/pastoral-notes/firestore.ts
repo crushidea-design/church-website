@@ -1,5 +1,5 @@
 import { User } from 'firebase/auth';
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PastoralNote, PastoralNoteInput } from './types';
 import { normalizeMemberName } from './utils';
@@ -28,6 +28,7 @@ export function subscribePastoralNotes(
 
 export async function createPastoralNote(input: PastoralNoteInput, user: User) {
   const memberName = input.memberName.trim().replace(/\s+/g, ' ');
+  const now = new Date();
 
   return addDoc(pastoralNotesCollection, {
     memberName,
@@ -41,7 +42,7 @@ export async function createPastoralNote(input: PastoralNoteInput, user: User) {
     remarks: input.remarks?.trim() || '',
     createdByUid: user.uid,
     createdByName: user.displayName || user.email || '관리자',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    createdAt: now,
+    updatedAt: now,
   });
 }
