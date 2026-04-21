@@ -381,6 +381,83 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── 다음세대 독립 섹션 ───────────────────────────────────────────
+
+    function isNextGenerationPastor() {
+      return isAdmin();
+    }
+
+    function isNextGenerationFullMember() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)).data.role == 'member';
+    }
+
+    function isNextGenerationAccess() {
+      return isNextGenerationFullMember() || isNextGenerationPastor();
+    }
+
+    match /next_generation_members/{memberId} {
+      allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
+      allow create: if isAuthenticated() && request.auth.uid == memberId &&
+        request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.role == 'pending' &&
+        request.resource.data.department in ['청년', '교사', '학부모'] &&
+        request.resource.data.church is string && request.resource.data.church.size() > 0 &&
+        request.resource.data.intro is string &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated() &&
+        (isNextGenerationPastor() ||
+         (request.auth.uid == memberId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro'])));
+      allow delete: if isNextGenerationPastor() ||
+        (isAuthenticated() && request.auth.uid == memberId);
+    }
+
+    match /next_generation_notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isNextGenerationPastor() &&
+        request.resource.data.keys().hasOnly(['uid', 'type', 'message', 'rejectionReason', 'createdAt', 'isRead']) &&
+        request.resource.data.type in ['approved', 'rejected'] &&
+        request.resource.data.isRead == false &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isNextGenerationPastor();
+    }
+
+    match /next_generation_qa/{qaId} {
+      allow read: if isAuthenticated();
+      allow create: if isNextGenerationAccess() &&
+        request.resource.data.keys().hasOnly(['title', 'content', 'authorId', 'authorName', 'createdAt', 'isAnswered']) &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 5000 &&
+        request.resource.data.isAnswered == false &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isNextGenerationPastor() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'answeredAt', 'answeredBy', 'isAnswered']);
+      allow delete: if isNextGenerationPastor() ||
+        (isAuthenticated() && resource.data.authorId == request.auth.uid);
+    }
+
+    match /next_generation_contacts/{contactId} {
+      allow read: if isNextGenerationPastor();
+      allow create: if
+        request.resource.data.keys().hasOnly(['name', 'email', 'message', 'createdAt', 'isRead']) &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 &&
+        request.resource.data.email is string && isValidEmail(request.resource.data.email) &&
+        request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 5000 &&
+        request.resource.data.isRead == false &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isNextGenerationPastor() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isNextGenerationPastor();
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+
     match /prayer_requests/{requestId} {
       allow read: if isAuthenticated() && isRegularMember();
       allow create: if isAuthenticated() && isRegularMember() && 

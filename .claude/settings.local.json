@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(firebase deploy *)",
+      "Bash(firebase projects:list)",
+      "Bash(firebase firestore:rules:get --project gen-lang-client-0036445484 --database ai-studio-718ae15e-9471-4be1-ad56-c48181aa8613)",
+      "Bash(gcloud auth *)",
+      "Bash(firebase login:ci --no-localhost)",
+      "Bash(firebase --version)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

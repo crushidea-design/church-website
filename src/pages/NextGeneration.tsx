@@ -5,6 +5,7 @@ import {
   ArrowDown01,
   ArrowLeft,
   ArrowUp10,
+  Bell,
   BookMarked,
   CalendarDays,
   ChevronLeft,
@@ -15,7 +16,12 @@ import {
   FileText,
   HeartHandshake,
   Loader2,
+  LogIn,
+  LogOut,
+  Mail,
+  MessageSquare,
   Plus,
+  Settings,
   Sparkles,
   Users,
   X,
@@ -23,6 +29,11 @@ import {
 import { motion } from 'motion/react';
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
+import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
+import NextGenerationLoginModal from './NextGenerationLoginModal';
+import NextGenerationAdmin from './NextGenerationAdmin';
+import NextGenerationContact from './NextGenerationContact';
+import NextGenerationQA from './NextGenerationQA';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -308,62 +319,224 @@ function useNextGenerationHead() {
 
 function NextGenerationHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const {
+    user, member, loading: authLoading, isPastor, isMember, isPending, isRejected,
+    hasAccess, needsSignUp, notifications, unreadCount, markNotificationRead, signOut,
+  } = useNextGenerationAuth();
+
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const navItems = [
     { name: '다음세대 소개', path: NEXT_GENERATION_PATH },
     { name: '유초등부', path: `${NEXT_GENERATION_PATH}/elementary` },
     { name: '청년부', path: `${NEXT_GENERATION_PATH}/young-adults` },
+    { name: '질문있습니다', path: `${NEXT_GENERATION_PATH}/qa` },
+    { name: '문의하기', path: `${NEXT_GENERATION_PATH}/contact` },
   ];
 
+  // Show login modal when needsSignUp triggers (Google sign-in new user)
+  useEffect(() => {
+    if (needsSignUp) setShowLoginModal(true);
+  }, [needsSignUp]);
+
+  // Show rejected notification on login
+  const [shownRejected, setShownRejected] = useState(false);
+  useEffect(() => {
+    if (isRejected && !shownRejected) {
+      setShownRejected(true);
+      setShowLoginModal(true);
+    }
+  }, [isRejected, shownRejected]);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
-        <Link to={NEXT_GENERATION_PATH} className="flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
-            <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
-          </span>
-          <span className="flex w-[160px] flex-col sm:w-[198px]">
-            <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
-              {Array.from('한우리교회 다음세대').map((char, index) => (
-                <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
-                  {char}
+    <>
+      <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <Link to={NEXT_GENERATION_PATH} className="flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
+                <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
+              </span>
+              <span className="flex w-[160px] flex-col sm:w-[198px]">
+                <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
+                  {Array.from('한우리교회 다음세대').map((char, index) => (
+                    <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
+                      {char}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-            <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
-              {Array.from('GROWING IN THE COVENANT').map((char, index) => (
-                <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
-                  {char}
+                <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
+                  {Array.from('GROWING IN THE COVENANT').map((char, index) => (
+                    <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
+                      {char}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-          </span>
-        </Link>
+              </span>
+            </Link>
 
-        <nav className="flex gap-2 overflow-x-auto pb-1 lg:pb-0" aria-label="다음세대">
-          {navItems.map((item) => {
-            const isActive =
-              item.path === NEXT_GENERATION_PATH
-                ? location.pathname === item.path
-                : location.pathname.startsWith(item.path);
+            {/* Auth controls (mobile: inline with logo) */}
+            <div className="flex items-center gap-2 lg:hidden">
+              {!authLoading && !user && (
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-amber-600 transition"
+                >
+                  <LogIn size={15} /> 로그인
+                </button>
+              )}
+              {!authLoading && isPastor && (
+                <button
+                  onClick={() => setShowAdminModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800 hover:bg-amber-200 transition"
+                >
+                  <Settings size={14} />
+                </button>
+              )}
+              {!authLoading && user && !isPastor && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications(v => !v)}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <Bell size={16} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
-                  isActive
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
-                }`}
-              >
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    </header>
+          <div className="flex items-center gap-3">
+            <nav className="flex gap-2 overflow-x-auto pb-1 lg:pb-0" aria-label="다음세대">
+              {navItems.map((item) => {
+                const isActive =
+                  item.path === NEXT_GENERATION_PATH
+                    ? location.pathname === item.path
+                    : location.pathname.startsWith(item.path);
+
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Auth controls (desktop) */}
+            <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+              {!authLoading && !user && (
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-600 transition"
+                >
+                  <LogIn size={15} /> 로그인
+                </button>
+              )}
+              {!authLoading && isPastor && (
+                <>
+                  <button
+                    onClick={() => setShowAdminModal(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800 hover:bg-amber-200 transition"
+                  >
+                    <Settings size={14} /> 관리
+                  </button>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
+              )}
+              {!authLoading && user && !isPastor && (
+                <>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowNotifications(v => !v)}
+                      className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                    >
+                      <Bell size={16} />
+                      {unreadCount > 0 && (
+                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </button>
+                    {showNotifications && (
+                      <div className="absolute right-0 top-11 z-50 w-72 rounded-xl border border-gray-200 bg-white shadow-xl">
+                        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                          <p className="text-sm font-bold text-gray-900">알림</p>
+                          <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">
+                            <X size={16} />
+                          </button>
+                        </div>
+                        {notifications.length === 0 ? (
+                          <p className="px-4 py-6 text-center text-sm text-gray-400">알림이 없습니다.</p>
+                        ) : (
+                          <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                            {notifications.map(n => (
+                              <li
+                                key={n.id}
+                                onClick={() => markNotificationRead(n.id)}
+                                className={`cursor-pointer px-4 py-3 text-sm transition hover:bg-gray-50 ${!n.isRead ? 'bg-amber-50' : ''}`}
+                              >
+                                <p className={`font-medium ${n.type === 'approved' ? 'text-emerald-700' : 'text-red-600'}`}>
+                                  {n.type === 'approved' ? '✓ 가입 승인됨' : '✗ 가입 반려됨'}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                                {n.rejectionReason && (
+                                  <p className="text-xs text-red-500 mt-0.5">사유: {n.rejectionReason}</p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {member && (
+                    <span className="text-xs font-bold text-gray-600 max-w-[80px] truncate">
+                      {member.displayName}
+                      {isPending && <span className="ml-1 text-amber-500">(대기)</span>}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => signOut()}
+                    className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {showLoginModal && (
+        <NextGenerationLoginModal
+          onClose={() => setShowLoginModal(false)}
+          initialView={isRejected ? 'rejected' : isPending ? 'pending' : 'login'}
+        />
+      )}
+      {showAdminModal && <NextGenerationAdmin onClose={() => setShowAdminModal(false)} />}
+    </>
   );
 }
 
@@ -1872,16 +2045,17 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   );
 }
 
-export default function NextGeneration() {
+function NextGenerationInner() {
   useNextGenerationHead();
 
   const location = useLocation();
+  const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();
   const pathParts = location.pathname.split('/').filter(Boolean);
   const currentSection = pathParts[1];
   const postId = currentSection === 'post' ? pathParts[2] : null;
   const editId = currentSection === 'edit' ? pathParts[2] : null;
 
-  let content = <IntroPage />;
+  let content: React.ReactNode = <IntroPage />;
 
   if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
@@ -1909,6 +2083,18 @@ export default function NextGeneration() {
     );
   } else if (currentSection === 'young-adults') {
     content = <YoungAdultsPage />;
+  } else if (currentSection === 'qa') {
+    content = (
+      <div className="min-h-[60vh] bg-sky-50 py-10">
+        <NextGenerationQA />
+      </div>
+    );
+  } else if (currentSection === 'contact') {
+    content = (
+      <div className="min-h-[60vh] bg-white py-10">
+        <NextGenerationContact />
+      </div>
+    );
   }
 
   return (
@@ -1922,5 +2108,13 @@ export default function NextGeneration() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function NextGeneration() {
+  return (
+    <NextGenerationAuthProvider>
+      <NextGenerationInner />
+    </NextGenerationAuthProvider>
   );
 }
