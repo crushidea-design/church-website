@@ -408,13 +408,60 @@ function IntroPage() {
   ];
   const [activePillar, setActivePillar] = useState<string | null>(null);
   const selectedPillar = introPillars.find((pillar) => pillar.title === activePillar);
+  const youngAdultIntroPillars = [
+    {
+      title: '교리 교육',
+      paragraphs: [
+        '청년 1부는 천로역정을 중심으로 교리 교육을 진행합니다.',
+        '주인공의 여정을 따라가며 성도의 삶에서 마주하는 죄, 유혹, 고난, 그리고 은혜를 배우고, 교리를 단순한 지식이 아니라 삶 속에서 적용되는 진리로 익혀 갑니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/young-adults/doctrine/doctrine-1.jpg', alt: '교리 교육 자료 예시 1' },
+        { src: '/next-generation/young-adults/doctrine/doctrine-2.jpg', alt: '교리 교육 자료 예시 2' },
+        { src: '/next-generation/young-adults/doctrine/doctrine-3.png', alt: '교리 교육 자료 예시 3' },
+        { src: '/next-generation/young-adults/doctrine/doctrine-4.png', alt: '교리 교육 자료 예시 4' },
+      ],
+    },
+    {
+      title: '삶의 적용',
+      paragraphs: [
+        '청년 1부는 주일 말씀을 한 번 듣고 끝내지 않습니다.',
+        '주중에 제공되는 복습 팟캐스트를 통해 설교 내용을 다시 정리하고, 삶에 어떻게 적용할지를 구체적으로 고민합니다.',
+        '또한 매달 첫째 주일에는 천로역정 공부를 잠시 내려놓고 말씀 나눔의 시간을 가집니다.',
+        '오전 예배에서 선포되는 말씀과 오후 예배에서 베풀어지는 교리 강설을 중심으로, 준비된 나눔지를 통해 함께 복습하고 적용을 나눕니다.',
+        '이 과정을 통해 말씀을 삶으로 잇는 실제적인 훈련을 지속해 나가고 있습니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/young-adults/application/application-1.jpg', alt: '삶의 적용 자료 예시 1' },
+        { src: '/next-generation/young-adults/application/application-2.png', alt: '삶의 적용 자료 예시 2' },
+        { src: '/next-generation/young-adults/application/application-3.jpg', alt: '삶의 적용 자료 예시 3' },
+        { src: '/next-generation/young-adults/application/application-4.jpg', alt: '삶의 적용 자료 예시 4' },
+      ],
+    },
+    {
+      title: '말씀생활',
+      paragraphs: [
+        '청년 1부는 맥체인 성경읽기표를 따라 매일 성경을 읽고, QT를 통해 말씀을 묵상합니다.',
+        '하루의 시작과 마무리를 말씀으로 채우며, 말씀이 삶의 중심이 되도록 훈련합니다.',
+        '같은 말씀을 함께 읽고 나누며, 개인의 경건을 넘어 공동체 전체가 말씀 위에 세워져 가고 있습니다.',
+      ],
+      gallery: [
+        { src: '/next-generation/young-adults/word-life/word-life-1.jpg', alt: '말씀생활 자료 예시 1' },
+        { src: '/next-generation/young-adults/word-life/word-life-2.jpg', alt: '말씀생활 자료 예시 2' },
+        { src: '/next-generation/young-adults/word-life/word-life-3.jpg', alt: '말씀생활 자료 예시 3' },
+      ],
+    },
+  ];
+  const [activeYoungAdultPillar, setActiveYoungAdultPillar] = useState<string | null>(null);
+  const selectedYoungAdultPillar = youngAdultIntroPillars.find((pillar) => pillar.title === activeYoungAdultPillar);
 
   useEffect(() => {
-    if (!selectedPillar) return;
+    if (!selectedPillar && !selectedYoungAdultPillar) return;
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setActivePillar(null);
+        setActiveYoungAdultPillar(null);
       }
     };
 
@@ -467,6 +514,61 @@ function IntroPage() {
               alt="밝은 교실에서 함께 배우는 아이들"
               className="h-[340px] w-full object-cover sm:h-[420px]"
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-2 pb-12 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:pb-16">
+          <div className="overflow-hidden rounded-lg border border-sky-100 shadow-sm lg:order-1">
+            <img
+              src={youngAdultsImage}
+              alt="청년부 자료실에 사용되는 천로역정 이미지"
+              className="h-[340px] w-full object-cover sm:h-[420px]"
+            />
+          </div>
+
+          <div className="lg:order-2">
+            <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-sky-100 px-3 py-2 text-sm font-black text-emerald-950">
+              <Users size={18} />
+              삶으로 이어지는 청년 1부
+            </span>
+            <h2 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
+              살아내는 청년 1부
+            </h2>
+            <div className="mt-6 max-w-2xl space-y-4 text-lg leading-8 text-slate-700">
+              <p>청년 1부는 말씀을 배우는 데서 멈추지 않고, 삶으로 살아내는 공동체입니다.</p>
+              <p>
+                주일에 선포되는 말씀과 교리의 강설을 중심으로, 진리를 바르게 이해하고 실제 삶 속에서 적용하는
+                것을 목표로 합니다.
+              </p>
+              <p>
+                특별히 고전 신앙서인 천로역정을 통해 성도의 삶의 여정을 배우며, 교리를 지식이 아닌 실제적인
+                믿음의 길로 익혀 갑니다. 또한 주중에는 말씀을 반복하고 적용하도록 돕는 다양한 나눔과 자료를
+                통해, 신앙이 일상 속에 뿌리내리도록 돕고 있습니다.
+              </p>
+              <p>
+                청년 1부는 &ldquo;듣고 끝나는 신앙&rdquo;이 아니라, &ldquo;삶으로 이어지는 신앙&rdquo;을 함께
+                세워가는 공동체입니다.
+              </p>
+            </div>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {youngAdultIntroPillars.map((pillar) => (
+                <button
+                  key={pillar.title}
+                  type="button"
+                  onClick={() => setActiveYoungAdultPillar(pillar.title)}
+                  aria-expanded={activeYoungAdultPillar === pillar.title}
+                  className={`rounded-lg border p-4 text-center text-sm font-black transition ${
+                    activeYoungAdultPillar === pillar.title
+                      ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                      : 'border-sky-100 bg-sky-50 text-emerald-950 hover:border-sky-300 hover:bg-sky-100'
+                  }`}
+                >
+                  {pillar.title}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -530,6 +632,61 @@ function IntroPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selectedYoungAdultPillar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="young-adult-pillar-title"
+          onClick={() => setActiveYoungAdultPillar(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-sky-100 bg-white p-6 shadow-xl sm:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h2 id="young-adult-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
+                {selectedYoungAdultPillar.title}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setActiveYoungAdultPillar(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-emerald-950 transition hover:bg-sky-100"
+                aria-label="설명 닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+              {selectedYoungAdultPillar.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            {selectedYoungAdultPillar.gallery && (
+              <div className="mt-6">
+                <h3 className="text-lg font-black text-emerald-950">교육 자료 예시</h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {selectedYoungAdultPillar.gallery.map((image) => (
+                    <a
+                      key={image.src}
+                      href={`/next-generation-preview.html?src=${encodeURIComponent(image.src)}&alt=${encodeURIComponent(image.alt)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="overflow-hidden rounded-lg border border-sky-100 bg-slate-50 transition hover:border-sky-300"
+                    >
+                      <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
+                      <div className="border-t border-sky-100 bg-white px-3 py-2 text-sm font-bold text-emerald-950">
+                        {image.alt}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
