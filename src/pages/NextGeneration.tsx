@@ -16,6 +16,7 @@ import {
   FileText,
   HeartHandshake,
   Loader2,
+  Lock,
   LogIn,
   LogOut,
   Mail,
@@ -1024,6 +1025,10 @@ interface ResourceLibraryPageProps {
   description: React.ReactNode;
   tabs: typeof elementaryResourceTabs;
   midSection?: React.ReactNode;
+  /** If set, non-members only see this one tab */
+  guestTabId?: string;
+  /** If set, non-members only see this many posts */
+  guestPostLimit?: number;
 }
 
 function ResourceLibraryPage({
@@ -1036,16 +1041,23 @@ function ResourceLibraryPage({
   description,
   tabs,
   midSection,
+  guestTabId,
+  guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
+  const { hasAccess: ngAccess } = useNextGenerationAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeResource = searchParams.get('resource') || tabs[0].id;
+  const rawActiveResource = searchParams.get('resource') || tabs[0].id;
+  // Non-members are locked to guestTabId when provided
+  const activeResource = (!ngAccess && guestTabId) ? guestTabId : rawActiveResource;
+  // Tabs visible to non-members
+  const visibleTabs = (!ngAccess && guestTabId) ? tabs.filter(t => t.id === guestTabId) : tabs;
   const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
-  const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
+  const activeTab = visibleTabs.find((tab) => tab.id === activeResource) || visibleTabs[0];
   const isWeeklyTab = activeTab.id === 'elementary_weekly';
   const usesTopicFolders = !isWeeklyTab && supportsNextGenerationTopic(activeTab.id);
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
@@ -1183,7 +1195,7 @@ function ResourceLibraryPage({
       <section className="bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex gap-2 overflow-x-auto pb-2">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const isActive = tab.id === activeTab.id;
               const Icon = tab.icon;
 
@@ -1303,8 +1315,9 @@ function ResourceLibraryPage({
               </p>
             </div>
           ) : (
+            <>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE).map((post, index) => {
+              {((!ngAccess && guestPostLimit) ? filteredPosts.slice(0, guestPostLimit) : filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE)).map((post, index) => {
                 const attachments = getPostAttachments(post);
 
                 return (
@@ -1346,9 +1359,21 @@ function ResourceLibraryPage({
                 );
               })}
             </div>
+            {!ngAccess && guestPostLimit && filteredPosts.length > guestPostLimit && (
+              <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 px-6 py-8 text-center">
+                <Lock className="mx-auto mb-3 h-8 w-8 text-sky-400" />
+                <p className="text-sm font-bold text-emerald-950">
+                  총 {filteredPosts.length}개의 자료 중 {guestPostLimit}개만 미리 볼 수 있습니다.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  전체 자료는 승인된 회원에게 공개됩니다.
+                </p>
+              </div>
+            )}
+            </>
           )}
 
-          {!loading && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
+          {!loading && !(ngAccess === false && guestPostLimit) && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
             const totalPages = Math.ceil(filteredPosts.length / RESOURCE_PAGE_SIZE);
             const pageNumbers: (number | 'ellipsis')[] = [];
 
@@ -1430,6 +1455,7 @@ function YoungAdultsPage() {
       title="복음 안에서 함께 질문하고 함께 걸어갑니다"
       description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
       tabs={youngAdultResourceTabs}
+      guestPostLimit={4}
       midSection={
         <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
           <NextGenerationQA />
@@ -1891,6 +1917,7 @@ function NextGenerationCreatePost() {
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
+  const { hasAccess: ngAccess } = useNextGenerationAuth();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
   const isAdmin = role === 'admin';
@@ -2040,22 +2067,31 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <a
-                          href={attachment.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-emerald-950 transition hover:bg-sky-100"
-                        >
-                          새 창에서 열기
-                        </a>
-                        <a
-                          href={attachment.url}
-                          download={attachment.name}
-                          className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
-                        >
-                          <Download size={14} className="mr-1" />
-                          다운로드
-                        </a>
+                        {ngAccess ? (
+                          <>
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-emerald-950 transition hover:bg-sky-100"
+                            >
+                              새 창에서 열기
+                            </a>
+                            <a
+                              href={attachment.url}
+                              download={attachment.name}
+                              className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                            >
+                              <Download size={14} className="mr-1" />
+                              다운로드
+                            </a>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500">
+                            <Lock size={13} />
+                            회원 전용
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2109,6 +2145,7 @@ function NextGenerationInner() {
           </>
         }
         tabs={elementaryResourceTabs}
+        guestTabId="elementary_weekly"
       />
     );
   } else if (currentSection === 'young-adults') {
