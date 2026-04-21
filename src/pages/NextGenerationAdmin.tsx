@@ -79,6 +79,13 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [migrationRunning, setMigrationRunning] = useState(false);
   const [migrationScanned, setMigrationScanned] = useState(false);
 
+  // Toast feedback
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2500);
+  };
+
   // Subscribe to members
   useEffect(() => {
     const q = query(collection(db, 'next_generation_members'), orderBy('createdAt', 'desc'));
@@ -135,6 +142,9 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         createdAt: serverTimestamp(),
         isRead: false,
       });
+      showToast('✓ 승인되었습니다.');
+    } catch {
+      showToast('오류가 발생했습니다.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -159,6 +169,9 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       });
       setRejectTargetId(null);
       setRejectReason('');
+      showToast('반려 처리되었습니다.');
+    } catch {
+      showToast('오류가 발생했습니다.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -712,6 +725,15 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
           )}
         </div>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className={`absolute bottom-5 left-1/2 -translate-x-1/2 z-20 px-4 py-2.5 rounded-lg shadow-lg text-sm font-semibold text-white transition-all ${
+          toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+        }`}>
+          {toast.message}
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectTargetId && (

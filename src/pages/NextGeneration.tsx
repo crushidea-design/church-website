@@ -330,6 +330,12 @@ function NextGenerationHeader() {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  // Mark all currently-unread notifications as read when the dropdown is opened
+  const handleOpenNotifications = () => {
+    setShowNotifications(v => !v);
+    notifications.filter(n => !n.isRead).forEach(n => markNotificationRead(n.id));
+  };
+
   const navItems = [
     { name: '다음세대 소개', path: NEXT_GENERATION_PATH },
     { name: '유초등부', path: `${NEXT_GENERATION_PATH}/elementary` },
@@ -407,7 +413,7 @@ function NextGenerationHeader() {
               {!authLoading && user && !isPastor && (
                 <>
                   <button
-                    onClick={() => setShowNotifications(v => !v)}
+                    onClick={handleOpenNotifications}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
                   >
                     <Bell size={16} />
@@ -481,7 +487,7 @@ function NextGenerationHeader() {
               {!authLoading && user && !isPastor && (
                 <>
                   <button
-                    onClick={() => setShowNotifications(v => !v)}
+                    onClick={handleOpenNotifications}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
                   >
                     <Bell size={16} />
