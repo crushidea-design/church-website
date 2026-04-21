@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, setDoc, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth';
 import { useStore } from '../store/useStore';
 import { ArrowLeft, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
+import { getMcheyneReadingPlan } from '../lib/mcheyneUtils';
 
 interface SermonCategory {
   id: string;
@@ -39,10 +40,17 @@ export default function CreatePost() {
   const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
   const [researchCategoryId, setResearchCategoryId] = useState('');
   const [researchCategories, setResearchCategories] = useState<ResearchCategory[]>([]);
+  const [todayWordDate, setTodayWordDate] = useState(getLocalDateKey());
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const todayWordReadings = useMemo(() => {
+    if (type !== 'today_word' || !todayWordDate) return [];
+    const [y, m, d] = todayWordDate.split('-').map(Number);
+    return getMcheyneReadingPlan(new Date(y, m - 1, d));
+  }, [type, todayWordDate]);
 
   useEffect(() => {
     if (type === 'sermon') {
@@ -212,7 +220,7 @@ export default function CreatePost() {
       };
 
       if (type === 'today_word') {
-        postData.dateKey = getLocalDateKey();
+        postData.dateKey = todayWordDate || getLocalDateKey();
       }
 
       if (pdfUrl) {
@@ -487,6 +495,34 @@ export default function CreatePost() {
                 maxLength={200}
               />
             </div>
+
+            {type === 'today_word' && (
+              <div>
+                <label htmlFor="todayWordDate" className="block text-sm font-medium text-wood-700 mb-2">
+                  묵상 날짜
+                </label>
+                <input
+                  type="date"
+                  id="todayWordDate"
+                  value={todayWordDate}
+                  onChange={(e) => setTodayWordDate(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  required
+                />
+                {todayWordReadings.length > 0 && (
+                  <div className="mt-2 p-3 bg-wood-50 rounded-xl border border-wood-200">
+                    <p className="text-xs font-medium text-wood-500 mb-1.5">이 날의 맥체인 성경 읽기</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {todayWordReadings.map((passage, i) => (
+                        <span key={i} className="text-xs text-wood-700 bg-white border border-wood-200 rounded-full px-2.5 py-1">
+                          {passage.text}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {type === 'journal' && (
               <div>
