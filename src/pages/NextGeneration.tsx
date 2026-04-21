@@ -46,6 +46,7 @@ import {
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
+const RESOURCE_PAGE_SIZE = 10;
 
 const introImage = '/next-generation-2026.png';
 const elementaryImage = '/next-generation-2026.png';
@@ -777,6 +778,11 @@ function ResourceLibraryPage({
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab.id, sortDir]);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -792,7 +798,7 @@ function ResourceLibraryPage({
           constraints.push(where('subCategory', '==', activeTab.id));
         }
 
-        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(200));
+        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(150));
         const snapshot = await getDocs(q);
         const data = snapshot.docs
           .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost);
@@ -847,6 +853,10 @@ function ResourceLibraryPage({
       return counts;
     }, new Map<string, number>());
   }, [posts, usesTopicFolders]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTopicId]);
 
   const filteredPosts = useMemo(() => {
     const byDate = (a: NextGenerationPost, b: NextGenerationPost) =>
@@ -1019,7 +1029,7 @@ function ResourceLibraryPage({
             </div>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {filteredPosts.map((post, index) => {
+              {filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE).map((post, index) => {
                 const attachments = getPostAttachments(post);
 
                 return (
@@ -1062,6 +1072,72 @@ function ResourceLibraryPage({
               })}
             </div>
           )}
+
+          {!loading && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
+            const totalPages = Math.ceil(filteredPosts.length / RESOURCE_PAGE_SIZE);
+            const pageNumbers: (number | 'ellipsis')[] = [];
+
+            if (totalPages <= 7) {
+              for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+            } else {
+              pageNumbers.push(1);
+              if (currentPage > 3) pageNumbers.push('ellipsis');
+              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                pageNumbers.push(i);
+              }
+              if (currentPage < totalPages - 2) pageNumbers.push('ellipsis');
+              pageNumbers.push(totalPages);
+            }
+
+            return (
+              <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-bold text-slate-500">
+                  전체 {filteredPosts.length}개 중 {(currentPage - 1) * RESOURCE_PAGE_SIZE + 1}–{Math.min(currentPage * RESOURCE_PAGE_SIZE, filteredPosts.length)}번째
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    disabled={currentPage === 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-100 bg-white text-sm font-bold text-emerald-950 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="이전 페이지"
+                  >
+                    ‹
+                  </button>
+                  {pageNumbers.map((page, idx) =>
+                    page === 'ellipsis' ? (
+                      <span key={`ellipsis-${idx}`} className="flex h-9 w-9 items-center justify-center text-sm text-slate-400">
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-bold transition ${
+                          page === currentPage
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-sky-100 bg-white text-emerald-950 hover:bg-sky-50'
+                        }`}
+                        aria-current={page === currentPage ? 'page' : undefined}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    disabled={currentPage === totalPages}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-100 bg-white text-sm font-bold text-emerald-950 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="다음 페이지"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </section>
     </div>
