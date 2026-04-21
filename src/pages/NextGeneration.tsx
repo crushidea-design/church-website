@@ -46,9 +46,11 @@ import {
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
+const RESOURCE_PAGE_SIZE = 10;
 
-const introImage = '/next-generation-2026.png';
+const introImage = '/elementary-intro.png';
 const elementaryImage = '/next-generation-2026.png';
+const youngAdultsIntroImage = '/young-adults-intro.png';
 const youngAdultsImage = '/young-adults-pilgrims-progress.png';
 
 const elementaryWeeklyResourceIds = [
@@ -159,6 +161,11 @@ interface NextGenerationPost {
   category?: string;
   [key: string]: any;
 }
+
+const getYouTubeVideoId = (url: string): string | null => {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+  return match ? match[1] : null;
+};
 
 const getCreatedAtTime = (value: any) => {
   if (!value) return 0;
@@ -528,7 +535,7 @@ function IntroPage() {
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-2 pb-12 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:pb-16">
           <div className="order-2 overflow-hidden rounded-lg border border-sky-100 shadow-sm lg:order-1">
             <img
-              src={youngAdultsImage}
+              src={youngAdultsIntroImage}
               alt="청년부 자료실에 사용되는 천로역정 이미지"
               className="h-[220px] w-full object-cover sm:h-[340px] md:h-[420px]"
             />
@@ -772,6 +779,11 @@ function ResourceLibraryPage({
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab.id, sortDir]);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -787,7 +799,7 @@ function ResourceLibraryPage({
           constraints.push(where('subCategory', '==', activeTab.id));
         }
 
-        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(200));
+        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(150));
         const snapshot = await getDocs(q);
         const data = snapshot.docs
           .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost);
@@ -842,6 +854,10 @@ function ResourceLibraryPage({
       return counts;
     }, new Map<string, number>());
   }, [posts, usesTopicFolders]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTopicId]);
 
   const filteredPosts = useMemo(() => {
     const byDate = (a: NextGenerationPost, b: NextGenerationPost) =>
@@ -1014,7 +1030,7 @@ function ResourceLibraryPage({
             </div>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {filteredPosts.map((post, index) => {
+              {filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE).map((post, index) => {
                 const attachments = getPostAttachments(post);
 
                 return (
@@ -1057,6 +1073,72 @@ function ResourceLibraryPage({
               })}
             </div>
           )}
+
+          {!loading && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
+            const totalPages = Math.ceil(filteredPosts.length / RESOURCE_PAGE_SIZE);
+            const pageNumbers: (number | 'ellipsis')[] = [];
+
+            if (totalPages <= 7) {
+              for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+            } else {
+              pageNumbers.push(1);
+              if (currentPage > 3) pageNumbers.push('ellipsis');
+              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                pageNumbers.push(i);
+              }
+              if (currentPage < totalPages - 2) pageNumbers.push('ellipsis');
+              pageNumbers.push(totalPages);
+            }
+
+            return (
+              <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-bold text-slate-500">
+                  전체 {filteredPosts.length}개 중 {(currentPage - 1) * RESOURCE_PAGE_SIZE + 1}–{Math.min(currentPage * RESOURCE_PAGE_SIZE, filteredPosts.length)}번째
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    disabled={currentPage === 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-100 bg-white text-sm font-bold text-emerald-950 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="이전 페이지"
+                  >
+                    ‹
+                  </button>
+                  {pageNumbers.map((page, idx) =>
+                    page === 'ellipsis' ? (
+                      <span key={`ellipsis-${idx}`} className="flex h-9 w-9 items-center justify-center text-sm text-slate-400">
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-bold transition ${
+                          page === currentPage
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-sky-100 bg-white text-emerald-950 hover:bg-sky-50'
+                        }`}
+                        aria-current={page === currentPage ? 'page' : undefined}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    disabled={currentPage === totalPages}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-100 bg-white text-sm font-bold text-emerald-950 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="다음 페이지"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </section>
     </div>
@@ -1100,6 +1182,7 @@ function NextGenerationCreatePost() {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [materialFiles, setMaterialFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1183,6 +1266,10 @@ function NextGenerationCreatePost() {
         postData.nextGenerationTopicId = selectedTopicId;
       }
 
+      if (youtubeUrl.trim()) {
+        postData.youtubeUrl = youtubeUrl.trim();
+      }
+
       if (attachments.length > 0) {
         postData.pdfBase64 = serializeMaterialAttachments(attachments);
       }
@@ -1235,6 +1322,7 @@ function NextGenerationCreatePost() {
       setSuccessPostId(docRef.id);
       setTitle('');
       setContent('');
+      setYoutubeUrl('');
       setMaterialFiles([]);
       setUploadProgress(0);
     } catch (err: any) {
@@ -1415,9 +1503,32 @@ function NextGenerationCreatePost() {
               />
             </div>
 
+            {selectedResourceId === 'podcast_review' && (
+              <div>
+                <label htmlFor="next-generation-youtube-url" className="mb-2 block text-sm font-black text-emerald-950">
+                  유튜브 링크
+                </label>
+                <input
+                  id="next-generation-youtube-url"
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={(event) => setYoutubeUrl(event.target.value)}
+                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  maxLength={500}
+                />
+                {youtubeUrl && !getYouTubeVideoId(youtubeUrl) && (
+                  <p className="mt-2 text-xs font-bold text-red-600">유효한 유튜브 링크를 입력하세요.</p>
+                )}
+                {youtubeUrl && getYouTubeVideoId(youtubeUrl) && (
+                  <p className="mt-2 text-xs font-bold text-emerald-700">유효한 유튜브 링크입니다.</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label htmlFor="next-generation-content" className="mb-2 block text-sm font-black text-emerald-950">
-                내용
+                {selectedResourceId === 'podcast_review' ? '설명' : '내용'}
               </label>
               <textarea
                 id="next-generation-content"
@@ -1425,7 +1536,7 @@ function NextGenerationCreatePost() {
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-4 text-sm leading-7 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
-                placeholder="자료 안내와 함께 나눌 내용을 입력하세요"
+                placeholder={selectedResourceId === 'podcast_review' ? '팟캐스트 설명을 입력하세요' : '자료 안내와 함께 나눌 내용을 입력하세요'}
                 required
                 maxLength={50000}
               />
@@ -1608,6 +1719,20 @@ function NextGenerationPostDetail({ id }: { id: string }) {
             {post.title}
           </h1>
           <p className="mt-3 text-sm font-bold text-slate-500">{post.authorName}</p>
+
+          {post.youtubeUrl && getYouTubeVideoId(post.youtubeUrl) && (
+            <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
+              <div className="relative aspect-video">
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(post.youtubeUrl)}`}
+                  title={post.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 h-full w-full"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="mt-8 whitespace-pre-wrap text-base leading-8 text-slate-800">
             {post.content}
