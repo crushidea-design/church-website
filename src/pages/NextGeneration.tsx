@@ -308,12 +308,12 @@ function NextGenerationHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
         <Link to={NEXT_GENERATION_PATH} className="flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
             <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
           </span>
-          <span className="flex w-[198px] flex-col">
+          <span className="flex w-[160px] flex-col sm:w-[198px]">
             <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
               {Array.from('한우리교회 다음세대').map((char, index) => (
                 <span key={`${char}-${index}`} className={char === ' ' ? 'w-2' : ''}>
@@ -518,7 +518,7 @@ function IntroPage() {
             <img
               src={introImage}
               alt="밝은 교실에서 함께 배우는 아이들"
-              className="h-[340px] w-full object-cover sm:h-[420px]"
+              className="h-[220px] w-full object-cover sm:h-[340px] md:h-[420px]"
             />
           </div>
         </div>
@@ -526,15 +526,15 @@ function IntroPage() {
 
       <section className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-2 pb-12 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:pb-16">
-          <div className="overflow-hidden rounded-lg border border-sky-100 shadow-sm lg:order-1">
+          <div className="order-2 overflow-hidden rounded-lg border border-sky-100 shadow-sm lg:order-1">
             <img
               src={youngAdultsImage}
               alt="청년부 자료실에 사용되는 천로역정 이미지"
-              className="h-[340px] w-full object-cover sm:h-[420px]"
+              className="h-[220px] w-full object-cover sm:h-[340px] md:h-[420px]"
             />
           </div>
 
-          <div className="lg:order-2">
+          <div className="order-1 lg:order-2">
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-sky-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Users size={18} />
               언약 안에 살아가는 청년 1부
@@ -588,7 +588,7 @@ function IntroPage() {
           onClick={() => setActivePillar(null)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-emerald-100 bg-white p-6 shadow-xl sm:p-8"
+            className="max-h-[90vh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-lg border border-emerald-100 bg-white p-6 shadow-xl sm:max-h-[85vh] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -651,7 +651,7 @@ function IntroPage() {
           onClick={() => setActiveYoungAdultPillar(null)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-sky-100 bg-white p-6 shadow-xl sm:p-8"
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-lg border border-sky-100 bg-white p-6 shadow-xl sm:max-h-[85vh] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -708,7 +708,7 @@ function IntroPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-2">
             {sectionTabs.map((section) => (
               <Link
                 key={section.id}
@@ -975,7 +975,7 @@ function ResourceLibraryPage({
                       key={topic.id}
                       type="button"
                       onClick={() => setSearchParams({ resource: activeTab.id, topic: topic.id })}
-                      className={`min-w-[150px] rounded-lg border px-4 py-4 text-left transition ${
+                      className={`min-w-[120px] rounded-lg border px-4 py-4 text-left transition sm:min-w-[150px] ${
                         isActive
                           ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                           : 'border-sky-100 bg-sky-50 text-emerald-950 hover:border-emerald-200 hover:bg-white'
@@ -1013,7 +1013,7 @@ function ResourceLibraryPage({
               </p>
             </div>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
               {filteredPosts.map((post, index) => {
                 const attachments = getPostAttachments(post);
 
@@ -1287,7 +1287,7 @@ function NextGenerationCreatePost() {
           자료실로 돌아가기
         </button>
 
-        <section className="rounded-lg border border-white bg-white p-6 shadow-sm sm:p-8 lg:p-10">
+        <section className="rounded-lg border border-white bg-white p-4 shadow-sm sm:p-6 lg:p-10">
           <span className="mb-4 inline-flex rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
             {activeTab.name}
           </span>
