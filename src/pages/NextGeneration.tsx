@@ -742,12 +742,12 @@ function IntroPage() {
               <X size={20} />
             </button>
 
-            <div className="relative w-full">
+            <div className="relative flex h-[70vh] w-full items-center justify-center">
               <img
                 key={lightboxGallery[lightboxIndex].src}
                 src={lightboxGallery[lightboxIndex].src}
                 alt={lightboxGallery[lightboxIndex].alt}
-                className="mx-auto block max-h-[75vh] max-w-full rounded-lg object-contain shadow-2xl"
+                className="h-full w-full rounded-lg object-contain shadow-2xl"
               />
 
               {lightboxGallery.length > 1 && (
