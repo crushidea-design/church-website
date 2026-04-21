@@ -42,15 +42,15 @@ export default function NextGenerationQA() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Always load titles — public read is allowed
   useEffect(() => {
-    if (!hasAccess) return;
     const q = query(collection(db, 'next_generation_qa'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as QAItem)));
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [user, hasAccess]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,20 +83,6 @@ export default function NextGenerationQA() {
     if (!confirm('질문을 삭제하시겠습니까?')) return;
     await deleteDoc(doc(db, 'next_generation_qa', item.id));
   };
-
-  // Reset loading state when access is lost (e.g., after sign-out)
-  useEffect(() => {
-    if (!hasAccess) setLoading(true);
-  }, [hasAccess]);
-
-  if (!hasAccess) {
-    return (
-      <div className="max-w-lg mx-auto text-center py-16 px-4">
-        <Lock size={40} className="mx-auto mb-4 text-gray-300" />
-        <p className="text-gray-500 text-sm">회원 전용 공간입니다.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -225,32 +211,41 @@ export default function NextGenerationQA() {
 
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4">
-                  {/* Question content */}
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 mb-1.5">질문</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.content}</p>
-                  </div>
-
-                  {/* Answer */}
-                  {item.isAnswered && item.answer && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-xs font-medium text-amber-600 mb-1.5">
-                        목사님 답변 · {formatDate(item.answeredAt)}
-                      </p>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.answer}</p>
+                  {!hasAccess ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
+                      <Lock size={16} />
+                      <span className="text-sm">내용은 회원에게만 공개됩니다.</span>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {/* Question content */}
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs font-medium text-gray-500 mb-1.5">질문</p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.content}</p>
+                      </div>
 
-                  {/* Actions */}
-                  {(isOwner || isPastor) && (
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => handleDelete(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-colors"
-                      >
-                        <Trash2 size={13} /> 삭제
-                      </button>
-                    </div>
+                      {/* Answer */}
+                      {item.isAnswered && item.answer && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          <p className="text-xs font-medium text-amber-600 mb-1.5">
+                            목사님 답변 · {formatDate(item.answeredAt)}
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.answer}</p>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      {(isOwner || isPastor) && (
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleDelete(item)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-colors"
+                          >
+                            <Trash2 size={13} /> 삭제
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

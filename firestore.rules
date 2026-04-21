@@ -432,7 +432,7 @@ service cloud.firestore {
     }
 
     match /next_generation_qa/{qaId} {
-      allow read: if isNextGenerationAccess();
+      allow read: if true;
       allow create: if isNextGenerationAccess() &&
         request.resource.data.keys().hasOnly(['title', 'content', 'authorId', 'authorName', 'createdAt', 'isAnswered']) &&
         request.resource.data.authorId == request.auth.uid &&

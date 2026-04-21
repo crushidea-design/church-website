@@ -1418,6 +1418,9 @@ function ResourceLibraryPage({
 function YoungAdultsPage() {
   return (
     <>
+      <div className="bg-sky-50 py-10 border-b border-sky-100">
+        <NextGenerationQA />
+      </div>
       <ResourceLibraryPage
         departmentName="청년부"
         image={youngAdultsImage}
@@ -1428,9 +1431,6 @@ function YoungAdultsPage() {
         description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
         tabs={youngAdultResourceTabs}
       />
-      <div className="bg-sky-50 py-10 border-t border-sky-100">
-        <NextGenerationQA />
-      </div>
     </>
   );
 }
