@@ -485,7 +485,7 @@ function IntroPage() {
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
-              언약 안에서 자라가는 다음세대
+              언약 안에서 예배하는 유초등부
             </span>
             <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
               예배하는 유초등부
@@ -537,7 +537,7 @@ function IntroPage() {
           <div className="lg:order-2">
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-sky-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Users size={18} />
-              삶으로 이어지는 청년 1부
+              언약 안에 살아가는 청년 1부
             </span>
             <h2 className="max-w-3xl text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
               살아내는 청년 1부

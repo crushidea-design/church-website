@@ -19,7 +19,7 @@ export default function AdminLayout({
   description,
   children,
   backTo = '/admin',
-  backLabel = '관리자 홈',
+  backLabel = '관리자 대시보드',
   badge = 'ADMIN',
   icon,
   aside,
@@ -45,7 +45,7 @@ export default function AdminLayout({
               <button
                 onClick={handleBack}
                 className="mt-1 rounded-full border border-wood-200 p-2 text-wood-700 transition hover:bg-wood-50"
-                aria-label={`${backLabel}으로 돌아가기`}
+                aria-label={`${backLabel}로 돌아가기`}
               >
                 <ArrowLeft size={20} />
               </button>

@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, where, writeBatch, limit, getCountFromServer } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { useAuth } from '../lib/auth';
-import { FlaskConical, Plus, Trash2, ChevronUp, ChevronDown, Edit2, Save, X, ArrowLeft } from 'lucide-react';
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AdminCategoryManager, { AdminCategoryItem } from '../components/AdminCategoryManager';
+import { useAuth } from '../lib/auth';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 
-interface ResearchCategory {
-  id: string;
-  name: string;
-  order: number;
+interface ResearchCategory extends AdminCategoryItem {
   createdAt: any;
 }
 
@@ -20,12 +17,9 @@ export default function AdminResearchCategories() {
   const invalidateCache = useStore((state) => state.invalidateCache);
   const [categories, setCategories] = useState<ResearchCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newCategoryName, setNewCategoryName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deletingName, setDeletingName] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,88 +29,86 @@ export default function AdminResearchCategories() {
       return;
     }
 
-    const q = query(collection(db, 'research_categories'), orderBy('order', 'asc'), limit(100));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ResearchCategory[];
-      setCategories(data);
-      setStoreCategories('researchCategories', data);
-      invalidateCache('research');
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching research categories:', error);
-      handleFirestoreError(error, OperationType.GET, 'research_categories');
-      setLoading(false);
-    });
+    const categoryQuery = query(collection(db, 'research_categories'), orderBy('order', 'asc'), limit(100));
+    const unsubscribe = onSnapshot(
+      categoryQuery,
+      (snapshot) => {
+        const data = snapshot.docs.map((categoryDoc) => ({
+          id: categoryDoc.id,
+          ...categoryDoc.data(),
+        })) as ResearchCategory[];
+        setCategories(data);
+        setStoreCategories('researchCategories', data);
+        invalidateCache('research');
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching research categories:', error);
+        handleFirestoreError(error, OperationType.GET, 'research_categories');
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
-  }, [role, authLoading, navigate]);
+  }, [role, authLoading, navigate, invalidateCache, setStoreCategories]);
 
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddCategory = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!newCategoryName.trim()) return;
 
     setIsAdding(true);
     try {
-      const nextOrder = categories.length > 0 
-        ? Math.max(...categories.map(c => c.order)) + 1 
-        : 0;
-
+      const nextOrder = categories.length > 0 ? Math.max(...categories.map((category) => category.order)) + 1 : 0;
       await addDoc(collection(db, 'research_categories'), {
         name: newCategoryName.trim(),
         order: nextOrder,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       });
       setNewCategoryName('');
     } catch (error) {
       console.error('Error adding research category:', error);
-      alert('카테고리 추가 중 오류가 발생했습니다.');
+      alert('카테고리를 추가하는 중 오류가 발생했습니다.');
     } finally {
       setIsAdding(false);
     }
   };
 
-  const handleUpdateCategory = async (id: string) => {
-    if (!editName.trim()) return;
+  const handleUpdateCategory = async (id: string, name: string) => {
+    if (!name.trim()) return;
 
     try {
       await updateDoc(doc(db, 'research_categories', id), {
-        name: editName.trim()
+        name: name.trim(),
       });
-      setEditingId(null);
     } catch (error) {
       console.error('Error updating research category:', error);
-      alert('카테고리 수정 중 오류가 발생했습니다.');
+      alert('카테고리 이름을 수정하는 중 오류가 발생했습니다.');
     }
   };
 
   const handleDeleteCategory = async (id: string, name: string) => {
-    // Check if there are posts using this category
-    const q = query(collection(db, 'posts'), where('researchCategoryId', '==', id), limit(1));
-    const snapshot = await getCountFromServer(q);
+    const postQuery = query(collection(db, 'posts'), where('researchCategoryId', '==', id), limit(1));
+    const snapshot = await getCountFromServer(postQuery);
     const count = snapshot.data().count;
-    
+
     if (count > 0) {
-      alert(`'${name}' 카테고리를 사용하는 연구글이 존재합니다. 먼저 연구글들의 카테고리를 변경하거나 삭제해주세요.`);
-      return;
+      alert(`'${name}' 카테고리를 사용하는 연구 글이 있어 먼저 이동 또는 정리가 필요합니다.`);
+      return false;
     }
 
-    setDeletingId(id);
-    setDeletingName(name);
+    setPendingDeleteId(id);
+    return true;
   };
 
   const confirmDelete = async () => {
-    if (!deletingId) return;
+    if (!pendingDeleteId) return;
 
     try {
-      await deleteDoc(doc(db, 'research_categories', deletingId));
-      setDeletingId(null);
-      setDeletingName('');
+      await deleteDoc(doc(db, 'research_categories', pendingDeleteId));
+      setPendingDeleteId(null);
     } catch (error) {
       console.error('Error deleting research category:', error);
-      alert('카테고리 삭제 중 오류가 발생했습니다.');
+      alert('카테고리를 삭제하는 중 오류가 발생했습니다.');
     }
   };
 
@@ -125,202 +117,52 @@ export default function AdminResearchCategories() {
     if (direction === 'down' && index === categories.length - 1) return;
 
     const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const newCategories = [...categories];
-    const temp = newCategories[index];
-    newCategories[index] = newCategories[newIndex];
-    newCategories[newIndex] = temp;
+    const reordered = [...categories];
+    const current = reordered[index];
+    reordered[index] = reordered[newIndex];
+    reordered[newIndex] = current;
+
+    const normalized = reordered.map((category, currentIndex) => ({
+      ...category,
+      order: currentIndex,
+    }));
 
     const batch = writeBatch(db);
-    newCategories.forEach((cat, idx) => {
-      batch.update(doc(db, 'research_categories', cat.id), { order: idx });
+    normalized.forEach((category) => {
+      batch.update(doc(db, 'research_categories', category.id), { order: category.order });
     });
 
     try {
       await batch.commit();
     } catch (error) {
       console.error('Error reordering research categories:', error);
-      alert('순서 변경 중 오류가 발생했습니다.');
+      alert('카테고리 순서를 변경하는 중 오류가 발생했습니다.');
     }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-wood-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-wood-100 min-h-screen py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => navigate('/admin')}
-            className="p-2 hover:bg-white rounded-full transition shadow-sm border border-wood-200"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="p-3 bg-white rounded-2xl shadow-sm border border-wood-200">
-            <FlaskConical className="text-wood-900" size={24} />
-          </div>
-          <div>
-            <h1 className="text-3xl font-serif font-bold text-wood-900">교회 연구실 카테고리 관리</h1>
-            <p className="text-wood-600">연구글들을 묶을 카테고리를 관리합니다.</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-sm border border-wood-200 p-8 mb-8">
-          <h2 className="text-xl font-bold text-wood-900 mb-6">새 카테고리 추가</h2>
-          <form onSubmit={handleAddCategory} className="flex gap-4">
-            <input
-              type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="예: 예배학, 설교학, 조직신학"
-              className="flex-grow rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
-              required
-            />
-            <button
-              type="submit"
-              disabled={isAdding || !newCategoryName.trim()}
-              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-sm font-medium disabled:opacity-50"
-            >
-              <Plus size={20} className="mr-2" />
-              추가하기
-            </button>
-          </form>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-sm border border-wood-200 overflow-hidden">
-          <div className="p-6 border-b border-wood-100 bg-wood-50/50">
-            <h2 className="font-bold text-wood-900">카테고리 목록 ({categories.length})</h2>
-          </div>
-          <div className="divide-y divide-wood-100">
-            {categories.length === 0 ? (
-              <div className="p-12 text-center text-wood-500">
-                등록된 카테고리가 없습니다.
-              </div>
-            ) : (
-              categories.map((category, index) => (
-                <div key={category.id} className="p-6 flex items-center justify-between hover:bg-wood-50/30 transition">
-                  <div className="flex items-center gap-4 flex-grow">
-                    <div className="flex flex-col gap-1">
-                      <button 
-                        onClick={() => moveCategory(index, 'up')}
-                        disabled={index === 0}
-                        className="p-1 text-wood-300 hover:text-wood-600 disabled:opacity-30"
-                      >
-                        <ChevronUp size={16} />
-                      </button>
-                      <button 
-                        onClick={() => moveCategory(index, 'down')}
-                        disabled={index === categories.length - 1}
-                        className="p-1 text-wood-300 hover:text-wood-600 disabled:opacity-30"
-                      >
-                        <ChevronDown size={16} />
-                      </button>
-                    </div>
-                    {editingId === category.id ? (
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="flex-grow rounded-lg border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-2 bg-white"
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="text-lg font-medium text-wood-900">{category.name}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {editingId === category.id ? (
-                      <>
-                        <button
-                          onClick={() => handleUpdateCategory(category.id)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                          title="저장"
-                        >
-                          <Save size={20} />
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="p-2 text-wood-400 hover:bg-wood-100 rounded-lg transition"
-                          title="취소"
-                        >
-                          <X size={20} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            setEditingId(category.id);
-                            setEditName(category.name);
-                          }}
-                          className="p-2 text-wood-400 hover:text-wood-900 hover:bg-wood-100 rounded-lg transition"
-                          title="수정"
-                        >
-                          <Edit2 size={20} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(category.id, category.name)}
-                          className="p-2 text-wood-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                          title="삭제"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <AnimatePresence>
-          {deletingId && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="bg-white rounded-[2rem] p-10 max-w-md w-full shadow-2xl border border-red-100 relative overflow-hidden"
-              >
-                <div className="absolute top-0 left-0 w-full h-2 bg-red-500" />
-                <div className="mb-6 flex justify-center">
-                  <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600">
-                    <Trash2 size={32} />
-                  </div>
-                </div>
-                <h3 className="text-2xl font-serif font-bold text-wood-900 mb-4 text-center">카테고리 영구 삭제</h3>
-                <p className="text-wood-600 mb-8 text-center leading-relaxed">
-                  '<span className="font-bold text-red-600">{deletingName}</span>' 카테고리를 삭제하시겠습니까?<br />
-                  <span className="text-sm text-red-500 mt-2 block font-medium">※ 이 작업은 되돌릴 수 없으며, 모든 관련 데이터가 정리됩니다.</span>
-                </p>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => {
-                      setDeletingId(null);
-                      setDeletingName('');
-                    }}
-                    className="flex-1 px-6 py-4 border border-wood-200 rounded-2xl text-wood-600 hover:bg-wood-50 transition-all font-bold"
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={confirmDelete}
-                    className="flex-1 px-6 py-4 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all font-bold shadow-lg shadow-red-200"
-                  >
-                    삭제 확정
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
+    <AdminCategoryManager
+      title="교회연구실 카테고리"
+      description="연구 글을 분류하는 이름과 순서를 정리해서, 글 작성 화면과 공개 페이지 흐름이 더 단정하게 이어지도록 맞췄습니다."
+      badge="콘텐츠"
+      icon={<FlaskConical size={14} />}
+      categories={categories}
+      loading={authLoading || loading}
+      newCategoryName={newCategoryName}
+      onNewCategoryNameChange={setNewCategoryName}
+      onAddCategory={handleAddCategory}
+      onUpdateCategory={handleUpdateCategory}
+      onDeleteCategory={handleDeleteCategory}
+      onConfirmDelete={confirmDelete}
+      onMoveCategory={moveCategory}
+      isAdding={isAdding}
+      addTitle="새 카테고리 추가"
+      addPlaceholder="예: 교리, 교회론, 공동체, 목양"
+      listTitle="카테고리 목록"
+      emptyMessage="등록된 교회연구실 카테고리가 없습니다."
+      deleteTitle="카테고리 삭제"
+      deleteDescription="삭제 후에는 연결 구조가 비어 보일 수 있으니, 공개 글 정리 여부를 먼저 확인해 주세요."
+      helperText="연구실 카테고리는 너무 세분화하기보다, 실제 독자가 탐색할 때 헷갈리지 않을 정도의 큰 주제로 유지하는 편이 좋습니다."
+    />
   );
 }
