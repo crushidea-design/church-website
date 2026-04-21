@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { ArrowLeft, Save, Loader2, Info } from 'lucide-react';
+import { Save, Loader2, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import AdminLayout from '../components/AdminLayout';
@@ -209,24 +209,13 @@ export default function AdminChurchInfo() {
   return (
     <AdminLayout
       title="교회 정보 관리"
-      description="교회 소개 페이지의 문구와 구성 요소를 한 곳에서 수정합니다."
+      description="교회 소개 페이지의 문구와 구성 요소를 한곳에서 수정합니다."
+      backTo="/admin"
+      backLabel="관리자 대시보드"
       icon={<Info size={14} />}
       maxWidthClassName="max-w-4xl"
     >
-        <button
-          onClick={() => navigate('/admin')}
-          className="inline-flex items-center text-sm font-medium text-wood-600 hover:text-wood-900 mb-8 transition"
-        >
-          <ArrowLeft size={16} className="mr-2" />
-          관리자 대시보드
-        </button>
-
         <div className="bg-white rounded-3xl shadow-sm border border-wood-200 overflow-hidden">
-          <div className="p-8 md:p-12 border-b border-wood-100 bg-wood-50/50">
-            <h1 className="text-3xl font-serif font-bold text-wood-900 mb-2">교회 정보 관리</h1>
-            <p className="text-wood-600">교회 소개 페이지의 모든 텍스트를 수정할 수 있습니다.</p>
-          </div>
-
           <div className="border-b border-wood-200 px-8 md:px-12 pt-4 bg-white">
             <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
               {tabs.map((tab) => (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -8,6 +8,7 @@ import { Users, Shield, User as UserIcon, CheckCircle2, AlertCircle } from 'luci
 import { Link, useNavigate } from 'react-router-dom';
 
 import { UserRole } from '../types';
+import AdminLayout from '../components/AdminLayout';
 
 export default function AdminUsers() {
   const { user, role, loading: authLoading } = useAuth();
@@ -67,12 +68,15 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="bg-wood-100 min-h-screen py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-12 border-b border-wood-200 pb-6">
-          <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">회원 관리</h1>
-          <p className="text-wood-600 text-lg">교회 회원들의 등급을 관리하고 권한을 부여합니다.</p>
-        </div>
+    <AdminLayout
+      title="회원 관리"
+      description="교회 사용자와 관리자 권한을 한눈에 확인하고 조정합니다."
+      backTo="/admin"
+      backLabel="관리자 대시보드"
+      badge="운영"
+      icon={<Users size={14} />}
+      maxWidthClassName="max-w-7xl"
+    >
 
         <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -220,7 +224,6 @@ export default function AdminUsers() {
             </p>
           </div>
         </div>
-      </div>
-    </div>
+    </AdminLayout>
   );
 }
