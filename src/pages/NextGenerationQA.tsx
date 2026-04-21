@@ -43,7 +43,7 @@ export default function NextGenerationQA() {
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
-    if (!user) return;
+    if (!hasAccess) return;
     const q = query(collection(db, 'next_generation_qa'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as QAItem)));
