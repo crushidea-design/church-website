@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl', 'attachmentCount'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -145,7 +145,8 @@ service cloud.firestore {
              (!('isPublished' in data) || data.isPublished is bool) &&
              (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
              (!('targetUserIds' in data) || data.targetUserIds is list) &&
-             (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500));
+             (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500)) &&
+             (!('attachmentCount' in data) || (data.attachmentCount is number && data.attachmentCount >= 0 && data.attachmentCount <= 20));
 
       let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', 'podcast_review', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
@@ -432,7 +433,7 @@ service cloud.firestore {
     }
 
     match /next_generation_qa/{qaId} {
-      allow read: if true;
+      allow read: if isAuthenticated();
       allow create: if isNextGenerationAccess() &&
         request.resource.data.keys().hasOnly(['title', 'content', 'authorId', 'authorName', 'createdAt', 'isAnswered']) &&
         request.resource.data.authorId == request.auth.uid &&
@@ -458,6 +459,25 @@ service cloud.firestore {
       allow update: if isNextGenerationPastor() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
       allow delete: if isNextGenerationPastor();
+    }
+
+    match /next_generation_post_files/{postId} {
+      // Only approved members (full members) and pastor can read download URLs
+      allow read: if isNextGenerationAccess();
+      // Only the post author (or pastor) can write file data
+      allow create, update: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['postId', 'pdfUrl', 'pdfName', 'pdfBase64', 'attachments', 'updatedAt']) &&
+        request.resource.data.postId == postId &&
+        (!('pdfUrl' in request.resource.data) || (request.resource.data.pdfUrl is string && request.resource.data.pdfUrl.size() < 2000)) &&
+        (!('pdfName' in request.resource.data) || (request.resource.data.pdfName is string && request.resource.data.pdfName.size() < 500)) &&
+        (!('pdfBase64' in request.resource.data) || (request.resource.data.pdfBase64 is string && request.resource.data.pdfBase64.size() < 1000000)) &&
+        (!('attachments' in request.resource.data) || (request.resource.data.attachments is list && request.resource.data.attachments.size() <= 10)) &&
+        request.resource.data.updatedAt is timestamp &&
+        (isAdmin() ||
+          get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+      allow delete: if isAuthenticated() &&
+        (isAdmin() ||
+          get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
     }
 
     // ──────────────────────────────────────────────────────────────────

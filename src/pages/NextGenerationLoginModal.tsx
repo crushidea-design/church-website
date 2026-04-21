@@ -585,16 +585,15 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
               <div>
                 <p className="font-semibold text-gray-800">가입 신청이 완료되었습니다!</p>
                 <p className="text-sm text-gray-500 mt-2">
-                  목사님의 승인 후 다운로드와 질문하기 기능을 사용할 수 있습니다.<br />
+                  준회원으로 자료 열람과 질문 확인 등 대부분의 기능을 바로 이용할 수 있습니다.<br />
                   승인 여부는 알림(벨 아이콘)으로 안내해 드립니다.
                 </p>
               </div>
-              <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-left">
-                <p className="text-xs font-semibold text-sky-700 mb-2">대기 중에도 이용 가능한 기능</p>
-                <ul className="space-y-1 text-xs text-sky-600">
-                  <li>✓ 강의자료 · 팟캐스트 · 수련회 자료 열람</li>
-                  <li>✓ 질문 목록 및 답변 확인</li>
-                  <li>✓ 문의하기</li>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-left">
+                <p className="text-xs font-semibold text-gray-500 mb-2">승인 후 추가 이용 가능</p>
+                <ul className="space-y-1 text-xs text-gray-500">
+                  <li>· 자료 파일 다운로드</li>
+                  <li>· 질문 등록</li>
                 </ul>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 text-left">
@@ -628,12 +627,14 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                   </div>
                 )}
               </div>
-              <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-left">
-                <p className="text-xs font-semibold text-sky-700 mb-2">현재 이용 가능한 기능</p>
-                <ul className="space-y-1 text-xs text-sky-600">
-                  <li>✓ 강의자료 · 팟캐스트 · 수련회 자료 열람</li>
-                  <li>✓ 질문 목록 및 답변 확인</li>
-                  <li>✓ 문의하기</li>
+              <p className="text-sm text-gray-500 mt-2">
+                준회원으로 자료 열람과 질문 확인 등 대부분의 기능을 이용할 수 있습니다.
+              </p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-left">
+                <p className="text-xs font-semibold text-gray-500 mb-2">승인 후 추가 이용 가능</p>
+                <ul className="space-y-1 text-xs text-gray-500">
+                  <li>· 자료 파일 다운로드</li>
+                  <li>· 질문 등록</li>
                 </ul>
               </div>
               <p className="text-xs text-gray-500">

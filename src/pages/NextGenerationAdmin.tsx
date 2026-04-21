@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
   deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
+  getDocs, getDoc, setDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { NextGenerationMember, Department } from '../lib/nextGenerationAuth';
+import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
-  Bell, MessageSquare, Mail, Clock, Search,
+  Bell, MessageSquare, Mail, Clock, Search, ShieldCheck, RefreshCw,
+  AlertTriangle, CheckCircle2,
 } from 'lucide-react';
 
 interface QAItem {
@@ -32,7 +35,14 @@ interface ContactItem {
   isRead: boolean;
 }
 
-type AdminTab = 'members' | 'qa' | 'contacts';
+type AdminTab = 'members' | 'qa' | 'contacts' | 'migration';
+
+interface MigrationRow {
+  postId: string;
+  title: string;
+  status: 'pending' | 'done' | 'skipped' | 'error';
+  error?: string;
+}
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',
@@ -63,6 +73,11 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   // QA answer modal
   const [answerTargetId, setAnswerTargetId] = useState<string | null>(null);
   const [answerText, setAnswerText] = useState('');
+
+  // Migration
+  const [migrationRows, setMigrationRows] = useState<MigrationRow[]>([]);
+  const [migrationRunning, setMigrationRunning] = useState(false);
+  const [migrationScanned, setMigrationScanned] = useState(false);
 
   // Subscribe to members
   useEffect(() => {
@@ -185,6 +200,86 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     await updateDoc(doc(db, 'next_generation_contacts', id), { isRead: true });
   };
 
+  // ── Migration helpers ─────────────────────────────────────────────
+
+  /** Scan all next_generation posts and find those with inline attachment URLs */
+  const scanForMigration = async () => {
+    setMigrationScanned(false);
+    setMigrationRows([]);
+    const snap = await getDocs(
+      query(collection(db, 'posts'), where('category', '==', 'next_generation'))
+    );
+    const rows: MigrationRow[] = snap.docs
+      .filter(d => {
+        const data = d.data();
+        return data.pdfUrl || data.pdfBase64 || Array.isArray(data.attachments);
+      })
+      .map(d => ({ postId: d.id, title: d.data().title || '(제목 없음)', status: 'pending' }));
+    setMigrationRows(rows);
+    setMigrationScanned(true);
+  };
+
+  /** Migrate a single post: move URLs to subcollection and strip from post doc */
+  const migratePost = async (index: number, postId: string): Promise<'done' | 'skipped' | string> => {
+    const postSnap = await getDoc(doc(db, 'posts', postId));
+    if (!postSnap.exists()) return 'skipped';
+
+    const data = postSnap.data() as any;
+    const attachments = getPostAttachments(data);
+    if (attachments.length === 0) return 'skipped';
+
+    // Skip if file doc already up-to-date (idempotent)
+    const existingFileSnap = await getDoc(doc(db, 'next_generation_post_files', postId));
+    const alreadyMigrated = existingFileSnap.exists();
+
+    // Write to restricted subcollection (overwrite to ensure fresh data)
+    const fileData: any = {
+      postId,
+      updatedAt: serverTimestamp(),
+      pdfBase64: serializeMaterialAttachments(attachments),
+    };
+    if (data.pdfUrl) {
+      fileData.pdfUrl = data.pdfUrl;
+      if (data.pdfName) fileData.pdfName = data.pdfName;
+    }
+    await setDoc(doc(db, 'next_generation_post_files', postId), fileData);
+
+    // Strip inline URL fields from the public post doc
+    await updateDoc(doc(db, 'posts', postId), {
+      pdfUrl: deleteField(),
+      pdfName: deleteField(),
+      pdfBase64: deleteField(),
+      pdfChunkCount: deleteField(),
+      attachments: deleteField(),
+      attachmentCount: attachments.length,
+    });
+
+    return alreadyMigrated ? 'done' : 'done';
+  };
+
+  /** Run migration over all scanned rows with progress tracking */
+  const runMigration = async () => {
+    if (migrationRows.length === 0) return;
+    setMigrationRunning(true);
+    const updated = [...migrationRows];
+    for (let i = 0; i < updated.length; i++) {
+      updated[i] = { ...updated[i], status: 'pending' };
+      setMigrationRows([...updated]);
+      try {
+        const result = await migratePost(i, updated[i].postId);
+        updated[i] = { ...updated[i], status: result as 'done' | 'skipped' };
+      } catch (err: any) {
+        updated[i] = { ...updated[i], status: 'error', error: err?.message || '오류' };
+      }
+      setMigrationRows([...updated]);
+    }
+    setMigrationRunning(false);
+  };
+
+  const migrationDone = migrationRows.filter(r => r.status === 'done').length;
+  const migrationError = migrationRows.filter(r => r.status === 'error').length;
+  const migrationPending = migrationRows.filter(r => r.status === 'pending').length;
+
   const MemberRow = ({ m }: { m: NextGenerationMember }) => {
     const isExpanded = expandedId === m.uid;
     return (
@@ -286,11 +381,12 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b border-gray-200 overflow-x-auto">
           {([
             { key: 'members', label: '회원 관리', badge: pendingMembers.length },
             { key: 'qa', label: 'Q&A', badge: unansweredQA },
             { key: 'contacts', label: '문의', badge: unreadContacts },
+            { key: 'migration', label: '자료 이전', badge: 0 },
           ] as const).map(t => (
             <button
               key={t.key}
@@ -437,6 +533,121 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* MIGRATION TAB */}
+          {tab === 'migration' && (
+            <div>
+              {/* Description */}
+              <div className="flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-200 p-4 mb-4">
+                <ShieldCheck size={20} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-amber-800 space-y-1">
+                  <p className="font-semibold">자료 URL 보안 이전</p>
+                  <p>이전에 등록된 다음세대 자료 중 PDF/첨부파일 URL이 공개 문서에 저장된 게시물을 찾아, 정회원 전용 보안 저장소로 이전합니다.</p>
+                  <p className="text-xs text-amber-600">이전 후에는 기존 다운로드 링크가 그대로 유지되며 정회원만 접근 가능해집니다.</p>
+                </div>
+              </div>
+
+              {/* Step 1: Scan */}
+              <div className="mb-4">
+                <button
+                  onClick={scanForMigration}
+                  disabled={migrationRunning}
+                  className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
+                >
+                  <Search size={15} />
+                  이전 대상 게시물 검색
+                </button>
+              </div>
+
+              {migrationScanned && (
+                <>
+                  {/* Scan result summary */}
+                  {migrationRows.length === 0 ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-700 mb-4">
+                      <CheckCircle2 size={18} />
+                      <span>이전이 필요한 게시물이 없습니다. 모두 안전합니다.</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-gray-700">
+                          이전 대상: <span className="font-bold text-amber-600">{migrationRows.length}개</span>
+                          {migrationDone > 0 && (
+                            <span className="ml-2 text-emerald-600">✓ 완료 {migrationDone}</span>
+                          )}
+                          {migrationError > 0 && (
+                            <span className="ml-2 text-red-500">✗ 오류 {migrationError}</span>
+                          )}
+                        </p>
+                        <button
+                          onClick={runMigration}
+                          disabled={migrationRunning || migrationPending === 0}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
+                        >
+                          {migrationRunning
+                            ? <><RefreshCw size={14} className="animate-spin" /> 이전 중...</>
+                            : <><ShieldCheck size={14} /> 일괄 이전 실행</>}
+                        </button>
+                      </div>
+
+                      {/* Progress bar */}
+                      {migrationRunning && (
+                        <div className="mb-3">
+                          <div className="h-2 w-full rounded-full bg-gray-200">
+                            <div
+                              className="h-2 rounded-full bg-emerald-500 transition-all"
+                              style={{ width: `${Math.round((migrationDone + migrationError) / migrationRows.length * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Row list */}
+                      <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                        {migrationRows.map(row => (
+                          <div
+                            key={row.postId}
+                            className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
+                              row.status === 'done'    ? 'border-emerald-200 bg-emerald-50' :
+                              row.status === 'error'   ? 'border-red-200 bg-red-50' :
+                              row.status === 'skipped' ? 'border-gray-200 bg-gray-50' :
+                                                         'border-gray-200 bg-white'
+                            }`}
+                          >
+                            <span className="flex-shrink-0">
+                              {row.status === 'done'    && <CheckCircle2 size={15} className="text-emerald-500" />}
+                              {row.status === 'error'   && <AlertTriangle size={15} className="text-red-500" />}
+                              {row.status === 'skipped' && <span className="text-gray-400 text-xs">-</span>}
+                              {row.status === 'pending' && (
+                                migrationRunning
+                                  ? <RefreshCw size={14} className="animate-spin text-sky-400" />
+                                  : <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-gray-300" />
+                              )}
+                            </span>
+                            <span className="flex-1 truncate text-gray-800 font-medium">{row.title}</span>
+                            <span className="flex-shrink-0 text-xs text-gray-400">
+                              {row.status === 'done'    && '완료'}
+                              {row.status === 'error'   && (row.error || '오류')}
+                              {row.status === 'skipped' && '건너뜀'}
+                              {row.status === 'pending' && '대기'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* All done message */}
+                      {!migrationRunning && migrationPending === 0 && migrationDone > 0 && (
+                        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 mt-3 text-sm text-emerald-700">
+                          <CheckCircle2 size={16} />
+                          <span>이전 완료. 자료 URL이 정회원 전용 저장소로 안전하게 이동되었습니다.</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
 

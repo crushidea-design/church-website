@@ -123,11 +123,27 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           setNextGenerationWeekKey(data.nextGenerationWeekKey || '');
           setSermonCategoryId(data.sermonCategoryId || '');
           setResearchCategoryId(data.researchCategoryId || '');
-          setExistingPdfUrl(data.pdfUrl || '');
-          setExistingPdfName(data.pdfName || '');
-          setExistingPdfBase64(data.pdfBase64 || '');
-          setExistingPdfChunkCount(data.pdfChunkCount || 0);
-          setExistingAttachments(getPostAttachments(data));
+          // For next_generation posts, download URLs are stored in a restricted
+          // subcollection. Try loading from there first (accessible only to
+          // approved members/pastor); fall back to legacy inline fields for
+          // old posts.
+          let effectiveData: any = data;
+          if (data.category === 'next_generation') {
+            try {
+              const fileSnap = await getDoc(doc(db, 'next_generation_post_files', id));
+              if (fileSnap.exists()) {
+                const fileData = fileSnap.data();
+                effectiveData = { ...data, ...fileData };
+              }
+            } catch (e) {
+              // rule-blocked or not found — keep inline fallback
+            }
+          }
+          setExistingPdfUrl(effectiveData.pdfUrl || '');
+          setExistingPdfName(effectiveData.pdfName || '');
+          setExistingPdfBase64(effectiveData.pdfBase64 || '');
+          setExistingPdfChunkCount(effectiveData.pdfChunkCount || 0);
+          setExistingAttachments(getPostAttachments(effectiveData));
           
           // Check permission: only author or admin can edit
           if (!authLoading && user) {
@@ -307,23 +323,21 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
       if (isNextGeneration) {
         updateData.subCategory = subCategory;
 
-        if (nextGenerationAttachments.length > 0) {
-          updateData.pdfBase64 = serializeMaterialAttachments(nextGenerationAttachments);
-        } else {
-          updateData.pdfBase64 = deleteField();
-        }
-
+        // Security (Option B): download URLs must not live in the public post doc.
+        // Always strip them from `posts/{id}` and route them to the restricted
+        // subcollection `next_generation_post_files/{id}` which only approved
+        // members and pastor can read.
+        updateData.pdfBase64 = deleteField();
+        updateData.pdfUrl = deleteField();
+        updateData.pdfName = deleteField();
         updateData.attachments = deleteField();
-
-        if (pdfUrl) {
-          updateData.pdfName = pdfName;
-          updateData.pdfUrl = pdfUrl;
-        } else {
-          updateData.pdfUrl = deleteField();
-          updateData.pdfName = deleteField();
-        }
-
         updateData.pdfChunkCount = deleteField();
+
+        if (nextGenerationAttachments.length > 0) {
+          updateData.attachmentCount = nextGenerationAttachments.length;
+        } else {
+          updateData.attachmentCount = deleteField();
+        }
 
         if (supportsNextGenerationTopic(subCategory)) {
           updateData.nextGenerationTopicId = nextGenerationTopicId;
@@ -390,6 +404,30 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         await runUpdate(fallbackUpdateData);
       }
       console.log('Post updated successfully');
+
+      // Persist restricted download metadata to the member-only subcollection.
+      if (isNextGeneration) {
+        const fileDocRef = doc(db, 'next_generation_post_files', id);
+        if (nextGenerationAttachments.length > 0) {
+          const fileData: any = {
+            postId: id,
+            updatedAt: serverTimestamp(),
+            pdfBase64: serializeMaterialAttachments(nextGenerationAttachments),
+          };
+          if (pdfUrl) {
+            fileData.pdfUrl = pdfUrl;
+            fileData.pdfName = pdfName;
+          }
+          await setDoc(fileDocRef, fileData);
+        } else {
+          // No attachments: remove any previously stored file doc
+          try {
+            await deleteDoc(fileDocRef);
+          } catch (e) {
+            // Ignore if it didn't exist
+          }
+        }
+      }
 
       // Handle long content chunks update
       if (isLongContent) {

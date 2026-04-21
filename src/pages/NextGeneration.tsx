@@ -1324,7 +1324,11 @@ function ResourceLibraryPage({
             <>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
               {((isGuest && guestPostLimit) ? filteredPosts.slice(0, guestPostLimit) : filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE)).map((post, index) => {
-                const attachments = getPostAttachments(post);
+                // attachmentCount is the non-sensitive count stored on the post doc for new posts.
+                // getPostAttachments(post) is the legacy fallback for posts that still have inline attachments.
+                const attachmentCount = typeof post.attachmentCount === 'number'
+                  ? post.attachmentCount
+                  : getPostAttachments(post).length;
 
                 return (
                   <motion.article
@@ -1353,10 +1357,10 @@ function ResourceLibraryPage({
                       </p>
                       <div className="mt-5 flex items-center justify-between gap-3 border-t border-sky-50 pt-4 text-sm text-slate-600">
                         <span>{formatDate(post.createdAt)}</span>
-                        {attachments.length > 0 && (
+                        {attachmentCount > 0 && (
                           <span className="inline-flex items-center gap-1 font-bold text-coral-700">
                             <Download size={16} />
-                            자료 {attachments.length}
+                            자료 {attachmentCount}
                           </span>
                         )}
                       </div>
@@ -1581,13 +1585,11 @@ function NextGenerationCreatePost() {
         postData.youtubeUrl = youtubeUrl.trim();
       }
 
+      // Security (Option B): Do NOT store download URLs in the public post doc.
+      // We only keep a non-sensitive count here so guests/non-members can see
+      // "자료 N개" badge without being able to extract URLs via direct Firestore read.
       if (attachments.length > 0) {
-        postData.pdfBase64 = serializeMaterialAttachments(attachments);
-      }
-
-      if (firstPdfAttachment) {
-        postData.pdfUrl = firstPdfAttachment.url;
-        postData.pdfName = firstPdfAttachment.name;
+        postData.attachmentCount = attachments.length;
       }
 
       const isLongContent = new TextEncoder().encode(content).length > 1400;
@@ -1628,6 +1630,21 @@ function NextGenerationCreatePost() {
             createdAt: serverTimestamp(),
           });
         }
+      }
+
+      // Write downloadable file metadata to a restricted subcollection
+      // that only approved members (and pastor) can read.
+      if (attachments.length > 0) {
+        const fileData: any = {
+          postId: docRef.id,
+          updatedAt: serverTimestamp(),
+          pdfBase64: serializeMaterialAttachments(attachments),
+        };
+        if (firstPdfAttachment) {
+          fileData.pdfUrl = firstPdfAttachment.url;
+          fileData.pdfName = firstPdfAttachment.name;
+        }
+        await setDoc(doc(db, 'next_generation_post_files', docRef.id), fileData);
       }
 
       setSuccessPostId(docRef.id);
@@ -1960,6 +1977,24 @@ function NextGenerationPostDetail({ id }: { id: string }) {
           }
         }
 
+        // Load restricted download file metadata only if the user is an approved
+        // member or pastor. Firestore rules block this read for others, so we
+        // guard here to avoid surfacing a permission error in the console.
+        if (ngAccess) {
+          try {
+            const fileSnap = await getDoc(doc(db, 'next_generation_post_files', id));
+            if (fileSnap.exists()) {
+              const fileData = fileSnap.data() as any;
+              if (fileData.pdfUrl) (data as any).pdfUrl = fileData.pdfUrl;
+              if (fileData.pdfName) (data as any).pdfName = fileData.pdfName;
+              if (fileData.pdfBase64) (data as any).pdfBase64 = fileData.pdfBase64;
+              if (fileData.attachments) (data as any).attachments = fileData.attachments;
+            }
+          } catch (e) {
+            // Silent — rule may block for pending/rejected; badge still reflects count
+          }
+        }
+
         setPost(data);
       } catch (err: any) {
         console.error('Error fetching next generation post:', err);
@@ -1972,7 +2007,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
     };
 
     fetchPost();
-  }, [id, navigate]);
+  }, [id, navigate, ngAccess]);
 
   if (loading) {
     return (

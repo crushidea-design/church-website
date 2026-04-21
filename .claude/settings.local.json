@@ -8,7 +8,9 @@
       "Bash(firebase login:ci --no-localhost)",
       "Bash(firebase --version)",
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }
