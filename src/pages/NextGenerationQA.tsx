@@ -7,7 +7,7 @@ import { db } from '../lib/firebase';
 import { useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import {
   MessageSquare, Plus, ChevronDown, ChevronUp, Trash2,
-  CheckCircle, Clock, Lock, Loader2, AlertCircle,
+  CheckCircle, Clock, Lock, Loader2, AlertCircle, HelpCircle,
 } from 'lucide-react';
 
 interface QAItem {
@@ -85,21 +85,32 @@ export default function NextGenerationQA() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-xl font-bold text-gray-900">질문 있습니다</h3>
-          <p className="text-sm text-gray-500 mt-1">궁금한 것을 자유롭게 질문해 주세요.</p>
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      {/* Section header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+            <HelpCircle size={26} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black tracking-normal text-emerald-950">질문 있습니다</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              말씀을 듣다 생긴 질문, 신앙의 여정에서 맞닥뜨린 고민을 자유롭게 남겨 주세요.<br className="hidden sm:block" />
+              목사님이 직접 답변드립니다.
+            </p>
+          </div>
         </div>
         {(isMember || isPastor) && !showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors"
+            className="flex shrink-0 items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
           >
             <Plus size={16} /> 질문하기
           </button>
         )}
       </div>
+
+      <div className="max-w-2xl">
 
       {/* Write Form */}
       {showForm && (
@@ -252,6 +263,7 @@ export default function NextGenerationQA() {
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

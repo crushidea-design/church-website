@@ -1023,6 +1023,7 @@ interface ResourceLibraryPageProps {
   title: string;
   description: React.ReactNode;
   tabs: typeof elementaryResourceTabs;
+  midSection?: React.ReactNode;
 }
 
 function ResourceLibraryPage({
@@ -1034,6 +1035,7 @@ function ResourceLibraryPage({
   title,
   description,
   tabs,
+  midSection,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1175,6 +1177,8 @@ function ResourceLibraryPage({
           </div>
         </div>
       </section>
+
+      {midSection}
 
       <section className="bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -1417,21 +1421,21 @@ function ResourceLibraryPage({
 
 function YoungAdultsPage() {
   return (
-    <>
-      <div className="bg-sky-50 py-10 border-b border-sky-100">
-        <NextGenerationQA />
-      </div>
-      <ResourceLibraryPage
-        departmentName="청년부"
-        image={youngAdultsImage}
-        imageAlt="천로역정 특강 청년부 자료"
-        badgeClassName="bg-sky-100 text-emerald-950"
-        heroClassName="bg-white"
-        title="복음 안에서 함께 질문하고 함께 걸어갑니다"
-        description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
-        tabs={youngAdultResourceTabs}
-      />
-    </>
+    <ResourceLibraryPage
+      departmentName="청년부"
+      image={youngAdultsImage}
+      imageAlt="천로역정 특강 청년부 자료"
+      badgeClassName="bg-sky-100 text-emerald-950"
+      heroClassName="bg-white"
+      title="복음 안에서 함께 질문하고 함께 걸어갑니다"
+      description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
+      tabs={youngAdultResourceTabs}
+      midSection={
+        <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
+          <NextGenerationQA />
+        </section>
+      }
+    />
   );
 }
 
