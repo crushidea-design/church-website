@@ -1045,13 +1045,13 @@ function ResourceLibraryPage({
   guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
-  const { hasAccess: ngAccess } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser } = useNextGenerationAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawActiveResource = searchParams.get('resource') || tabs[0].id;
-  // Non-members are locked to guestTabId when provided
-  const activeResource = (!ngAccess && guestTabId) ? guestTabId : rawActiveResource;
-  // Tabs visible to non-members
-  const visibleTabs = (!ngAccess && guestTabId) ? tabs.filter(t => t.id === guestTabId) : tabs;
+  // Tab/post restrictions apply only to unauthenticated visitors (pending/rejected users see everything)
+  const isGuest = !ngUser;
+  const activeResource = (isGuest && guestTabId) ? guestTabId : rawActiveResource;
+  const visibleTabs = (isGuest && guestTabId) ? tabs.filter(t => t.id === guestTabId) : tabs;
   const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1317,7 +1317,7 @@ function ResourceLibraryPage({
           ) : (
             <>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {((!ngAccess && guestPostLimit) ? filteredPosts.slice(0, guestPostLimit) : filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE)).map((post, index) => {
+              {((isGuest && guestPostLimit) ? filteredPosts.slice(0, guestPostLimit) : filteredPosts.slice((currentPage - 1) * RESOURCE_PAGE_SIZE, currentPage * RESOURCE_PAGE_SIZE)).map((post, index) => {
                 const attachments = getPostAttachments(post);
 
                 return (
@@ -1373,7 +1373,7 @@ function ResourceLibraryPage({
             </>
           )}
 
-          {!loading && !(ngAccess === false && guestPostLimit) && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
+          {!loading && !isGuest || !guestPostLimit && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
             const totalPages = Math.ceil(filteredPosts.length / RESOURCE_PAGE_SIZE);
             const pageNumbers: (number | 'ellipsis')[] = [];
 

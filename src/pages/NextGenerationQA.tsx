@@ -222,10 +222,10 @@ export default function NextGenerationQA() {
 
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4">
-                  {!hasAccess ? (
+                  {!user ? (
                     <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
                       <Lock size={16} />
-                      <span className="text-sm">내용은 회원에게만 공개됩니다.</span>
+                      <span className="text-sm">내용은 로그인 후 확인할 수 있습니다.</span>
                     </div>
                   ) : (
                     <>
