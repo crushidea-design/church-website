@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -65,13 +65,19 @@ export const googleProvider = new GoogleAuthProvider();
 async function ensureUserDocument(user: any) {
   const userRef = doc(db, 'users', user.uid);
   try {
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || 'User',
-      role: 'user',
-      createdAt: new Date()
-    }, { merge: true });
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      // New user: create doc with createdAt
+      await setDoc(userRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || 'User',
+        role: 'user',
+        createdAt: new Date()
+      });
+    }
+    // Existing users: leave the doc untouched — updating createdAt would violate
+    // the Firestore rule that requires createdAt to be immutable after creation.
   } catch (error: any) {
     console.error("Error ensuring user document:", error);
     // Don't block login if it's just a quota error or transient issue
