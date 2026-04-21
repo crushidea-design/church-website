@@ -7,6 +7,8 @@ import {
   ArrowUp10,
   BookMarked,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Download,
   Edit3,
@@ -46,7 +48,7 @@ import {
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
-const RESOURCE_PAGE_SIZE = 10;
+const RESOURCE_PAGE_SIZE = 12;
 
 const introImage = '/elementary-intro.png';
 const elementaryImage = '/next-generation-2026.png';
@@ -468,6 +470,16 @@ function IntroPage() {
   const [activeYoungAdultPillar, setActiveYoungAdultPillar] = useState<string | null>(null);
   const selectedYoungAdultPillar = youngAdultIntroPillars.find((pillar) => pillar.title === activeYoungAdultPillar);
 
+  const [lightboxGallery, setLightboxGallery] = useState<{ src: string; alt: string }[] | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (gallery: { src: string; alt: string }[], index: number) => {
+    setLightboxGallery(gallery);
+    setLightboxIndex(index);
+  };
+
+  const closeLightbox = () => setLightboxGallery(null);
+
   useEffect(() => {
     if (!selectedPillar && !selectedYoungAdultPillar) return;
 
@@ -484,6 +496,19 @@ function IntroPage() {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [selectedPillar]);
+
+  useEffect(() => {
+    if (!lightboxGallery) return;
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeLightbox();
+      if (event.key === 'ArrowLeft') setLightboxIndex((i) => (i - 1 + lightboxGallery.length) % lightboxGallery.length);
+      if (event.key === 'ArrowRight') setLightboxIndex((i) => (i + 1) % lightboxGallery.length);
+    };
+
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [lightboxGallery]);
 
   return (
     <div>
@@ -629,19 +654,18 @@ function IntroPage() {
             <div className="mt-6">
               <h3 className="text-lg font-black text-emerald-950">교육 자료 미리보기</h3>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {selectedPillar.gallery.map((image) => (
-                  <a
+                {selectedPillar.gallery.map((image, idx) => (
+                  <button
                     key={image.src}
-                    href={`/next-generation-preview.html?src=${encodeURIComponent(image.src)}&alt=${encodeURIComponent(image.alt)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="overflow-hidden rounded-lg border border-emerald-100 bg-slate-50 transition hover:border-emerald-300"
+                    type="button"
+                    onClick={() => openLightbox(selectedPillar.gallery, idx)}
+                    className="overflow-hidden rounded-lg border border-emerald-100 bg-slate-50 text-left transition hover:border-emerald-300"
                   >
                     <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
                     <div className="border-t border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-950">
                       {image.alt}
                     </div>
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -681,25 +705,76 @@ function IntroPage() {
             </div>
             {selectedYoungAdultPillar.gallery && (
               <div className="mt-6">
-                <h3 className="text-lg font-black text-emerald-950">교육 자료 예시</h3>
+                <h3 className="text-lg font-black text-emerald-950">교육 자료 미리보기</h3>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {selectedYoungAdultPillar.gallery.map((image) => (
-                    <a
+                  {selectedYoungAdultPillar.gallery.map((image, idx) => (
+                    <button
                       key={image.src}
-                      href={`/next-generation-preview.html?src=${encodeURIComponent(image.src)}&alt=${encodeURIComponent(image.alt)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="overflow-hidden rounded-lg border border-sky-100 bg-slate-50 transition hover:border-sky-300"
+                      type="button"
+                      onClick={() => openLightbox(selectedYoungAdultPillar.gallery, idx)}
+                      className="overflow-hidden rounded-lg border border-sky-100 bg-slate-50 text-left transition hover:border-sky-300"
                     >
                       <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
                       <div className="border-t border-sky-100 bg-white px-3 py-2 text-sm font-bold text-emerald-950">
                         {image.alt}
                       </div>
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {lightboxGallery && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 px-4 py-8"
+          onClick={closeLightbox}
+        >
+          <div className="relative flex w-full max-w-4xl flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              className="absolute -top-10 right-0 flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25"
+              aria-label="닫기"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex w-full items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setLightboxIndex((i) => (i - 1 + lightboxGallery.length) % lightboxGallery.length)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25 disabled:opacity-30"
+                aria-label="이전 사진"
+                disabled={lightboxGallery.length <= 1}
+              >
+                <ChevronLeft size={24} />
+              </button>
+
+              <img
+                key={lightboxGallery[lightboxIndex].src}
+                src={lightboxGallery[lightboxIndex].src}
+                alt={lightboxGallery[lightboxIndex].alt}
+                className="max-h-[70vh] w-full rounded-lg object-contain shadow-2xl"
+              />
+
+              <button
+                type="button"
+                onClick={() => setLightboxIndex((i) => (i + 1) % lightboxGallery.length)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25 disabled:opacity-30"
+                aria-label="다음 사진"
+                disabled={lightboxGallery.length <= 1}
+              >
+                <ChevronRight size={24} />
+              </button>
+            </div>
+
+            <div className="mt-4 text-center">
+              <p className="text-sm font-bold text-white/90">{lightboxGallery[lightboxIndex].alt}</p>
+              <p className="mt-1 text-xs text-white/50">{lightboxIndex + 1} / {lightboxGallery.length}</p>
+            </div>
           </div>
         </div>
       )}
