@@ -1917,7 +1917,8 @@ function NextGenerationCreatePost() {
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
-  const { hasAccess: ngAccess } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser } = useNextGenerationAuth();
+  const isGuest = !ngUser;
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
   const isAdmin = role === 'admin';
@@ -2026,6 +2027,14 @@ function NextGenerationPostDetail({ id }: { id: string }) {
           </h1>
           <p className="mt-3 text-sm font-bold text-slate-500">{post.authorName}</p>
 
+          {isGuest ? (
+            <div className="mt-10 flex flex-col items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-6 py-14 text-center">
+              <Lock className="mb-4 h-10 w-10 text-sky-400" />
+              <p className="text-base font-bold text-emerald-950">로그인 후 내용을 확인할 수 있습니다.</p>
+              <p className="mt-2 text-sm text-slate-500">다음세대 계정으로 로그인하면 자료 내용을 열람할 수 있습니다.</p>
+            </div>
+          ) : (
+            <>
           {post.youtubeUrl && getYouTubeVideoId(post.youtubeUrl) && (
             <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
               <div className="relative aspect-video">
@@ -2104,6 +2113,8 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                 ))}
               </div>
             </div>
+          )}
+            </>
           )}
         </article>
       </div>

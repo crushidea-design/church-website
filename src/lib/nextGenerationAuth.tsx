@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import {
   onAuthStateChanged,
   User,
@@ -47,7 +47,7 @@ export interface NextGenerationMember {
 export interface NextGenerationNotification {
   id: string;
   uid: string;
-  type: 'approved' | 'rejected';
+  type: 'approved' | 'rejected' | 'answered';
   message: string;
   rejectionReason?: string;
   createdAt: Timestamp;
@@ -114,6 +114,8 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
   const [user, setUser] = useState<User | null>(null);
   const [member, setMember] = useState<NextGenerationMember | null>(null);
   const [loading, setLoading] = useState(true);
+  // Prevents false-positive "no member doc" detection during email sign-up
+  const signingUp = useRef(false);
   const [needsSignUp, setNeedsSignUp] = useState(false);
   const [notifications, setNotifications] = useState<NextGenerationNotification[]>([]);
 
@@ -152,9 +154,14 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
         }
       } else {
         setMember(null);
-        // Only set needsSignUp if we have a Google-authed user with no member doc
         if (user.providerData.some(p => p.providerId === 'google.com')) {
+          // Google user with no member doc → needs to complete sign-up
           setNeedsSignUp(true);
+        } else if (!signingUp.current) {
+          // Email user with no member doc → admin deleted their account.
+          // Delete the Auth account (succeeds since they just signed in)
+          // and fall back to sign-out if re-authentication is required.
+          user.delete().catch(() => auth.signOut());
         }
       }
       setLoading(false);
@@ -216,6 +223,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
 
   const signUpWithEmail = useCallback(async (data: EmailSignUpData) => {
     const credential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+    signingUp.current = true;
     try {
       await updateProfile(credential.user, { displayName: data.displayName });
       const memberRef = doc(db, 'next_generation_members', credential.user.uid);
@@ -234,6 +242,8 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
       // Roll back the Auth account if Firestore write fails
       await credential.user.delete().catch(() => {});
       throw err;
+    } finally {
+      signingUp.current = false;
     }
   }, []);
 

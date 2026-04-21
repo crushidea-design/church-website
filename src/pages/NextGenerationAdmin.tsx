@@ -158,12 +158,22 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     if (!answerTargetId || !answerText.trim()) return;
     setSubmitting(true);
     try {
+      const targetItem = qaItems.find(q => q.id === answerTargetId);
       await updateDoc(doc(db, 'next_generation_qa', answerTargetId), {
         answer: answerText.trim(),
         answeredAt: serverTimestamp(),
         answeredBy: '목사님',
         isAnswered: true,
       });
+      if (targetItem) {
+        await addDoc(collection(db, 'next_generation_notifications'), {
+          uid: targetItem.authorId,
+          type: 'answered',
+          message: `"${targetItem.title}" 질문에 목사님 답변이 등록되었습니다.`,
+          createdAt: serverTimestamp(),
+          isRead: false,
+        });
+      }
       setAnswerTargetId(null);
       setAnswerText('');
     } finally {
