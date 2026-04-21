@@ -212,7 +212,7 @@ export default function CreatePost() {
       };
 
       if (type === 'today_word') {
-        postData.dateKey = getLocalDateKey();
+        postData.dateKey = journalDate || getLocalDateKey();
       }
 
       if (pdfUrl) {
@@ -488,7 +488,7 @@ export default function CreatePost() {
               />
             </div>
 
-            {type === 'journal' && (
+            {(type === 'journal' || type === 'today_word') && (
               <div>
                 <label htmlFor="journalDate" className="block text-sm font-medium text-wood-700 mb-2">
                   일지 날짜
