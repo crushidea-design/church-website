@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { useNextGenerationAuth, Department, EmailSignUpData, SignUpData } from '../lib/nextGenerationAuth';
 
@@ -30,6 +30,13 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
   const [view, setView] = useState<ModalView>(
     isRejected ? 'rejected' : isPending ? 'pending' : initialView
   );
+
+  // Sync view when auth state changes while modal is open (e.g., pastor approves while modal is visible)
+  useEffect(() => {
+    if (isRejected) setView('rejected');
+    else if (isPending) setView('pending');
+  }, [isRejected, isPending]);
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
-  deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp,
+  deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { NextGenerationMember, Department } from '../lib/nextGenerationAuth';
@@ -110,6 +110,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       await updateDoc(doc(db, 'next_generation_members', uid), {
         role: 'member',
         approvedAt: serverTimestamp(),
+        rejectedAt: deleteField(),
+        rejectionReason: deleteField(),
       });
       await addDoc(collection(db, 'next_generation_notifications'), {
         uid,

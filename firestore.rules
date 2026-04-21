@@ -401,7 +401,11 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
       allow create: if isAuthenticated() && request.auth.uid == memberId &&
         request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
+        request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
         request.resource.data.uid == request.auth.uid &&
+        request.resource.data.email is string && isValidEmail(request.resource.data.email) &&
+        request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 100 &&
+        request.resource.data.provider in ['email', 'google'] &&
         request.resource.data.role == 'pending' &&
         request.resource.data.department in ['청년', '교사', '학부모'] &&
         request.resource.data.church is string && request.resource.data.church.size() > 0 &&
@@ -412,7 +416,7 @@ service cloud.firestore {
          (request.auth.uid == memberId &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro'])));
       allow delete: if isNextGenerationPastor() ||
-        (isAuthenticated() && request.auth.uid == memberId);
+        (isAuthenticated() && request.auth.uid == memberId && resource.data.role == 'pending');
     }
 
     match /next_generation_notifications/{notificationId} {

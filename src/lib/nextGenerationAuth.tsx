@@ -140,14 +140,14 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
         setMember(data);
         setNeedsSignUp(false);
 
-        // Auto-delete pending accounts older than 30 days
+        // Auto-expire pending accounts older than 30 days
         if (data.role === 'pending' && data.createdAt) {
           const createdMs = data.createdAt.toMillis();
           if (Date.now() - createdMs > THIRTY_DAYS_MS) {
+            // Delete Firestore doc first (self-delete allowed for pending role)
             deleteDoc(memberRef).catch(() => {});
-            auth.currentUser?.delete().catch(() => {});
-            setMember(null);
-            setUser(null);
+            // Sign out cleanly so the user can re-authenticate if needed
+            auth.signOut().catch(() => {});
           }
         }
       } else {
@@ -216,20 +216,25 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
 
   const signUpWithEmail = useCallback(async (data: EmailSignUpData) => {
     const credential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-    await updateProfile(credential.user, { displayName: data.displayName });
-
-    const memberRef = doc(db, 'next_generation_members', credential.user.uid);
-    await setDoc(memberRef, {
-      uid: credential.user.uid,
-      email: data.email,
-      displayName: data.displayName,
-      role: 'pending',
-      department: data.department,
-      church: data.church,
-      intro: data.intro,
-      provider: 'email',
-      createdAt: serverTimestamp(),
-    });
+    try {
+      await updateProfile(credential.user, { displayName: data.displayName });
+      const memberRef = doc(db, 'next_generation_members', credential.user.uid);
+      await setDoc(memberRef, {
+        uid: credential.user.uid,
+        email: data.email,
+        displayName: data.displayName,
+        role: 'pending',
+        department: data.department,
+        church: data.church,
+        intro: data.intro,
+        provider: 'email',
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      // Roll back the Auth account if Firestore write fails
+      await credential.user.delete().catch(() => {});
+      throw err;
+    }
   }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<{ needsSignUp: boolean }> => {

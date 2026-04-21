@@ -176,7 +176,7 @@ interface NextGenerationPost {
 }
 
 const getYouTubeVideoId = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+  const match = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([^&\n?#]+)/);
   return match ? match[1] : null;
 };
 
@@ -389,15 +389,23 @@ function NextGenerationHeader() {
                 </button>
               )}
               {!authLoading && isPastor && (
-                <button
-                  onClick={() => setShowAdminModal(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800 hover:bg-amber-200 transition"
-                >
-                  <Settings size={14} />
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowAdminModal(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800 hover:bg-amber-200 transition"
+                  >
+                    <Settings size={14} />
+                  </button>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
               )}
               {!authLoading && user && !isPastor && (
-                <div className="relative">
+                <>
                   <button
                     onClick={() => setShowNotifications(v => !v)}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
@@ -409,7 +417,13 @@ function NextGenerationHeader() {
                       </span>
                     )}
                   </button>
-                </div>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -466,50 +480,17 @@ function NextGenerationHeader() {
               )}
               {!authLoading && user && !isPastor && (
                 <>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowNotifications(v => !v)}
-                      className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
-                    >
-                      <Bell size={16} />
-                      {unreadCount > 0 && (
-                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                          {unreadCount}
-                        </span>
-                      )}
-                    </button>
-                    {showNotifications && (
-                      <div className="absolute right-0 top-11 z-50 w-72 rounded-xl border border-gray-200 bg-white shadow-xl">
-                        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                          <p className="text-sm font-bold text-gray-900">알림</p>
-                          <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">
-                            <X size={16} />
-                          </button>
-                        </div>
-                        {notifications.length === 0 ? (
-                          <p className="px-4 py-6 text-center text-sm text-gray-400">알림이 없습니다.</p>
-                        ) : (
-                          <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-                            {notifications.map(n => (
-                              <li
-                                key={n.id}
-                                onClick={() => markNotificationRead(n.id)}
-                                className={`cursor-pointer px-4 py-3 text-sm transition hover:bg-gray-50 ${!n.isRead ? 'bg-amber-50' : ''}`}
-                              >
-                                <p className={`font-medium ${n.type === 'approved' ? 'text-emerald-700' : 'text-red-600'}`}>
-                                  {n.type === 'approved' ? '✓ 가입 승인됨' : '✗ 가입 반려됨'}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
-                                {n.rejectionReason && (
-                                  <p className="text-xs text-red-500 mt-0.5">사유: {n.rejectionReason}</p>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+                  <button
+                    onClick={() => setShowNotifications(v => !v)}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    <Bell size={16} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadCount}
+                      </span>
                     )}
-                  </div>
+                  </button>
                   {member && (
                     <span className="text-xs font-bold text-gray-600 max-w-[80px] truncate">
                       {member.displayName}
@@ -529,10 +510,51 @@ function NextGenerationHeader() {
         </div>
       </header>
 
+      {/* Shared notification dropdown — rendered outside breakpoint blocks so it works on mobile too */}
+      {showNotifications && user && !isPastor && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setShowNotifications(false)}
+        >
+          <div
+            className="absolute right-4 top-20 z-40 w-72 rounded-xl border border-gray-200 bg-white shadow-xl sm:right-6 lg:right-8"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+              <p className="text-sm font-bold text-gray-900">알림</p>
+              <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+            {notifications.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-gray-400">알림이 없습니다.</p>
+            ) : (
+              <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                {notifications.map(n => (
+                  <li
+                    key={n.id}
+                    onClick={() => markNotificationRead(n.id)}
+                    className={`cursor-pointer px-4 py-3 text-sm transition hover:bg-gray-50 ${!n.isRead ? 'bg-amber-50' : ''}`}
+                  >
+                    <p className={`font-medium ${n.type === 'approved' ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {n.type === 'approved' ? '✓ 가입 승인됨' : '✗ 가입 반려됨'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                    {n.rejectionReason && (
+                      <p className="text-xs text-red-500 mt-0.5">사유: {n.rejectionReason}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
       {showLoginModal && (
         <NextGenerationLoginModal
           onClose={() => setShowLoginModal(false)}
-          initialView={isRejected ? 'rejected' : isPending ? 'pending' : 'login'}
+          initialView={isRejected ? 'rejected' : isPending ? 'pending' : needsSignUp ? 'complete_google' : 'login'}
         />
       )}
       {showAdminModal && <NextGenerationAdmin onClose={() => setShowAdminModal(false)} />}

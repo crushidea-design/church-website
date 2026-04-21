@@ -50,14 +50,14 @@ export default function NextGenerationQA() {
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, [user]);
+  }, [user, hasAccess]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     if (!title.trim()) { setFormError('제목을 입력해 주세요.'); return; }
     if (!content.trim()) { setFormError('내용을 입력해 주세요.'); return; }
-    if (!user || !member) return;
+    if (!user) return;
 
     setSubmitting(true);
     try {
@@ -65,7 +65,7 @@ export default function NextGenerationQA() {
         title: title.trim(),
         content: content.trim(),
         authorId: user.uid,
-        authorName: member.displayName,
+        authorName: member?.displayName ?? user.displayName ?? '목사님',
         createdAt: serverTimestamp(),
         isAnswered: false,
       });
@@ -83,6 +83,11 @@ export default function NextGenerationQA() {
     if (!confirm('질문을 삭제하시겠습니까?')) return;
     await deleteDoc(doc(db, 'next_generation_qa', item.id));
   };
+
+  // Reset loading state when access is lost (e.g., after sign-out)
+  useEffect(() => {
+    if (!hasAccess) setLoading(true);
+  }, [hasAccess]);
 
   if (!hasAccess) {
     return (
