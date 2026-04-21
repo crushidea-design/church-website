@@ -499,6 +499,7 @@ export default function PostDetail() {
         post.subCategory === 'family_column' ? '예배를 잇는 가정' :
         post.subCategory === 'summer_bible_school' ? '여름성경학교' :
         post.subCategory === 'pilgrim_lecture' ? '천로역정 특강' :
+        post.subCategory === 'podcast_review' ? '복습 팟캐스트' :
         post.subCategory === 'retreat_materials' ? '수련회 자료' : '다음세대';
     }
     return '소통 게시판';
@@ -516,7 +517,7 @@ export default function PostDetail() {
                 'research': '/archive/research',
                 'today_word': '/archive/today',
                 'community': '/community',
-                'next_generation': post?.subCategory === 'pilgrim_lecture' || post?.subCategory === 'retreat_materials'
+                'next_generation': post?.subCategory === 'pilgrim_lecture' || post?.subCategory === 'podcast_review' || post?.subCategory === 'retreat_materials'
                   ? '/next/young-adults'
                   : '/next/elementary',
                 'contact': '/contact'
