@@ -742,33 +742,34 @@ function IntroPage() {
               <X size={20} />
             </button>
 
-            <div className="flex w-full items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setLightboxIndex((i) => (i - 1 + lightboxGallery.length) % lightboxGallery.length)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25 disabled:opacity-30"
-                aria-label="이전 사진"
-                disabled={lightboxGallery.length <= 1}
-              >
-                <ChevronLeft size={24} />
-              </button>
-
+            <div className="relative w-full">
               <img
                 key={lightboxGallery[lightboxIndex].src}
                 src={lightboxGallery[lightboxIndex].src}
                 alt={lightboxGallery[lightboxIndex].alt}
-                className="max-h-[70vh] w-full rounded-lg object-contain shadow-2xl"
+                className="mx-auto block max-h-[75vh] max-w-full rounded-lg object-contain shadow-2xl"
               />
 
-              <button
-                type="button"
-                onClick={() => setLightboxIndex((i) => (i + 1) % lightboxGallery.length)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25 disabled:opacity-30"
-                aria-label="다음 사진"
-                disabled={lightboxGallery.length <= 1}
-              >
-                <ChevronRight size={24} />
-              </button>
+              {lightboxGallery.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex((i) => (i - 1 + lightboxGallery.length) % lightboxGallery.length)}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-lg bg-black/40 text-white transition hover:bg-black/60"
+                    aria-label="이전 사진"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex((i) => (i + 1) % lightboxGallery.length)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-lg bg-black/40 text-white transition hover:bg-black/60"
+                    aria-label="다음 사진"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="mt-4 text-center">
