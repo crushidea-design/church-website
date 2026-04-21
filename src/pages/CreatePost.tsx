@@ -42,12 +42,6 @@ export default function CreatePost() {
   const [researchCategories, setResearchCategories] = useState<ResearchCategory[]>([]);
   const [todayWordDate, setTodayWordDate] = useState(getLocalDateKey());
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-
-  const todayWordReadings = useMemo(() => {
-    if (type !== 'today_word' || !todayWordDate) return [];
-    const [y, m, d] = todayWordDate.split('-').map(Number);
-    return getMcheyneReadingPlan(new Date(y, m - 1, d));
-  }, [type, todayWordDate]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
