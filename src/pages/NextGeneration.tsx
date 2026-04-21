@@ -160,6 +160,11 @@ interface NextGenerationPost {
   [key: string]: any;
 }
 
+const getYouTubeVideoId = (url: string): string | null => {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+  return match ? match[1] : null;
+};
+
 const getCreatedAtTime = (value: any) => {
   if (!value) return 0;
   if (typeof value.toMillis === 'function') return value.toMillis();
@@ -1100,6 +1105,7 @@ function NextGenerationCreatePost() {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [materialFiles, setMaterialFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1183,6 +1189,10 @@ function NextGenerationCreatePost() {
         postData.nextGenerationTopicId = selectedTopicId;
       }
 
+      if (youtubeUrl.trim()) {
+        postData.youtubeUrl = youtubeUrl.trim();
+      }
+
       if (attachments.length > 0) {
         postData.pdfBase64 = serializeMaterialAttachments(attachments);
       }
@@ -1235,6 +1245,7 @@ function NextGenerationCreatePost() {
       setSuccessPostId(docRef.id);
       setTitle('');
       setContent('');
+      setYoutubeUrl('');
       setMaterialFiles([]);
       setUploadProgress(0);
     } catch (err: any) {
@@ -1415,9 +1426,32 @@ function NextGenerationCreatePost() {
               />
             </div>
 
+            {selectedResourceId === 'podcast_review' && (
+              <div>
+                <label htmlFor="next-generation-youtube-url" className="mb-2 block text-sm font-black text-emerald-950">
+                  유튜브 링크
+                </label>
+                <input
+                  id="next-generation-youtube-url"
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={(event) => setYoutubeUrl(event.target.value)}
+                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  maxLength={500}
+                />
+                {youtubeUrl && !getYouTubeVideoId(youtubeUrl) && (
+                  <p className="mt-2 text-xs font-bold text-red-600">유효한 유튜브 링크를 입력하세요.</p>
+                )}
+                {youtubeUrl && getYouTubeVideoId(youtubeUrl) && (
+                  <p className="mt-2 text-xs font-bold text-emerald-700">유효한 유튜브 링크입니다.</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label htmlFor="next-generation-content" className="mb-2 block text-sm font-black text-emerald-950">
-                내용
+                {selectedResourceId === 'podcast_review' ? '설명' : '내용'}
               </label>
               <textarea
                 id="next-generation-content"
@@ -1425,7 +1459,7 @@ function NextGenerationCreatePost() {
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-4 text-sm leading-7 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
-                placeholder="자료 안내와 함께 나눌 내용을 입력하세요"
+                placeholder={selectedResourceId === 'podcast_review' ? '팟캐스트 설명을 입력하세요' : '자료 안내와 함께 나눌 내용을 입력하세요'}
                 required
                 maxLength={50000}
               />
@@ -1608,6 +1642,20 @@ function NextGenerationPostDetail({ id }: { id: string }) {
             {post.title}
           </h1>
           <p className="mt-3 text-sm font-bold text-slate-500">{post.authorName}</p>
+
+          {post.youtubeUrl && getYouTubeVideoId(post.youtubeUrl) && (
+            <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
+              <div className="relative aspect-video">
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(post.youtubeUrl)}`}
+                  title={post.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 h-full w-full"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="mt-8 whitespace-pre-wrap text-base leading-8 text-slate-800">
             {post.content}

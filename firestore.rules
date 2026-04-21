@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -144,9 +144,10 @@ service cloud.firestore {
              (!('subCategory' in data) || data.subCategory is string) &&
              (!('isPublished' in data) || data.isPublished is bool) &&
              (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
-             (!('targetUserIds' in data) || data.targetUserIds is list);
-             
-      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', ''];
+             (!('targetUserIds' in data) || data.targetUserIds is list) &&
+             (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500));
+
+      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', 'podcast_review', ''];
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
     }
 
