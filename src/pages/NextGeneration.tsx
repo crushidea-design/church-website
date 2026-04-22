@@ -1216,14 +1216,19 @@ function ResourceLibraryPage({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => !isTabLocked && setSearchParams({ resource: tab.id })}
-                  disabled={isTabLocked}
+                  onClick={() => {
+                    if (isTabLocked) {
+                      alert('로그인 후 해당 탭의 자료를 확인할 수 있습니다.');
+                      return;
+                    }
+                    setSearchParams({ resource: tab.id });
+                  }}
                   title={isTabLocked ? '로그인 후 이용할 수 있습니다' : undefined}
                   className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-3 text-sm font-black transition ${
                     isActive
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : isTabLocked
-                      ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+                      ? 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                       : 'bg-sky-50 text-emerald-950 hover:bg-sky-100'
                   }`}
                 >
@@ -1992,7 +1997,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
         // Load restricted download file metadata only if the user is an approved
         // member or pastor. Firestore rules block this read for others, so we
         // guard here to avoid surfacing a permission error in the console.
-        if (ngAccess) {
+        if (true) {
           try {
             const fileSnap = await getDoc(doc(db, 'next_generation_post_files', id));
             if (fileSnap.exists()) {
@@ -2121,7 +2126,14 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                           <p className="mt-1 text-xs font-bold text-slate-500">{formatFileSize(attachment.size)}</p>
                         )}
                       </div>
-                      <div className="flex gap-2">
+                      <div
+                        className="flex gap-2"
+                        onClick={() => {
+                          if (!ngAccess) {
+                            alert('PDF 열람은 가능하지만 다운로드는 로그인 후 이용할 수 있습니다.');
+                          }
+                        }}
+                      >
                         {ngAccess ? (
                           <>
                             <a
@@ -2152,7 +2164,14 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
                     {attachment.type === 'pdf' && (
                       <div className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-white">
-                        <PdfCanvasViewer url={attachment.url} />
+                        <PdfCanvasViewer
+                          url={attachment.url}
+                          onDownload={
+                            ngAccess
+                              ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
+                              : () => alert('PDF 열람은 가능하지만 다운로드는 로그인 후 이용할 수 있습니다.')
+                          }
+                        />
                       </div>
                     )}
                   </div>
