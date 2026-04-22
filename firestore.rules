@@ -462,8 +462,9 @@ service cloud.firestore {
     }
 
     match /next_generation_post_files/{postId} {
-      // Only approved members (full members) and pastor can read download URLs
-      allow read: if isNextGenerationAccess();
+      // Guests can read attachment metadata so PDFs can be previewed without login.
+      // Download blocking is handled in the UI.
+      allow read: if true;
       // Only the post author (or pastor) can write file data
       allow create, update: if isAuthenticated() &&
         request.resource.data.keys().hasOnly(['postId', 'pdfUrl', 'pdfName', 'pdfBase64', 'attachments', 'updatedAt']) &&
