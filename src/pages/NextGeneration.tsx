@@ -836,7 +836,7 @@ function IntroPage() {
             className="max-h-[90vh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-lg border border-emerald-100 bg-white p-6 shadow-xl sm:max-h-[85vh] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 flex items-start justify-between gap-4 border-b border-emerald-100 bg-white px-6 py-4 sm:-mx-8 sm:-mt-8 sm:px-8">
               <h2 id="next-generation-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
                 {selectedPillar.title}
               </h2>
@@ -849,7 +849,7 @@ function IntroPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+            <div className="space-y-4 text-base leading-8 text-slate-700">
               {selectedPillar.paragraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
@@ -898,7 +898,7 @@ function IntroPage() {
             className="max-h-[90vh] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-lg border border-sky-100 bg-white p-6 shadow-xl sm:max-h-[85vh] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 flex items-start justify-between gap-4 border-b border-sky-100 bg-white px-6 py-4 sm:-mx-8 sm:-mt-8 sm:px-8">
               <h2 id="young-adult-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
                 {selectedYoungAdultPillar.title}
               </h2>
@@ -911,7 +911,7 @@ function IntroPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+            <div className="space-y-4 text-base leading-8 text-slate-700">
               {selectedYoungAdultPillar.paragraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
