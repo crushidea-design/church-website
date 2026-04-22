@@ -599,8 +599,8 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 text-left">
                 <p className="font-medium mb-1">안내</p>
                 <ul className="space-y-1 list-disc list-inside text-xs">
-                  <li>가입 신청은 30일 이내에 승인이 필요합니다.</li>
-                  <li>미승인 시 계정이 자동으로 삭제됩니다.</li>
+                  <li>준회원 계정은 삭제되지 않으며 계속 이용하실 수 있습니다.</li>
+                  <li>다운로드와 질문 등 정회원 기능은 승인 후 이용 가능합니다.</li>
                 </ul>
               </div>
               <button
@@ -635,6 +635,13 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                 <ul className="space-y-1 text-xs text-gray-500">
                   <li>· 자료 파일 다운로드</li>
                   <li>· 질문 등록</li>
+                </ul>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 text-left">
+                <p className="font-medium mb-1">안내</p>
+                <ul className="space-y-1 list-disc list-inside text-xs">
+                  <li>반려 상태여도 준회원 계정은 삭제되지 않고 유지됩니다.</li>
+                  <li>다운로드와 질문 등 정회원 기능은 승인 후 이용 가능합니다.</li>
                 </ul>
               </div>
               <p className="text-xs text-gray-500">
