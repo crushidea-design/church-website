@@ -374,7 +374,13 @@ function NextGenerationHeader() {
                     </span>
                   ))}
                 </span>
-                <span className="mt-1 flex justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
+                <span className="mt-1 flex justify-between text-[10px] font-bold uppercase leading-none text-coral-700 sm:hidden">
+                  <span>GROWING</span>
+                  <span>IN</span>
+                  <span>THE</span>
+                  <span>COVENANT</span>
+                </span>
+                <span className="mt-1 hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700 sm:flex">
                   {Array.from('GROWING IN THE COVENANT').map((char, index) => (
                     <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
                       {char}
@@ -830,7 +836,7 @@ function IntroPage() {
             className="max-h-[90vh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-lg border border-emerald-100 bg-white p-6 shadow-xl sm:max-h-[85vh] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 flex items-start justify-between gap-4 border-b border-emerald-100 bg-white px-6 py-4 sm:-mx-8 sm:-mt-8 sm:px-8">
               <h2 id="next-generation-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
                 {selectedPillar.title}
               </h2>
@@ -843,7 +849,7 @@ function IntroPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+            <div className="space-y-4 text-base leading-8 text-slate-700">
               {selectedPillar.paragraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
@@ -892,7 +898,7 @@ function IntroPage() {
             className="max-h-[90vh] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-lg border border-sky-100 bg-white p-6 shadow-xl sm:max-h-[85vh] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 flex items-start justify-between gap-4 border-b border-sky-100 bg-white px-6 py-4 sm:-mx-8 sm:-mt-8 sm:px-8">
               <h2 id="young-adult-pillar-title" className="text-2xl font-black tracking-normal text-emerald-950">
                 {selectedYoungAdultPillar.title}
               </h2>
@@ -905,7 +911,7 @@ function IntroPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="mt-5 space-y-4 text-base leading-8 text-slate-700">
+            <div className="space-y-4 text-base leading-8 text-slate-700">
               {selectedYoungAdultPillar.paragraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
@@ -1446,7 +1452,7 @@ function ResourceLibraryPage({
                       </span>
                     ) : (
                       <button
-                        key={page}
+                        key={`page-${page}`}
                         type="button"
                         onClick={() => setCurrentPage(page)}
                         className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-bold transition ${
@@ -1454,7 +1460,6 @@ function ResourceLibraryPage({
                             ? 'border-emerald-600 bg-emerald-600 text-white'
                             : 'border-sky-100 bg-white text-emerald-950 hover:bg-sky-50'
                         }`}
-                        aria-current={page === currentPage ? 'page' : undefined}
                       >
                         {page}
                       </button>
@@ -1969,6 +1974,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   const { hasAccess: ngAccess } = useNextGenerationAuth();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = role === 'admin';
 
   useEffect(() => {
@@ -2121,6 +2127,12 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                 </h2>
               </div>
 
+              {accessNotice && (
+                <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                  {accessNotice}
+                </div>
+              )}
+
               <div className="space-y-4">
                 {attachments.map((attachment, index) => (
                   <div key={`${attachment.url}-${index}`} className="rounded-lg border border-sky-100 bg-white p-4">
@@ -2134,14 +2146,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                           <p className="mt-1 text-xs font-bold text-slate-500">{formatFileSize(attachment.size)}</p>
                         )}
                       </div>
-                      <div
-                        className="flex gap-2"
-                        onClick={() => {
-                          if (!ngAccess) {
-                            alert('PDF 열람은 가능하지만 다운로드는 로그인 후 이용할 수 있습니다.');
-                          }
-                        }}
-                      >
+                      <div className="flex gap-2">
                         {ngAccess ? (
                           <>
                             <a
@@ -2162,10 +2167,17 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                             </a>
                           </>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500" title="다운로드는 승인된 정회원에게만 제공됩니다">
-                            <Lock size={13} />
-                            정회원 전용
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAccessNotice('\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.')
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 transition hover:bg-gray-200"
+                            title={'\uB85C\uADF8\uC778 \uD6C4 \uB2E4\uC6B4\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4'}
+                          >
+                            <Download size={14} className="mr-1" />
+                            {'\uB2E4\uC6B4\uB85C\uB4DC'}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -2177,7 +2189,8 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                           onDownload={
                             ngAccess
                               ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
-                              : () => alert('PDF 열람은 가능하지만 다운로드는 로그인 후 이용할 수 있습니다.')
+                              : () =>
+                                  setAccessNotice('\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.')
                           }
                         />
                       </div>
