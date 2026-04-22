@@ -1069,6 +1069,7 @@ function ResourceLibraryPage({
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
   const activeTab = visibleTabs.find((tab) => tab.id === activeResource) || visibleTabs[0];
   const isWeeklyTab = activeTab.id === 'elementary_weekly';
@@ -1218,9 +1219,10 @@ function ResourceLibraryPage({
                   key={tab.id}
                   onClick={() => {
                     if (isTabLocked) {
-                      alert('로그인 후 해당 탭의 자료를 확인할 수 있습니다.');
+                      setAccessNotice('\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uC774 \uC790\uB8CC\uB97C \uD655\uC778\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.');
                       return;
                     }
+                    setAccessNotice(null);
                     setSearchParams({ resource: tab.id });
                   }}
                   title={isTabLocked ? '로그인 후 이용할 수 있습니다' : undefined}
@@ -1238,6 +1240,12 @@ function ResourceLibraryPage({
               );
             })}
           </div>
+
+          {accessNotice && (
+            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+              {accessNotice}
+            </div>
+          )}
 
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
