@@ -13,7 +13,6 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   collection,
   query,
   where,
@@ -24,7 +23,6 @@ import {
 import { auth, db, googleProvider, signInWithGoogle as firebaseSignInWithGoogle } from './firebase';
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type MemberRole = 'pending' | 'member' | 'rejected';
 export type Department = '청년' | '교사' | '학부모';
@@ -141,17 +139,6 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
         const data = snap.data() as NextGenerationMember;
         setMember(data);
         setNeedsSignUp(false);
-
-        // Auto-expire pending accounts older than 30 days
-        if (data.role === 'pending' && data.createdAt) {
-          const createdMs = data.createdAt.toMillis();
-          if (Date.now() - createdMs > THIRTY_DAYS_MS) {
-            // Delete Firestore doc first (self-delete allowed for pending role)
-            deleteDoc(memberRef).catch(() => {});
-            // Sign out cleanly so the user can re-authenticate if needed
-            auth.signOut().catch(() => {});
-          }
-        }
       } else {
         setMember(null);
         if (user.providerData.some(p => p.providerId === 'google.com')) {

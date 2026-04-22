@@ -1971,11 +1971,14 @@ function NextGenerationCreatePost() {
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
-  const { hasAccess: ngAccess } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser, isPending, isRejected } = useNextGenerationAuth();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = role === 'admin';
+  const downloadBlockedNotice = (ngUser && (isPending || isRejected))
+    ? '\uB2E4\uC6B4\uB85C\uB4DC\uB294 \uC815\uD68C\uC6D0\uB9CC \uAC00\uB2A5\uD569\uB2C8\uB2E4. \uBAA9\uC0AC\uB2D8\uAED8 \uBB38\uC758\uB97C \uB0A8\uACA8\uC8FC\uC138\uC694.'
+    : '\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.';
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -2170,7 +2173,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                           <button
                             type="button"
                             onClick={() =>
-                              setAccessNotice('\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.')
+                              setAccessNotice(downloadBlockedNotice)
                             }
                             className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 transition hover:bg-gray-200"
                             title={'\uB85C\uADF8\uC778 \uD6C4 \uB2E4\uC6B4\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4'}
@@ -2190,7 +2193,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                             ngAccess
                               ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
                               : () =>
-                                  setAccessNotice('\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.')
+                                  setAccessNotice(downloadBlockedNotice)
                           }
                         />
                       </div>
