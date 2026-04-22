@@ -13,6 +13,7 @@ import {
   FileText,
   HeartHandshake,
   Loader2,
+  Lock,
   Plus,
   Sparkles,
   Users,
@@ -217,6 +218,13 @@ const getResourceDepartmentPath = (id?: string) => {
 
 const getResourceTab = (id?: string) => {
   return allResourceTabs.find((tab) => tab.id === id) || elementaryResourceTabs[0];
+};
+
+const requiresLoginForResource = (id: string | undefined, tabs: { id: string }[]) => {
+  if (!id) return false;
+
+  const publicTabId = tabs[0]?.id;
+  return tabs.some((tab) => tab.id === id) && id !== publicTabId;
 };
 
 const getContentPreview = (content?: string) => {
@@ -758,13 +766,14 @@ function ResourceLibraryPage({
   description,
   tabs,
 }: ResourceLibraryPageProps) {
-  const { role, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeResource = searchParams.get('resource') || tabs[0].id;
   const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
   const activeTab = tabs.find((tab) => tab.id === activeResource) || tabs[0];
   const isWeeklyTab = activeTab.id === 'elementary_weekly';
@@ -867,6 +876,16 @@ function ResourceLibraryPage({
     return [...posts].sort(byDate);
   }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir]);
 
+  const handleTabClick = (tabId: string) => {
+    if (!user && requiresLoginForResource(tabId, tabs)) {
+      setAccessNotice('로그인하시면 이 자료를 확인하실 수 있습니다.');
+      return;
+    }
+
+    setAccessNotice(null);
+    setSearchParams({ resource: tabId });
+  };
+
   return (
     <div>
       <section className={heroClassName}>
@@ -895,24 +914,41 @@ function ResourceLibraryPage({
           <div className="mb-8 flex gap-2 overflow-x-auto pb-2">
             {tabs.map((tab) => {
               const isActive = tab.id === activeTab.id;
+              const isLocked = !user && requiresLoginForResource(tab.id, tabs);
               const Icon = tab.icon;
 
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setSearchParams({ resource: tab.id })}
+                  type="button"
+                  onClick={() => handleTabClick(tab.id)}
+                  aria-label={
+                    isLocked
+                      ? `${tab.name} 탭은 로그인 후 확인할 수 있습니다`
+                      : `${tab.name} 탭 열기`
+                  }
+                  title={isLocked ? '로그인하시면 자료를 확인하실 수 있습니다.' : undefined}
                   className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-3 text-sm font-black transition ${
                     isActive
                       ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-sky-50 text-emerald-950 hover:bg-sky-100'
+                      : isLocked
+                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        : 'bg-sky-50 text-emerald-950 hover:bg-sky-100'
                   }`}
                 >
                   <Icon size={18} />
                   {tab.name}
+                  {isLocked && <Lock size={14} aria-hidden="true" />}
                 </button>
               );
             })}
           </div>
+
+          {accessNotice && (
+            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+              {accessNotice}
+            </div>
+          )}
 
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -1500,9 +1536,10 @@ function NextGenerationCreatePost() {
 
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const isAdmin = role === 'admin';
 
   useEffect(() => {
@@ -1565,6 +1602,18 @@ function NextGenerationPostDetail({ id }: { id: string }) {
     ? `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
     : `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
   const attachments = getPostAttachments(post);
+  const handleAttachmentDownload = (attachment: MaterialAttachment) => {
+    if (!user) {
+      setDownloadNotice('로그인하시면 자료를 다운로드하실 수 있습니다.');
+      return;
+    }
+
+    setDownloadNotice(null);
+    const link = document.createElement('a');
+    link.href = attachment.url;
+    link.download = attachment.name;
+    link.click();
+  };
 
   return (
     <main className="bg-sky-50 py-10">
@@ -1613,6 +1662,12 @@ function NextGenerationPostDetail({ id }: { id: string }) {
             {post.content}
           </div>
 
+          {downloadNotice && (
+            <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+              {downloadNotice}
+            </div>
+          )}
+
           {attachments.length > 0 && (
             <div className="mt-10 border-t border-sky-100 pt-8">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1644,20 +1699,23 @@ function NextGenerationPostDetail({ id }: { id: string }) {
                         >
                           새 창에서 열기
                         </a>
-                        <a
-                          href={attachment.url}
-                          download={attachment.name}
+                        <button
+                          type="button"
+                          onClick={() => handleAttachmentDownload(attachment)}
                           className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
                         >
                           <Download size={14} className="mr-1" />
                           다운로드
-                        </a>
+                        </button>
                       </div>
                     </div>
 
                     {attachment.type === 'pdf' && (
                       <div className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-white">
-                        <PdfCanvasViewer url={attachment.url} />
+                        <PdfCanvasViewer
+                          url={attachment.url}
+                          onDownload={() => window.open(attachment.url, '_blank', 'noopener,noreferrer')}
+                        />
                       </div>
                     )}
                   </div>
