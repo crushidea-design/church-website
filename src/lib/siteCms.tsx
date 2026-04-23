@@ -20,8 +20,10 @@ export type SiteCmsSectionType = 'text' | 'highlights' | 'gallery' | 'hero';
 export interface SiteCmsPage {
   id: string;
   slug: string;
+  routeSlug: string;
   title: string;
   label: string;
+  targetPath: string;
   order: number;
   visible: boolean;
 }
@@ -46,10 +48,10 @@ export interface SiteCmsToolState {
 }
 
 export const DEFAULT_SITE_CMS_PAGES: SiteCmsPage[] = [
-  { id: 'home', slug: 'home', title: '메인 홈', label: '홈', order: 1, visible: true },
-  { id: 'introduction', slug: 'introduction', title: '교회 소개', label: '소개', order: 2, visible: true },
-  { id: 'archive', slug: 'archive', title: '말씀 아카이브', label: '말씀 아카이브', order: 3, visible: true },
-  { id: 'community', slug: 'community', title: '소통 게시판', label: '소통 게시판', order: 4, visible: true },
+  { id: 'home', slug: 'home', routeSlug: 'home', title: '메인 홈', label: '홈', targetPath: '/', order: 1, visible: true },
+  { id: 'introduction', slug: 'introduction', routeSlug: 'intro', title: '교회 소개', label: '소개', targetPath: '/intro', order: 2, visible: true },
+  { id: 'archive', slug: 'archive', routeSlug: 'archive', title: '말씀 아카이브', label: '말씀 아카이브', targetPath: '/archive', order: 3, visible: true },
+  { id: 'community', slug: 'community', routeSlug: 'community', title: '소통 게시판', label: '소통 게시판', targetPath: '/community', order: 4, visible: true },
 ];
 
 export const DEFAULT_SITE_CMS_SECTIONS: SiteCmsSection[] = [
@@ -158,7 +160,25 @@ export function SiteCmsProvider({ children }: { children: React.ReactNode }) {
         query(collection(db, 'site_cms_pages'), orderBy('order', 'asc')),
         (snapshot) => {
           if (!snapshot.empty) {
-            setPages(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as SiteCmsPage)));
+            setPages(
+              snapshot.docs.map((d) => {
+                const data = d.data() as any;
+                const inferredTargetPath =
+                  data?.targetPath ||
+                  (data?.slug === 'home' ? '/' : data?.slug === 'introduction' ? '/intro' : data?.slug === 'archive' ? '/archive' : data?.slug === 'community' ? '/community' : '/');
+                const inferredRouteSlug =
+                  data?.routeSlug ||
+                  (inferredTargetPath === '/' ? 'home' : String(inferredTargetPath).replace(/^\/+/, '')) ||
+                  data?.slug ||
+                  'home';
+                return {
+                  id: d.id,
+                  ...data,
+                  routeSlug: inferredRouteSlug,
+                  targetPath: inferredTargetPath,
+                } as SiteCmsPage;
+              })
+            );
           }
           setLoading(false);
         },
