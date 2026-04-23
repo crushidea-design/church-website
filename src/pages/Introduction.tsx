@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import Logo from '../components/Logo';
 import { useStore } from '../store/useStore';
+import SiteCmsSections from '../components/SiteCmsSections';
 
 const DEFAULT_INTRO_IMAGE = "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
 
@@ -160,6 +161,7 @@ export default function Introduction() {
   return (
     <div className="bg-white pt-5 pb-16 sm:pt-10 sm:pb-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SiteCmsSections pageSlug="introduction" className="mb-10" />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

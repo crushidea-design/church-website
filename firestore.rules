@@ -389,6 +389,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /site_cms_pages/{pageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /site_cms_sections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /site_cms_tools_state/{toolStateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ─── 다음세대 독립 섹션 ───────────────────────────────────────────
 
     function isNextGenerationPastor() {
