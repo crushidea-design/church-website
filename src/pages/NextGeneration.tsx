@@ -1054,12 +1054,6 @@ function IntroPage({
       {cmsIntroSections.length > 0 && (
         <section className="bg-white py-14">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-8">
-              <h2 className="text-3xl font-black tracking-normal text-emerald-950">CMS 소개 섹션</h2>
-              <p className="mt-3 text-base leading-7 text-slate-700">
-                아래 내용은 관리자 화면에서 직접 수정한 소개 데이터입니다.
-              </p>
-            </div>
             <div className="grid gap-6 md:grid-cols-2">
               {cmsIntroSections.map((section) => (
                 <article key={section.id} className="rounded-lg border border-sky-100 bg-sky-50 p-6 shadow-sm">
