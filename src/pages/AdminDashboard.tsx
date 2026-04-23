@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw, NotebookPen } from 'lucide-react';
+import { Users, Mail, ArrowLeft, Settings, ShieldCheck, Video, FlaskConical, Activity, Bell, RefreshCw, NotebookPen, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, limit, getDocs, setDoc, doc, serverTimestamp, where, updateDoc, startAfter } from 'firebase/firestore';
@@ -181,6 +181,13 @@ export default function AdminDashboard() {
       icon: Settings,
       path: '/admin/church-info',
       color: 'bg-rose-50 text-rose-600 border-rose-100'
+    },
+    {
+      title: '다음세대 CMS',
+      description: '다음세대 부서/탭/소개/자료를 관리자 화면에서 통합 관리합니다.',
+      icon: Sparkles,
+      path: '/admin/next-generation',
+      color: 'bg-teal-50 text-teal-700 border-teal-100'
     },
     {
       title: '회원 관리',
