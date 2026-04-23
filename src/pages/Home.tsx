@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { requestNotificationPermission } from '../services/notificationService';
 import { useStore } from '../store/useStore';
+import SiteCmsSections from '../components/SiteCmsSections';
 
 const DEFAULT_HERO_IMAGE = "https://lh3.googleusercontent.com/d/1V0VulPP6zYJLhZCS_Ytmq2Ad2tndcEm0";
 
@@ -268,6 +269,9 @@ export default function Home() {
 
   return (
     <div className="bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <SiteCmsSections pageSlug="home" className="mb-2" />
+      </div>
       {/* Hero Section */}
       <section className="relative h-[80vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">

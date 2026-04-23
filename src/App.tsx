@@ -16,13 +16,10 @@ import EditPost from './pages/EditPost';
 import AdminUsers from './pages/AdminUsers';
 import AdminContacts from './pages/AdminContacts';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminSermonCategories from './pages/AdminSermonCategories';
-import AdminResearchCategories from './pages/AdminResearchCategories';
-import AdminChurchInfo from './pages/AdminChurchInfo';
-import AdminActivityLogs from './pages/AdminActivityLogs';
 import AdminNotifications from './pages/AdminNotifications';
 import AdminPastoralNotes from './pages/AdminPastoralNotes';
 import AdminNextGenerationCms from './pages/AdminNextGenerationCms';
+import AdminSiteCms from './pages/AdminSiteCms';
 import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -32,6 +29,7 @@ import NextGeneration from './pages/NextGeneration';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import QuotaExceededView from './components/QuotaExceededView';
+import { SiteCmsProvider } from './lib/siteCms';
 
 function RedirectNextGeneration() {
   const location = useLocation();
@@ -65,42 +63,45 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/next/*" element={<NextGeneration />} />
-            <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
-              <Route path="login" element={<Login />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="intro" element={<Introduction />} />
-              <Route path="archive" element={<ArchiveLayout />}>
-                <Route index element={<Navigate to="today" replace />} />
-                <Route path="today" element={<TodayWord />} />
-                <Route path="sermons" element={<Sermons />} />
-                <Route path="research" element={<ResearchLab />} />
+        <SiteCmsProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/next/*" element={<NextGeneration />} />
+              <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Home />} />
+                <Route path="login" element={<Login />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="intro" element={<Introduction />} />
+                <Route path="archive" element={<ArchiveLayout />}>
+                  <Route index element={<Navigate to="today" replace />} />
+                  <Route path="today" element={<TodayWord />} />
+                  <Route path="sermons" element={<Sermons />} />
+                  <Route path="research" element={<ResearchLab />} />
+                </Route>
+                <Route path="community" element={<Community />} />
+                <Route path="prayer-room" element={<PrayerRoom />} />
+                <Route path="post/:id" element={<PostDetail />} />
+                <Route path="edit-post/:id" element={<EditPost />} />
+                <Route path="create-post" element={<CreatePost />} />
+                <Route path="admin/users" element={<AdminUsers />} />
+                <Route path="admin/contacts" element={<AdminContacts />} />
+                <Route path="admin/site-cms" element={<AdminSiteCms />} />
+                <Route path="admin/sermon-categories" element={<Navigate to="/admin/site-cms" replace />} />
+                <Route path="admin/research-categories" element={<Navigate to="/admin/site-cms" replace />} />
+                <Route path="admin/church-info" element={<Navigate to="/admin/site-cms" replace />} />
+                <Route path="admin/activity-logs" element={<Navigate to="/admin/site-cms" replace />} />
+                <Route path="admin/notifications" element={<AdminNotifications />} />
+                <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
+                <Route path="raah" element={<AdminPastoralNotes />} />
+                <Route path="admin" element={<AdminDashboard />} />
+                <Route path="journal" element={<Journal />} />
+                <Route path="contact" element={<Contact />} />
+                <Route path="privacy" element={<PrivacyPolicy />} />
               </Route>
-              <Route path="community" element={<Community />} />
-              <Route path="prayer-room" element={<PrayerRoom />} />
-              <Route path="post/:id" element={<PostDetail />} />
-              <Route path="edit-post/:id" element={<EditPost />} />
-              <Route path="create-post" element={<CreatePost />} />
-              <Route path="admin/users" element={<AdminUsers />} />
-              <Route path="admin/contacts" element={<AdminContacts />} />
-              <Route path="admin/sermon-categories" element={<AdminSermonCategories />} />
-              <Route path="admin/research-categories" element={<AdminResearchCategories />} />
-              <Route path="admin/church-info" element={<AdminChurchInfo />} />
-              <Route path="admin/activity-logs" element={<AdminActivityLogs />} />
-              <Route path="admin/notifications" element={<AdminNotifications />} />
-              <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
-              <Route path="raah" element={<AdminPastoralNotes />} />
-              <Route path="admin" element={<AdminDashboard />} />
-              <Route path="journal" element={<Journal />} />
-              <Route path="contact" element={<Contact />} />
-              <Route path="privacy" element={<PrivacyPolicy />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+            </Routes>
+          </BrowserRouter>
+        </SiteCmsProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

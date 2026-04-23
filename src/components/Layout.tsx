@@ -9,9 +9,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
 import { Toaster, toast } from 'sonner';
 import { onMessageListener } from '../services/notificationService';
+import { useSiteCms } from '../lib/siteCms';
 
 export default function Layout() {
   const { user, role } = useAuth();
+  const { pages: siteCmsPages } = useSiteCms();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -125,6 +127,33 @@ export default function Layout() {
     { name: '문의', path: '/contact', icon: Mail },
   ];
 
+  const pagePathToSlug: Record<string, string> = {
+    '/': 'home',
+    '/intro': 'introduction',
+    '/archive': 'archive',
+    '/community': 'community',
+  };
+
+  const cmsNavItems = navItems
+    .map((item) => {
+      const slug = pagePathToSlug[item.path];
+      if (!slug) return item;
+      const pageMeta = siteCmsPages.find((page) => page.slug === slug);
+      if (!pageMeta) return item;
+      return {
+        ...item,
+        name: pageMeta.label || item.name,
+        order: pageMeta.order,
+        visible: pageMeta.visible,
+      };
+    })
+    .filter((item: any) => item.visible !== false)
+    .sort((a: any, b: any) => {
+      const left = typeof a.order === 'number' ? a.order : 999;
+      const right = typeof b.order === 'number' ? b.order : 999;
+      return left - right;
+    });
+
   return (
     <div className="min-h-screen flex flex-col bg-wood-100 font-sans text-wood-900">
       <Toaster position="top-right" expand={true} richColors />
@@ -152,7 +181,7 @@ export default function Layout() {
 
             {/* Desktop Nav */}
             <nav className="hidden lg:flex items-center space-x-3 xl:space-x-6">
-              {navItems.map((item) => (
+              {cmsNavItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
@@ -224,7 +253,7 @@ export default function Layout() {
               className="lg:hidden bg-white border-b border-wood-200 overflow-hidden"
             >
               <div className="px-4 pt-2 pb-6 space-y-1">
-                {navItems.map((item) => (
+                {cmsNavItems.map((item) => (
                   <Link
                     key={item.path}
                     to={item.path}
