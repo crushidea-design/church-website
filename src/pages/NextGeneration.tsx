@@ -629,13 +629,16 @@ function NextGenerationHeader() {
 }
 
 function IntroPage({
-  sections: _sections,
+  sections,
   departments,
 }: {
   sections?: NextGenerationIntroSection[];
   departments?: DepartmentCardItem[];
 }) {
   const departmentCards = (departments && departments.length > 0) ? departments : (sectionTabs as any);
+  const cmsIntroSections = (sections || [])
+    .filter((section) => section.isVisible)
+    .sort((a, b) => a.order - b.order);
   const introPillars = [
     {
       title: '예배 중심 교육',
@@ -1046,6 +1049,49 @@ function IntroPage({
             </div>
           </div>
         </div>
+      )}
+
+      {cmsIntroSections.length > 0 && (
+        <section className="bg-white py-14">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 className="text-3xl font-black tracking-normal text-emerald-950">CMS 소개 섹션</h2>
+              <p className="mt-3 text-base leading-7 text-slate-700">
+                아래 내용은 관리자 화면에서 직접 수정한 소개 데이터입니다.
+              </p>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              {cmsIntroSections.map((section) => (
+                <article key={section.id} className="rounded-lg border border-sky-100 bg-sky-50 p-6 shadow-sm">
+                  <h3 className="text-xl font-black text-emerald-950">{section.title}</h3>
+                  <div className="mt-3 space-y-3">
+                    {section.paragraphs.map((paragraph, idx) => (
+                      <p key={`${section.id}-p-${idx}`} className="text-sm leading-7 text-slate-700">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                  {section.highlights.length > 0 && (
+                    <ul className="mt-4 space-y-1 rounded-lg border border-sky-100 bg-white p-4">
+                      {section.highlights.map((item, idx) => (
+                        <li key={`${section.id}-h-${idx}`} className="text-xs font-bold text-emerald-900">
+                          · {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {section.gallery.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {section.gallery.map((image, idx) => (
+                        <img key={`${section.id}-g-${idx}`} src={image.src} alt={image.alt} className="h-24 w-full rounded-lg object-cover" />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
       )}
 
       <section className="bg-sky-50 py-14">
