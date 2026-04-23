@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl', 'attachmentCount'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl', 'attachmentCount', 'nextGenerationDepartmentSlug', 'nextGenerationTabSlug', 'isArchived', 'archivedAt', 'archivedBy'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -146,9 +146,16 @@ service cloud.firestore {
              (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
              (!('targetUserIds' in data) || data.targetUserIds is list) &&
              (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500)) &&
-             (!('attachmentCount' in data) || (data.attachmentCount is number && data.attachmentCount >= 0 && data.attachmentCount <= 20));
+             (!('attachmentCount' in data) || (data.attachmentCount is number && data.attachmentCount >= 0 && data.attachmentCount <= 20)) &&
+             (!('nextGenerationDepartmentSlug' in data) || (data.nextGenerationDepartmentSlug is string && data.nextGenerationDepartmentSlug.matches("^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$"))) &&
+             (!('nextGenerationTabSlug' in data) || (data.nextGenerationTabSlug is string && data.nextGenerationTabSlug.matches("^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$"))) &&
+             (!('isArchived' in data) || data.isArchived is bool) &&
+             (!('archivedAt' in data) || data.archivedAt is timestamp || data.archivedAt == null) &&
+             (!('archivedBy' in data) || data.archivedBy is string || data.archivedBy == null);
 
-      let subCatValid = !('subCategory' in data) || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', 'podcast_review', ''];
+      let legacySubCatValid = !('subCategory' in data) || data.category == 'next_generation' || data.subCategory in ['worship', 'preaching', 'pastoring', 'governing', 'general', 'past_sermons', 'pilgrims_progress', 'free_board', 'notice', 'today_word', 'elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'summer_bible_school', 'pilgrim_lecture', 'retreat_materials', 'podcast_review', ''];
+      let nextGenerationSubCatValid = data.category != 'next_generation' || !('subCategory' in data) || (data.subCategory is string && data.subCategory.matches("^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$"));
+      let subCatValid = legacySubCatValid && nextGenerationSubCatValid;
       return baseValid && subCatValid && data.keys().hasOnly(allowedFields);
     }
 
@@ -480,6 +487,21 @@ service cloud.firestore {
         (isAuthenticated() &&
           exists(/databases/$(database)/documents/posts/$(postId)) &&
           get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+    }
+
+    match /next_generation_departments/{departmentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /next_generation_resource_tabs/{tabId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /next_generation_intro_sections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ──────────────────────────────────────────────────────────────────

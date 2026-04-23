@@ -57,6 +57,13 @@ import {
   uploadMaterialFiles,
   validateMaterialFiles,
 } from '../lib/attachments';
+import {
+  NextGenerationCmsProvider,
+  NextGenerationDepartment,
+  NextGenerationIntroSection,
+  NextGenerationResourceTab,
+  useNextGenerationCms,
+} from '../lib/nextGenerationCms';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
@@ -176,6 +183,44 @@ interface NextGenerationPost {
   [key: string]: any;
 }
 
+interface ResourceTabItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon: React.ComponentType<any>;
+  departmentSlug: string;
+  isGuestOpen?: boolean;
+  isWeeklyGroup?: boolean;
+  useWeekKey?: boolean;
+  useTopic?: boolean;
+}
+
+interface DepartmentCardItem {
+  id: string;
+  slug: string;
+  name: string;
+  path: string;
+  image: string;
+  copy: string;
+  heroTitle?: string;
+  heroDescription?: string;
+  heroClassName?: string;
+  badgeClassName?: string;
+  guestPostLimit?: number;
+  icon: React.ComponentType<any>;
+}
+
+const iconMap: Record<string, React.ComponentType<any>> = {
+  CalendarDays,
+  FileText,
+  BookMarked,
+  ClipboardList,
+  HeartHandshake,
+  Sparkles,
+  Users,
+};
+
 const getYouTubeVideoId = (url: string): string | null => {
   const match = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([^&\n?#]+)/);
   return match ? match[1] : null;
@@ -224,20 +269,23 @@ const getPostPrimarySortTime = (post: NextGenerationPost): number => {
   return getCreatedAtTime(post.createdAt);
 };
 
-const getResourceLabel = (id?: string) => {
-  return allResourceTabs.find((tab) => tab.id === id)?.name || '다음세대 자료';
+const getResourceLabel = (id?: string, tabs: ResourceTabItem[] = allResourceTabs as any) => {
+  return tabs.find((tab) => tab.id === id || tab.slug === id)?.name || '다음세대 자료';
 };
 
-const getResourceDepartmentPath = (id?: string) => {
-  if (youngAdultResourceTabs.some((tab) => tab.id === id)) {
-    return `${NEXT_GENERATION_PATH}/young-adults`;
-  }
-
-  return `${NEXT_GENERATION_PATH}/elementary`;
+const getResourceDepartmentPath = (
+  id?: string,
+  tabs: ResourceTabItem[] = allResourceTabs as any,
+  departments: DepartmentCardItem[] = sectionTabs as any
+) => {
+  const foundTab = tabs.find((tab) => tab.id === id || tab.slug === id);
+  const fallbackSlug = youngAdultResourceTabs.some((tab) => (tab as any).id === id) ? 'young-adults' : 'elementary';
+  const departmentSlug = foundTab?.departmentSlug || fallbackSlug || departments[0]?.slug || 'elementary';
+  return `${NEXT_GENERATION_PATH}/${departmentSlug}`;
 };
 
-const getResourceTab = (id?: string) => {
-  return allResourceTabs.find((tab) => tab.id === id) || elementaryResourceTabs[0];
+const getResourceTab = (id?: string, tabs: ResourceTabItem[] = allResourceTabs as any) => {
+  return tabs.find((tab) => tab.id === id || tab.slug === id) || tabs[0] || (elementaryResourceTabs[0] as any);
 };
 
 const getContentPreview = (content?: string) => {
@@ -580,7 +628,17 @@ function NextGenerationHeader() {
   );
 }
 
-function IntroPage() {
+function IntroPage({
+  sections,
+  departments,
+}: {
+  sections?: NextGenerationIntroSection[];
+  departments?: DepartmentCardItem[];
+}) {
+  const departmentCards = (departments && departments.length > 0) ? departments : (sectionTabs as any);
+  const cmsIntroSections = (sections || [])
+    .filter((section) => section.isVisible)
+    .sort((a, b) => a.order - b.order);
   const introPillars = [
     {
       title: '예배 중심 교육',
@@ -993,6 +1051,43 @@ function IntroPage() {
         </div>
       )}
 
+      {false && cmsIntroSections.length > 0 && (
+        <section className="bg-white py-14">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="grid gap-6 md:grid-cols-2">
+              {cmsIntroSections.map((section) => (
+                <article key={section.id} className="rounded-lg border border-sky-100 bg-sky-50 p-6 shadow-sm">
+                  <h3 className="text-xl font-black text-emerald-950">{section.title}</h3>
+                  <div className="mt-3 space-y-3">
+                    {section.paragraphs.map((paragraph, idx) => (
+                      <p key={`${section.id}-p-${idx}`} className="text-sm leading-7 text-slate-700">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                  {section.highlights.length > 0 && (
+                    <ul className="mt-4 space-y-1 rounded-lg border border-sky-100 bg-white p-4">
+                      {section.highlights.map((item, idx) => (
+                        <li key={`${section.id}-h-${idx}`} className="text-xs font-bold text-emerald-900">
+                          · {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {section.gallery.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {section.gallery.map((image, idx) => (
+                        <img key={`${section.id}-g-${idx}`} src={image.src} alt={image.alt} className="h-24 w-full rounded-lg object-cover" />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="bg-sky-50 py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -1005,7 +1100,7 @@ function IntroPage() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2">
-            {sectionTabs.map((section) => (
+            {departmentCards.map((section) => (
               <Link
                 key={section.id}
                 to={section.path}
@@ -1034,6 +1129,7 @@ function IntroPage() {
 }
 
 interface ResourceLibraryPageProps {
+  departmentSlug: string;
   departmentName: string;
   image: string;
   imageAlt: string;
@@ -1041,8 +1137,9 @@ interface ResourceLibraryPageProps {
   heroClassName: string;
   title: string;
   description: React.ReactNode;
-  tabs: typeof elementaryResourceTabs;
+  tabs: ResourceTabItem[];
   midSection?: React.ReactNode;
+  weeklyResourceIds?: string[];
   /** If set, non-members only see this one tab */
   guestTabId?: string;
   /** If set, non-members only see this many posts */
@@ -1050,6 +1147,7 @@ interface ResourceLibraryPageProps {
 }
 
 function ResourceLibraryPage({
+  departmentSlug,
   departmentName,
   image,
   imageAlt,
@@ -1059,6 +1157,7 @@ function ResourceLibraryPage({
   description,
   tabs,
   midSection,
+  weeklyResourceIds = [],
   guestTabId,
   guestPostLimit,
 }: ResourceLibraryPageProps) {
@@ -1078,8 +1177,8 @@ function ResourceLibraryPage({
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
   const activeTab = visibleTabs.find((tab) => tab.id === activeResource) || visibleTabs[0];
-  const isWeeklyTab = activeTab.id === 'elementary_weekly';
-  const usesTopicFolders = !isWeeklyTab && supportsNextGenerationTopic(activeTab.id);
+  const isWeeklyTab = !!activeTab.isWeeklyGroup;
+  const usesTopicFolders = !isWeeklyTab && (!!activeTab.useTopic || supportsNextGenerationTopic(activeTab.id));
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
@@ -1096,18 +1195,20 @@ function ResourceLibraryPage({
 
       try {
         const constraints = [where('category', '==', NEXT_GENERATION_CATEGORY)];
-
-        if (isWeeklyTab) {
-          constraints.push(where('subCategory', 'in', elementaryWeeklyResourceIds));
-        } else {
-          constraints.push(where('subCategory', '==', activeTab.id));
-        }
-
-        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(150));
+        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(300));
         const snapshot = await getDocs(q);
-        const data = snapshot.docs
+        const raw = snapshot.docs
           .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost);
-
+        const data = raw.filter((post) => {
+          if (post.isArchived === true) return false;
+          const postDepartmentSlug = post.nextGenerationDepartmentSlug || getResourceDepartmentPath(post.subCategory).replace(`${NEXT_GENERATION_PATH}/`, '');
+          if (postDepartmentSlug !== departmentSlug) return false;
+          const postTabSlug = post.nextGenerationTabSlug || post.subCategory;
+          if (isWeeklyTab) {
+            return weeklyResourceIds.includes(postTabSlug || '');
+          }
+          return postTabSlug === activeTab.id;
+        });
         setPosts(data);
       } catch (err: any) {
         console.error('Error fetching next generation posts:', err);
@@ -1121,7 +1222,7 @@ function ResourceLibraryPage({
     };
 
     fetchPosts();
-  }, [activeTab.id, isWeeklyTab]);
+  }, [activeTab.id, departmentSlug, isWeeklyTab, weeklyResourceIds]);
 
   const topicOptions = useMemo(() => {
     if (!usesTopicFolders) return [];
@@ -1170,8 +1271,8 @@ function ResourceLibraryPage({
         : getPostPrimarySortTime(a) - getPostPrimarySortTime(b);
 
     if (isWeeklyTab) {
-      return elementaryWeeklyResourceIds.flatMap((resourceId) => {
-        const resourcePosts = posts.filter((post) => post.subCategory === resourceId);
+      return weeklyResourceIds.flatMap((resourceId) => {
+        const resourcePosts = posts.filter((post) => (post.nextGenerationTabSlug || post.subCategory) === resourceId);
         const weeklyPosts = resourcePosts.filter((post) => getPostWeekKey(post) === currentWeekKey);
 
         return weeklyPosts.length > 0 ? weeklyPosts : resourcePosts.slice(0, 1);
@@ -1185,7 +1286,7 @@ function ResourceLibraryPage({
     }
 
     return [...posts].sort(byDate);
-  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir]);
+  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
 
   return (
     <div>
@@ -1372,7 +1473,7 @@ function ResourceLibraryPage({
                     <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
                       <div className="mb-4 flex flex-wrap gap-2">
                         <span className="inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
-                          {getResourceLabel(post.subCategory)}
+                          {getResourceLabel(post.nextGenerationTabSlug || post.subCategory, visibleTabs as any)}
                         </span>
                         {supportsNextGenerationTopic(post.subCategory) && (
                           <span className="inline-flex rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-black text-emerald-950">
@@ -1487,6 +1588,7 @@ function ResourceLibraryPage({
 function YoungAdultsPage() {
   return (
     <ResourceLibraryPage
+      departmentSlug="young-adults"
       departmentName="청년부"
       image={youngAdultsImage}
       imageAlt="천로역정 특강 청년부 자료"
@@ -1494,7 +1596,7 @@ function YoungAdultsPage() {
       heroClassName="bg-white"
       title="복음 안에서 함께 질문하고 함께 걸어갑니다"
       description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
-      tabs={youngAdultResourceTabs}
+      tabs={youngAdultResourceTabs as any}
       guestTabId="pilgrim_lecture"
       guestPostLimit={4}
       midSection={
@@ -1509,12 +1611,30 @@ function YoungAdultsPage() {
 function NextGenerationCreatePost() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { tabs: cmsTabs } = useNextGenerationCms();
   const [searchParams] = useSearchParams();
-  const activeTab = getResourceTab(searchParams.get('resource') || undefined);
+  const mergedTabs: ResourceTabItem[] = useMemo(
+    () =>
+      (cmsTabs.length > 0 ? cmsTabs : (allResourceTabs as any)).map((tab: any) => ({
+        id: tab.slug || tab.id,
+        slug: tab.slug || tab.id,
+        name: tab.name,
+        description: tab.description || '',
+        icon: iconMap[tab.iconName] || tab.icon || FileText,
+        departmentSlug: tab.departmentSlug || (youngAdultResourceTabs.some((item) => item.id === (tab.id || tab.slug)) ? 'young-adults' : 'elementary'),
+        isGuestOpen: tab.isGuestOpen,
+        isWeeklyGroup: tab.isWeeklyGroup || (tab.id === 'elementary_weekly'),
+        useWeekKey: tab.useWeekKey || isElementaryWeeklyResource(tab.id || tab.slug),
+        useTopic: tab.useTopic || supportsNextGenerationTopic(tab.id || tab.slug),
+      })),
+    [cmsTabs]
+  );
+  const activeTab = getResourceTab(searchParams.get('resource') || undefined, mergedTabs);
   const requestedTopic = searchParams.get('topic');
-  const isWeeklyCreate = activeTab.id === 'elementary_weekly';
+  const isWeeklyCreate = !!activeTab.isWeeklyGroup;
+  const weeklyTabsInDepartment = mergedTabs.filter((tab) => tab.departmentSlug === activeTab.departmentSlug && tab.useWeekKey && !tab.isWeeklyGroup);
   const [selectedResourceId, setSelectedResourceId] = useState(
-    isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id
+    isWeeklyCreate ? (weeklyTabsInDepartment[0]?.id || activeTab.id) : activeTab.id
   );
   const [selectedTopicId, setSelectedTopicId] = useState(
     NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic)
@@ -1523,8 +1643,8 @@ function NextGenerationCreatePost() {
   );
   const [weekKey, setWeekKey] = useState(getCurrentSundayKey());
   const backPath = requestedTopic
-    ? `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}&topic=${requestedTopic}`
-    : `${getResourceDepartmentPath(activeTab.id)}?resource=${activeTab.id}`;
+    ? `${getResourceDepartmentPath(activeTab.id, mergedTabs)}?resource=${activeTab.id}&topic=${requestedTopic}`
+    : `${getResourceDepartmentPath(activeTab.id, mergedTabs)}?resource=${activeTab.id}`;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -1534,12 +1654,13 @@ function NextGenerationCreatePost() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [successPostId, setSuccessPostId] = useState<string | null>(null);
-  const usesWeekKey = isWeeklyCreate || isElementaryWeeklyResource(selectedResourceId);
-  const usesTopic = supportsNextGenerationTopic(selectedResourceId);
+  const selectedTab = mergedTabs.find((tab) => tab.id === selectedResourceId);
+  const usesWeekKey = isWeeklyCreate || !!selectedTab?.useWeekKey;
+  const usesTopic = !!selectedTab?.useTopic;
 
   useEffect(() => {
-    setSelectedResourceId(isWeeklyCreate ? elementaryWeeklyResourceTabs[0].id : activeTab.id);
-  }, [activeTab.id, isWeeklyCreate]);
+    setSelectedResourceId(isWeeklyCreate ? (weeklyTabsInDepartment[0]?.id || activeTab.id) : activeTab.id);
+  }, [activeTab.id, isWeeklyCreate, weeklyTabsInDepartment]);
 
   useEffect(() => {
     if (!usesTopic) {
@@ -1551,11 +1672,11 @@ function NextGenerationCreatePost() {
     if (
       requestedTopic &&
       NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic) &&
-      supportsNextGenerationTopic(selectedResourceId)
+      usesTopic
     ) {
       setSelectedTopicId(requestedTopic);
     }
-  }, [requestedTopic, selectedResourceId]);
+  }, [requestedTopic, selectedResourceId, usesTopic]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -1594,6 +1715,9 @@ function NextGenerationCreatePost() {
         content: content.trim(),
         category: NEXT_GENERATION_CATEGORY,
         subCategory: selectedResourceId,
+        nextGenerationTabSlug: selectedResourceId,
+        nextGenerationDepartmentSlug: selectedTab?.departmentSlug || activeTab.departmentSlug,
+        isArchived: false,
         sortOrder: generateSortOrder(title.trim()),
         authorId: user.uid,
         authorName: user.displayName || '익명',
@@ -1792,7 +1916,7 @@ function NextGenerationCreatePost() {
                   onChange={(event) => setSelectedResourceId(event.target.value)}
                   className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 >
-                  {elementaryWeeklyResourceTabs.map((tab) => (
+                  {weeklyTabsInDepartment.map((tab) => (
                     <option key={tab.id} value={tab.id}>
                       {tab.name}
                     </option>
@@ -1972,6 +2096,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, isPending, isRejected } = useNextGenerationAuth();
+  const { tabs: cmsTabs, departments: cmsDepartments } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
@@ -2053,10 +2178,32 @@ function NextGenerationPostDetail({ id }: { id: string }) {
 
   if (!post) return null;
 
+  const mergedTabs: ResourceTabItem[] = (cmsTabs.length > 0 ? cmsTabs : (allResourceTabs as any)).map((tab: any) => ({
+    id: tab.slug || tab.id,
+    slug: tab.slug || tab.id,
+    name: tab.name,
+    description: tab.description || '',
+    icon: iconMap[tab.iconName] || tab.icon || FileText,
+    departmentSlug: tab.departmentSlug || (youngAdultResourceTabs.some((item) => item.id === (tab.id || tab.slug)) ? 'young-adults' : 'elementary'),
+    isGuestOpen: tab.isGuestOpen,
+    isWeeklyGroup: tab.isWeeklyGroup || (tab.id === 'elementary_weekly'),
+    useWeekKey: tab.useWeekKey || isElementaryWeeklyResource(tab.id || tab.slug),
+    useTopic: tab.useTopic || supportsNextGenerationTopic(tab.id || tab.slug),
+  }));
+  const mergedDepartments: DepartmentCardItem[] = (cmsDepartments.length > 0 ? cmsDepartments : (sectionTabs as any)).map((department: any) => ({
+    id: department.slug || department.id,
+    slug: department.slug || department.id,
+    name: department.name,
+    path: `${NEXT_GENERATION_PATH}/${department.slug || department.id}`,
+    image: department.image || elementaryImage,
+    copy: department.description || department.copy || '',
+    icon: iconMap.Sparkles,
+  }));
   const inferredTopicId = inferNextGenerationTopicId(post);
-  const backPath = supportsNextGenerationTopic(post.subCategory)
-    ? `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
-    : `${getResourceDepartmentPath(post.subCategory)}?resource=${post.subCategory || elementaryResourceTabs[0].id}`;
+  const postTabSlug = post.nextGenerationTabSlug || post.subCategory;
+  const backPath = supportsNextGenerationTopic(postTabSlug)
+    ? `${getResourceDepartmentPath(postTabSlug, mergedTabs, mergedDepartments)}?resource=${postTabSlug || mergedTabs[0]?.id || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
+    : `${getResourceDepartmentPath(postTabSlug, mergedTabs, mergedDepartments)}?resource=${postTabSlug || mergedTabs[0]?.id || elementaryResourceTabs[0].id}`;
   const attachments = getPostAttachments(post);
 
   return (
@@ -2085,10 +2232,10 @@ function NextGenerationPostDetail({ id }: { id: string }) {
         <article className="rounded-lg border border-white bg-white p-6 shadow-sm sm:p-8 lg:p-10">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex w-fit rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
-                {getResourceLabel(post.subCategory)}
-              </span>
-              {supportsNextGenerationTopic(post.subCategory) && (
+                <span className="inline-flex w-fit rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
+                  {getResourceLabel(postTabSlug, mergedTabs)}
+                </span>
+              {supportsNextGenerationTopic(postTabSlug) && (
                 <span className="inline-flex w-fit rounded-lg bg-sky-50 px-3 py-2 text-sm font-black text-emerald-950">
                   {getNextGenerationTopicLabel(inferredTopicId)}
                 </span>
@@ -2215,12 +2362,54 @@ function NextGenerationInner() {
 
   const location = useLocation();
   const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();
+  const { departments: cmsDepartments, tabs: cmsTabs, introSections } = useNextGenerationCms();
+  const mappedDepartments: DepartmentCardItem[] = useMemo(
+    () =>
+      (cmsDepartments.length > 0 ? cmsDepartments : (sectionTabs as any))
+        .filter((department: any) => department.isVisible !== false)
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((department: any) => ({
+          id: department.slug || department.id,
+          slug: department.slug || department.id,
+          name: department.name,
+          path: `${NEXT_GENERATION_PATH}/${department.slug || department.id}`,
+          image: department.image || elementaryImage,
+          copy: department.description || department.copy || '',
+          heroTitle: department.heroTitle,
+          heroDescription: department.heroDescription,
+          heroClassName: department.heroClassName,
+          badgeClassName: department.badgeClassName,
+          guestPostLimit: department.guestPostLimit,
+          icon: iconMap.Sparkles,
+        })),
+    [cmsDepartments]
+  );
+  const mappedTabs: ResourceTabItem[] = useMemo(
+    () =>
+      (cmsTabs.length > 0 ? cmsTabs : (allResourceTabs as any))
+        .filter((tab: any) => tab.isVisible !== false)
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((tab: any) => ({
+          id: tab.slug || tab.id,
+          slug: tab.slug || tab.id,
+          name: tab.name,
+          description: tab.description || '',
+          icon: iconMap[tab.iconName] || tab.icon || FileText,
+          departmentSlug: tab.departmentSlug || (youngAdultResourceTabs.some((item) => item.id === (tab.id || tab.slug)) ? 'young-adults' : 'elementary'),
+          isGuestOpen: tab.isGuestOpen || tab.id === 'elementary_weekly' || tab.id === 'pilgrim_lecture',
+          isWeeklyGroup: tab.isWeeklyGroup || tab.id === 'elementary_weekly',
+          useWeekKey: tab.useWeekKey || isElementaryWeeklyResource(tab.id || tab.slug),
+          useTopic: tab.useTopic || supportsNextGenerationTopic(tab.id || tab.slug),
+        })),
+    [cmsTabs]
+  );
   const pathParts = location.pathname.split('/').filter(Boolean);
   const currentSection = pathParts[1];
   const postId = currentSection === 'post' ? pathParts[2] : null;
   const editId = currentSection === 'edit' ? pathParts[2] : null;
+  const currentDepartment = mappedDepartments.find((department) => department.slug === currentSection);
 
-  let content: React.ReactNode = <IntroPage />;
+  let content: React.ReactNode = <IntroPage sections={introSections} departments={mappedDepartments} />;
 
   if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
@@ -2228,27 +2417,33 @@ function NextGenerationInner() {
     content = <EditPost postId={editId} nextGenerationMode />;
   } else if (currentSection === 'create') {
     content = <NextGenerationCreatePost />;
-  } else if (currentSection === 'elementary') {
+  } else if (currentDepartment) {
+    const departmentTabs = mappedTabs.filter((tab) => tab.departmentSlug === currentDepartment.slug);
+    const weeklyResourceIds = departmentTabs.filter((tab) => tab.useWeekKey && !tab.isWeeklyGroup).map((tab) => tab.id);
+    const guestTabId = departmentTabs.find((tab) => tab.isGuestOpen)?.id;
     content = (
       <ResourceLibraryPage
-        departmentName="유초등부"
-        image={elementaryImage}
-        imageAlt="함께 배우는 유초등부"
-        badgeClassName="bg-white text-coral-800"
-        heroClassName="bg-amber-50"
-        title="예배가 한 주의 삶으로 이어지도록"
-        description={
-          <>
-            이번 주 강의원고, 공과, 공과가이드, 부모 칼럼을 한곳에서 확인합니다.
-            교사는 수업을 준비하고, 가정은 들은 말씀을 다시 이어 갑니다.
-          </>
+        departmentSlug={currentDepartment.slug}
+        departmentName={currentDepartment.name}
+        image={currentDepartment.image}
+        imageAlt={`${currentDepartment.name} 자료`}
+        badgeClassName={currentDepartment.badgeClassName || 'bg-white text-coral-800'}
+        heroClassName={currentDepartment.heroClassName || 'bg-white'}
+        title={currentDepartment.heroTitle || `${currentDepartment.name} 자료실`}
+        description={currentDepartment.heroDescription || `${currentDepartment.name} 자료를 확인합니다.`}
+        tabs={departmentTabs}
+        guestTabId={guestTabId}
+        guestPostLimit={currentDepartment.guestPostLimit}
+        weeklyResourceIds={weeklyResourceIds}
+        midSection={
+          currentDepartment.slug === 'young-adults' ? (
+            <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
+              <NextGenerationQA />
+            </section>
+          ) : undefined
         }
-        tabs={elementaryResourceTabs}
-        guestTabId="elementary_weekly"
       />
     );
-  } else if (currentSection === 'young-adults') {
-    content = <YoungAdultsPage />;
   } else if (currentSection === 'contact') {
     content = (
       <div className="min-h-[60vh] bg-white py-10">
@@ -2274,7 +2469,9 @@ function NextGenerationInner() {
 export default function NextGeneration() {
   return (
     <NextGenerationAuthProvider>
-      <NextGenerationInner />
+      <NextGenerationCmsProvider>
+        <NextGenerationInner />
+      </NextGenerationCmsProvider>
     </NextGenerationAuthProvider>
   );
 }

@@ -22,6 +22,7 @@ import AdminChurchInfo from './pages/AdminChurchInfo';
 import AdminActivityLogs from './pages/AdminActivityLogs';
 import AdminNotifications from './pages/AdminNotifications';
 import AdminPastoralNotes from './pages/AdminPastoralNotes';
+import AdminNextGenerationCms from './pages/AdminNextGenerationCms';
 import Journal from './pages/Journal';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="admin/church-info" element={<AdminChurchInfo />} />
               <Route path="admin/activity-logs" element={<AdminActivityLogs />} />
               <Route path="admin/notifications" element={<AdminNotifications />} />
+              <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
               <Route path="raah" element={<AdminPastoralNotes />} />
               <Route path="admin" element={<AdminDashboard />} />
               <Route path="journal" element={<Journal />} />
