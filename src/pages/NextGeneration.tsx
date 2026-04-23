@@ -1515,7 +1515,7 @@ function ResourceLibraryPage({
             </>
           )}
 
-          {!loading && !isGuest || !guestPostLimit && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
+          {!loading && (!isGuest || !guestPostLimit) && filteredPosts.length > RESOURCE_PAGE_SIZE && (() => {
             const totalPages = Math.ceil(filteredPosts.length / RESOURCE_PAGE_SIZE);
             const pageNumbers: (number | 'ellipsis')[] = [];
 

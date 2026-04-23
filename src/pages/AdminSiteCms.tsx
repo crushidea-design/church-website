@@ -81,6 +81,7 @@ function AdminSiteCmsInner() {
   const [postsLoading, setPostsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterSubCategory, setFilterSubCategory] = useState('');
   const [filterArchived, setFilterArchived] = useState<'all' | 'active' | 'archived'>('all');
   const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const [moveCategory, setMoveCategory] = useState('community');
@@ -162,12 +163,13 @@ function AdminSiteCmsInner() {
     const text = search.trim().toLowerCase();
     return posts.filter((post) => {
       if (filterCategory && post.category !== filterCategory) return false;
+      if (filterSubCategory && post.subCategory !== filterSubCategory) return false;
       if (filterArchived === 'active' && post.isArchived) return false;
       if (filterArchived === 'archived' && !post.isArchived) return false;
       if (!text) return true;
       return (post.title || '').toLowerCase().includes(text) || (post.authorName || '').toLowerCase().includes(text);
     });
-  }, [filterArchived, filterCategory, posts, search]);
+  }, [filterArchived, filterCategory, filterSubCategory, posts, search]);
 
   const addPage = async () => {
     const slug = normalizeSiteCmsSlug(newPageSlug || newPageTitle);
@@ -177,6 +179,8 @@ function AdminSiteCmsInner() {
       await upsertSiteCmsPage(slug, {
         title: newPageTitle.trim(),
         label: (newPageLabel || newPageTitle).trim(),
+        routeSlug: slug,
+        targetPath: `/${slug}`,
         order: pages.length + 1,
         visible: true,
       });
@@ -189,7 +193,10 @@ function AdminSiteCmsInner() {
     }
   };
 
-  const savePage = async (id: string, patch: Partial<{ title: string; label: string; order: number; visible: boolean }>) => {
+  const savePage = async (
+    id: string,
+    patch: Partial<{ title: string; label: string; routeSlug: string; targetPath: string; order: number; visible: boolean }>
+  ) => {
     await updateDoc(doc(db, 'site_cms_pages', id), {
       ...patch,
       updatedAt: serverTimestamp(),
@@ -335,6 +342,12 @@ function AdminSiteCmsInner() {
   const deleteCategoryWithMove = async (type: 'sermon' | 'research', categoryId: string) => {
     const targetId = prompt('삭제 전 이동할 대상 카테고리 ID를 입력해 주세요.');
     if (!targetId || targetId === categoryId) return;
+    const categories = type === 'sermon' ? sermonCategories : researchCategories;
+    const targetExists = categories.some((category) => category.id === targetId);
+    if (!targetExists) {
+      alert('이동 대상 카테고리 ID가 유효하지 않습니다.');
+      return;
+    }
     const collectionName = type === 'sermon' ? 'sermon_categories' : 'research_categories';
     const fieldName = type === 'sermon' ? 'sermonCategoryId' : 'researchCategoryId';
 
@@ -501,9 +514,18 @@ function AdminSiteCmsInner() {
             <h3 className="mb-3 text-lg font-bold text-wood-900">페이지 목록</h3>
             <div className="space-y-3">
               {pages.map((page) => (
-                <div key={page.id} className="grid gap-3 rounded-xl border border-wood-100 p-3 md:grid-cols-[1.2fr_1fr_120px_100px_80px]">
+                <div key={page.id} className="grid gap-3 rounded-xl border border-wood-100 p-3 md:grid-cols-[1.2fr_1fr_1fr_120px_100px_80px]">
                   <input defaultValue={page.title} onBlur={(e) => savePage(page.id, { title: e.target.value.trim() || page.title })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                   <input defaultValue={page.label} onBlur={(e) => savePage(page.id, { label: e.target.value.trim() || page.label })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
+                  <input
+                    defaultValue={(page as any).routeSlug || page.slug}
+                    onBlur={(e) => {
+                      const nextRouteSlug = normalizeSiteCmsSlug(e.target.value) || ((page as any).routeSlug || page.slug);
+                      const targetPath = page.slug === 'home' ? '/' : `/${nextRouteSlug}`;
+                      savePage(page.id, { routeSlug: nextRouteSlug, targetPath });
+                    }}
+                    className="rounded border border-wood-200 px-3 py-2 text-sm"
+                  />
                   <input type="number" defaultValue={page.order} onBlur={(e) => savePage(page.id, { order: Number(e.target.value) || page.order })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                   <label className="flex items-center gap-2 text-sm font-medium text-wood-700">
                     <input type="checkbox" defaultChecked={page.visible} onChange={(e) => savePage(page.id, { visible: e.target.checked })} />
@@ -579,7 +601,7 @@ function AdminSiteCmsInner() {
       {activeTab === 'posts' && (
         <div className="rounded-2xl border border-wood-200 bg-white p-5">
           <h3 className="text-lg font-bold text-wood-900">게시물 정리</h3>
-          <div className="mt-3 grid gap-2 md:grid-cols-4">
+          <div className="mt-3 grid gap-2 md:grid-cols-5">
             <input value={search} onChange={(e) => setSearch(e.target.value)} className="rounded border border-wood-200 px-3 py-2 text-sm" placeholder="제목/작성자 검색" />
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="rounded border border-wood-200 px-3 py-2 text-sm">
               <option value="">전체 카테고리</option>
@@ -590,6 +612,7 @@ function AdminSiteCmsInner() {
               <option value="today_word">today_word</option>
               <option value="next_generation">next_generation</option>
             </select>
+            <input value={filterSubCategory} onChange={(e) => setFilterSubCategory(e.target.value)} className="rounded border border-wood-200 px-3 py-2 text-sm" placeholder="서브카테고리 필터" />
             <select value={filterArchived} onChange={(e) => setFilterArchived(e.target.value as 'all' | 'active' | 'archived')} className="rounded border border-wood-200 px-3 py-2 text-sm">
               <option value="all">전체 상태</option>
               <option value="active">공개</option>
@@ -625,19 +648,21 @@ function AdminSiteCmsInner() {
                   </th>
                   <th className="px-3 py-2">제목</th>
                   <th className="px-3 py-2">카테고리</th>
+                  <th className="px-3 py-2">서브카테고리</th>
                   <th className="px-3 py-2">작성일</th>
                   <th className="px-3 py-2">상태</th>
                 </tr>
               </thead>
               <tbody>
                 {postsLoading ? (
-                  <tr><td className="px-3 py-3 text-wood-500" colSpan={5}>불러오는 중...</td></tr>
+                  <tr><td className="px-3 py-3 text-wood-500" colSpan={6}>불러오는 중...</td></tr>
                 ) : (
                   filteredPosts.map((post) => (
                     <tr key={post.id} className="border-t border-wood-100">
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedPostIds.includes(post.id)} onChange={() => toggleSelectPost(post.id)} /></td>
                       <td className="px-3 py-2">{post.title || '(제목 없음)'}</td>
                       <td className="px-3 py-2">{post.category || '-'}</td>
+                      <td className="px-3 py-2">{post.subCategory || '-'}</td>
                       <td className="px-3 py-2">{formatCreatedAt(post.createdAt)}</td>
                       <td className="px-3 py-2">{post.isArchived ? '보관' : '공개'}</td>
                     </tr>
@@ -691,6 +716,9 @@ function AdminSiteCmsInner() {
         <div className="space-y-3 rounded-2xl border border-wood-200 bg-white p-5">
           <h3 className="text-lg font-bold text-wood-900">운영 도구</h3>
           <div className="grid gap-2 md:grid-cols-3">
+            <a href="/admin/church-info" className="inline-flex items-center justify-center gap-2 rounded-lg bg-wood-900 px-3 py-3 text-sm font-bold text-white">
+              교회 정보 편집
+            </a>
             <button type="button" onClick={refreshLatestSummary} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-3 text-sm font-bold text-white">
               <Save size={14} />
               최신 요약 재생성

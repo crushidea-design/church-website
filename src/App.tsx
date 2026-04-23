@@ -16,6 +16,7 @@ import EditPost from './pages/EditPost';
 import AdminUsers from './pages/AdminUsers';
 import AdminContacts from './pages/AdminContacts';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminChurchInfo from './pages/AdminChurchInfo';
 import AdminNotifications from './pages/AdminNotifications';
 import AdminPastoralNotes from './pages/AdminPastoralNotes';
 import AdminNextGenerationCms from './pages/AdminNextGenerationCms';
@@ -29,13 +30,27 @@ import NextGeneration from './pages/NextGeneration';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import QuotaExceededView from './components/QuotaExceededView';
-import { SiteCmsProvider } from './lib/siteCms';
+import { SiteCmsProvider, useSiteCms } from './lib/siteCms';
 
 function RedirectNextGeneration() {
   const location = useLocation();
   const nextPath = location.pathname.replace(/^\/next-generation/, '/next');
 
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />;
+}
+
+function CmsSlugRedirect() {
+  const location = useLocation();
+  const { pages } = useSiteCms();
+  const slug = location.pathname.replace(/^\/+/, '');
+  const matched = pages.find((page: any) => (page.routeSlug || page.slug) === slug);
+  const allowedTargetPaths = new Set(['/', '/intro', '/archive', '/community']);
+
+  if (!matched || !allowedTargetPaths.has(matched.targetPath)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Navigate to={matched.targetPath} replace />;
 }
 
 export default function App() {
@@ -89,7 +104,7 @@ export default function App() {
                 <Route path="admin/site-cms" element={<AdminSiteCms />} />
                 <Route path="admin/sermon-categories" element={<Navigate to="/admin/site-cms" replace />} />
                 <Route path="admin/research-categories" element={<Navigate to="/admin/site-cms" replace />} />
-                <Route path="admin/church-info" element={<Navigate to="/admin/site-cms" replace />} />
+                <Route path="admin/church-info" element={<AdminChurchInfo />} />
                 <Route path="admin/activity-logs" element={<Navigate to="/admin/site-cms" replace />} />
                 <Route path="admin/notifications" element={<AdminNotifications />} />
                 <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
@@ -98,6 +113,7 @@ export default function App() {
                 <Route path="journal" element={<Journal />} />
                 <Route path="contact" element={<Contact />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />
+                <Route path=":cmsSlug" element={<CmsSlugRedirect />} />
               </Route>
             </Routes>
           </BrowserRouter>

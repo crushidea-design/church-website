@@ -7,7 +7,6 @@ import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { MessageSquare, Plus, ChevronDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import SiteCmsSections from '../components/SiteCmsSections';
 
 export default function Community() {
   const { user } = useAuth();
@@ -87,7 +86,6 @@ export default function Community() {
   return (
     <div className="bg-wood-100 min-h-screen py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SiteCmsSections pageSlug="community" className="mb-8" />
         <div className="flex justify-between items-end mb-12 border-b border-wood-200 pb-6">
           <div>
             <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">소통 게시판</h1>

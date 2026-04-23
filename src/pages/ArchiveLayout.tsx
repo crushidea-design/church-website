@@ -2,7 +2,6 @@ import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { BookOpen, Book, FileText } from 'lucide-react';
 import { cn } from '../lib/utils';
-import SiteCmsSections from '../components/SiteCmsSections';
 
 export default function ArchiveLayout() {
   const location = useLocation();
@@ -15,7 +14,6 @@ export default function ArchiveLayout() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SiteCmsSections pageSlug="archive" className="mb-8" />
       <div className="mb-8">
         <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">말씀 아카이브</h1>
         <p className="text-wood-600">

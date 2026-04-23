@@ -134,14 +134,20 @@ export default function Layout() {
     '/community': 'community',
   };
 
+  const canonicalPathToCmsPath = (canonicalPath: string, routeSlug: string) => {
+    if (canonicalPath === '/') return '/';
+    return `/${routeSlug}`;
+  };
+
   const cmsNavItems = navItems
     .map((item) => {
       const slug = pagePathToSlug[item.path];
       if (!slug) return item;
-      const pageMeta = siteCmsPages.find((page) => page.slug === slug);
+      const pageMeta = siteCmsPages.find((page) => page.targetPath === item.path) || siteCmsPages.find((page) => page.slug === slug);
       if (!pageMeta) return item;
       return {
         ...item,
+        path: canonicalPathToCmsPath(item.path, (pageMeta as any).routeSlug || pageMeta.slug),
         name: pageMeta.label || item.name,
         order: pageMeta.order,
         visible: pageMeta.visible,
