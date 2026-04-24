@@ -397,11 +397,12 @@ function NextGenerationHeader() {
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [enablingNotifications, setEnablingNotifications] = useState(false);
 
-  // 종 버튼: 최초 1회 권한 요청, 이후에는 알림함 토글
+  // 종 버튼: 최초 1회 권한 요청(정식 회원만), 이후에는 알림함 토글
   const handleBellClick = async () => {
-    if (!user || !hasAccess) return;
+    if (!user) return;
 
-    if (notificationPermission === 'default') {
+    // 권한 요청은 정식 회원(hasAccess)에게만, 대기/반려 상태는 바로 알림함 열기
+    if (notificationPermission === 'default' && hasAccess) {
       setEnablingNotifications(true);
       try {
         const token = await requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
