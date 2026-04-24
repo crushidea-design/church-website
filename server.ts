@@ -219,13 +219,18 @@ async function startServer() {
   app.use(express.json());
 
   // API Route to subscribe to topic
+  const SUPPORTED_TOPICS = new Set(['all_members', 'next_members']);
+
   app.post('/api/notifications/subscribe', async (req, res) => {
-    const { token, topic = 'all_members' } = req.body;
+    const { token, topic = 'all_members', action = 'subscribe' } = req.body;
     if (!admin.apps.length || !token) {
       return res.status(400).json({ error: 'Invalid request' });
     }
-    if (topic !== 'all_members') {
+    if (!SUPPORTED_TOPICS.has(String(topic))) {
       return res.status(400).json({ error: 'Unsupported topic' });
+    }
+    if (action !== 'subscribe' && action !== 'unsubscribe') {
+      return res.status(400).json({ error: 'Unsupported action' });
     }
     const decoded = await verifyRequestUser(req).catch(error => {
       console.error('Error verifying subscribe request:', error);
@@ -236,7 +241,11 @@ async function startServer() {
     }
 
     try {
-      await admin.messaging().subscribeToTopic(token, topic);
+      if (action === 'unsubscribe') {
+        await admin.messaging().unsubscribeFromTopic(token, topic);
+      } else {
+        await admin.messaging().subscribeToTopic(token, topic);
+      }
       res.json({ success: true });
     } catch (error) {
       console.error('Error subscribing to topic:', error);
@@ -281,10 +290,14 @@ async function startServer() {
       };
 
       if (useTopic) {
+        const topic = useTopic === true ? 'all_members' : String(useTopic);
+        if (!SUPPORTED_TOPICS.has(topic)) {
+          return res.status(400).json({ error: 'Unsupported topic' });
+        }
         // Zero-read broadcast using topics
         response = await admin.messaging().send({
           ...baseMessage,
-          topic: useTopic === true ? 'all_members' : useTopic,
+          topic,
         });
         res.json({ success: true, messageId: response });
       } else {

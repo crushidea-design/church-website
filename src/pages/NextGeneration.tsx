@@ -397,8 +397,26 @@ function NextGenerationHeader() {
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [enablingNotifications, setEnablingNotifications] = useState(false);
 
-  // Mark all currently-unread notifications as read when the dropdown is opened
-  const handleOpenNotifications = () => {
+  // 종 버튼: 최초 1회 권한 요청, 이후에는 알림함 토글
+  const handleBellClick = async () => {
+    if (!user || !hasAccess) return;
+
+    if (notificationPermission === 'default') {
+      setEnablingNotifications(true);
+      try {
+        const token = await requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
+        const currentPermission =
+          typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+        setNotificationPermission(currentPermission as 'default' | 'granted' | 'denied' | 'unsupported');
+        if (!token && currentPermission === 'denied') {
+          window.alert('브라우저 설정에서 알림 권한을 허용해 주세요.');
+        }
+      } finally {
+        setEnablingNotifications(false);
+      }
+      return;
+    }
+
     setShowNotifications(v => !v);
     notifications.filter(n => !n.isRead).forEach(n => markNotificationRead(n.id));
   };
@@ -445,26 +463,6 @@ function NextGenerationHeader() {
       setShowLoginModal(true);
     }
   }, [isRejected, member, user]);
-
-  const handleEnableNotifications = async () => {
-    if (!user || !hasAccess) {
-      return;
-    }
-
-    setEnablingNotifications(true);
-    try {
-      const token = await requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
-      const currentPermission =
-        typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
-      setNotificationPermission(currentPermission as 'default' | 'granted' | 'denied' | 'unsupported');
-
-      if (!token && currentPermission === 'denied') {
-        window.alert('브라우저 설정에서 알림 권한을 허용해 주세요.');
-      }
-    } finally {
-      setEnablingNotifications(false);
-    }
-  };
 
   return (
     <>
@@ -525,21 +523,12 @@ function NextGenerationHeader() {
                   </button>
                 </>
               )}
-              {!authLoading && user && hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={enablingNotifications}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
-                >
-                  <Bell size={14} />
-                  {enablingNotifications ? '요청 중...' : '알림 허용'}
-                </button>
-              )}
               {!authLoading && user && !isPastor && (
                 <>
                   <button
-                    onClick={handleOpenNotifications}
-                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                    onClick={handleBellClick}
+                    disabled={enablingNotifications}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition disabled:opacity-60"
                   >
                     <Bell size={16} />
                     {unreadCount > 0 && (
@@ -609,21 +598,12 @@ function NextGenerationHeader() {
                   </button>
                 </>
               )}
-              {!authLoading && user && hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={enablingNotifications}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
-                >
-                  <Bell size={14} />
-                  {enablingNotifications ? '요청 중...' : '알림 허용'}
-                </button>
-              )}
               {!authLoading && user && !isPastor && (
                 <>
                   <button
-                    onClick={handleOpenNotifications}
-                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                    onClick={handleBellClick}
+                    disabled={enablingNotifications}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition disabled:opacity-60"
                   >
                     <Bell size={16} />
                     {unreadCount > 0 && (

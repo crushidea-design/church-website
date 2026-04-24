@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
   deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
-  getDocs, getDoc, setDoc,
+  getDocs, getDoc, setDoc, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -176,6 +176,18 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         createdAt: serverTimestamp(),
         isRead: false,
       });
+      // FCM 푸시 (실패해도 in-app 알림은 이미 저장됨)
+      fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: await getRequestHeaders(),
+        body: JSON.stringify({
+          title: '다음세대 가입 승인',
+          body: '다음세대 가입 신청이 승인되었습니다.',
+          targetUrl: '/next',
+          targetUserIds: [uid],
+          appScope: 'next',
+        }),
+      }).catch(() => {});
       showToast('✓ 승인되었습니다.');
     } catch {
       showToast('오류가 발생했습니다.', 'error');
@@ -201,6 +213,18 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         createdAt: serverTimestamp(),
         isRead: false,
       });
+      // FCM 푸시 (실패해도 in-app 알림은 이미 저장됨)
+      fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: await getRequestHeaders(),
+        body: JSON.stringify({
+          title: '다음세대 가입 반려',
+          body: '다음세대 가입 신청이 반려되었습니다.',
+          targetUrl: '/next',
+          targetUserIds: [rejectTargetId],
+          appScope: 'next',
+        }),
+      }).catch(() => {});
       setRejectTargetId(null);
       setRejectReason('');
       showToast('반려 처리되었습니다.');
@@ -228,13 +252,26 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         isAnswered: true,
       });
       if (targetItem) {
+        const answerMessage = `"${targetItem.title}" 질문에 목사님 답변이 등록되었습니다.`;
         await addDoc(collection(db, 'next_generation_notifications'), {
           uid: targetItem.authorId,
           type: 'answered',
-          message: `"${targetItem.title}" 질문에 목사님 답변이 등록되었습니다.`,
+          message: answerMessage,
           createdAt: serverTimestamp(),
           isRead: false,
         });
+        // FCM 푸시 (실패해도 in-app 알림은 이미 저장됨)
+        fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: await getRequestHeaders(),
+          body: JSON.stringify({
+            title: '질문 답변 등록',
+            body: answerMessage,
+            targetUrl: '/next',
+            targetUserIds: [targetItem.authorId],
+            appScope: 'next',
+          }),
+        }).catch(() => {});
       }
       setAnswerTargetId(null);
       setAnswerText('');
@@ -291,6 +328,27 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.error || '알림을 보내지 못했습니다.');
+      }
+
+      // FCM 성공 후 in-app notification 일괄 생성
+      const targetMembers =
+        notificationAudience === 'all'
+          ? approvedMembers
+          : approvedMembers.filter((m) => m.department === notificationAudience);
+
+      if (targetMembers.length > 0) {
+        const batch = writeBatch(db);
+        const createdAt = serverTimestamp();
+        for (const m of targetMembers) {
+          batch.set(doc(collection(db, 'next_generation_notifications')), {
+            uid: m.uid,
+            type: 'announcement',
+            message: trimmedBody,
+            createdAt,
+            isRead: false,
+          });
+        }
+        await batch.commit();
       }
 
       setNotificationTitle('');

@@ -446,7 +446,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isNextGenerationPastor() &&
         request.resource.data.keys().hasOnly(['uid', 'type', 'message', 'rejectionReason', 'createdAt', 'isRead']) &&
-        request.resource.data.type in ['approved', 'rejected', 'answered'] &&
+        request.resource.data.type in ['approved', 'rejected', 'answered', 'announcement'] &&
         request.resource.data.isRead == false &&
         request.resource.data.createdAt is timestamp;
       allow update: if isAuthenticated() && resource.data.uid == request.auth.uid &&
