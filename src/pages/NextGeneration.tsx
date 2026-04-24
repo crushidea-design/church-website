@@ -397,15 +397,18 @@ function NextGenerationHeader() {
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [enablingNotifications, setEnablingNotifications] = useState(false);
 
-  // 종 버튼: 최초 1회 권한 요청(정식 회원만), 이후에는 알림함 토글
+  // 종 버튼: 최초 1회 권한 요청, 이후에는 알림함 토글
+  // 토픽 구독은 정식 회원(hasAccess)일 때만, 반려/대기는 토큰만 등록
   const handleBellClick = async () => {
     if (!user) return;
 
-    // 권한 요청은 정식 회원(hasAccess)에게만, 대기/반려 상태는 바로 알림함 열기
-    if (notificationPermission === 'default' && hasAccess) {
+    if (notificationPermission === 'default') {
       setEnablingNotifications(true);
       try {
-        const token = await requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
+        const token = await requestNotificationPermission(
+          user.uid,
+          hasAccess ? { topic: NEXT_GENERATION_NOTIFICATION_TOPIC } : undefined
+        );
         const currentPermission =
           typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
         setNotificationPermission(currentPermission as 'default' | 'granted' | 'denied' | 'unsupported');
