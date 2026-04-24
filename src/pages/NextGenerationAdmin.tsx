@@ -5,6 +5,7 @@ import {
   getDocs, getDoc, setDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../lib/auth';
 import { NextGenerationMember, Department } from '../lib/nextGenerationAuth';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import {
@@ -12,6 +13,7 @@ import {
   Bell, MessageSquare, Mail, Clock, Search, ShieldCheck, RefreshCw,
   AlertTriangle, CheckCircle2,
 } from 'lucide-react';
+import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
 
 interface QAItem {
   id: string;
@@ -35,7 +37,7 @@ interface ContactItem {
   isRead: boolean;
 }
 
-type AdminTab = 'members' | 'qa' | 'contacts' | 'migration';
+type AdminTab = 'members' | 'qa' | 'contacts' | 'notifications' | 'migration';
 
 interface MigrationRow {
   postId: string;
@@ -43,6 +45,20 @@ interface MigrationRow {
   status: 'pending' | 'done' | 'skipped' | 'error';
   error?: string;
 }
+
+const NEXT_NOTIFICATION_TARGETS = [
+  { value: '/next', label: '다음세대 홈' },
+  { value: '/next/elementary', label: '초등부 자료' },
+  { value: '/next/young-adults', label: '청년부 자료' },
+  { value: '/next/contact', label: '문의하기' },
+];
+
+const NOTIFICATION_AUDIENCE_OPTIONS: Array<{ value: 'all' | string; label: string }> = [
+  { value: 'all', label: '전체 회원' },
+  { value: '泥?뀈', label: '청년' },
+  { value: '援먯궗', label: '교사' },
+  { value: '?숇?紐?', label: '부모' },
+];
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',
@@ -57,6 +73,7 @@ function formatDate(ts: Timestamp | undefined): string {
 }
 
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
   const [tab, setTab] = useState<AdminTab>('members');
   const [members, setMembers] = useState<NextGenerationMember[]>([]);
   const [qaItems, setQaItems] = useState<QAItem[]>([]);
@@ -78,12 +95,25 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [migrationRows, setMigrationRows] = useState<MigrationRow[]>([]);
   const [migrationRunning, setMigrationRunning] = useState(false);
   const [migrationScanned, setMigrationScanned] = useState(false);
+  const [notificationTitle, setNotificationTitle] = useState('');
+  const [notificationBody, setNotificationBody] = useState('');
+  const [notificationTargetUrl, setNotificationTargetUrl] = useState('/next');
+  const [notificationAudience, setNotificationAudience] = useState<'all' | string>('all');
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   // Toast feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 2500);
+  };
+
+  const getRequestHeaders = async () => {
+    const idToken = await user?.getIdToken();
+    return {
+      'Content-Type': 'application/json',
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    };
   };
 
   // Subscribe to members
@@ -119,6 +149,10 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const rejectedMembers = members.filter(m => m.role === 'rejected');
   const unreadContacts = contacts.filter(c => !c.isRead).length;
   const unansweredQA = qaItems.filter(q => !q.isAnswered).length;
+  const notificationAudienceCount =
+    notificationAudience === 'all'
+      ? approvedMembers.length
+      : approvedMembers.filter((member) => member.department === notificationAudience).length;
 
   const filteredMembers = members.filter(m =>
     m.displayName.includes(search) ||
@@ -211,6 +245,64 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
   const markContactRead = async (id: string) => {
     await updateDoc(doc(db, 'next_generation_contacts', id), { isRead: true });
+  };
+
+  const sendNextGenerationNotification = async () => {
+    const trimmedTitle = notificationTitle.trim();
+    const trimmedBody = notificationBody.trim();
+    const trimmedTargetUrl = notificationTargetUrl.trim() || '/next';
+    const targetUserIds =
+      notificationAudience === 'all'
+        ? []
+        : approvedMembers
+            .filter((member) => member.department === notificationAudience)
+            .map((member) => member.uid);
+
+    if (!trimmedTitle || !trimmedBody) {
+      showToast('알림 제목과 내용을 입력해 주세요.', 'error');
+      return;
+    }
+
+    if (!trimmedTargetUrl.startsWith('/next')) {
+      showToast('이동 경로는 /next로 시작해야 합니다.', 'error');
+      return;
+    }
+
+    if (notificationAudience !== 'all' && targetUserIds.length === 0) {
+      showToast('선택한 역할에 해당하는 승인 회원이 없습니다.', 'error');
+      return;
+    }
+
+    setSendingNotification(true);
+    try {
+      const response = await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: await getRequestHeaders(),
+        body: JSON.stringify({
+          title: trimmedTitle,
+          body: trimmedBody,
+          targetUrl: trimmedTargetUrl,
+          useTopic: notificationAudience === 'all' ? NEXT_GENERATION_NOTIFICATION_TOPIC : false,
+          targetUserIds: notificationAudience === 'all' ? undefined : targetUserIds,
+          appScope: 'next',
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '알림을 보내지 못했습니다.');
+      }
+
+      setNotificationTitle('');
+      setNotificationBody('');
+      setNotificationTargetUrl('/next');
+      setNotificationAudience('all');
+      showToast('다음세대 알림을 발송했습니다.');
+    } catch (error: any) {
+      showToast(error?.message || '알림 발송 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSendingNotification(false);
+    }
   };
 
   // ── Migration helpers ─────────────────────────────────────────────
@@ -439,6 +531,87 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                     placeholder="이름, 이메일, 교회 검색"
                     className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="mb-3 flex items-start gap-2">
+                  <Bell size={16} className="mt-0.5 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">다음세대 푸시 알림 보내기</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">
+                      여기서 보낸 알림은 다음세대 앱에서 알림을 허용한 사용자에게만 전달되고, 누르면 아래에서 정한 `/next` 경로로 이동합니다.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                    <select
+                      value={notificationAudience}
+                      onChange={(e) => setNotificationAudience(e.target.value)}
+                      className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      {NOTIFICATION_AUDIENCE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex items-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-700">
+                      현재 대상 {notificationAudienceCount}명
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={notificationTitle}
+                    onChange={(e) => setNotificationTitle(e.target.value)}
+                    placeholder="알림 제목"
+                    className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <textarea
+                    value={notificationBody}
+                    onChange={(e) => setNotificationBody(e.target.value)}
+                    rows={3}
+                    placeholder="알림 내용"
+                    className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  />
+                  <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                    <select
+                      value={NEXT_NOTIFICATION_TARGETS.some((entry) => entry.value === notificationTargetUrl) ? notificationTargetUrl : '__custom__'}
+                      onChange={(e) => {
+                        if (e.target.value !== '__custom__') {
+                          setNotificationTargetUrl(e.target.value);
+                        }
+                      }}
+                      className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      {NEXT_NOTIFICATION_TARGETS.map((entry) => (
+                        <option key={entry.value} value={entry.value}>
+                          {entry.label}
+                        </option>
+                      ))}
+                      <option value="__custom__">직접 입력</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={notificationTargetUrl}
+                      onChange={(e) => setNotificationTargetUrl(e.target.value)}
+                      placeholder="/next/elementary"
+                      className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-amber-700">예: `/next`, `/next/young-adults`, `/next/post/문서ID`</p>
+                    <button
+                      type="button"
+                      onClick={sendNextGenerationNotification}
+                      disabled={sendingNotification}
+                      className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
+                    >
+                      <Bell size={14} />
+                      {sendingNotification ? '보내는 중...' : '다음세대 알림 보내기'}
+                    </button>
+                  </div>
                 </div>
               </div>
 

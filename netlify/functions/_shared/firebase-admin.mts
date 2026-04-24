@@ -26,6 +26,8 @@ type NotificationPayload = {
   body: string;
   targetUrl?: string;
   imageUrl?: string;
+  appScope?: string;
+  badgeCount?: number;
 };
 
 const getEnv = (key: string) => {
@@ -109,10 +111,12 @@ export const requireAdmin = async (req: Request) => {
   return { response: jsonResponse({ error: 'Admin permission required' }, 403) };
 };
 
-export const buildNotificationMessage = ({ title, body, targetUrl = '/', imageUrl }: NotificationPayload) => ({
+export const buildNotificationMessage = ({ title, body, targetUrl = '/', imageUrl, appScope, badgeCount }: NotificationPayload) => ({
   notification: { title, body },
   data: {
     url: targetUrl,
+    ...(appScope ? { appScope } : {}),
+    ...(typeof badgeCount === 'number' ? { badgeCount: String(Math.max(0, Math.floor(badgeCount))) } : {}),
     ...(imageUrl ? { image: imageUrl } : {}),
   },
   webpush: {

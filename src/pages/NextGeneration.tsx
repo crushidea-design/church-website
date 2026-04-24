@@ -64,6 +64,12 @@ import {
   NextGenerationResourceTab,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
+import { initializeNextGenerationBadgeSync, setNextGenerationBadgeCount } from '../services/appBadgeService';
+import {
+  NEXT_GENERATION_NOTIFICATION_TOPIC,
+  onMessageListener,
+  requestNotificationPermission,
+} from '../services/notificationService';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
@@ -2357,8 +2363,57 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   );
 }
 
+function useNextGenerationAppBadge() {
+  const { user, hasAccess, unreadCount, loading } = useNextGenerationAuth();
+
+  useEffect(() => {
+    return initializeNextGenerationBadgeSync();
+  }, []);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!hasAccess) {
+      void setNextGenerationBadgeCount(0);
+      return;
+    }
+
+    void setNextGenerationBadgeCount(unreadCount);
+  }, [hasAccess, loading, unreadCount]);
+
+  useEffect(() => {
+    if (!hasAccess) {
+      return;
+    }
+
+    const unsubscribe = onMessageListener(() => {});
+    return () => {
+      unsubscribe();
+    };
+  }, [hasAccess]);
+
+  useEffect(() => {
+    if (!user || !hasAccess || typeof window === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+    if (!isStandalone || Notification.permission !== 'granted') {
+      return;
+    }
+
+    void requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
+  }, [user, hasAccess]);
+}
+
 function NextGenerationInner() {
   useNextGenerationHead();
+  useNextGenerationAppBadge();
 
   const location = useLocation();
   const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();
