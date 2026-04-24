@@ -9,6 +9,8 @@ import {
   sendMulticastInChunks,
 } from './_shared/firebase-admin.mjs';
 
+const SUPPORTED_TOPICS = new Set(['all_members', 'next_members']);
+
 export default async (req: Request) => {
   if (req.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405);
@@ -24,7 +26,7 @@ export default async (req: Request) => {
   });
   if (adminCheck.response) return adminCheck.response;
 
-  const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic } = await req
+  const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic, appScope, badgeCount } = await req
     .json()
     .catch(() => ({}));
 
@@ -32,17 +34,21 @@ export default async (req: Request) => {
     return jsonResponse({ error: 'Missing required fields' }, 400);
   }
 
+  const parsedBadgeCount = Number.parseInt(String(badgeCount), 10);
+
   const baseMessage = buildNotificationMessage({
     title: String(title),
     body: String(body),
     targetUrl: targetUrl ? String(targetUrl) : '/',
     imageUrl: imageUrl ? String(imageUrl) : undefined,
+    appScope: typeof appScope === 'string' ? appScope : undefined,
+    badgeCount: Number.isFinite(parsedBadgeCount) ? parsedBadgeCount : undefined,
   });
 
   try {
     if (useTopic) {
       const topic = useTopic === true ? 'all_members' : String(useTopic);
-      if (topic !== 'all_members') {
+      if (!SUPPORTED_TOPICS.has(topic)) {
         return jsonResponse({ error: 'Unsupported topic' }, 400);
       }
 

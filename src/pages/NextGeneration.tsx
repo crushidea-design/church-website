@@ -64,6 +64,12 @@ import {
   NextGenerationResourceTab,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
+import { initializeNextGenerationBadgeSync, setNextGenerationBadgeCount } from '../services/appBadgeService';
+import {
+  NEXT_GENERATION_NOTIFICATION_TOPIC,
+  onMessageListener,
+  requestNotificationPermission,
+} from '../services/notificationService';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 const NEXT_GENERATION_PATH = '/next';
@@ -262,6 +268,17 @@ const getPostWeekKey = (post: NextGenerationPost) => {
   return toLocalDateKey(getSundayDate(new Date(createdAtTime)));
 };
 
+const getRejectedNoticeVersion = (member: any) => {
+  if (!member) return '';
+  if (typeof member.rejectedAt?.toMillis === 'function') {
+    return String(member.rejectedAt.toMillis());
+  }
+  if (member.rejectionReason) {
+    return String(member.rejectionReason);
+  }
+  return 'rejected';
+};
+
 const getPostPrimarySortTime = (post: NextGenerationPost): number => {
   if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
     return new Date(post.nextGenerationWeekKey).getTime();
@@ -396,14 +413,27 @@ function NextGenerationHeader() {
     if (needsSignUp) setShowLoginModal(true);
   }, [needsSignUp]);
 
-  // Show rejected notification on login
-  const [shownRejected, setShownRejected] = useState(false);
   useEffect(() => {
-    if (isRejected && !shownRejected) {
-      setShownRejected(true);
+    if (!isRejected || !user) {
+      return;
+    }
+
+    const rejectedVersion = getRejectedNoticeVersion(member);
+    const storageKey = `next_generation_rejected_notice_seen_${user.uid}`;
+
+    try {
+      const alreadySeenVersion = localStorage.getItem(storageKey);
+      if (alreadySeenVersion === rejectedVersion) {
+        return;
+      }
+
+      localStorage.setItem(storageKey, rejectedVersion);
+      setShowLoginModal(true);
+    } catch (error) {
+      console.warn('Unable to persist rejected notice state:', error);
       setShowLoginModal(true);
     }
-  }, [isRejected, shownRejected]);
+  }, [isRejected, member, user]);
 
   return (
     <>
@@ -2357,8 +2387,57 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   );
 }
 
+function useNextGenerationAppBadge() {
+  const { user, hasAccess, unreadCount, loading } = useNextGenerationAuth();
+
+  useEffect(() => {
+    return initializeNextGenerationBadgeSync();
+  }, []);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!hasAccess) {
+      void setNextGenerationBadgeCount(0);
+      return;
+    }
+
+    void setNextGenerationBadgeCount(unreadCount);
+  }, [hasAccess, loading, unreadCount]);
+
+  useEffect(() => {
+    if (!hasAccess) {
+      return;
+    }
+
+    const unsubscribe = onMessageListener(() => {});
+    return () => {
+      unsubscribe();
+    };
+  }, [hasAccess]);
+
+  useEffect(() => {
+    if (!user || !hasAccess || typeof window === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+    if (!isStandalone || Notification.permission !== 'granted') {
+      return;
+    }
+
+    void requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
+  }, [user, hasAccess]);
+}
+
 function NextGenerationInner() {
   useNextGenerationHead();
+  useNextGenerationAppBadge();
 
   const location = useLocation();
   const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();

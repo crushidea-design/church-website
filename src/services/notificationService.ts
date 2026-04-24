@@ -1,11 +1,13 @@
 import { messaging, db, auth } from '../lib/firebase';
 import { getToken, onMessage, isSupported } from 'firebase/messaging';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { handleNextGenerationBadgePayload } from './appBadgeService';
 
-// IMPORTANT: This VAPID key must be replaced with the one from your Firebase Console
-// Project Settings -> Cloud Messaging -> Web configuration -> Web Push certificates
-const VAPID_KEY = "BBpJh2G328v2gR5RIPIl4p4clTa5WEQFRzlufKWGiB2EfositXsJQHaqME57pL0zzj_orvkl-zXFC3EJU_huFV4"; 
+const VAPID_KEY = "BBpJh2G328v2gR5RIPIl4p4clTa5WEQFRzlufKWGiB2EfositXsJQHaqME57pL0zzj_orvkl-zXFC3EJU_huFV4";
 const TOKEN_SYNC_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const MAIN_NOTIFICATION_TOPIC = 'all_members';
+export const NEXT_GENERATION_NOTIFICATION_TOPIC = 'next_members';
 
 const getAuthHeaders = async () => {
   const idToken = await auth.currentUser?.getIdToken();
@@ -15,14 +17,24 @@ const getAuthHeaders = async () => {
   };
 };
 
-export const requestNotificationPermission = async (userId: string) => {
+export const requestNotificationPermission = async (
+  userId: string,
+  options?: {
+    topic?: string;
+  }
+) => {
   console.log('requestNotificationPermission called for user:', userId);
-  
+
   if (typeof window === 'undefined') return null;
 
-  // [최적화 1] 로컬 캐시 확인: 이미 동기화된 토큰이면 DB 조회를 건너뜁니다.
+  const topic = options?.topic || MAIN_NOTIFICATION_TOPIC;
+  const topicCacheKey = topic.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  const unsubscribeTopics = topic === NEXT_GENERATION_NOTIFICATION_TOPIC ? [MAIN_NOTIFICATION_TOPIC] : [];
+
   const cachedToken = localStorage.getItem(`fcm_synced_${userId}`);
   const lastSyncedAt = Number(localStorage.getItem(`fcm_synced_at_${userId}`) || 0);
+  const cachedTopicToken = localStorage.getItem(`fcm_topic_synced_${userId}_${topicCacheKey}`);
+  const lastTopicSyncedAt = Number(localStorage.getItem(`fcm_topic_synced_at_${userId}_${topicCacheKey}`) || 0);
 
   try {
     const supported = await isSupported();
@@ -31,7 +43,6 @@ export const requestNotificationPermission = async (userId: string) => {
       return null;
     }
 
-    // Check if Notification API is available (it might not be in some iOS browsers if not PWA)
     if (!('Notification' in window)) {
       console.warn('Notification API not supported in this browser.');
       return null;
@@ -39,15 +50,13 @@ export const requestNotificationPermission = async (userId: string) => {
 
     const permission = await Notification.requestPermission();
     console.log('Notification permission status:', permission);
-    
+
     if (permission === 'granted') {
-      // Ensure messaging is initialized
       let activeMessaging = messaging;
       if (!activeMessaging) {
         console.log('Messaging not yet initialized, waiting...');
-        // Wait up to 3 seconds for messaging to initialize
         for (let i = 0; i < 30; i++) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           activeMessaging = (window as any).firebase_messaging || messaging;
           if (activeMessaging) break;
         }
@@ -58,9 +67,6 @@ export const requestNotificationPermission = async (userId: string) => {
         return null;
       }
 
-      console.log('Attempting to get FCM token with VAPID key...');
-      
-      // Register service worker manually if needed before getting token
       let swRegistration = null;
       try {
         swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
@@ -76,59 +82,86 @@ export const requestNotificationPermission = async (userId: string) => {
 
       if (token) {
         console.log('FCM Token generated:', token.substring(0, 10) + '...');
-        
-        // Keep Firestore updated often enough for the 30-day active-device count.
+
         const tokenRecentlySynced = cachedToken === token && Date.now() - lastSyncedAt < TOKEN_SYNC_TTL_MS;
-        if (tokenRecentlySynced) {
-          console.log('Token already synced recently');
-          return token;
-        }
-
-        const tokenDocId = btoa(token).replace(/[^a-zA-Z0-9]/g, '').slice(0, 120);
-        await setDoc(doc(db, 'fcm_tokens', tokenDocId), {
-          userId: userId || 'anonymous',
-          token,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-        console.log('Token synced to Firestore');
-
-        // Subscribe to all_members topic for zero-read broadcasts
-        let subscribedToTopic = false;
-        try {
-          const subscribeResponse = await fetch('/api/notifications/subscribe', {
-            method: 'POST',
-            headers: await getAuthHeaders(),
-            body: JSON.stringify({ token, topic: 'all_members' })
-          });
-          if (!subscribeResponse.ok) {
-            throw new Error(`Topic subscription failed with status ${subscribeResponse.status}`);
-          }
-          subscribedToTopic = true;
-          console.log('Subscribed to all_members topic');
-        } catch (subError) {
-          console.error('Failed to subscribe to topic:', subError);
-        }
-
-        // 동기화 완료 후 로컬에 기록 (다음번엔 읽기 발생 안 함)
-        localStorage.setItem(`fcm_synced_${userId}`, token);
-        if (subscribedToTopic) {
+        if (!tokenRecentlySynced) {
+          const tokenDocId = btoa(token).replace(/[^a-zA-Z0-9]/g, '').slice(0, 120);
+          await setDoc(doc(db, 'fcm_tokens', tokenDocId), {
+            userId: userId || 'anonymous',
+            token,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+          console.log('Token synced to Firestore');
+          localStorage.setItem(`fcm_synced_${userId}`, token);
           localStorage.setItem(`fcm_synced_at_${userId}`, String(Date.now()));
+        } else {
+          console.log('Token already synced to Firestore recently');
         }
+
+        const topicRecentlySynced = cachedTopicToken === token && Date.now() - lastTopicSyncedAt < TOKEN_SYNC_TTL_MS;
+        let subscribedToTopic = false;
+
+        if (!topicRecentlySynced) {
+          try {
+            await Promise.all(
+              unsubscribeTopics.map(async (topicToRemove) => {
+                const topicToRemoveCacheKey = topicToRemove.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+                const unsubscribeResponse = await fetch('/api/notifications/subscribe', {
+                  method: 'POST',
+                  headers: await getAuthHeaders(),
+                  body: JSON.stringify({ token, topic: topicToRemove, action: 'unsubscribe' })
+                });
+
+                if (!unsubscribeResponse.ok) {
+                  throw new Error(`Topic unsubscribe failed with status ${unsubscribeResponse.status}`);
+                }
+
+                localStorage.removeItem(`fcm_topic_synced_${userId}_${topicToRemoveCacheKey}`);
+                localStorage.removeItem(`fcm_topic_synced_at_${userId}_${topicToRemoveCacheKey}`);
+              })
+            );
+
+            const subscribeResponse = await fetch('/api/notifications/subscribe', {
+              method: 'POST',
+              headers: await getAuthHeaders(),
+              body: JSON.stringify({ token, topic, action: 'subscribe' })
+            });
+
+            if (!subscribeResponse.ok) {
+              throw new Error(`Topic subscription failed with status ${subscribeResponse.status}`);
+            }
+
+            subscribedToTopic = true;
+            console.log(`Subscribed to ${topic} topic`);
+          } catch (subError) {
+            console.error('Failed to subscribe to topic:', subError);
+          }
+        } else {
+          subscribedToTopic = true;
+          console.log(`Topic already synced recently for ${topic}`);
+        }
+
+        if (subscribedToTopic) {
+          localStorage.setItem(`fcm_topic_synced_${userId}_${topicCacheKey}`, token);
+          localStorage.setItem(`fcm_topic_synced_at_${userId}_${topicCacheKey}`, String(Date.now()));
+        }
+
         return token;
-      } else {
-        console.warn('No FCM token received. Check if VAPID key is correct and service worker is registered.');
       }
+
+      console.warn('No FCM token received. Check if VAPID key is correct and service worker is registered.');
     } else {
       console.warn('Notification permission denied by user');
     }
   } catch (error) {
     console.error('Error in requestNotificationPermission:', error);
   }
+
   return null;
 };
 
 let messageListenerUnsubscribe: (() => void) | null = null;
-let activeCallbacks: Set<(payload: any) => void> = new Set();
+const activeCallbacks: Set<(payload: any) => void> = new Set();
 
 export const onMessageListener = (callback: (payload: any) => void) => {
   const activeMessaging = (window as any).firebase_messaging || messaging;
@@ -136,15 +169,16 @@ export const onMessageListener = (callback: (payload: any) => void) => {
     console.warn('Messaging not initialized yet for onMessageListener');
     return () => {};
   }
-  
+
   activeCallbacks.add(callback);
 
   if (!messageListenerUnsubscribe) {
     messageListenerUnsubscribe = onMessage(activeMessaging, (payload) => {
-      activeCallbacks.forEach(cb => cb(payload));
+      void handleNextGenerationBadgePayload(payload);
+      activeCallbacks.forEach((cb) => cb(payload));
     });
   }
-  
+
   return () => {
     activeCallbacks.delete(callback);
     if (activeCallbacks.size === 0 && messageListenerUnsubscribe) {
@@ -154,26 +188,37 @@ export const onMessageListener = (callback: (payload: any) => void) => {
   };
 };
 
-export const sendPushNotification = async (title: string, body: string, targetUrl: string = '/', targetUserIds?: string[]) => {
+export const sendPushNotification = async (
+  title: string,
+  body: string,
+  targetUrl: string = '/',
+  targetUserIds?: string[],
+  options?: {
+    topic?: string;
+    appScope?: string;
+    badgeCount?: number;
+    imageUrl?: string;
+  }
+) => {
   try {
-    // [최적화 2] 클라이언트에서 토큰을 직접 getDocs하지 않습니다.
-    // 대신 서버 API(/api/notifications/send)에 정보만 넘깁니다.
-    
     const response = await fetch('/api/notifications/send', {
       method: 'POST',
       headers: await getAuthHeaders(),
-      body: JSON.stringify({ 
-        title, 
-        body, 
-        targetUrl, 
-        targetUserIds, // 토큰 대신 대상 ID만 보냄
-        useTopic: !targetUserIds // 대상이 없으면 전체 토픽(all_members) 사용 요청
+      body: JSON.stringify({
+        title,
+        body,
+        targetUrl,
+        imageUrl: options?.imageUrl,
+        targetUserIds,
+        useTopic: !targetUserIds || targetUserIds.length === 0 ? (options?.topic || MAIN_NOTIFICATION_TOPIC) : false,
+        appScope: options?.appScope,
+        badgeCount: options?.badgeCount,
       }),
     });
 
     return await response.json();
   } catch (error) {
     console.error('Error sending push notification:', error);
-    return { success: false, error: '알림 발송 중 오류가 발생했습니다.' };
+    return { success: false, error: '?뚮┝ 諛쒖넚 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.' };
   }
 };
