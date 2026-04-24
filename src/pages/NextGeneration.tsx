@@ -394,6 +394,8 @@ function NextGenerationHeader() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
+  const [enablingNotifications, setEnablingNotifications] = useState(false);
 
   // Mark all currently-unread notifications as read when the dropdown is opened
   const handleOpenNotifications = () => {
@@ -412,6 +414,15 @@ function NextGenerationHeader() {
   useEffect(() => {
     if (needsSignUp) setShowLoginModal(true);
   }, [needsSignUp]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    setNotificationPermission(Notification.permission);
+  }, [user]);
 
   useEffect(() => {
     if (!isRejected || !user) {
@@ -434,6 +445,26 @@ function NextGenerationHeader() {
       setShowLoginModal(true);
     }
   }, [isRejected, member, user]);
+
+  const handleEnableNotifications = async () => {
+    if (!user || !hasAccess) {
+      return;
+    }
+
+    setEnablingNotifications(true);
+    try {
+      const token = await requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
+      const currentPermission =
+        typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+      setNotificationPermission(currentPermission as 'default' | 'granted' | 'denied' | 'unsupported');
+
+      if (!token && currentPermission === 'denied') {
+        window.alert('브라우저 설정에서 알림 권한을 허용해 주세요.');
+      }
+    } finally {
+      setEnablingNotifications(false);
+    }
+  };
 
   return (
     <>
@@ -496,6 +527,16 @@ function NextGenerationHeader() {
               )}
               {!authLoading && user && !isPastor && (
                 <>
+                  {hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                    <button
+                      onClick={handleEnableNotifications}
+                      disabled={enablingNotifications}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
+                    >
+                      <Bell size={14} />
+                      {enablingNotifications ? '요청 중...' : '알림 허용'}
+                    </button>
+                  )}
                   <button
                     onClick={handleOpenNotifications}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
@@ -570,6 +611,16 @@ function NextGenerationHeader() {
               )}
               {!authLoading && user && !isPastor && (
                 <>
+                  {hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                    <button
+                      onClick={handleEnableNotifications}
+                      disabled={enablingNotifications}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
+                    >
+                      <Bell size={14} />
+                      {enablingNotifications ? '요청 중...' : '알림 허용'}
+                    </button>
+                  )}
                   <button
                     onClick={handleOpenNotifications}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
