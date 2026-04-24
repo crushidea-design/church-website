@@ -218,14 +218,70 @@ async function startServer() {
 
   app.use(express.json());
 
+  // API Route: notification system health check (admin only)
+  app.get('/api/notifications/health', async (req, res) => {
+    const adminInitialized = admin.apps.length > 0;
+
+    const decoded = await verifyRequestUser(req).catch(() => null);
+    if (!decoded || decoded.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!adminInitialized) {
+      return res.json({
+        ok: false,
+        adminInitialized: false,
+        messagingAvailable: false,
+        firestoreReachable: false,
+        activeTokenCount: 0,
+        error: 'FIREBASE_SERVICE_ACCOUNT_KEY가 설정되지 않았습니다.',
+      });
+    }
+
+    let firestoreReachable = false;
+    let activeTokenCount = 0;
+    let messagingAvailable = false;
+
+    try {
+      const db = getAppDb();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const snap = await db.collection('fcm_tokens').where('updatedAt', '>=', cutoff).count().get();
+      activeTokenCount = snap.data().count;
+      firestoreReachable = true;
+    } catch (error) {
+      console.error('Firestore health check failed:', error);
+    }
+
+    try {
+      admin.messaging();
+      messagingAvailable = true;
+    } catch {
+      // messaging 초기화 실패
+    }
+
+    res.json({
+      ok: firestoreReachable && messagingAvailable,
+      adminInitialized,
+      messagingAvailable,
+      firestoreReachable,
+      activeTokenCount,
+    });
+  });
+
   // API Route to subscribe to topic
+  const SUPPORTED_TOPICS = new Set(['all_members', 'next_members']);
+
   app.post('/api/notifications/subscribe', async (req, res) => {
-    const { token, topic = 'all_members' } = req.body;
+    const { token, topic = 'all_members', action = 'subscribe' } = req.body;
     if (!admin.apps.length || !token) {
       return res.status(400).json({ error: 'Invalid request' });
     }
-    if (topic !== 'all_members') {
+    if (!SUPPORTED_TOPICS.has(String(topic))) {
       return res.status(400).json({ error: 'Unsupported topic' });
+    }
+    if (action !== 'subscribe' && action !== 'unsubscribe') {
+      return res.status(400).json({ error: 'Unsupported action' });
     }
     const decoded = await verifyRequestUser(req).catch(error => {
       console.error('Error verifying subscribe request:', error);
@@ -236,7 +292,11 @@ async function startServer() {
     }
 
     try {
-      await admin.messaging().subscribeToTopic(token, topic);
+      if (action === 'unsubscribe') {
+        await admin.messaging().unsubscribeFromTopic(token, topic);
+      } else {
+        await admin.messaging().subscribeToTopic(token, topic);
+      }
       res.json({ success: true });
     } catch (error) {
       console.error('Error subscribing to topic:', error);
@@ -281,10 +341,14 @@ async function startServer() {
       };
 
       if (useTopic) {
+        const topic = useTopic === true ? 'all_members' : String(useTopic);
+        if (!SUPPORTED_TOPICS.has(topic)) {
+          return res.status(400).json({ error: 'Unsupported topic' });
+        }
         // Zero-read broadcast using topics
         response = await admin.messaging().send({
           ...baseMessage,
-          topic: useTopic === true ? 'all_members' : useTopic,
+          topic,
         });
         res.json({ success: true, messageId: response });
       } else {
