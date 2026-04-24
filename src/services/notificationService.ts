@@ -37,12 +37,6 @@ export const requestNotificationPermission = async (
   const lastTopicSyncedAt = Number(localStorage.getItem(`fcm_topic_synced_at_${userId}_${topicCacheKey}`) || 0);
 
   try {
-    const supported = await isSupported();
-    if (!supported) {
-      console.warn('Notifications are not supported in this browser');
-      return null;
-    }
-
     if (!('Notification' in window)) {
       console.warn('Notification API not supported in this browser.');
       return null;
@@ -52,6 +46,12 @@ export const requestNotificationPermission = async (
     console.log('Notification permission status:', permission);
 
     if (permission === 'granted') {
+      const supported = await isSupported();
+      if (!supported) {
+        console.warn('Firebase Messaging is not supported in this browser after notification permission was granted.');
+        return null;
+      }
+
       let activeMessaging = messaging;
       if (!activeMessaging) {
         console.log('Messaging not yet initialized, waiting...');
