@@ -525,18 +525,18 @@ function NextGenerationHeader() {
                   </button>
                 </>
               )}
+              {!authLoading && user && hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                <button
+                  onClick={handleEnableNotifications}
+                  disabled={enablingNotifications}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
+                >
+                  <Bell size={14} />
+                  {enablingNotifications ? '요청 중...' : '알림 허용'}
+                </button>
+              )}
               {!authLoading && user && !isPastor && (
                 <>
-                  {hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                    <button
-                      onClick={handleEnableNotifications}
-                      disabled={enablingNotifications}
-                      className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
-                    >
-                      <Bell size={14} />
-                      {enablingNotifications ? '요청 중...' : '알림 허용'}
-                    </button>
-                  )}
                   <button
                     onClick={handleOpenNotifications}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
@@ -609,18 +609,18 @@ function NextGenerationHeader() {
                   </button>
                 </>
               )}
+              {!authLoading && user && hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                <button
+                  onClick={handleEnableNotifications}
+                  disabled={enablingNotifications}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
+                >
+                  <Bell size={14} />
+                  {enablingNotifications ? '요청 중...' : '알림 허용'}
+                </button>
+              )}
               {!authLoading && user && !isPastor && (
                 <>
-                  {hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                    <button
-                      onClick={handleEnableNotifications}
-                      disabled={enablingNotifications}
-                      className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
-                    >
-                      <Bell size={14} />
-                      {enablingNotifications ? '요청 중...' : '알림 허용'}
-                    </button>
-                  )}
                   <button
                     onClick={handleOpenNotifications}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
