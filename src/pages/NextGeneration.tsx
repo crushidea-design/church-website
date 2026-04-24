@@ -268,6 +268,17 @@ const getPostWeekKey = (post: NextGenerationPost) => {
   return toLocalDateKey(getSundayDate(new Date(createdAtTime)));
 };
 
+const getRejectedNoticeVersion = (member: any) => {
+  if (!member) return '';
+  if (typeof member.rejectedAt?.toMillis === 'function') {
+    return String(member.rejectedAt.toMillis());
+  }
+  if (member.rejectionReason) {
+    return String(member.rejectionReason);
+  }
+  return 'rejected';
+};
+
 const getPostPrimarySortTime = (post: NextGenerationPost): number => {
   if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
     return new Date(post.nextGenerationWeekKey).getTime();
@@ -402,14 +413,27 @@ function NextGenerationHeader() {
     if (needsSignUp) setShowLoginModal(true);
   }, [needsSignUp]);
 
-  // Show rejected notification on login
-  const [shownRejected, setShownRejected] = useState(false);
   useEffect(() => {
-    if (isRejected && !shownRejected) {
-      setShownRejected(true);
+    if (!isRejected || !user) {
+      return;
+    }
+
+    const rejectedVersion = getRejectedNoticeVersion(member);
+    const storageKey = `next_generation_rejected_notice_seen_${user.uid}`;
+
+    try {
+      const alreadySeenVersion = localStorage.getItem(storageKey);
+      if (alreadySeenVersion === rejectedVersion) {
+        return;
+      }
+
+      localStorage.setItem(storageKey, rejectedVersion);
+      setShowLoginModal(true);
+    } catch (error) {
+      console.warn('Unable to persist rejected notice state:', error);
       setShowLoginModal(true);
     }
-  }, [isRejected, shownRejected]);
+  }, [isRejected, member, user]);
 
   return (
     <>
