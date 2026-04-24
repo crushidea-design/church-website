@@ -66,6 +66,14 @@ const DEPT_COLORS: Record<Department, string> = {
   '학부모': 'bg-purple-100 text-purple-700',
 };
 
+function StatusRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span className={`flex items-center gap-1 ${ok ? 'text-green-600' : 'text-red-600'}`}>
+      {ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />} {label}
+    </span>
+  );
+}
+
 function formatDate(ts: Timestamp | undefined): string {
   if (!ts) return '-';
   const d = ts.toDate();
@@ -101,6 +109,17 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [notificationAudience, setNotificationAudience] = useState<'all' | string>('all');
   const [sendingNotification, setSendingNotification] = useState(false);
 
+  // Notification system health
+  const [systemHealth, setSystemHealth] = useState<{
+    ok: boolean;
+    adminInitialized: boolean;
+    messagingAvailable: boolean;
+    firestoreReachable: boolean;
+    activeTokenCount: number;
+    error?: string;
+  } | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+
   // Toast feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -114,6 +133,29 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       'Content-Type': 'application/json',
       ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
     };
+  };
+
+  const checkSystemHealth = async () => {
+    setCheckingHealth(true);
+    try {
+      const idToken = await user?.getIdToken();
+      const response = await fetch('/api/notifications/health', {
+        headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+      });
+      const data = await response.json();
+      setSystemHealth(data);
+    } catch {
+      setSystemHealth({
+        ok: false,
+        adminInitialized: false,
+        messagingAvailable: false,
+        firestoreReachable: false,
+        activeTokenCount: 0,
+        error: '상태 확인 중 오류가 발생했습니다.',
+      });
+    } finally {
+      setCheckingHealth(false);
+    }
   };
 
   // Subscribe to members
@@ -590,6 +632,50 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                     className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
                 </div>
+              </div>
+
+              {/* 알림 시스템 상태 */}
+              <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <ShieldCheck size={13} />
+                    알림 시스템 상태
+                  </p>
+                  <button
+                    type="button"
+                    onClick={checkSystemHealth}
+                    disabled={checkingHealth}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50 transition-colors"
+                  >
+                    <RefreshCw size={11} className={checkingHealth ? 'animate-spin' : ''} />
+                    {checkingHealth ? '확인 중...' : '상태 확인'}
+                  </button>
+                </div>
+                {!systemHealth && !checkingHealth && (
+                  <p className="mt-2 text-xs text-gray-400">"상태 확인" 버튼을 눌러 Firebase 연결 상태를 확인하세요.</p>
+                )}
+                {systemHealth && (
+                  <div className="mt-2 space-y-1">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <StatusRow ok={systemHealth.adminInitialized} label="Firebase Admin" />
+                      <StatusRow ok={systemHealth.messagingAvailable} label="FCM 메시징" />
+                      <StatusRow ok={systemHealth.firestoreReachable} label="Firestore" />
+                      <span className="text-gray-600">
+                        활성 토큰 <strong>{systemHealth.activeTokenCount}</strong>개 (최근 30일)
+                      </span>
+                    </div>
+                    {systemHealth.error && (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertTriangle size={11} /> {systemHealth.error}
+                      </p>
+                    )}
+                    {systemHealth.ok && (
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <CheckCircle2 size={11} /> 모든 시스템 정상
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">

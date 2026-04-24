@@ -218,6 +218,57 @@ async function startServer() {
 
   app.use(express.json());
 
+  // API Route: notification system health check (admin only)
+  app.get('/api/notifications/health', async (req, res) => {
+    const adminInitialized = admin.apps.length > 0;
+
+    const decoded = await verifyRequestUser(req).catch(() => null);
+    if (!decoded || decoded.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!adminInitialized) {
+      return res.json({
+        ok: false,
+        adminInitialized: false,
+        messagingAvailable: false,
+        firestoreReachable: false,
+        activeTokenCount: 0,
+        error: 'FIREBASE_SERVICE_ACCOUNT_KEY가 설정되지 않았습니다.',
+      });
+    }
+
+    let firestoreReachable = false;
+    let activeTokenCount = 0;
+    let messagingAvailable = false;
+
+    try {
+      const db = getAppDb();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const snap = await db.collection('fcm_tokens').where('updatedAt', '>=', cutoff).count().get();
+      activeTokenCount = snap.data().count;
+      firestoreReachable = true;
+    } catch (error) {
+      console.error('Firestore health check failed:', error);
+    }
+
+    try {
+      admin.messaging();
+      messagingAvailable = true;
+    } catch {
+      // messaging 초기화 실패
+    }
+
+    res.json({
+      ok: firestoreReachable && messagingAvailable,
+      adminInitialized,
+      messagingAvailable,
+      firestoreReachable,
+      activeTokenCount,
+    });
+  });
+
   // API Route to subscribe to topic
   const SUPPORTED_TOPICS = new Set(['all_members', 'next_members']);
 
