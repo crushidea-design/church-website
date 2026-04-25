@@ -1568,7 +1568,7 @@ function ResourceLibraryPage({
                 );
               })}
             </div>
-            {!ngAccess && guestPostLimit && filteredPosts.length > guestPostLimit && (
+            {isGuest && guestPostLimit && filteredPosts.length > guestPostLimit && (
               <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 px-6 py-8 text-center">
                 <Lock className="mx-auto mb-3 h-8 w-8 text-sky-400" />
                 <p className="text-sm font-bold text-emerald-950">
