@@ -664,11 +664,13 @@ function NextGenerationHeader() {
                     <p className={`font-medium ${
                       n.type === 'approved' ? 'text-emerald-700'
                       : n.type === 'answered' ? 'text-amber-600'
+                      : n.type === 'announcement' ? 'text-blue-700'
                       : 'text-red-600'
                     }`}>
                       {n.type === 'approved' && '✓ 가입 승인됨'}
                       {n.type === 'rejected' && '✗ 가입 반려됨'}
                       {n.type === 'answered' && '💬 질문 답변 도착'}
+                      {n.type === 'announcement' && '📢 공지'}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
                     {n.rejectionReason && (

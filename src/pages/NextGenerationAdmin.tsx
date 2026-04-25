@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
   deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
-  getDocs, getDoc, setDoc, writeBatch,
+  getDocs, getDoc, setDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -354,6 +354,12 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
     setSendingNotification(true);
     try {
+      // in-app notification 대상 uid 목록 (서버에서 Admin SDK로 처리)
+      const targetMembers =
+        notificationAudience === 'all'
+          ? approvedMembers
+          : approvedMembers.filter((m) => m.department === notificationAudience);
+
       const response = await fetch('/api/notifications/send', {
         method: 'POST',
         headers: await getRequestHeaders(),
@@ -364,33 +370,14 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
           useTopic: notificationAudience === 'all' ? NEXT_GENERATION_NOTIFICATION_TOPIC : false,
           targetUserIds: notificationAudience === 'all' ? undefined : targetUserIds,
           appScope: 'next',
+          inAppTargetUids: targetMembers.map((m) => m.uid),
+          inAppMessage: trimmedBody,
         }),
       });
 
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.error || '알림을 보내지 못했습니다.');
-      }
-
-      // FCM 성공 후 in-app notification 일괄 생성
-      const targetMembers =
-        notificationAudience === 'all'
-          ? approvedMembers
-          : approvedMembers.filter((m) => m.department === notificationAudience);
-
-      if (targetMembers.length > 0) {
-        const batch = writeBatch(db);
-        const createdAt = serverTimestamp();
-        for (const m of targetMembers) {
-          batch.set(doc(collection(db, 'next_generation_notifications')), {
-            uid: m.uid,
-            type: 'announcement',
-            message: trimmedBody,
-            createdAt,
-            isRead: false,
-          });
-        }
-        await batch.commit();
       }
 
       setNotificationTitle('');
