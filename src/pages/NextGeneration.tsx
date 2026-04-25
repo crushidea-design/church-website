@@ -2648,13 +2648,6 @@ function NextGenerationInner() {
           if (currentDepartment.slug === 'elementary') {
             const entries: HighlightEntry[] = [
               {
-                id: 'today',
-                icon: <BookOpen size={18} />,
-                label: '오늘의 말씀',
-                summary: '맥체인 성경 읽기와 묵상 가이드',
-                content: <NextGenerationTodayWord compact />,
-              },
-              {
                 id: 'qa',
                 icon: <HelpCircle size={18} />,
                 label: '질문 있습니다',
