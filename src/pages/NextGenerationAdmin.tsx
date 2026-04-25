@@ -15,18 +15,31 @@ import {
 } from 'lucide-react';
 import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
 
+type QADepartment = 'elementary' | 'young-adults';
+
 interface QAItem {
   id: string;
   title: string;
   content: string;
   authorId: string;
   authorName: string;
+  department?: QADepartment;
   createdAt: Timestamp;
   isAnswered: boolean;
   answer?: string;
   answeredAt?: Timestamp;
   answeredBy?: string;
 }
+
+const QA_DEPARTMENT_LABEL: Record<QADepartment, string> = {
+  elementary: '유초등부',
+  'young-adults': '청년부',
+};
+
+const QA_DEPARTMENT_BADGE: Record<QADepartment, string> = {
+  elementary: 'bg-amber-100 text-amber-800 border-amber-200',
+  'young-adults': 'bg-sky-100 text-sky-800 border-sky-200',
+};
 
 interface ContactItem {
   id: string;
@@ -104,6 +117,10 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [notificationTargetUrl, setNotificationTargetUrl] = useState('/next');
   const [notificationAudience, setNotificationAudience] = useState<'all' | Department[]>('all');
   const [sendingNotification, setSendingNotification] = useState(false);
+
+  // Q&A filter
+  const [qaFilter, setQaFilter] = useState<'all' | QADepartment>('all');
+  const [qaBackfilling, setQaBackfilling] = useState(false);
 
   // Notification system health
   const [systemHealth, setSystemHealth] = useState<{
@@ -329,6 +346,26 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
   const markContactRead = async (id: string) => {
     await updateDoc(doc(db, 'next_generation_contacts', id), { isRead: true });
+  };
+
+  const backfillQaDepartments = async () => {
+    if (!confirm('부서 미지정 질문을 모두 청년부로 보정하시겠습니까?\n(이 작업은 안전하게 1회만 수행됩니다.)')) return;
+    setQaBackfilling(true);
+    try {
+      const targets = qaItems.filter((q) => !q.department);
+      let updated = 0;
+      for (const item of targets) {
+        await updateDoc(doc(db, 'next_generation_qa', item.id), {
+          department: 'young-adults',
+        });
+        updated += 1;
+      }
+      showToast(`${updated}건의 질문에 부서 정보를 보정했습니다.`);
+    } catch (err) {
+      showToast('부서 보정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setQaBackfilling(false);
+    }
   };
 
   const sendNextGenerationNotification = async () => {
@@ -820,16 +857,56 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
           )}
 
           {/* QA TAB */}
-          {!loading && tab === 'qa' && (
+          {!loading && tab === 'qa' && (() => {
+            const filteredQa = qaItems.filter((item) => {
+              const dept = (item.department ?? 'young-adults') as QADepartment;
+              return qaFilter === 'all' ? true : dept === qaFilter;
+            });
+            const legacyCount = qaItems.filter((item) => !item.department).length;
+            return (
             <div className="space-y-3">
-              {qaItems.length === 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {([
+                    { id: 'all', label: '전체' },
+                    { id: 'elementary', label: '유초등부' },
+                    { id: 'young-adults', label: '청년부' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setQaFilter(opt.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors ${
+                        qaFilter === opt.id
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <span className="ml-2 text-xs text-gray-500">{filteredQa.length}건</span>
+                </div>
+                {legacyCount > 0 && (
+                  <button
+                    type="button"
+                    disabled={qaBackfilling}
+                    onClick={backfillQaDepartments}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
+                  >
+                    {qaBackfilling ? '보정 중...' : `부서 미지정 ${legacyCount}건 → 청년부로 보정`}
+                  </button>
+                )}
+              </div>
+              {filteredQa.length === 0 && (
                 <div className="text-center py-12 text-gray-400">
                   <MessageSquare size={32} className="mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">등록된 질문이 없습니다.</p>
+                  <p className="text-sm">조건에 맞는 질문이 없습니다.</p>
                 </div>
               )}
-              {qaItems.map(item => {
+              {filteredQa.map((item) => {
                 const isExpanded = expandedId === item.id;
+                const dept = (item.department ?? 'young-adults') as QADepartment;
                 return (
                   <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden">
                     <button
@@ -838,6 +915,9 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${QA_DEPARTMENT_BADGE[dept]}`}>
+                            {QA_DEPARTMENT_LABEL[dept]}
+                          </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                             item.isAnswered ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                           }`}>
@@ -882,7 +962,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           {/* MIGRATION TAB */}
           {tab === 'migration' && (

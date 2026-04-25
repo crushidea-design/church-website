@@ -35,6 +35,10 @@ import NextGenerationLoginModal from './NextGenerationLoginModal';
 import NextGenerationAdmin from './NextGenerationAdmin';
 import NextGenerationContact from './NextGenerationContact';
 import NextGenerationQA from './NextGenerationQA';
+import BibleReadingChart from './BibleReadingChart';
+import NextGenerationTodayWord from './NextGenerationTodayWord';
+import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
+import { BookOpen, HelpCircle, Library } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -1705,9 +1709,26 @@ function YoungAdultsPage() {
       guestTabId="pilgrim_lecture"
       guestPostLimit={4}
       midSection={
-        <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-          <NextGenerationQA />
-        </section>
+        <NextGenerationHighlightBand
+          themeBg="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100"
+          activeRing="border-emerald-400 bg-emerald-50"
+          entries={[
+            {
+              id: 'qa',
+              icon: <HelpCircle size={18} />,
+              label: '질문 있습니다',
+              summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
+              content: <NextGenerationQA compact department="young-adults" />,
+            },
+            {
+              id: 'today',
+              icon: <BookOpen size={18} />,
+              label: '오늘의 말씀',
+              summary: '맥체인 성경 읽기와 묵상 가이드',
+              content: <NextGenerationTodayWord compact />,
+            },
+          ]}
+        />
       }
     />
   );
@@ -2598,13 +2619,59 @@ function NextGenerationInner() {
         guestTabId={guestTabId}
         guestPostLimit={currentDepartment.guestPostLimit}
         weeklyResourceIds={weeklyResourceIds}
-        midSection={
-          currentDepartment.slug === 'young-adults' ? (
-            <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-              <NextGenerationQA />
-            </section>
-          ) : undefined
-        }
+        midSection={(() => {
+          if (currentDepartment.slug === 'young-adults') {
+            const entries: HighlightEntry[] = [
+              {
+                id: 'qa',
+                icon: <HelpCircle size={18} />,
+                label: '질문 있습니다',
+                summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
+                content: <NextGenerationQA compact department="young-adults" />,
+              },
+              {
+                id: 'today',
+                icon: <BookOpen size={18} />,
+                label: '오늘의 말씀',
+                summary: '맥체인 성경 읽기와 묵상 가이드',
+                content: <NextGenerationTodayWord compact />,
+              },
+            ];
+            return (
+              <NextGenerationHighlightBand
+                themeBg="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100"
+                activeRing="border-emerald-400 bg-emerald-50"
+                entries={entries}
+              />
+            );
+          }
+          if (currentDepartment.slug === 'elementary') {
+            const entries: HighlightEntry[] = [
+              {
+                id: 'qa',
+                icon: <HelpCircle size={18} />,
+                label: '질문 있습니다',
+                summary: '신앙의 질문을 자유롭게 남겨 보세요',
+                content: <NextGenerationQA compact department="elementary" />,
+              },
+              {
+                id: 'bible',
+                icon: <Library size={18} />,
+                label: '성경 읽기 기록표',
+                summary: '한 권씩 읽을 때마다 책장에 색이 채워져요',
+                content: <BibleReadingChart />,
+              },
+            ];
+            return (
+              <NextGenerationHighlightBand
+                themeBg="bg-gradient-to-b from-amber-50 to-white border-y border-amber-100"
+                activeRing="border-amber-400 bg-amber-50"
+                entries={entries}
+              />
+            );
+          }
+          return undefined;
+        })()}
       />
     );
   } else if (currentSection === 'contact') {
