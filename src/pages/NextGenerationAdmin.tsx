@@ -53,12 +53,13 @@ const NEXT_NOTIFICATION_TARGETS = [
   { value: '/next/contact', label: '문의하기' },
 ];
 
-const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = ['청년', '교사', '학부모'];
+const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = ['청년', '교사', '학부모', '학생'];
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',
   '교사': 'bg-green-100 text-green-700',
   '학부모': 'bg-purple-100 text-purple-700',
+  '학생': 'bg-amber-100 text-amber-800',
 };
 
 function StatusRow({ ok, label }: { ok: boolean; label: string }) {

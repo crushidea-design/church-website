@@ -30,7 +30,7 @@ import {
 import { motion } from 'motion/react';
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
+import { isRestrictedDepartment, NextGenerationAuthProvider, STUDENT_ACCESSIBLE_TAB_SLUGS, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import NextGenerationLoginModal from './NextGenerationLoginModal';
 import NextGenerationAdmin from './NextGenerationAdmin';
 import NextGenerationContact from './NextGenerationContact';
@@ -1229,14 +1229,23 @@ function ResourceLibraryPage({
   guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
-  const { hasAccess: ngAccess, user: ngUser } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser, member } = useNextGenerationAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const rawActiveResource = searchParams.get('resource') || tabs[0].id;
+  // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.
+  const isRestricted = isRestrictedDepartment(member?.department);
+  const allowedTabs = isRestricted
+    ? tabs.filter((tab) => (STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(tab.id))
+    : tabs;
+  const fallbackTab = allowedTabs[0] || tabs[0];
+  const rawActiveResource = searchParams.get('resource') || fallbackTab?.id;
   // Tab/post restrictions apply only to unauthenticated visitors (pending/rejected users see everything)
   const isGuest = !ngUser;
-  const activeResource = (isGuest && guestTabId) ? guestTabId : rawActiveResource;
+  const restrictedActiveResource = isRestricted
+    ? (allowedTabs.some((tab) => tab.id === rawActiveResource) ? rawActiveResource : fallbackTab?.id)
+    : rawActiveResource;
+  const activeResource = (isGuest && guestTabId) ? guestTabId : restrictedActiveResource;
   // Always show all tabs so guests can see what's behind login; non-free tabs are rendered as locked
-  const visibleTabs = tabs;
+  const visibleTabs = allowedTabs;
   const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1354,6 +1363,35 @@ function ResourceLibraryPage({
 
     return [...posts].sort(byDate);
   }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
+
+  if (visibleTabs.length === 0) {
+    return (
+      <div>
+        <section className={heroClassName}>
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
+            <img src={image} alt={imageAlt} className="h-72 w-full rounded-lg object-cover shadow-sm" />
+            <div>
+              <span className={`mb-4 inline-flex rounded-lg px-3 py-2 text-sm font-black ${badgeClassName}`}>{departmentName}</span>
+              <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950">{title}</h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">{description}</p>
+            </div>
+          </div>
+        </section>
+        <section className="bg-white py-16">
+          <div className="mx-auto max-w-3xl rounded-lg border border-dashed border-sky-200 bg-sky-50 px-6 py-12 text-center">
+            <Lock className="mx-auto mb-4 h-10 w-10 text-sky-500" />
+            <h3 className="text-xl font-black text-emerald-950">이 부서에는 열람 가능한 자료가 없습니다</h3>
+            <p className="mt-3 text-sm font-bold text-slate-600">
+              현재 회원 등급(학생)은 공과 자료만 확인할 수 있습니다. 유초등부 페이지에서 공과 자료를 확인해 주세요.
+            </p>
+            <Link to={`${NEXT_GENERATION_PATH}/elementary`} className="mt-5 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700">
+              유초등부로 이동
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -2162,7 +2200,8 @@ function NextGenerationCreatePost() {
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
-  const { hasAccess: ngAccess, user: ngUser, isPending, isRejected } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
+  const isRestricted = isRestrictedDepartment(member?.department);
   const { tabs: cmsTabs, departments: cmsDepartments } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2189,6 +2228,14 @@ function NextGenerationPostDetail({ id }: { id: string }) {
         if (data.category !== NEXT_GENERATION_CATEGORY) {
           navigate(`${NEXT_GENERATION_PATH}/elementary`, { replace: true });
           return;
+        }
+
+        if (isRestricted && !isAdmin) {
+          const postTabSlug = data.nextGenerationTabSlug || data.subCategory || '';
+          if (!(STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(postTabSlug)) {
+            navigate(`${NEXT_GENERATION_PATH}/elementary?resource=elementary_workbook`, { replace: true });
+            return;
+          }
         }
 
         if (data.isLongContent) {
@@ -2233,7 +2280,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
     };
 
     fetchPost();
-  }, [id, navigate, ngAccess]);
+  }, [id, navigate, ngAccess, isRestricted, isAdmin]);
 
   if (loading) {
     return (

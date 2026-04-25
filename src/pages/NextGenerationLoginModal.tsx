@@ -10,7 +10,7 @@ interface Props {
   rejectionReason?: string;
 }
 
-const DEPARTMENTS: Department[] = ['청년', '교사', '학부모'];
+const DEPARTMENTS: Department[] = ['청년', '교사', '학부모', '학생'];
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden>
