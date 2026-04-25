@@ -215,13 +215,22 @@ export default function BibleReadingChart() {
             {readingLoading && <Loader2 size={12} className="ml-auto animate-spin text-amber-600" />}
           </div>
 
-          {/* Bookshelf with overlay */}
+          {/* Bookshelf with overlay.
+              Tries the hand-illustrated PNG first; falls back to the
+              auto-generated SVG placeholder so the feature always renders. */}
           <div className="relative w-full overflow-hidden rounded-xl border border-amber-100 bg-amber-50">
             <img
               src="/bible-reading-chart.png"
               alt="성경 읽기 기록표 책장"
               className="block h-auto w-full select-none"
               draggable={false}
+              onError={(e) => {
+                const img = e.currentTarget as HTMLImageElement;
+                if (!img.dataset.fallback) {
+                  img.dataset.fallback = '1';
+                  img.src = '/bible-reading-chart.svg';
+                }
+              }}
             />
             <div className="absolute inset-0">
               {BIBLE_BOOK_SPOTS.map((spot) => {

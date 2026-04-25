@@ -1,0 +1,1011 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1250" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfaf2"/>
+      <stop offset="1" stop-color="#f6efdf"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1000" height="1250" fill="url(#paper)"/>
+
+  <!-- Shelf wood planks -->
+  
+    <rect x="20" y="287.75" width="960" height="14"
+          rx="3" ry="3" fill="#caa97a" stroke="#7a5a32" stroke-width="1.5"/>
+    <rect x="20" y="301.75" width="960" height="6"
+          fill="#a8895b" opacity="0.7"/>
+  
+    <rect x="20" y="587.75" width="960" height="14"
+          rx="3" ry="3" fill="#caa97a" stroke="#7a5a32" stroke-width="1.5"/>
+    <rect x="20" y="601.75" width="960" height="6"
+          fill="#a8895b" opacity="0.7"/>
+  
+    <rect x="20" y="887.75" width="960" height="14"
+          rx="3" ry="3" fill="#caa97a" stroke="#7a5a32" stroke-width="1.5"/>
+    <rect x="20" y="901.75" width="960" height="6"
+          fill="#a8895b" opacity="0.7"/>
+  
+    <rect x="20" y="1187.75" width="960" height="14"
+          rx="3" ry="3" fill="#caa97a" stroke="#7a5a32" stroke-width="1.5"/>
+    <rect x="20" y="1201.75" width="960" height="6"
+          fill="#a8895b" opacity="0.7"/>
+  
+
+  <!-- Decorative plants between shelves (placed in gaps inside each shelf) -->
+  
+    <g transform="translate(265 87.50000000000001) scale(1.1)">
+      <ellipse cx="0" cy="20" rx="22" ry="6" fill="#d6c5a8" stroke="#8b6f47" stroke-width="1.5"/>
+      <path d="M 0,18 Q -18,-8 -8,-30 Q 0,-22 0,18 Z" fill="#7fa872" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q 18,-12 10,-26 Q 0,-18 0,18 Z" fill="#9bbe8c" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q -4,-20 4,-30 Q 6,-15 0,18 Z" fill="#6b9560" stroke="#3d5a3a" stroke-width="1"/>
+    </g>
+  
+  
+    <g transform="translate(410 387.5) scale(1)">
+      <ellipse cx="0" cy="20" rx="22" ry="6" fill="#d6c5a8" stroke="#8b6f47" stroke-width="1.5"/>
+      <path d="M 0,18 Q -18,-8 -8,-30 Q 0,-22 0,18 Z" fill="#7fa872" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q 18,-12 10,-26 Q 0,-18 0,18 Z" fill="#9bbe8c" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q -4,-20 4,-30 Q 6,-15 0,18 Z" fill="#6b9560" stroke="#3d5a3a" stroke-width="1"/>
+    </g>
+  
+  
+    <g transform="translate(710 387.5) scale(0.95)">
+      <ellipse cx="0" cy="20" rx="22" ry="6" fill="#d6c5a8" stroke="#8b6f47" stroke-width="1.5"/>
+      <path d="M 0,18 Q -18,-8 -8,-30 Q 0,-22 0,18 Z" fill="#7fa872" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q 18,-12 10,-26 Q 0,-18 0,18 Z" fill="#9bbe8c" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q -4,-20 4,-30 Q 6,-15 0,18 Z" fill="#6b9560" stroke="#3d5a3a" stroke-width="1"/>
+    </g>
+  
+  
+    <g transform="translate(345 687.5) scale(0.95)">
+      <ellipse cx="0" cy="20" rx="22" ry="6" fill="#d6c5a8" stroke="#8b6f47" stroke-width="1.5"/>
+      <path d="M 0,18 Q -18,-8 -8,-30 Q 0,-22 0,18 Z" fill="#7fa872" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q 18,-12 10,-26 Q 0,-18 0,18 Z" fill="#9bbe8c" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q -4,-20 4,-30 Q 6,-15 0,18 Z" fill="#6b9560" stroke="#3d5a3a" stroke-width="1"/>
+    </g>
+  
+  
+    <g transform="translate(785 687.5) scale(0.9)">
+      <ellipse cx="0" cy="20" rx="22" ry="6" fill="#d6c5a8" stroke="#8b6f47" stroke-width="1.5"/>
+      <path d="M 0,18 Q -18,-8 -8,-30 Q 0,-22 0,18 Z" fill="#7fa872" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q 18,-12 10,-26 Q 0,-18 0,18 Z" fill="#9bbe8c" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q -4,-20 4,-30 Q 6,-15 0,18 Z" fill="#6b9560" stroke="#3d5a3a" stroke-width="1"/>
+    </g>
+  
+  
+    <g transform="translate(385 987.5) scale(0.95)">
+      <ellipse cx="0" cy="20" rx="22" ry="6" fill="#d6c5a8" stroke="#8b6f47" stroke-width="1.5"/>
+      <path d="M 0,18 Q -18,-8 -8,-30 Q 0,-22 0,18 Z" fill="#7fa872" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q 18,-12 10,-26 Q 0,-18 0,18 Z" fill="#9bbe8c" stroke="#3d5a3a" stroke-width="1"/>
+      <path d="M 0,18 Q -4,-20 4,-30 Q 6,-15 0,18 Z" fill="#6b9560" stroke="#3d5a3a" stroke-width="1"/>
+    </g>
+  
+
+  <!-- Books -->
+  
+      <g>
+        <rect x="40.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="62" y="150" transform="rotate(-90 62 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          창세기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="90.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="112" y="150" transform="rotate(-90 112 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          출애굽기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="140.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="162" y="150" transform="rotate(-90 162 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          레위기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="190.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="212" y="150" transform="rotate(-90 212 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          민수기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="240.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="262" y="150" transform="rotate(-90 262 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          신명기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="310.0" y="137.5" width="120.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="370" y="159.75"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          여호수아
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="310.0" y="186.3" width="120.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="370" y="208.5"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          사사기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="470.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="492" y="150" transform="rotate(-90 492 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          룻기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="520.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="542" y="150" transform="rotate(-90 542 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          사무엘상
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="570.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="592" y="150" transform="rotate(-90 592 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          사무엘하
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="620.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="642" y="150" transform="rotate(-90 642 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          열왕기상
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="670.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="692" y="150" transform="rotate(-90 692 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          열왕기하
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="720.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="742" y="150" transform="rotate(-90 742 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          역대상
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="770.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="792" y="150" transform="rotate(-90 792 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          역대하
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="820.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="842" y="150" transform="rotate(-90 842 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          에스라
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="870.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="892" y="150" transform="rotate(-90 892 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          느헤미야
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="920.0" y="37.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="942" y="150" transform="rotate(-90 942 150)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          에스더
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="40.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="62" y="450" transform="rotate(-90 62 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          욥기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="90.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="112" y="450" transform="rotate(-90 112 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          시편
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="140.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="162" y="450" transform="rotate(-90 162 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          잠언
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="190.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="212" y="450" transform="rotate(-90 212 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          전도서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="240.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="262" y="450" transform="rotate(-90 262 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          아가
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="290.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="312" y="450" transform="rotate(-90 312 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          이사야
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="340.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="362" y="450" transform="rotate(-90 362 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          예레미야
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="440.0" y="343.8" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="505" y="366"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          예레미야애가
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="440.0" y="392.5" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="505" y="414.75"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          에스겔
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="440.0" y="441.3" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="505" y="463.5"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          다니엘
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="440.0" y="490.0" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="505" y="512.25"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          호세아
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="440.0" y="538.8" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="505" y="561"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요엘
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="750.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="772" y="450" transform="rotate(-90 772 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          아모스
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="800.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="822" y="450" transform="rotate(-90 822 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          오바댜
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="850.0" y="337.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="872" y="450" transform="rotate(-90 872 450)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요나
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="40.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="62" y="750" transform="rotate(-90 62 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          미가
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="90.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="112" y="750" transform="rotate(-90 112 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          나훔
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="140.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#bea876" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="162" y="750" transform="rotate(-90 162 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          하박국
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="190.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e8d4a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="212" y="750" transform="rotate(-90 212 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          스바냐
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="240.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#dfc89a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="262" y="750" transform="rotate(-90 262 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          학개
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="290.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d4bd8c" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="312" y="750" transform="rotate(-90 312 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          스가랴
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="340.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c9b380" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="362" y="750" transform="rotate(-90 362 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          말라기
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="380.0" y="643.8" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#b89f7e" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="445" y="666"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          마태복음
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="380.0" y="692.5" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#e0cdb2" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="445" y="714.75"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          마가복음
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="380.0" y="741.3" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#d6c2a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="445" y="763.5"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          누가복음
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="380.0" y="790.0" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#cdb796" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="445" y="812.25"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요한복음
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="380.0" y="838.8" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#c2ac8a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="445" y="861"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          사도행전
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="560.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#b89f7e" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="582" y="750" transform="rotate(-90 582 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          로마서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="650.0" y="712.5" width="120.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#e0cdb2" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="710" y="734.75"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          고린도전서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="650.0" y="761.3" width="120.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#d6c2a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="710" y="783.5"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          고린도후서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="820.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#cdb796" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="842" y="750" transform="rotate(-90 842 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          갈라디아서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="870.0" y="637.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c2ac8a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="892" y="750" transform="rotate(-90 892 750)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          에베소서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="40.0" y="1000.0" width="120.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#b89f7e" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="100" y="1022.25"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          빌립보서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="40.0" y="1048.8" width="120.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#e0cdb2" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="100" y="1071"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          골로새서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="190.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d6c2a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="212" y="1050" transform="rotate(-90 212 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          데살로니가전서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="240.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#cdb796" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="262" y="1050" transform="rotate(-90 262 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          데살로니가후서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="290.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c2ac8a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="312" y="1050" transform="rotate(-90 312 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          디모데전서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="340.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#b89f7e" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="362" y="1050" transform="rotate(-90 362 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          디모데후서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="410.0" y="943.8" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#e0cdb2" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="475" y="966"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          디도서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="410.0" y="992.5" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#d6c2a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="475" y="1014.75"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          빌레몬서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="410.0" y="1041.3" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#cdb796" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="475" y="1063.5"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          히브리서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="410.0" y="1090.0" width="130.0" height="42.5"
+              rx="1.5" ry="1.5" fill="#c2ac8a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="475" y="1112.25"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          야고보서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="560.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#b89f7e" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="582" y="1050" transform="rotate(-90 582 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          베드로전서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="610.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e0cdb2" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="632" y="1050" transform="rotate(-90 632 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          베드로후서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="660.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#d6c2a4" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="682" y="1050" transform="rotate(-90 682 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요한일서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="710.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#cdb796" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="732" y="1050" transform="rotate(-90 732 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요한이서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="760.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#c2ac8a" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="782" y="1050" transform="rotate(-90 782 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요한삼서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="810.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#b89f7e" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="832" y="1050" transform="rotate(-90 832 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          유다서
+        </text>
+      
+      </g>
+    
+
+      <g>
+        <rect x="860.0" y="937.5" width="44.0" height="225.0"
+              rx="1.5" ry="1.5" fill="#e0cdb2" stroke="#5b4226" stroke-width="1.4"/>
+        
+        <text x="882" y="1050" transform="rotate(-90 882 1050)"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+              font-size="13" font-weight="700" fill="#3d2a16">
+          요한계시록
+        </text>
+      
+      </g>
+    
+</svg>
