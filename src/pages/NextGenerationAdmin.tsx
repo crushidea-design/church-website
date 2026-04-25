@@ -53,12 +53,7 @@ const NEXT_NOTIFICATION_TARGETS = [
   { value: '/next/contact', label: '문의하기' },
 ];
 
-const NOTIFICATION_AUDIENCE_OPTIONS: Array<{ value: 'all' | string; label: string }> = [
-  { value: 'all', label: '전체 회원' },
-  { value: '泥?뀈', label: '청년' },
-  { value: '援먯궗', label: '교사' },
-  { value: '?숇?紐?', label: '부모' },
-];
+const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = ['청년', '교사', '학부모'];
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',
@@ -106,7 +101,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [notificationTitle, setNotificationTitle] = useState('');
   const [notificationBody, setNotificationBody] = useState('');
   const [notificationTargetUrl, setNotificationTargetUrl] = useState('/next');
-  const [notificationAudience, setNotificationAudience] = useState<'all' | string>('all');
+  const [notificationAudience, setNotificationAudience] = useState<'all' | Department[]>('all');
   const [sendingNotification, setSendingNotification] = useState(false);
 
   // Notification system health
@@ -194,7 +189,16 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const notificationAudienceCount =
     notificationAudience === 'all'
       ? approvedMembers.length
-      : approvedMembers.filter((member) => member.department === notificationAudience).length;
+      : approvedMembers.filter((member) => notificationAudience.includes(member.department)).length;
+
+  const toggleAudienceDepartment = (dept: Department) => {
+    setNotificationAudience((prev) => {
+      const current = prev === 'all' ? [] : prev;
+      return current.includes(dept)
+        ? current.filter((d) => d !== dept)
+        : [...current, dept];
+    });
+  };
 
   const filteredMembers = members.filter(m =>
     m.displayName.includes(search) ||
@@ -334,7 +338,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       notificationAudience === 'all'
         ? []
         : approvedMembers
-            .filter((member) => member.department === notificationAudience)
+            .filter((member) => notificationAudience.includes(member.department))
             .map((member) => member.uid);
 
     if (!trimmedTitle || !trimmedBody) {
@@ -344,6 +348,11 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
     if (!trimmedTargetUrl.startsWith('/next')) {
       showToast('이동 경로는 /next로 시작해야 합니다.', 'error');
+      return;
+    }
+
+    if (notificationAudience !== 'all' && notificationAudience.length === 0) {
+      showToast('대상 역할을 한 개 이상 선택해 주세요.', 'error');
       return;
     }
 
@@ -358,7 +367,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       const targetMembers =
         notificationAudience === 'all'
           ? approvedMembers
-          : approvedMembers.filter((m) => m.department === notificationAudience);
+          : approvedMembers.filter((m) => notificationAudience.includes(m.department));
 
       const response = await fetch('/api/notifications/send', {
         method: 'POST',
@@ -676,20 +685,41 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
-                    <select
-                      value={notificationAudience}
-                      onChange={(e) => setNotificationAudience(e.target.value)}
-                      className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      {NOTIFICATION_AUDIENCE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-700">
-                      현재 대상 {notificationAudienceCount}명
+                  <div className="rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm text-gray-800">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notificationAudience === 'all'}
+                          onChange={(e) =>
+                            setNotificationAudience(e.target.checked ? 'all' : [])
+                          }
+                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
+                        />
+                        <span className="font-medium">전체 회원</span>
+                      </label>
+                      <span className="text-amber-300">|</span>
+                      {NOTIFICATION_DEPARTMENT_OPTIONS.map((dept) => {
+                        const checked =
+                          notificationAudience !== 'all' && notificationAudience.includes(dept);
+                        return (
+                          <label key={dept} className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={notificationAudience === 'all'}
+                              onChange={() => toggleAudienceDepartment(dept)}
+                              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400 disabled:opacity-40"
+                            />
+                            <span className={notificationAudience === 'all' ? 'text-gray-400' : ''}>
+                              {dept}
+                            </span>
+                          </label>
+                        );
+                      })}
+                      <span className="ml-auto text-xs text-gray-600">
+                        현재 대상 {notificationAudienceCount}명
+                      </span>
                     </div>
                   </div>
                   <input
