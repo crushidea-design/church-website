@@ -14,6 +14,7 @@ const FIRESTORE_DATABASE_ID = 'ai-studio-718ae15e-9471-4be1-ad56-c48181aa8613';
 const ACTIVE_TOKEN_DAYS = 30;
 const FCM_MULTICAST_LIMIT = 500;
 const FIRESTORE_IN_LIMIT = 30;
+const FIRESTORE_BATCH_LIMIT = 500;
 
 type ServiceAccount = {
   project_id?: string;
@@ -173,6 +174,27 @@ export const sendMulticastInChunks = async (baseMessage: any, tokens: string[]) 
   }
 
   return { successCount, failureCount };
+};
+
+export const createInAppNotifications = async (uids: string[], message: string) => {
+  const uniqueUids = Array.from(new Set(uids.filter(Boolean)));
+  if (uniqueUids.length === 0) return;
+
+  const db = getAppDb();
+  for (let i = 0; i < uniqueUids.length; i += FIRESTORE_BATCH_LIMIT) {
+    const batch = db.batch();
+    for (const uid of uniqueUids.slice(i, i + FIRESTORE_BATCH_LIMIT)) {
+      const docRef = db.collection('next_generation_notifications').doc();
+      batch.set(docRef, {
+        uid,
+        type: 'announcement',
+        message,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        isRead: false,
+      });
+    }
+    await batch.commit();
+  }
 };
 
 export { admin };

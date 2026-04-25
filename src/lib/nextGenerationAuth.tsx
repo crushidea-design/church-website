@@ -45,7 +45,7 @@ export interface NextGenerationMember {
 export interface NextGenerationNotification {
   id: string;
   uid: string;
-  type: 'approved' | 'rejected' | 'answered';
+  type: 'approved' | 'rejected' | 'answered' | 'announcement';
   message: string;
   rejectionReason?: string;
   createdAt: Timestamp;

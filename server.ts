@@ -306,7 +306,7 @@ async function startServer() {
 
   // API Route to send notifications
   app.post('/api/notifications/send', async (req, res) => {
-    const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic } = req.body;
+    const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic, inAppTargetUids, inAppMessage } = req.body;
 
     if (!admin.apps.length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
@@ -340,38 +340,54 @@ async function startServer() {
         },
       };
 
+      const createInAppNotifications = async (uids: string[], message: string) => {
+        const uniqueUids = Array.from(new Set(uids.filter(Boolean)));
+        if (uniqueUids.length === 0) return;
+        const db = getAppDb();
+        const BATCH_LIMIT = 500;
+        for (let i = 0; i < uniqueUids.length; i += BATCH_LIMIT) {
+          const batch = db.batch();
+          for (const uid of uniqueUids.slice(i, i + BATCH_LIMIT)) {
+            const docRef = db.collection('next_generation_notifications').doc();
+            batch.set(docRef, {
+              uid,
+              type: 'announcement',
+              message,
+              createdAt: FieldValue.serverTimestamp(),
+              isRead: false,
+            });
+          }
+          await batch.commit();
+        }
+      };
+
       if (useTopic) {
         const topic = useTopic === true ? 'all_members' : String(useTopic);
         if (!SUPPORTED_TOPICS.has(topic)) {
           return res.status(400).json({ error: 'Unsupported topic' });
         }
-        // Zero-read broadcast using topics
-        response = await admin.messaging().send({
-          ...baseMessage,
-          topic,
-        });
+        response = await admin.messaging().send({ ...baseMessage, topic });
+        if (Array.isArray(inAppTargetUids) && inAppTargetUids.length > 0) {
+          await createInAppNotifications(inAppTargetUids, inAppMessage || body).catch(console.error);
+        }
         res.json({ success: true, messageId: response });
       } else {
         let tokensToUse = targetTokens || [];
-        
+
         if (targetUserIds && targetUserIds.length > 0) {
           const db = getAppDb();
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
           for (let i = 0; i < targetUserIds.length; i += 30) {
             const chunk = targetUserIds.slice(i, i + 30);
             const snapshot = await db.collection('fcm_tokens')
               .where('userId', 'in', chunk)
               .where('updatedAt', '>=', thirtyDaysAgo)
               .get();
-            
-            snapshot.forEach(doc => {
-              tokensToUse.push(doc.data().token);
-            });
+            snapshot.forEach(doc => tokensToUse.push(doc.data().token));
           }
         }
-        
+
         tokensToUse = Array.from(new Set(tokensToUse));
 
         if (tokensToUse.length > 0) {
@@ -379,6 +395,9 @@ async function startServer() {
             ...baseMessage,
             tokens: tokensToUse,
           });
+          if (Array.isArray(inAppTargetUids) && inAppTargetUids.length > 0) {
+            await createInAppNotifications(inAppTargetUids, inAppMessage || body).catch(console.error);
+          }
           res.json({
             success: true,
             successCount: response.successCount,
