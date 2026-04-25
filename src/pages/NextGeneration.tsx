@@ -36,6 +36,7 @@ import NextGenerationAdmin from './NextGenerationAdmin';
 import NextGenerationContact from './NextGenerationContact';
 import NextGenerationQA from './NextGenerationQA';
 import BibleReadingChart from './BibleReadingChart';
+import NextGenerationTodayWord from './NextGenerationTodayWord';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -1707,7 +1708,12 @@ function YoungAdultsPage() {
       guestPostLimit={4}
       midSection={
         <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-          <NextGenerationQA department="young-adults" />
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div className="grid gap-8 lg:grid-cols-2">
+              <NextGenerationQA compact department="young-adults" />
+              <NextGenerationTodayWord compact />
+            </div>
+          </div>
         </section>
       }
     />
@@ -2602,7 +2608,12 @@ function NextGenerationInner() {
         midSection={
           currentDepartment.slug === 'young-adults' ? (
             <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-              <NextGenerationQA department="young-adults" />
+              <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+                <div className="grid gap-8 lg:grid-cols-2">
+                  <NextGenerationQA compact department="young-adults" />
+                  <NextGenerationTodayWord compact />
+                </div>
+              </div>
             </section>
           ) : currentDepartment.slug === 'elementary' ? (
             <section className="bg-gradient-to-b from-amber-50 to-white border-y border-amber-100">

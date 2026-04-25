@@ -1,58 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
 import { BookOpen, Calendar as CalendarIcon, Edit, ExternalLink, CheckCircle2, Circle } from 'lucide-react';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import ArchiveIntroSection from '../components/ArchiveIntroSection';
-import { getMcheyneReadingPlan, ReadingPassage, isLeapDay } from '../lib/mcheyneUtils';
-import { useStore } from '../store/useStore';
-
-const toLocalDateKey = (date: Date) => {
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().split('T')[0];
-};
-
-const toDate = (value: any) => {
-  if (!value) return null;
-  if (typeof value.toDate === 'function') return value.toDate();
-  if (value instanceof Date) return value;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const isSameLocalDate = (value: any, dateKey: string) => {
-  const date = toDate(value);
-  return date ? toLocalDateKey(date) === dateKey : false;
-};
+import { useTodayWordData } from '../hooks/useTodayWordData';
 
 export default function TodayWord() {
   const { user, role } = useAuth();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateInputRef = React.useRef<HTMLInputElement>(null);
-  const [latestPost, setLatestPost] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  
-  // Reading Progress & Meditation State
-  const [readingProgress, setReadingProgress] = useState<boolean[]>([]);
-  const [meditation, setMeditation] = useState('');
-  const [savingProgress, setSavingProgress] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
+
+  const {
+    selectedDate,
+    setSelectedDate,
+    dateStr,
+    readingPlan,
+    isSelectedLeapDay,
+    latestPost,
+    loading,
+    readingProgress,
+    meditation,
+    setMeditation,
+    toggleProgress,
+    saveProgress,
+    savingProgress,
+    saveMessage,
+  } = useTodayWordData();
 
   // Bridge Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
-
-  const dateStr = format(selectedDate, 'yyyy-MM-dd');
-  const isSelectedLeapDay = isLeapDay(selectedDate);
-  const readingPlan = React.useMemo(() => getMcheyneReadingPlan(selectedDate), [dateStr]);
-  
-  const progressCacheKey = user ? `${user.uid}_${dateStr}` : '';
-  const cachedProgress = useStore((state) => progressCacheKey ? state.todayWordProgress[progressCacheKey] : undefined);
-  const setTodayWordProgress = useStore((state) => state.setTodayWordProgress);
 
   const openBridgeModal = (link: string, version: string) => {
     setSelectedLink(link);
@@ -65,7 +44,7 @@ export default function TodayWord() {
     const height = 800;
     const left = (window.screen.width - width) / 2;
     const top = (window.screen.height - height) / 2;
-    
+
     window.open(
       selectedLink,
       'BibleViewer',
@@ -74,192 +53,18 @@ export default function TodayWord() {
     setIsModalOpen(false);
   };
 
-  // Fetch Post and User Progress for selected date
-  useEffect(() => {
-    let ignore = false;
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // 1. Fetch Post fresh so edits are visible immediately.
-        let postDocs: any[] = [];
-
-        try {
-          const byDateKeyQuery = query(
-            collection(db, 'posts'),
-            where('dateKey', '==', dateStr),
-            limit(10)
-          );
-          const byDateKeySnap = await getDocs(byDateKeyQuery);
-          postDocs = byDateKeySnap.docs;
-        } catch (dateKeyError) {
-          console.warn('TodayWord dateKey query failed, falling back:', dateKeyError);
-        }
-
-        if (postDocs.length === 0) {
-          try {
-            const start = startOfDay(selectedDate);
-            const end = endOfDay(selectedDate);
-            const byCreatedAtQuery = query(
-              collection(db, 'posts'),
-              where('category', '==', 'today_word'),
-              where('createdAt', '>=', start),
-              where('createdAt', '<=', end),
-              limit(10)
-            );
-            const byCreatedAtSnap = await getDocs(byCreatedAtQuery);
-            postDocs = byCreatedAtSnap.docs;
-          } catch (createdAtError) {
-            console.warn('TodayWord createdAt query failed, using compatibility fallback:', createdAtError);
-            const fallbackQuery = query(
-              collection(db, 'posts'),
-              where('category', '==', 'today_word'),
-              limit(500)
-            );
-            const fallbackSnap = await getDocs(fallbackQuery);
-            postDocs = fallbackSnap.docs.filter(doc => isSameLocalDate((doc.data() as any).createdAt, dateStr));
-          }
-        }
-
-        let validPosts = postDocs
-          .map(doc => ({ id: doc.id, ...doc.data() as any }))
-          .filter(post => post.category === 'today_word');
-
-        if (role !== 'admin') {
-          validPosts = validPosts.filter(p => p.isPublished !== false);
-        }
-
-        validPosts.sort((a, b) => {
-          const dateA = toDate(a.updatedAt)?.getTime() || toDate(a.createdAt)?.getTime() || 0;
-          const dateB = toDate(b.updatedAt)?.getTime() || toDate(b.createdAt)?.getTime() || 0;
-          return dateB - dateA;
-        });
-
-        if (validPosts.length > 0) {
-          const postData = validPosts[0];
-          
-          // Handle long content reassembly
-          if (postData.isLongContent) {
-            console.log('Long content detected in TodayWord. Fetching chunks...');
-            try {
-              const chunksQuery = query(
-                collection(db, 'post_contents'),
-                where('postId', '==', postData.id),
-                orderBy('index', 'asc')
-              );
-              const chunksSnap = await getDocs(chunksQuery);
-              if (!chunksSnap.empty) {
-                const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
-                postData.content = fullContent;
-                console.log('Long content reassembled for TodayWord.');
-              }
-            } catch (e) {
-              console.error('Error reassembling long content in TodayWord:', e);
-            }
-          }
-
-          if (!ignore) setLatestPost(postData);
-        } else {
-          if (!ignore) setLatestPost(null);
-        }
-
-        // 2. Fetch User Progress
-        if (user) {
-          const cacheKey = `${user.uid}_${dateStr}`;
-          if (cachedProgress) {
-            const data = cachedProgress;
-            if (!ignore) {
-              setReadingProgress(data.progress || new Array(readingPlan.length).fill(false));
-              setMeditation(data.meditation || '');
-            }
-          } else {
-            const progressRef = doc(db, 'users', user.uid, 'readings', dateStr);
-            const progressSnap = await getDoc(progressRef);
-            if (progressSnap.exists()) {
-              const data = progressSnap.data();
-              if (!ignore) {
-                setReadingProgress(data.progress || new Array(readingPlan.length).fill(false));
-                setMeditation(data.meditation || '');
-              }
-              setTodayWordProgress(cacheKey, data);
-            } else {
-              if (!ignore) {
-                setReadingProgress(new Array(readingPlan.length).fill(false));
-                setMeditation('');
-              }
-              setTodayWordProgress(cacheKey, { progress: new Array(readingPlan.length).fill(false), meditation: '' });
-            }
-          }
-        } else {
-          if (!ignore) {
-            setReadingProgress(new Array(readingPlan.length).fill(false));
-            setMeditation('');
-          }
-        }
-
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      ignore = true;
-    };
-  }, [selectedDate, user, role, dateStr, readingPlan.length, cachedProgress, setTodayWordProgress]);
-
   const handleToggleProgress = async (index: number) => {
-    if (!user) {
-      alert('로그인이 필요합니다.');
-      return;
-    }
-
-    const newProgress = [...readingProgress];
-    newProgress[index] = !newProgress[index];
-    setReadingProgress(newProgress);
-    saveProgress(newProgress, meditation);
+    await toggleProgress(index);
   };
 
   const handleMeditationChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMeditation(e.target.value);
   };
 
-  const saveProgress = async (progress: boolean[], med: string) => {
-    if (!user) return;
-    setSavingProgress(true);
-    setSaveMessage('');
-    try {
-      const progressRef = doc(db, 'users', user.uid, 'readings', dateStr);
-      await setDoc(progressRef, {
-        date: dateStr,
-        progress,
-        meditation: med,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      
-      // Update cache
-      const cacheKey = `${user.uid}_${dateStr}`;
-      setTodayWordProgress(cacheKey, { progress, meditation: med });
-      
-      setSaveMessage('저장되었습니다.');
-      setTimeout(() => setSaveMessage(''), 2000);
-    } catch (error) {
-      console.error('Error saving progress:', error);
-      setSaveMessage('저장 실패');
-    } finally {
-      setSavingProgress(false);
-    }
-  };
-
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = new Date(e.target.value);
     if (!isNaN(newDate.getTime())) {
       setSelectedDate(newDate);
-      setReadingProgress([]);
-      setMeditation('');
     }
   };
 
@@ -441,7 +246,7 @@ export default function TodayWord() {
               </span>
               {user && (
                 <button
-                  onClick={() => saveProgress(readingProgress, meditation)}
+                  onClick={() => saveProgress()}
                   disabled={savingProgress}
                   className="px-4 py-1.5 bg-wood-900 text-white text-sm font-bold rounded-lg hover:bg-wood-800 transition-colors disabled:opacity-50"
                 >
