@@ -217,8 +217,10 @@ export default function BibleReadingChart() {
 
           {/* Bookshelf with overlay.
               Tries the hand-illustrated PNG first; falls back to the
-              auto-generated SVG placeholder so the feature always renders. */}
-          <div className="relative w-full overflow-hidden rounded-xl border border-amber-100 bg-amber-50">
+              auto-generated SVG placeholder so the feature always renders.
+              Capped to a comfortable display size — the source PNG is large
+              and would otherwise dominate the band when expanded. */}
+          <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-xl border border-amber-100 bg-amber-50">
             <img
               src="/bible-reading-chart.png"
               alt="성경 읽기 기록표 책장"

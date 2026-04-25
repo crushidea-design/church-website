@@ -1714,18 +1714,18 @@ function YoungAdultsPage() {
           activeRing="border-emerald-400 bg-emerald-50"
           entries={[
             {
-              id: 'today',
-              icon: <BookOpen size={18} />,
-              label: '오늘의 말씀',
-              summary: '맥체인 성경 읽기와 묵상 가이드',
-              content: <NextGenerationTodayWord compact />,
-            },
-            {
               id: 'qa',
               icon: <HelpCircle size={18} />,
               label: '질문 있습니다',
               summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
               content: <NextGenerationQA compact department="young-adults" />,
+            },
+            {
+              id: 'today',
+              icon: <BookOpen size={18} />,
+              label: '오늘의 말씀',
+              summary: '맥체인 성경 읽기와 묵상 가이드',
+              content: <NextGenerationTodayWord compact />,
             },
           ]}
         />
@@ -2623,18 +2623,18 @@ function NextGenerationInner() {
           if (currentDepartment.slug === 'young-adults') {
             const entries: HighlightEntry[] = [
               {
-                id: 'today',
-                icon: <BookOpen size={18} />,
-                label: '오늘의 말씀',
-                summary: '맥체인 성경 읽기와 묵상 가이드',
-                content: <NextGenerationTodayWord compact />,
-              },
-              {
                 id: 'qa',
                 icon: <HelpCircle size={18} />,
                 label: '질문 있습니다',
                 summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
                 content: <NextGenerationQA compact department="young-adults" />,
+              },
+              {
+                id: 'today',
+                icon: <BookOpen size={18} />,
+                label: '오늘의 말씀',
+                summary: '맥체인 성경 읽기와 묵상 가이드',
+                content: <NextGenerationTodayWord compact />,
               },
             ];
             return (
