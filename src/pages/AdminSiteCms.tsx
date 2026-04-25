@@ -5,6 +5,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -15,7 +16,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { Archive, ArchiveRestore, Loader2, Save, Settings, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ImageIcon, Loader2, Save, Settings, Trash2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import AdminLayout from '../components/AdminLayout';
@@ -24,6 +25,8 @@ import {
   seedSiteCmsIfEmpty,
   SiteCmsProvider,
   SiteCmsSection,
+  SiteCmsSectionPlacement,
+  PROTECTED_SITE_CMS_SLUGS,
   upsertSiteCmsPage,
   upsertSiteCmsSection,
   upsertSiteCmsToolState,
@@ -76,6 +79,7 @@ function AdminSiteCmsInner() {
   const [newSectionContent, setNewSectionContent] = useState('');
   const [newSectionHighlights, setNewSectionHighlights] = useState('');
   const [newSectionMedia, setNewSectionMedia] = useState('');
+  const [newSectionPlacement, setNewSectionPlacement] = useState<SiteCmsSectionPlacement>('bottom');
 
   const [posts, setPosts] = useState<PostSummary[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -91,6 +95,10 @@ function AdminSiteCmsInner() {
   const [researchCategories, setResearchCategories] = useState<CategoryItem[]>([]);
   const [newSermonCategory, setNewSermonCategory] = useState('');
   const [newResearchCategory, setNewResearchCategory] = useState('');
+
+  const [heroImageUrl, setHeroImageUrl] = useState('');
+  const [introImageUrl, setIntroImageUrl] = useState('');
+  const [savingImage, setSavingImage] = useState<'hero' | 'intro' | null>(null);
 
   useEffect(() => {
     if (!authLoading && role !== 'admin') navigate('/');
@@ -121,6 +129,60 @@ function AdminSiteCmsInner() {
     };
     fetchPosts();
   }, [role, busy]);
+
+  useEffect(() => {
+    const fetchImageSettings = async () => {
+      if (role !== 'admin') return;
+      const [heroSnap, introSnap] = await Promise.all([
+        getDoc(doc(db, 'settings', 'hero')).catch(() => null),
+        getDoc(doc(db, 'settings', 'intro')).catch(() => null),
+      ]);
+      const heroData = heroSnap?.exists() ? (heroSnap.data() as any) : null;
+      const introData = introSnap?.exists() ? (introSnap.data() as any) : null;
+      if (heroData?.heroImageUrl) setHeroImageUrl(heroData.heroImageUrl);
+      if (introData?.introImageUrl) setIntroImageUrl(introData.introImageUrl);
+    };
+    fetchImageSettings();
+  }, [role]);
+
+  const normalizeImageUrl = (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    const driveMatch = trimmed.match(/\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+      return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+    }
+    return trimmed;
+  };
+
+  const saveImage = async (kind: 'hero' | 'intro') => {
+    const raw = kind === 'hero' ? heroImageUrl : introImageUrl;
+    const normalized = normalizeImageUrl(raw);
+    if (!normalized) {
+      showNotice('이미지 URL을 입력해 주세요.');
+      return;
+    }
+    setSavingImage(kind);
+    try {
+      await setDoc(
+        doc(db, 'settings', kind),
+        {
+          [kind === 'hero' ? 'heroImageUrl' : 'introImageUrl']: normalized,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      if (kind === 'hero') {
+        setHeroImageUrl(normalized);
+        localStorage.removeItem('hero_image_data');
+      } else {
+        setIntroImageUrl(normalized);
+      }
+      showNotice(kind === 'hero' ? '메인 히어로 이미지를 갱신했습니다.' : '소개 페이지 이미지를 갱신했습니다.');
+    } finally {
+      setSavingImage(null);
+    }
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -204,6 +266,10 @@ function AdminSiteCmsInner() {
   };
 
   const deletePage = async (slug: string) => {
+    if ((PROTECTED_SITE_CMS_SLUGS as readonly string[]).includes(slug)) {
+      alert(`'${slug}'은(는) 핵심 페이지로 삭제할 수 없습니다. 노출만 끄려면 '노출' 체크박스를 해제하세요.`);
+      return;
+    }
     const hasSections = sections.some((section) => section.pageSlug === slug);
     if (hasSections) {
       alert('해당 페이지에 연결된 섹션이 있어 먼저 섹션을 이동/삭제해야 합니다.');
@@ -228,12 +294,14 @@ function AdminSiteCmsInner() {
         media: parseMediaLines(newSectionMedia),
         order: filteredSections.length + 1,
         visible: true,
+        placement: newSectionPlacement,
       });
       setNewSectionTitle('');
       setNewSectionType('text');
       setNewSectionContent('');
       setNewSectionHighlights('');
       setNewSectionMedia('');
+      setNewSectionPlacement('bottom');
       showNotice('섹션을 추가했습니다.');
     } finally {
       setBusy(false);
@@ -242,7 +310,7 @@ function AdminSiteCmsInner() {
 
   const saveSection = async (
     id: string,
-    patch: Partial<{ title: string; content: string; order: number; visible: boolean; type: SiteCmsSection['type'] }>
+    patch: Partial<{ title: string; content: string; order: number; visible: boolean; type: SiteCmsSection['type']; placement: SiteCmsSectionPlacement }>
   ) => {
     await updateDoc(doc(db, 'site_cms_sections', id), {
       ...patch,
@@ -521,6 +589,17 @@ function AdminSiteCmsInner() {
                     defaultValue={(page as any).routeSlug || page.slug}
                     onBlur={(e) => {
                       const nextRouteSlug = normalizeSiteCmsSlug(e.target.value) || ((page as any).routeSlug || page.slug);
+                      const currentRouteSlug = (page as any).routeSlug || page.slug;
+                      if (nextRouteSlug === currentRouteSlug) return;
+                      if ((PROTECTED_SITE_CMS_SLUGS as readonly string[]).includes(page.slug)) {
+                        const ok = window.confirm(
+                          `'${page.slug}'은(는) 핵심 페이지입니다.\nrouteSlug를 변경하면 헤더 메뉴 링크가 깨질 수 있습니다.\n그래도 변경하시겠습니까?`
+                        );
+                        if (!ok) {
+                          e.target.value = currentRouteSlug;
+                          return;
+                        }
+                      }
                       const targetPath = page.slug === 'home' ? '/' : `/${nextRouteSlug}`;
                       savePage(page.id, { routeSlug: nextRouteSlug, targetPath });
                     }}
@@ -543,6 +622,89 @@ function AdminSiteCmsInner() {
 
       {activeTab === 'sections' && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <h3 className="text-lg font-bold text-wood-900">주요 소개글 편집 허브</h3>
+            <p className="mt-1 text-xs leading-5 text-wood-700">
+              아래 "콘텐츠 섹션"은 각 페이지의 상단/하단에 끼워 넣는 <b>보조 안내·공지</b> 영역입니다.
+              메인 본문(교회 소개 / 비전 / 이름·로고 의미 등)은 <b>전용 편집 화면</b>에서 관리합니다.
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <a href="/admin/church-info" className="rounded-lg bg-wood-900 px-3 py-3 text-center text-sm font-bold text-white hover:bg-wood-800">
+                교회 소개·비전·로고 편집
+              </a>
+              <button
+                type="button"
+                onClick={refreshLatestSummary}
+                disabled={busy}
+                className="rounded-lg bg-indigo-600 px-3 py-3 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                홈 최신 게시물 요약 재생성
+              </button>
+              <a href="/" target="_blank" rel="noreferrer" className="rounded-lg border border-wood-300 bg-white px-3 py-3 text-center text-sm font-bold text-wood-800 hover:bg-wood-50">
+                실제 홈페이지 새 탭에서 열기
+              </a>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-4 text-xs">
+              {pages
+                .filter((p) => (PROTECTED_SITE_CMS_SLUGS as readonly string[]).includes(p.slug))
+                .map((p) => (
+                  <button
+                    key={p.slug}
+                    type="button"
+                    onClick={() => setSelectedPageSlug(p.slug)}
+                    className={`rounded-lg border px-3 py-2 text-left transition ${
+                      selectedPageSlug === p.slug ? 'border-wood-900 bg-white' : 'border-wood-200 bg-white/70 hover:bg-white'
+                    }`}
+                  >
+                    <div className="font-bold text-wood-900">{p.title}</div>
+                    <div className="text-wood-600">{p.targetPath}</div>
+                  </button>
+                ))}
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {([
+                { kind: 'hero' as const, label: '메인 히어로 이미지', url: heroImageUrl, setUrl: setHeroImageUrl, hint: '홈 페이지 상단 배경. 구글 드라이브 공유 링크도 자동 변환됩니다.' },
+                { kind: 'intro' as const, label: '소개 페이지 이미지', url: introImageUrl, setUrl: setIntroImageUrl, hint: '교회 소개 상단에 노출되는 이미지입니다.' },
+              ]).map((item) => (
+                <div key={item.kind} className="rounded-lg border border-wood-200 bg-white p-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-wood-900">
+                    <ImageIcon size={14} />
+                    {item.label}
+                  </div>
+                  {item.url && (
+                    <img src={normalizeImageUrl(item.url)} alt={item.label} className="mt-2 h-24 w-full rounded object-cover" referrerPolicy="no-referrer" />
+                  )}
+                  <input
+                    type="text"
+                    value={item.url}
+                    onChange={(e) => item.setUrl(e.target.value)}
+                    placeholder="이미지 URL 또는 구글 드라이브 공유 링크"
+                    className="mt-2 w-full rounded border border-wood-200 px-3 py-2 text-xs"
+                  />
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p className="text-[11px] leading-4 text-wood-500">{item.hint}</p>
+                    <button
+                      type="button"
+                      onClick={() => saveImage(item.kind)}
+                      disabled={savingImage === item.kind}
+                      className="shrink-0 rounded bg-wood-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {savingImage === item.kind ? '저장 중...' : '저장'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-3 text-[11px] leading-5 text-wood-500">
+              이 화면은 메인 홈페이지(홈/소개/아카이브/소통게시판)만 담당합니다.
+              다음세대 페이지는 <a href="/admin/next-generation" className="underline">다음세대 CMS</a>,
+              문의 처리는 <a href="/admin/contacts" className="underline">문의 관리</a>,
+              알림 발송은 <a href="/admin/notifications" className="underline">알림 발송</a>에서 별도로 관리합니다.
+            </p>
+          </div>
+
           <div className="rounded-2xl border border-wood-200 bg-white p-5">
             <h3 className="text-lg font-bold text-wood-900">섹션 추가</h3>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -557,6 +719,10 @@ function AdminSiteCmsInner() {
                 <option value="gallery">gallery</option>
                 <option value="hero">hero</option>
               </select>
+              <select value={newSectionPlacement} onChange={(e) => setNewSectionPlacement(e.target.value as SiteCmsSectionPlacement)} className="rounded-lg border border-wood-200 px-3 py-2 text-sm md:col-span-2">
+                <option value="top">노출 위치: 페이지 상단</option>
+                <option value="bottom">노출 위치: 페이지 하단</option>
+              </select>
               <input value={newSectionTitle} onChange={(e) => setNewSectionTitle(e.target.value)} className="rounded-lg border border-wood-200 px-3 py-2 text-sm md:col-span-2" placeholder="섹션 제목" />
               <textarea value={newSectionContent} onChange={(e) => setNewSectionContent(e.target.value)} rows={4} className="rounded-lg border border-wood-200 px-3 py-2 text-sm md:col-span-2" placeholder="본문" />
               <textarea value={newSectionHighlights} onChange={(e) => setNewSectionHighlights(e.target.value)} rows={3} className="rounded-lg border border-wood-200 px-3 py-2 text-sm" placeholder="하이라이트 (줄바꿈)" />
@@ -568,17 +734,26 @@ function AdminSiteCmsInner() {
           </div>
 
           <div className="rounded-2xl border border-wood-200 bg-white p-5">
-            <h3 className="mb-3 text-lg font-bold text-wood-900">섹션 목록</h3>
+            <h3 className="mb-3 text-lg font-bold text-wood-900">섹션 목록 — {pages.find((p) => p.slug === selectedPageSlug)?.title || selectedPageSlug}</h3>
+            {filteredSections.length === 0 && (
+              <p className="rounded-lg border border-dashed border-wood-200 p-4 text-sm text-wood-500">
+                이 페이지에는 아직 섹션이 없습니다. 위 "섹션 추가" 폼에서 새 섹션을 만들어 보세요.
+              </p>
+            )}
             <div className="space-y-3">
               {filteredSections.map((section) => (
                 <div key={section.id} className="rounded-xl border border-wood-100 p-3">
-                  <div className="grid gap-2 md:grid-cols-[1.4fr_140px_110px_80px]">
+                  <div className="grid gap-2 md:grid-cols-[1.4fr_120px_120px_90px_80px]">
                     <input defaultValue={section.title} onBlur={(e) => saveSection(section.id, { title: e.target.value.trim() || section.title })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                     <select defaultValue={section.type} onChange={(e) => saveSection(section.id, { type: e.target.value as SiteCmsSection['type'] })} className="rounded border border-wood-200 px-3 py-2 text-sm">
                       <option value="text">text</option>
                       <option value="highlights">highlights</option>
                       <option value="gallery">gallery</option>
                       <option value="hero">hero</option>
+                    </select>
+                    <select defaultValue={section.placement || 'bottom'} onChange={(e) => saveSection(section.id, { placement: e.target.value as SiteCmsSectionPlacement })} className="rounded border border-wood-200 px-3 py-2 text-sm">
+                      <option value="top">상단 노출</option>
+                      <option value="bottom">하단 노출</option>
                     </select>
                     <input type="number" defaultValue={section.order} onBlur={(e) => saveSection(section.id, { order: Number(e.target.value) || section.order })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                     <label className="flex items-center gap-2 text-sm font-medium text-wood-700">
