@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, deleteDoc,
+  collection, query, where, orderBy, onSnapshot, addDoc, deleteDoc,
   doc, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -10,17 +10,25 @@ import {
   CheckCircle, Clock, Lock, Loader2, AlertCircle, HelpCircle,
 } from 'lucide-react';
 
+export type NextGenerationQADepartment = 'elementary' | 'young-adults';
+
 interface QAItem {
   id: string;
   title: string;
   content: string;
   authorId: string;
   authorName: string;
+  department?: NextGenerationQADepartment;
   createdAt: Timestamp;
   isAnswered: boolean;
   answer?: string;
   answeredAt?: Timestamp;
   answeredBy?: string;
+}
+
+interface Props {
+  department: NextGenerationQADepartment;
+  compact?: boolean;
 }
 
 function formatDate(ts: Timestamp | undefined): string {
@@ -29,7 +37,7 @@ function formatDate(ts: Timestamp | undefined): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function NextGenerationQA() {
+export default function NextGenerationQA({ department, compact = false }: Props) {
   const { user, member, isMember, isPastor, hasAccess } = useNextGenerationAuth();
   const [items, setItems] = useState<QAItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,15 +50,22 @@ export default function NextGenerationQA() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Always load titles — public read is allowed
+  // Always load titles — public read is allowed.
+  // Server query is by department; legacy docs without the field are matched
+  // client-side as 'young-adults' (the only place QA existed before this change).
   useEffect(() => {
     const q = query(collection(db, 'next_generation_qa'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
-      setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as QAItem)));
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as QAItem));
+      const filtered = all.filter((item) => {
+        const dept = item.department ?? 'young-adults';
+        return dept === department;
+      });
+      setItems(filtered);
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
-  }, []);
+  }, [department]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +81,7 @@ export default function NextGenerationQA() {
         content: content.trim(),
         authorId: user.uid,
         authorName: member?.displayName ?? user.displayName ?? '목사님',
+        department,
         createdAt: serverTimestamp(),
         isAnswered: false,
       });
@@ -85,7 +101,7 @@ export default function NextGenerationQA() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className={compact ? '' : 'mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8'}>
       {/* Section header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div className="flex items-start gap-4">

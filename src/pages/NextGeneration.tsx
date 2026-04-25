@@ -35,6 +35,7 @@ import NextGenerationLoginModal from './NextGenerationLoginModal';
 import NextGenerationAdmin from './NextGenerationAdmin';
 import NextGenerationContact from './NextGenerationContact';
 import NextGenerationQA from './NextGenerationQA';
+import BibleReadingChart from './BibleReadingChart';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -1706,7 +1707,7 @@ function YoungAdultsPage() {
       guestPostLimit={4}
       midSection={
         <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-          <NextGenerationQA />
+          <NextGenerationQA department="young-adults" />
         </section>
       }
     />
@@ -2601,7 +2602,16 @@ function NextGenerationInner() {
         midSection={
           currentDepartment.slug === 'young-adults' ? (
             <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-              <NextGenerationQA />
+              <NextGenerationQA department="young-adults" />
+            </section>
+          ) : currentDepartment.slug === 'elementary' ? (
+            <section className="bg-gradient-to-b from-amber-50 to-white border-y border-amber-100">
+              <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+                <div className="grid gap-8 lg:grid-cols-2">
+                  <NextGenerationQA compact department="elementary" />
+                  <BibleReadingChart />
+                </div>
+              </div>
             </section>
           ) : undefined
         }
