@@ -407,7 +407,11 @@ service cloud.firestore {
     // ─── 다음세대 독립 섹션 ───────────────────────────────────────────
 
     function isNextGenerationPastor() {
-      return isAdmin();
+      return isAdmin() ||
+        (isAuthenticated() &&
+         exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)).data.role == 'member' &&
+         get(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)).data.isNextGenerationAdmin == true);
     }
 
     function isNextGenerationFullMember() {
@@ -423,13 +427,14 @@ service cloud.firestore {
     match /next_generation_members/{memberId} {
       allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
       allow create: if isAuthenticated() && request.auth.uid == memberId &&
-        request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
+        request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider', 'isNextGenerationAdmin']) &&
         request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.email is string && isValidEmail(request.resource.data.email) &&
         request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 100 &&
         request.resource.data.provider in ['email', 'google'] &&
         request.resource.data.role == 'pending' &&
+        (!('isNextGenerationAdmin' in request.resource.data) || request.resource.data.isNextGenerationAdmin == false) &&
         request.resource.data.department in ['청년', '교사', '학부모', '학생'] &&
         request.resource.data.church is string && request.resource.data.church.size() > 0 &&
         request.resource.data.intro is string &&
@@ -479,8 +484,7 @@ service cloud.firestore {
     }
 
     match /next_generation_bible_reading/{memberId} {
-      allow read: if isNextGenerationPastor() ||
-        (isAuthenticated() && request.auth.uid == memberId);
+      allow read: if isNextGenerationAccess();
       allow create, update, delete: if isNextGenerationPastor();
     }
 

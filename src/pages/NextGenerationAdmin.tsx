@@ -305,6 +305,31 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     await deleteDoc(doc(db, 'next_generation_members', uid));
   };
 
+  const toggleNextGenerationAdmin = async (member: NextGenerationMember) => {
+    const nextValue = !member.isNextGenerationAdmin;
+    if (member.uid === user?.uid && !nextValue) {
+      showToast('자기 자신의 관리자 권한은 해제할 수 없습니다.', 'error');
+      return;
+    }
+
+    const message = nextValue
+      ? `${member.displayName} 님에게 다음세대 관리자 권한을 부여하시겠습니까?`
+      : `${member.displayName} 님의 다음세대 관리자 권한을 해제하시겠습니까?`;
+    if (!confirm(message)) return;
+
+    setSubmitting(true);
+    try {
+      await updateDoc(doc(db, 'next_generation_members', member.uid), {
+        isNextGenerationAdmin: nextValue,
+      });
+      showToast(nextValue ? '관리자 권한을 부여했습니다.' : '관리자 권한을 해제했습니다.');
+    } catch {
+      showToast('관리자 권한 변경 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const answerQA = async () => {
     if (!answerTargetId || !answerText.trim()) return;
     setSubmitting(true);
@@ -560,6 +585,11 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
               {m.role === 'member' && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">승인</span>
               )}
+              {m.isNextGenerationAdmin && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-900 text-white font-medium">
+                  <ShieldCheck size={11} /> 관리자
+                </span>
+              )}
               {m.role === 'rejected' && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">반려</span>
               )}
@@ -608,6 +638,20 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition-colors disabled:opacity-60"
                 >
                   <CheckCircle size={14} /> 승인으로 변경
+                </button>
+              )}
+              {m.role === 'member' && (
+                <button
+                  onClick={() => toggleNextGenerationAdmin(m)}
+                  disabled={submitting}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors disabled:opacity-60 ${
+                    m.isNextGenerationAdmin
+                      ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                      : 'bg-slate-900 hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  <ShieldCheck size={14} />
+                  {m.isNextGenerationAdmin ? '관리자 해제' : '관리자 부여'}
                 </button>
               )}
               <button
