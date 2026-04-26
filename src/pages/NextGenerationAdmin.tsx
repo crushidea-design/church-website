@@ -24,6 +24,7 @@ interface QAItem {
   authorId: string;
   authorName: string;
   department?: QADepartment;
+  isPrivate?: boolean;
   createdAt: Timestamp;
   isAnswered: boolean;
   answer?: string;
@@ -363,6 +364,26 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       showToast(`${updated}건의 질문에 부서 정보를 보정했습니다.`);
     } catch (err) {
       showToast('부서 보정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setQaBackfilling(false);
+    }
+  };
+
+  const backfillQaPrivacy = async () => {
+    if (!confirm('isPrivate 필드가 없는 질문을 모두 공개(false)로 표시하시겠습니까?\n이 보정 후에야 일반 회원이 기존 질문을 정상적으로 볼 수 있습니다.')) return;
+    setQaBackfilling(true);
+    try {
+      const targets = qaItems.filter((q) => typeof q.isPrivate !== 'boolean');
+      let updated = 0;
+      for (const item of targets) {
+        await updateDoc(doc(db, 'next_generation_qa', item.id), {
+          isPrivate: false,
+        });
+        updated += 1;
+      }
+      showToast(`${updated}건의 질문에 공개 표시를 부여했습니다.`);
+    } catch (err) {
+      showToast('공개 여부 보정 중 오류가 발생했습니다.', 'error');
     } finally {
       setQaBackfilling(false);
     }
@@ -862,7 +883,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
               const dept = (item.department ?? 'young-adults') as QADepartment;
               return qaFilter === 'all' ? true : dept === qaFilter;
             });
-            const legacyCount = qaItems.filter((item) => !item.department).length;
+            const legacyDeptCount = qaItems.filter((item) => !item.department).length;
+            const legacyPrivacyCount = qaItems.filter((item) => typeof item.isPrivate !== 'boolean').length;
             return (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -887,16 +909,29 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                   ))}
                   <span className="ml-2 text-xs text-gray-500">{filteredQa.length}건</span>
                 </div>
-                {legacyCount > 0 && (
-                  <button
-                    type="button"
-                    disabled={qaBackfilling}
-                    onClick={backfillQaDepartments}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
-                  >
-                    {qaBackfilling ? '보정 중...' : `부서 미지정 ${legacyCount}건 → 청년부로 보정`}
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {legacyDeptCount > 0 && (
+                    <button
+                      type="button"
+                      disabled={qaBackfilling}
+                      onClick={backfillQaDepartments}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
+                    >
+                      {qaBackfilling ? '보정 중...' : `부서 미지정 ${legacyDeptCount}건 → 청년부로 보정`}
+                    </button>
+                  )}
+                  {legacyPrivacyCount > 0 && (
+                    <button
+                      type="button"
+                      disabled={qaBackfilling}
+                      onClick={backfillQaPrivacy}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50"
+                      title="이 보정을 실행해야 일반 회원이 기존 질문을 볼 수 있습니다."
+                    >
+                      {qaBackfilling ? '보정 중...' : `공개 미지정 ${legacyPrivacyCount}건 → 공개로 보정`}
+                    </button>
+                  )}
+                </div>
               </div>
               {filteredQa.length === 0 && (
                 <div className="text-center py-12 text-gray-400">
@@ -923,6 +958,11 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                           }`}>
                             {item.isAnswered ? '답변완료' : '미답변'}
                           </span>
+                          {item.isPrivate && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium border border-amber-200 bg-amber-50 text-amber-800">
+                              비공개
+                            </span>
+                          )}
                           <span className="text-xs text-gray-400">{item.authorName} · {formatDate(item.createdAt)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 truncate">{item.title}</p>
