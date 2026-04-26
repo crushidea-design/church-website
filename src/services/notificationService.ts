@@ -27,14 +27,15 @@ export const requestNotificationPermission = async (
 
   if (typeof window === 'undefined') return null;
 
-  const topic = options?.topic || MAIN_NOTIFICATION_TOPIC;
-  const topicCacheKey = topic.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  // topic이 명시되지 않으면 토큰 등록만 하고 구독은 건너뜀
+  const topic = options?.topic ?? null;
+  const topicCacheKey = topic ? topic.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() : null;
   const unsubscribeTopics = topic === NEXT_GENERATION_NOTIFICATION_TOPIC ? [MAIN_NOTIFICATION_TOPIC] : [];
 
   const cachedToken = localStorage.getItem(`fcm_synced_${userId}`);
   const lastSyncedAt = Number(localStorage.getItem(`fcm_synced_at_${userId}`) || 0);
-  const cachedTopicToken = localStorage.getItem(`fcm_topic_synced_${userId}_${topicCacheKey}`);
-  const lastTopicSyncedAt = Number(localStorage.getItem(`fcm_topic_synced_at_${userId}_${topicCacheKey}`) || 0);
+  const cachedTopicToken = topicCacheKey ? localStorage.getItem(`fcm_topic_synced_${userId}_${topicCacheKey}`) : null;
+  const lastTopicSyncedAt = topicCacheKey ? Number(localStorage.getItem(`fcm_topic_synced_at_${userId}_${topicCacheKey}`) || 0) : 0;
 
   try {
     if (!('Notification' in window)) {
@@ -98,10 +99,12 @@ export const requestNotificationPermission = async (
           console.log('Token already synced to Firestore recently');
         }
 
-        const topicRecentlySynced = cachedTopicToken === token && Date.now() - lastTopicSyncedAt < TOKEN_SYNC_TTL_MS;
+        const topicRecentlySynced = topicCacheKey
+          ? cachedTopicToken === token && Date.now() - lastTopicSyncedAt < TOKEN_SYNC_TTL_MS
+          : false;
         let subscribedToTopic = false;
 
-        if (!topicRecentlySynced) {
+        if (topic && topicCacheKey && !topicRecentlySynced) {
           try {
             await Promise.all(
               unsubscribeTopics.map(async (topicToRemove) => {
@@ -136,12 +139,12 @@ export const requestNotificationPermission = async (
           } catch (subError) {
             console.error('Failed to subscribe to topic:', subError);
           }
-        } else {
+        } else if (topic && topicCacheKey && topicRecentlySynced) {
           subscribedToTopic = true;
           console.log(`Topic already synced recently for ${topic}`);
         }
 
-        if (subscribedToTopic) {
+        if (subscribedToTopic && topicCacheKey) {
           localStorage.setItem(`fcm_topic_synced_${userId}_${topicCacheKey}`, token);
           localStorage.setItem(`fcm_topic_synced_at_${userId}_${topicCacheKey}`, String(Date.now()));
         }

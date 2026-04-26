@@ -218,14 +218,70 @@ async function startServer() {
 
   app.use(express.json());
 
+  // API Route: notification system health check (admin only)
+  app.get('/api/notifications/health', async (req, res) => {
+    const adminInitialized = admin.apps.length > 0;
+
+    const decoded = await verifyRequestUser(req).catch(() => null);
+    if (!decoded || decoded.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!adminInitialized) {
+      return res.json({
+        ok: false,
+        adminInitialized: false,
+        messagingAvailable: false,
+        firestoreReachable: false,
+        activeTokenCount: 0,
+        error: 'FIREBASE_SERVICE_ACCOUNT_KEY가 설정되지 않았습니다.',
+      });
+    }
+
+    let firestoreReachable = false;
+    let activeTokenCount = 0;
+    let messagingAvailable = false;
+
+    try {
+      const db = getAppDb();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const snap = await db.collection('fcm_tokens').where('updatedAt', '>=', cutoff).count().get();
+      activeTokenCount = snap.data().count;
+      firestoreReachable = true;
+    } catch (error) {
+      console.error('Firestore health check failed:', error);
+    }
+
+    try {
+      admin.messaging();
+      messagingAvailable = true;
+    } catch {
+      // messaging 초기화 실패
+    }
+
+    res.json({
+      ok: firestoreReachable && messagingAvailable,
+      adminInitialized,
+      messagingAvailable,
+      firestoreReachable,
+      activeTokenCount,
+    });
+  });
+
   // API Route to subscribe to topic
+  const SUPPORTED_TOPICS = new Set(['all_members', 'next_members']);
+
   app.post('/api/notifications/subscribe', async (req, res) => {
-    const { token, topic = 'all_members' } = req.body;
+    const { token, topic = 'all_members', action = 'subscribe' } = req.body;
     if (!admin.apps.length || !token) {
       return res.status(400).json({ error: 'Invalid request' });
     }
-    if (topic !== 'all_members') {
+    if (!SUPPORTED_TOPICS.has(String(topic))) {
       return res.status(400).json({ error: 'Unsupported topic' });
+    }
+    if (action !== 'subscribe' && action !== 'unsubscribe') {
+      return res.status(400).json({ error: 'Unsupported action' });
     }
     const decoded = await verifyRequestUser(req).catch(error => {
       console.error('Error verifying subscribe request:', error);
@@ -236,7 +292,11 @@ async function startServer() {
     }
 
     try {
-      await admin.messaging().subscribeToTopic(token, topic);
+      if (action === 'unsubscribe') {
+        await admin.messaging().unsubscribeFromTopic(token, topic);
+      } else {
+        await admin.messaging().subscribeToTopic(token, topic);
+      }
       res.json({ success: true });
     } catch (error) {
       console.error('Error subscribing to topic:', error);
@@ -246,7 +306,7 @@ async function startServer() {
 
   // API Route to send notifications
   app.post('/api/notifications/send', async (req, res) => {
-    const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic } = req.body;
+    const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic, inAppTargetUids, inAppMessage } = req.body;
 
     if (!admin.apps.length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
@@ -280,34 +340,54 @@ async function startServer() {
         },
       };
 
+      const createInAppNotifications = async (uids: string[], message: string) => {
+        const uniqueUids = Array.from(new Set(uids.filter(Boolean)));
+        if (uniqueUids.length === 0) return;
+        const db = getAppDb();
+        const BATCH_LIMIT = 500;
+        for (let i = 0; i < uniqueUids.length; i += BATCH_LIMIT) {
+          const batch = db.batch();
+          for (const uid of uniqueUids.slice(i, i + BATCH_LIMIT)) {
+            const docRef = db.collection('next_generation_notifications').doc();
+            batch.set(docRef, {
+              uid,
+              type: 'announcement',
+              message,
+              createdAt: FieldValue.serverTimestamp(),
+              isRead: false,
+            });
+          }
+          await batch.commit();
+        }
+      };
+
       if (useTopic) {
-        // Zero-read broadcast using topics
-        response = await admin.messaging().send({
-          ...baseMessage,
-          topic: useTopic === true ? 'all_members' : useTopic,
-        });
+        const topic = useTopic === true ? 'all_members' : String(useTopic);
+        if (!SUPPORTED_TOPICS.has(topic)) {
+          return res.status(400).json({ error: 'Unsupported topic' });
+        }
+        response = await admin.messaging().send({ ...baseMessage, topic });
+        if (Array.isArray(inAppTargetUids) && inAppTargetUids.length > 0) {
+          await createInAppNotifications(inAppTargetUids, inAppMessage || body).catch(console.error);
+        }
         res.json({ success: true, messageId: response });
       } else {
         let tokensToUse = targetTokens || [];
-        
+
         if (targetUserIds && targetUserIds.length > 0) {
           const db = getAppDb();
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
           for (let i = 0; i < targetUserIds.length; i += 30) {
             const chunk = targetUserIds.slice(i, i + 30);
             const snapshot = await db.collection('fcm_tokens')
               .where('userId', 'in', chunk)
               .where('updatedAt', '>=', thirtyDaysAgo)
               .get();
-            
-            snapshot.forEach(doc => {
-              tokensToUse.push(doc.data().token);
-            });
+            snapshot.forEach(doc => tokensToUse.push(doc.data().token));
           }
         }
-        
+
         tokensToUse = Array.from(new Set(tokensToUse));
 
         if (tokensToUse.length > 0) {
@@ -315,6 +395,9 @@ async function startServer() {
             ...baseMessage,
             tokens: tokensToUse,
           });
+          if (Array.isArray(inAppTargetUids) && inAppTargetUids.length > 0) {
+            await createInAppNotifications(inAppTargetUids, inAppMessage || body).catch(console.error);
+          }
           res.json({
             success: true,
             successCount: response.successCount,

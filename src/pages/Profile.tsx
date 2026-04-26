@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
 import { MessageSquare, FileText, Calendar, Mail, BookOpen, Bell, Edit, Save, X, Plus } from 'lucide-react';
 import { motion } from 'motion/react';
-import { requestNotificationPermission } from '../services/notificationService';
+import { MAIN_NOTIFICATION_TOPIC, requestNotificationPermission } from '../services/notificationService';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -50,7 +50,7 @@ export default function Profile() {
       }
       
       try {
-        const token = await requestNotificationPermission(user.uid);
+        const token = await requestNotificationPermission(user.uid, { topic: MAIN_NOTIFICATION_TOPIC });
         if (token) {
           setNotificationStatus('granted');
           alert('알림이 허용되었습니다.');

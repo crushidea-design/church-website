@@ -30,11 +30,15 @@ import {
 import { motion } from 'motion/react';
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
+import { isRestrictedDepartment, NextGenerationAuthProvider, STUDENT_ACCESSIBLE_TAB_SLUGS, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import NextGenerationLoginModal from './NextGenerationLoginModal';
 import NextGenerationAdmin from './NextGenerationAdmin';
 import NextGenerationContact from './NextGenerationContact';
 import NextGenerationQA from './NextGenerationQA';
+import BibleReadingChart from './BibleReadingChart';
+import NextGenerationTodayWord from './NextGenerationTodayWord';
+import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
+import { BookOpen, HelpCircle, Library } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -397,8 +401,30 @@ function NextGenerationHeader() {
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [enablingNotifications, setEnablingNotifications] = useState(false);
 
-  // Mark all currently-unread notifications as read when the dropdown is opened
-  const handleOpenNotifications = () => {
+  // 종 버튼: 최초 1회 권한 요청, 이후에는 알림함 토글
+  // 토픽 구독은 정식 회원(hasAccess)일 때만, 반려/대기는 토큰만 등록
+  const handleBellClick = async () => {
+    if (!user) return;
+
+    if (notificationPermission === 'default') {
+      setEnablingNotifications(true);
+      try {
+        const token = await requestNotificationPermission(
+          user.uid,
+          hasAccess ? { topic: NEXT_GENERATION_NOTIFICATION_TOPIC } : undefined
+        );
+        const currentPermission =
+          typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+        setNotificationPermission(currentPermission as 'default' | 'granted' | 'denied' | 'unsupported');
+        if (!token && currentPermission === 'denied') {
+          window.alert('브라우저 설정에서 알림 권한을 허용해 주세요.');
+        }
+      } finally {
+        setEnablingNotifications(false);
+      }
+      return;
+    }
+
     setShowNotifications(v => !v);
     notifications.filter(n => !n.isRead).forEach(n => markNotificationRead(n.id));
   };
@@ -445,26 +471,6 @@ function NextGenerationHeader() {
       setShowLoginModal(true);
     }
   }, [isRejected, member, user]);
-
-  const handleEnableNotifications = async () => {
-    if (!user || !hasAccess) {
-      return;
-    }
-
-    setEnablingNotifications(true);
-    try {
-      const token = await requestNotificationPermission(user.uid, { topic: NEXT_GENERATION_NOTIFICATION_TOPIC });
-      const currentPermission =
-        typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
-      setNotificationPermission(currentPermission as 'default' | 'granted' | 'denied' | 'unsupported');
-
-      if (!token && currentPermission === 'denied') {
-        window.alert('브라우저 설정에서 알림 권한을 허용해 주세요.');
-      }
-    } finally {
-      setEnablingNotifications(false);
-    }
-  };
 
   return (
     <>
@@ -525,21 +531,12 @@ function NextGenerationHeader() {
                   </button>
                 </>
               )}
-              {!authLoading && user && hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={enablingNotifications}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
-                >
-                  <Bell size={14} />
-                  {enablingNotifications ? '요청 중...' : '알림 허용'}
-                </button>
-              )}
               {!authLoading && user && !isPastor && (
                 <>
                   <button
-                    onClick={handleOpenNotifications}
-                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                    onClick={handleBellClick}
+                    disabled={enablingNotifications}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition disabled:opacity-60"
                   >
                     <Bell size={16} />
                     {unreadCount > 0 && (
@@ -609,21 +606,12 @@ function NextGenerationHeader() {
                   </button>
                 </>
               )}
-              {!authLoading && user && hasAccess && notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={enablingNotifications}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 transition disabled:opacity-60"
-                >
-                  <Bell size={14} />
-                  {enablingNotifications ? '요청 중...' : '알림 허용'}
-                </button>
-              )}
               {!authLoading && user && !isPastor && (
                 <>
                   <button
-                    onClick={handleOpenNotifications}
-                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                    onClick={handleBellClick}
+                    disabled={enablingNotifications}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition disabled:opacity-60"
                   >
                     <Bell size={16} />
                     {unreadCount > 0 && (
@@ -680,11 +668,13 @@ function NextGenerationHeader() {
                     <p className={`font-medium ${
                       n.type === 'approved' ? 'text-emerald-700'
                       : n.type === 'answered' ? 'text-amber-600'
+                      : n.type === 'announcement' ? 'text-blue-700'
                       : 'text-red-600'
                     }`}>
                       {n.type === 'approved' && '✓ 가입 승인됨'}
                       {n.type === 'rejected' && '✗ 가입 반려됨'}
                       {n.type === 'answered' && '💬 질문 답변 도착'}
+                      {n.type === 'announcement' && '📢 공지'}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
                     {n.rejectionReason && (
@@ -1243,14 +1233,23 @@ function ResourceLibraryPage({
   guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
-  const { hasAccess: ngAccess, user: ngUser } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser, member } = useNextGenerationAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const rawActiveResource = searchParams.get('resource') || tabs[0].id;
+  // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.
+  const isRestricted = isRestrictedDepartment(member?.department);
+  const allowedTabs = isRestricted
+    ? tabs.filter((tab) => (STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(tab.id))
+    : tabs;
+  const fallbackTab = allowedTabs[0] || tabs[0];
+  const rawActiveResource = searchParams.get('resource') || fallbackTab?.id;
   // Tab/post restrictions apply only to unauthenticated visitors (pending/rejected users see everything)
   const isGuest = !ngUser;
-  const activeResource = (isGuest && guestTabId) ? guestTabId : rawActiveResource;
+  const restrictedActiveResource = isRestricted
+    ? (allowedTabs.some((tab) => tab.id === rawActiveResource) ? rawActiveResource : fallbackTab?.id)
+    : rawActiveResource;
+  const activeResource = (isGuest && guestTabId) ? guestTabId : restrictedActiveResource;
   // Always show all tabs so guests can see what's behind login; non-free tabs are rendered as locked
-  const visibleTabs = tabs;
+  const visibleTabs = allowedTabs;
   const requestedTopic = searchParams.get('topic');
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1368,6 +1367,35 @@ function ResourceLibraryPage({
 
     return [...posts].sort(byDate);
   }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
+
+  if (visibleTabs.length === 0) {
+    return (
+      <div>
+        <section className={heroClassName}>
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
+            <img src={image} alt={imageAlt} className="h-72 w-full rounded-lg object-cover shadow-sm" />
+            <div>
+              <span className={`mb-4 inline-flex rounded-lg px-3 py-2 text-sm font-black ${badgeClassName}`}>{departmentName}</span>
+              <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950">{title}</h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">{description}</p>
+            </div>
+          </div>
+        </section>
+        <section className="bg-white py-16">
+          <div className="mx-auto max-w-3xl rounded-lg border border-dashed border-sky-200 bg-sky-50 px-6 py-12 text-center">
+            <Lock className="mx-auto mb-4 h-10 w-10 text-sky-500" />
+            <h3 className="text-xl font-black text-emerald-950">이 부서에는 열람 가능한 자료가 없습니다</h3>
+            <p className="mt-3 text-sm font-bold text-slate-600">
+              현재 회원 등급(학생)은 공과 자료만 확인할 수 있습니다. 유초등부 페이지에서 공과 자료를 확인해 주세요.
+            </p>
+            <Link to={`${NEXT_GENERATION_PATH}/elementary`} className="mt-5 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700">
+              유초등부로 이동
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -1582,7 +1610,7 @@ function ResourceLibraryPage({
                 );
               })}
             </div>
-            {!ngAccess && guestPostLimit && filteredPosts.length > guestPostLimit && (
+            {isGuest && guestPostLimit && filteredPosts.length > guestPostLimit && (
               <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 px-6 py-8 text-center">
                 <Lock className="mx-auto mb-3 h-8 w-8 text-sky-400" />
                 <p className="text-sm font-bold text-emerald-950">
@@ -1681,9 +1709,26 @@ function YoungAdultsPage() {
       guestTabId="pilgrim_lecture"
       guestPostLimit={4}
       midSection={
-        <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-          <NextGenerationQA />
-        </section>
+        <NextGenerationHighlightBand
+          themeBg="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100"
+          activeRing="border-emerald-400 bg-emerald-50"
+          entries={[
+            {
+              id: 'qa',
+              icon: <HelpCircle size={18} />,
+              label: '질문 있습니다',
+              summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
+              content: <NextGenerationQA compact department="young-adults" />,
+            },
+            {
+              id: 'today',
+              icon: <BookOpen size={18} />,
+              label: '오늘의 말씀',
+              summary: '맥체인 성경 읽기와 묵상 가이드',
+              content: <NextGenerationTodayWord compact />,
+            },
+          ]}
+        />
       }
     />
   );
@@ -2176,7 +2221,8 @@ function NextGenerationCreatePost() {
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
-  const { hasAccess: ngAccess, user: ngUser, isPending, isRejected } = useNextGenerationAuth();
+  const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
+  const isRestricted = isRestrictedDepartment(member?.department);
   const { tabs: cmsTabs, departments: cmsDepartments } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2203,6 +2249,14 @@ function NextGenerationPostDetail({ id }: { id: string }) {
         if (data.category !== NEXT_GENERATION_CATEGORY) {
           navigate(`${NEXT_GENERATION_PATH}/elementary`, { replace: true });
           return;
+        }
+
+        if (isRestricted && !isAdmin) {
+          const postTabSlug = data.nextGenerationTabSlug || data.subCategory || '';
+          if (!(STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(postTabSlug)) {
+            navigate(`${NEXT_GENERATION_PATH}/elementary?resource=elementary_workbook`, { replace: true });
+            return;
+          }
         }
 
         if (data.isLongContent) {
@@ -2247,7 +2301,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
     };
 
     fetchPost();
-  }, [id, navigate, ngAccess]);
+  }, [id, navigate, ngAccess, isRestricted, isAdmin]);
 
   if (loading) {
     return (
@@ -2565,13 +2619,59 @@ function NextGenerationInner() {
         guestTabId={guestTabId}
         guestPostLimit={currentDepartment.guestPostLimit}
         weeklyResourceIds={weeklyResourceIds}
-        midSection={
-          currentDepartment.slug === 'young-adults' ? (
-            <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
-              <NextGenerationQA />
-            </section>
-          ) : undefined
-        }
+        midSection={(() => {
+          if (currentDepartment.slug === 'young-adults') {
+            const entries: HighlightEntry[] = [
+              {
+                id: 'qa',
+                icon: <HelpCircle size={18} />,
+                label: '질문 있습니다',
+                summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
+                content: <NextGenerationQA compact department="young-adults" />,
+              },
+              {
+                id: 'today',
+                icon: <BookOpen size={18} />,
+                label: '오늘의 말씀',
+                summary: '맥체인 성경 읽기와 묵상 가이드',
+                content: <NextGenerationTodayWord compact />,
+              },
+            ];
+            return (
+              <NextGenerationHighlightBand
+                themeBg="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100"
+                activeRing="border-emerald-400 bg-emerald-50"
+                entries={entries}
+              />
+            );
+          }
+          if (currentDepartment.slug === 'elementary') {
+            const entries: HighlightEntry[] = [
+              {
+                id: 'qa',
+                icon: <HelpCircle size={18} />,
+                label: '질문 있습니다',
+                summary: '신앙의 질문을 자유롭게 남겨 보세요',
+                content: <NextGenerationQA compact department="elementary" />,
+              },
+              {
+                id: 'bible',
+                icon: <Library size={18} />,
+                label: '성경 읽기 기록표',
+                summary: '한 권씩 읽을 때마다 책장에 색이 채워져요',
+                content: <BibleReadingChart />,
+              },
+            ];
+            return (
+              <NextGenerationHighlightBand
+                themeBg="bg-gradient-to-b from-amber-50 to-white border-y border-amber-100"
+                activeRing="border-amber-400 bg-amber-50"
+                entries={entries}
+              />
+            );
+          }
+          return undefined;
+        })()}
       />
     );
   } else if (currentSection === 'contact') {

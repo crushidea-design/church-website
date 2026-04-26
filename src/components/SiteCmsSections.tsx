@@ -1,22 +1,29 @@
 import React from 'react';
-import { useSiteCms } from '../lib/siteCms';
+import { useSiteCms, SiteCmsSectionPlacement } from '../lib/siteCms';
 
 interface SiteCmsSectionsProps {
   pageSlug: string;
+  placement?: SiteCmsSectionPlacement;
   className?: string;
 }
 
-export default function SiteCmsSections({ pageSlug, className }: SiteCmsSectionsProps) {
+export default function SiteCmsSections({ pageSlug, placement, className }: SiteCmsSectionsProps) {
   const { pages, sections } = useSiteCms();
   const page = pages.find((item) => item.slug === pageSlug);
   const visibleSections = sections
-    .filter((section) => section.pageSlug === pageSlug && section.visible)
+    .filter((section) => {
+      if (section.pageSlug !== pageSlug) return false;
+      if (!section.visible) return false;
+      if (!placement) return true;
+      const sectionPlacement = section.placement || 'bottom';
+      return sectionPlacement === placement;
+    })
     .sort((a, b) => a.order - b.order);
 
   if (!page?.visible || visibleSections.length === 0) return null;
 
   return (
-    <section className={className || 'mb-8'}>
+    <section className={className || 'my-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto'}>
       <div className="space-y-4">
         {visibleSections.map((section) => (
           <article key={section.id} className="rounded-2xl border border-wood-200 bg-white p-6 shadow-sm">

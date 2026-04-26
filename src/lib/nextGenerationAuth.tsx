@@ -25,8 +25,17 @@ import { auth, db, googleProvider, signInWithGoogle as firebaseSignInWithGoogle 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
 export type MemberRole = 'pending' | 'member' | 'rejected';
-export const NEXT_GENERATION_DEPARTMENTS = ['청년', '교사', '학생', '학부모'] as const;
+export const NEXT_GENERATION_DEPARTMENTS = ['청년', '교사', '학부모', '학생'] as const;
 export type Department = typeof NEXT_GENERATION_DEPARTMENTS[number];
+
+/** Department members that can only access the workbook (공과) tab. */
+export const RESTRICTED_DEPARTMENTS: Department[] = ['학생'];
+
+/** Tab slugs accessible to RESTRICTED_DEPARTMENTS members. */
+export const STUDENT_ACCESSIBLE_TAB_SLUGS = ['elementary_workbook'] as const;
+
+export const isRestrictedDepartment = (department: Department | undefined | null) =>
+  !!department && (RESTRICTED_DEPARTMENTS as Department[]).includes(department);
 
 export interface NextGenerationMember {
   uid: string;
@@ -46,7 +55,7 @@ export interface NextGenerationMember {
 export interface NextGenerationNotification {
   id: string;
   uid: string;
-  type: 'approved' | 'rejected' | 'answered';
+  type: 'approved' | 'rejected' | 'answered' | 'announcement';
   message: string;
   rejectionReason?: string;
   createdAt: Timestamp;

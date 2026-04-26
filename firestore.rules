@@ -430,7 +430,7 @@ service cloud.firestore {
         request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 100 &&
         request.resource.data.provider in ['email', 'google'] &&
         request.resource.data.role == 'pending' &&
-        request.resource.data.department in ['청년', '교사', '학생', '학부모'] &&
+        request.resource.data.department in ['청년', '교사', '학부모', '학생'] &&
         request.resource.data.church is string && request.resource.data.church.size() > 0 &&
         request.resource.data.intro is string &&
         request.resource.data.createdAt is timestamp;
@@ -446,7 +446,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isNextGenerationPastor() &&
         request.resource.data.keys().hasOnly(['uid', 'type', 'message', 'rejectionReason', 'createdAt', 'isRead']) &&
-        request.resource.data.type in ['approved', 'rejected', 'answered'] &&
+        request.resource.data.type in ['approved', 'rejected', 'answered', 'announcement'] &&
         request.resource.data.isRead == false &&
         request.resource.data.createdAt is timestamp;
       allow update: if isAuthenticated() && resource.data.uid == request.auth.uid &&
@@ -457,16 +457,23 @@ service cloud.firestore {
     match /next_generation_qa/{qaId} {
       allow read: if isAuthenticated();
       allow create: if isNextGenerationAccess() &&
-        request.resource.data.keys().hasOnly(['title', 'content', 'authorId', 'authorName', 'createdAt', 'isAnswered']) &&
+        request.resource.data.keys().hasOnly(['title', 'content', 'authorId', 'authorName', 'department', 'createdAt', 'isAnswered']) &&
         request.resource.data.authorId == request.auth.uid &&
         request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
         request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 5000 &&
+        request.resource.data.department in ['elementary', 'young-adults'] &&
         request.resource.data.isAnswered == false &&
         request.resource.data.createdAt is timestamp;
       allow update: if isNextGenerationPastor() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'answeredAt', 'answeredBy', 'isAnswered']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'answeredAt', 'answeredBy', 'isAnswered', 'department']);
       allow delete: if isNextGenerationPastor() ||
         (isAuthenticated() && resource.data.authorId == request.auth.uid);
+    }
+
+    match /next_generation_bible_reading/{memberId} {
+      allow read: if isNextGenerationPastor() ||
+        (isAuthenticated() && request.auth.uid == memberId);
+      allow create, update, delete: if isNextGenerationPastor();
     }
 
     match /next_generation_contacts/{contactId} {
