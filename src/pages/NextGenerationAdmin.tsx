@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { NextGenerationMember, Department } from '../lib/nextGenerationAuth';
+import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS } from '../lib/nextGenerationAuth';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
@@ -55,14 +55,16 @@ const NEXT_NOTIFICATION_TARGETS = [
 
 const NOTIFICATION_AUDIENCE_OPTIONS: Array<{ value: 'all' | string; label: string }> = [
   { value: 'all', label: '전체 회원' },
-  { value: '泥?뀈', label: '청년' },
-  { value: '援먯궗', label: '교사' },
-  { value: '?숇?紐?', label: '부모' },
+  ...NEXT_GENERATION_DEPARTMENTS.map((department) => ({
+    value: department,
+    label: department === '학부모' ? '부모' : department,
+  })),
 ];
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',
   '교사': 'bg-green-100 text-green-700',
+  '학생': 'bg-amber-100 text-amber-700',
   '학부모': 'bg-purple-100 text-purple-700',
 };
 

@@ -25,7 +25,8 @@ import { auth, db, googleProvider, signInWithGoogle as firebaseSignInWithGoogle 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
 export type MemberRole = 'pending' | 'member' | 'rejected';
-export type Department = '청년' | '교사' | '학부모';
+export const NEXT_GENERATION_DEPARTMENTS = ['청년', '교사', '학생', '학부모'] as const;
+export type Department = typeof NEXT_GENERATION_DEPARTMENTS[number];
 
 export interface NextGenerationMember {
   uid: string;

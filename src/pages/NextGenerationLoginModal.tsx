@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { useNextGenerationAuth, Department, EmailSignUpData, SignUpData } from '../lib/nextGenerationAuth';
+import {
+  useNextGenerationAuth,
+  NEXT_GENERATION_DEPARTMENTS,
+  Department,
+  EmailSignUpData,
+  SignUpData,
+} from '../lib/nextGenerationAuth';
 
 type ModalView = 'login' | 'signup' | 'complete_google' | 'forgot_password' | 'pending' | 'rejected';
 
@@ -10,7 +16,7 @@ interface Props {
   rejectionReason?: string;
 }
 
-const DEPARTMENTS: Department[] = ['청년', '교사', '학부모'];
+const DEPARTMENTS: Department[] = [...NEXT_GENERATION_DEPARTMENTS];
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden>
