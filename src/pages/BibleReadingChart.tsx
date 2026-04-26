@@ -222,11 +222,14 @@ export default function BibleReadingChart() {
               auto-generated SVG placeholder so the feature always renders.
               Capped to a comfortable display size — the source PNG is large
               and would otherwise dominate the band when expanded. */}
-          <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-xl border border-amber-100 bg-amber-50">
+          <div
+            className="relative mx-auto w-full max-w-md overflow-hidden rounded-xl border border-amber-100 bg-amber-50"
+            style={{ aspectRatio: '2265 / 2806' }}
+          >
             <img
               src="/bible-reading-chart.png"
               alt="성경 읽기 기록표 책장"
-              className="block h-auto w-full select-none"
+              className="absolute inset-0 block h-full w-full select-none"
               draggable={false}
               onError={(e) => {
                 const img = e.currentTarget as HTMLImageElement;
