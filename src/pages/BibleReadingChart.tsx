@@ -32,8 +32,11 @@ interface BibleReadingDoc {
 
 const READING_COLLECTION = 'next_generation_bible_reading';
 
+interface BibleReadingChartProps {
+  enableBrowse?: boolean;
+}
 
-export default function BibleReadingChart() {
+export default function BibleReadingChart({ enableBrowse = false }: BibleReadingChartProps) {
   const { user, member, isPastor, isMember } = useNextGenerationAuth();
   const isStudent = isMember && member?.department === '학생';
 
@@ -41,12 +44,18 @@ export default function BibleReadingChart() {
   const [students, setStudents] = useState<NextGenerationMember[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [selectedStudentUid, setSelectedStudentUid] = useState<string>('');
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [browseReadings, setBrowseReadings] = useState<BibleReadingDoc[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [selectedBrowseUid, setSelectedBrowseUid] = useState<string>('');
 
   // Whose document we're viewing.
-  const targetUid = isPastor ? selectedStudentUid : user?.uid || '';
+  const targetUid = isPastor ? selectedStudentUid : selectedBrowseUid || user?.uid || '';
   const targetMember = isPastor
     ? students.find((s) => s.uid === selectedStudentUid)
-    : member;
+    : selectedBrowseUid
+      ? browseReadings.find((item) => item.uid === selectedBrowseUid)
+      : member;
 
   const [reading, setReading] = useState<BibleReadingDoc | null>(null);
   const [readingLoading, setReadingLoading] = useState(false);
@@ -79,6 +88,29 @@ export default function BibleReadingChart() {
     );
     return () => unsub();
   }, [isPastor]);
+
+  useEffect(() => {
+    if (!enableBrowse || !user || !isStudent) {
+      setBrowseReadings([]);
+      setBrowseLoading(false);
+      return;
+    }
+
+    setBrowseLoading(true);
+    const unsub = onSnapshot(
+      collection(db, READING_COLLECTION),
+      (snap) => {
+        const list = snap.docs
+          .map((d) => ({ uid: d.id, ...(d.data() as BibleReadingDoc) }))
+          .filter((item) => item.uid !== user.uid)
+          .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'ko'));
+        setBrowseReadings(list);
+        setBrowseLoading(false);
+      },
+      () => setBrowseLoading(false),
+    );
+    return () => unsub();
+  }, [enableBrowse, isStudent, user]);
 
   // Subscribe to the target student's reading document
   useEffect(() => {
@@ -121,6 +153,7 @@ export default function BibleReadingChart() {
   const percent = Math.round((totalRead * 100) / BIBLE_BOOKS_TOTAL);
 
   const canEdit = !!isPastor && !!targetUid;
+  const viewingOtherStudent = !isPastor && !!selectedBrowseUid;
 
   const toggleBook = async (spot: BibleBookSpot) => {
     if (!canEdit || !targetUid || !user) return;
@@ -164,6 +197,7 @@ export default function BibleReadingChart() {
         <div className="min-w-0 flex-1">
           <h2 className="text-2xl font-black tracking-normal text-emerald-950">성경 읽기 기록표</h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
+            {viewingOtherStudent && `${targetMember?.displayName || '다른 친구'}의 기록표를 읽기 전용으로 보고 있어요.`}
             {isPastor && '학생을 선택해 읽은 책에 색을 칠해 주세요.'}
             {isStudent && '내가 읽은 성경에 색이 칠해져요. 끝까지 함께 읽어 봐요!'}
             {!isPastor && !isStudent && '유초등부 학생이 성경 한 권씩 읽을 때마다 책장에 색이 채워집니다.'}
@@ -202,6 +236,74 @@ export default function BibleReadingChart() {
       {isPastor && !targetUid && (
         <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4 text-center text-sm font-medium text-amber-800">
           위에서 학생을 선택해 주세요. {students.length === 0 && !studentsLoading && '(아직 학생 부서로 승인된 회원이 없습니다.)'}
+        </div>
+      )}
+
+      {enableBrowse && isStudent && (
+        <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-black text-emerald-950">
+                {viewingOtherStudent ? `${targetMember?.displayName || '친구'} 기록표 구경 중` : '내 성경 읽기 기록표'}
+              </p>
+              <p className="mt-1 text-xs font-bold text-emerald-700">
+                다른 학생들의 기록표는 읽기 전용으로만 볼 수 있어요.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {viewingOtherStudent && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrowseUid('')}
+                  className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50"
+                >
+                  내 기록표
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setBrowseOpen((v) => !v)}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+              >
+                다른 사람 기록표 구경하기
+              </button>
+            </div>
+          </div>
+          {browseOpen && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {browseLoading ? (
+                <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-500">
+                  <Loader2 size={14} className="animate-spin" /> 불러오는 중
+                </div>
+              ) : browseReadings.length === 0 ? (
+                <p className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-500">
+                  아직 구경할 수 있는 다른 기록표가 없습니다.
+                </p>
+              ) : (
+                browseReadings.map((item) => {
+                  const count = item.completedBooks?.length || 0;
+                  const selected = item.uid === selectedBrowseUid;
+                  return (
+                    <button
+                      key={item.uid}
+                      type="button"
+                      onClick={() => setSelectedBrowseUid(item.uid)}
+                      className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                        selected
+                          ? 'border-emerald-500 bg-emerald-600 text-white'
+                          : 'border-emerald-100 bg-white text-emerald-950 hover:border-emerald-300'
+                      }`}
+                    >
+                      <span className="block font-black">{item.displayName || '이름 없는 학생'}</span>
+                      <span className={selected ? 'text-emerald-50' : 'text-slate-500'}>
+                        {count}/{BIBLE_BOOKS_TOTAL}권
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
 

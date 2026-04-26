@@ -479,8 +479,7 @@ service cloud.firestore {
     }
 
     match /next_generation_bible_reading/{memberId} {
-      allow read: if isNextGenerationPastor() ||
-        (isAuthenticated() && request.auth.uid == memberId);
+      allow read: if isNextGenerationAccess();
       allow create, update, delete: if isNextGenerationPastor();
     }
 
