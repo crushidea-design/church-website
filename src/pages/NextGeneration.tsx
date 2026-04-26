@@ -1236,7 +1236,7 @@ function ResourceLibraryPage({
   const { hasAccess: ngAccess, user: ngUser, member } = useNextGenerationAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.
-  const isRestricted = isRestrictedDepartment(member?.department);
+  const isRestricted = departmentSlug === 'elementary' && isRestrictedDepartment(member?.department);
   const allowedTabs = isRestricted
     ? tabs.filter((tab) => (STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(tab.id))
     : tabs;
@@ -1256,7 +1256,14 @@ function ResourceLibraryPage({
   const [error, setError] = useState<string | null>(null);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = !authLoading && role === 'admin';
-  const activeTab = visibleTabs.find((tab) => tab.id === activeResource) || visibleTabs[0];
+  const activeTab = visibleTabs.find((tab) => tab.id === activeResource) || visibleTabs[0] || fallbackTab || {
+    id: '',
+    slug: '',
+    name: '',
+    description: '',
+    icon: FileText,
+    departmentSlug,
+  };
   const isWeeklyTab = !!activeTab.isWeeklyGroup;
   const usesTopicFolders = !isWeeklyTab && (!!activeTab.useTopic || supportsNextGenerationTopic(activeTab.id));
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
@@ -1270,6 +1277,12 @@ function ResourceLibraryPage({
 
   useEffect(() => {
     const fetchPosts = async () => {
+      if (!activeTab.id) {
+        setPosts([]);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
