@@ -64,6 +64,7 @@ import {
   NextGenerationResourceTab,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
+import BibleReadingChart from '../components/BibleReadingChart';
 import { initializeNextGenerationBadgeSync, setNextGenerationBadgeCount } from '../services/appBadgeService';
 import {
   NEXT_GENERATION_NOTIFICATION_TOPIC,
@@ -1675,6 +1676,32 @@ function YoungAdultsPage() {
   );
 }
 
+function BibleReadingHighlight() {
+  const { role } = useAuth();
+  const { isPastor } = useNextGenerationAuth();
+  const canEditChart = role === 'admin' || isPastor;
+
+  return (
+    <section className="border-y border-amber-100 bg-gradient-to-b from-amber-50 to-white">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+            <BookMarked size={24} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black tracking-normal text-emerald-950">성경 읽기 기록표</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-700 sm:text-base">
+              책을 읽을 때마다 기록표에서 해당 책 위치를 눌러 색칠할 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        <BibleReadingChart editable={canEditChart} />
+      </div>
+    </section>
+  );
+}
+
 function NextGenerationCreatePost() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -2552,7 +2579,9 @@ function NextGenerationInner() {
         guestPostLimit={currentDepartment.guestPostLimit}
         weeklyResourceIds={weeklyResourceIds}
         midSection={
-          currentDepartment.slug === 'young-adults' ? (
+          currentDepartment.slug === 'elementary' ? (
+            <BibleReadingHighlight />
+          ) : currentDepartment.slug === 'young-adults' ? (
             <section className="bg-gradient-to-b from-sky-50 to-white border-y border-sky-100">
               <NextGenerationQA />
             </section>
