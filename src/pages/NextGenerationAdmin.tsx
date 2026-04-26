@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { NextGenerationMember, Department } from '../lib/nextGenerationAuth';
+import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS } from '../lib/nextGenerationAuth';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
@@ -15,18 +15,32 @@ import {
 } from 'lucide-react';
 import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
 
+type QADepartment = 'elementary' | 'young-adults';
+
 interface QAItem {
   id: string;
   title: string;
   content: string;
   authorId: string;
   authorName: string;
+  department?: QADepartment;
+  isPrivate?: boolean;
   createdAt: Timestamp;
   isAnswered: boolean;
   answer?: string;
   answeredAt?: Timestamp;
   answeredBy?: string;
 }
+
+const QA_DEPARTMENT_LABEL: Record<QADepartment, string> = {
+  elementary: '유초등부',
+  'young-adults': '청년부',
+};
+
+const QA_DEPARTMENT_BADGE: Record<QADepartment, string> = {
+  elementary: 'bg-amber-100 text-amber-800 border-amber-200',
+  'young-adults': 'bg-sky-100 text-sky-800 border-sky-200',
+};
 
 interface ContactItem {
   id: string;
@@ -53,17 +67,13 @@ const NEXT_NOTIFICATION_TARGETS = [
   { value: '/next/contact', label: '문의하기' },
 ];
 
-const NOTIFICATION_AUDIENCE_OPTIONS: Array<{ value: 'all' | string; label: string }> = [
-  { value: 'all', label: '전체 회원' },
-  { value: '泥?뀈', label: '청년' },
-  { value: '援먯궗', label: '교사' },
-  { value: '?숇?紐?', label: '부모' },
-];
+const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = [...NEXT_GENERATION_DEPARTMENTS];
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',
   '교사': 'bg-green-100 text-green-700',
   '학부모': 'bg-purple-100 text-purple-700',
+  '학생': 'bg-amber-100 text-amber-800',
 };
 
 function StatusRow({ ok, label }: { ok: boolean; label: string }) {
@@ -106,8 +116,12 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [notificationTitle, setNotificationTitle] = useState('');
   const [notificationBody, setNotificationBody] = useState('');
   const [notificationTargetUrl, setNotificationTargetUrl] = useState('/next');
-  const [notificationAudience, setNotificationAudience] = useState<'all' | string>('all');
+  const [notificationAudience, setNotificationAudience] = useState<'all' | Department[]>('all');
   const [sendingNotification, setSendingNotification] = useState(false);
+
+  // Q&A filter
+  const [qaFilter, setQaFilter] = useState<'all' | QADepartment>('all');
+  const [qaBackfilling, setQaBackfilling] = useState(false);
 
   // Notification system health
   const [systemHealth, setSystemHealth] = useState<{
@@ -194,7 +208,16 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const notificationAudienceCount =
     notificationAudience === 'all'
       ? approvedMembers.length
-      : approvedMembers.filter((member) => member.department === notificationAudience).length;
+      : approvedMembers.filter((member) => notificationAudience.includes(member.department)).length;
+
+  const toggleAudienceDepartment = (dept: Department) => {
+    setNotificationAudience((prev) => {
+      const current = prev === 'all' ? [] : prev;
+      return current.includes(dept)
+        ? current.filter((d) => d !== dept)
+        : [...current, dept];
+    });
+  };
 
   const filteredMembers = members.filter(m =>
     m.displayName.includes(search) ||
@@ -326,6 +349,46 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     await updateDoc(doc(db, 'next_generation_contacts', id), { isRead: true });
   };
 
+  const backfillQaDepartments = async () => {
+    if (!confirm('부서 미지정 질문을 모두 청년부로 보정하시겠습니까?\n(이 작업은 안전하게 1회만 수행됩니다.)')) return;
+    setQaBackfilling(true);
+    try {
+      const targets = qaItems.filter((q) => !q.department);
+      let updated = 0;
+      for (const item of targets) {
+        await updateDoc(doc(db, 'next_generation_qa', item.id), {
+          department: 'young-adults',
+        });
+        updated += 1;
+      }
+      showToast(`${updated}건의 질문에 부서 정보를 보정했습니다.`);
+    } catch (err) {
+      showToast('부서 보정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setQaBackfilling(false);
+    }
+  };
+
+  const backfillQaPrivacy = async () => {
+    if (!confirm('isPrivate 필드가 없는 질문을 모두 공개(false)로 표시하시겠습니까?\n이 보정 후에야 일반 회원이 기존 질문을 정상적으로 볼 수 있습니다.')) return;
+    setQaBackfilling(true);
+    try {
+      const targets = qaItems.filter((q) => typeof q.isPrivate !== 'boolean');
+      let updated = 0;
+      for (const item of targets) {
+        await updateDoc(doc(db, 'next_generation_qa', item.id), {
+          isPrivate: false,
+        });
+        updated += 1;
+      }
+      showToast(`${updated}건의 질문에 공개 표시를 부여했습니다.`);
+    } catch (err) {
+      showToast('공개 여부 보정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setQaBackfilling(false);
+    }
+  };
+
   const sendNextGenerationNotification = async () => {
     const trimmedTitle = notificationTitle.trim();
     const trimmedBody = notificationBody.trim();
@@ -334,7 +397,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       notificationAudience === 'all'
         ? []
         : approvedMembers
-            .filter((member) => member.department === notificationAudience)
+            .filter((member) => notificationAudience.includes(member.department))
             .map((member) => member.uid);
 
     if (!trimmedTitle || !trimmedBody) {
@@ -344,6 +407,11 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
     if (!trimmedTargetUrl.startsWith('/next')) {
       showToast('이동 경로는 /next로 시작해야 합니다.', 'error');
+      return;
+    }
+
+    if (notificationAudience !== 'all' && notificationAudience.length === 0) {
+      showToast('대상 역할을 한 개 이상 선택해 주세요.', 'error');
       return;
     }
 
@@ -358,7 +426,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       const targetMembers =
         notificationAudience === 'all'
           ? approvedMembers
-          : approvedMembers.filter((m) => m.department === notificationAudience);
+          : approvedMembers.filter((m) => notificationAudience.includes(m.department));
 
       const response = await fetch('/api/notifications/send', {
         method: 'POST',
@@ -676,20 +744,41 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
-                    <select
-                      value={notificationAudience}
-                      onChange={(e) => setNotificationAudience(e.target.value)}
-                      className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      {NOTIFICATION_AUDIENCE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-700">
-                      현재 대상 {notificationAudienceCount}명
+                  <div className="rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm text-gray-800">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notificationAudience === 'all'}
+                          onChange={(e) =>
+                            setNotificationAudience(e.target.checked ? 'all' : [])
+                          }
+                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
+                        />
+                        <span className="font-medium">전체 회원</span>
+                      </label>
+                      <span className="text-amber-300">|</span>
+                      {NOTIFICATION_DEPARTMENT_OPTIONS.map((dept) => {
+                        const checked =
+                          notificationAudience !== 'all' && notificationAudience.includes(dept);
+                        return (
+                          <label key={dept} className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={notificationAudience === 'all'}
+                              onChange={() => toggleAudienceDepartment(dept)}
+                              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400 disabled:opacity-40"
+                            />
+                            <span className={notificationAudience === 'all' ? 'text-gray-400' : ''}>
+                              {dept}
+                            </span>
+                          </label>
+                        );
+                      })}
+                      <span className="ml-auto text-xs text-gray-600">
+                        현재 대상 {notificationAudienceCount}명
+                      </span>
                     </div>
                   </div>
                   <input
@@ -789,16 +878,70 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
           )}
 
           {/* QA TAB */}
-          {!loading && tab === 'qa' && (
+          {!loading && tab === 'qa' && (() => {
+            const filteredQa = qaItems.filter((item) => {
+              const dept = (item.department ?? 'young-adults') as QADepartment;
+              return qaFilter === 'all' ? true : dept === qaFilter;
+            });
+            const legacyDeptCount = qaItems.filter((item) => !item.department).length;
+            const legacyPrivacyCount = qaItems.filter((item) => typeof item.isPrivate !== 'boolean').length;
+            return (
             <div className="space-y-3">
-              {qaItems.length === 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {([
+                    { id: 'all', label: '전체' },
+                    { id: 'elementary', label: '유초등부' },
+                    { id: 'young-adults', label: '청년부' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setQaFilter(opt.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors ${
+                        qaFilter === opt.id
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <span className="ml-2 text-xs text-gray-500">{filteredQa.length}건</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {legacyDeptCount > 0 && (
+                    <button
+                      type="button"
+                      disabled={qaBackfilling}
+                      onClick={backfillQaDepartments}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
+                    >
+                      {qaBackfilling ? '보정 중...' : `부서 미지정 ${legacyDeptCount}건 → 청년부로 보정`}
+                    </button>
+                  )}
+                  {legacyPrivacyCount > 0 && (
+                    <button
+                      type="button"
+                      disabled={qaBackfilling}
+                      onClick={backfillQaPrivacy}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-50"
+                      title="이 보정을 실행해야 일반 회원이 기존 질문을 볼 수 있습니다."
+                    >
+                      {qaBackfilling ? '보정 중...' : `공개 미지정 ${legacyPrivacyCount}건 → 공개로 보정`}
+                    </button>
+                  )}
+                </div>
+              </div>
+              {filteredQa.length === 0 && (
                 <div className="text-center py-12 text-gray-400">
                   <MessageSquare size={32} className="mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">등록된 질문이 없습니다.</p>
+                  <p className="text-sm">조건에 맞는 질문이 없습니다.</p>
                 </div>
               )}
-              {qaItems.map(item => {
+              {filteredQa.map((item) => {
                 const isExpanded = expandedId === item.id;
+                const dept = (item.department ?? 'young-adults') as QADepartment;
                 return (
                   <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden">
                     <button
@@ -807,11 +950,19 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${QA_DEPARTMENT_BADGE[dept]}`}>
+                            {QA_DEPARTMENT_LABEL[dept]}
+                          </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                             item.isAnswered ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                           }`}>
                             {item.isAnswered ? '답변완료' : '미답변'}
                           </span>
+                          {item.isPrivate && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium border border-amber-200 bg-amber-50 text-amber-800">
+                              비공개
+                            </span>
+                          )}
                           <span className="text-xs text-gray-400">{item.authorName} · {formatDate(item.createdAt)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 truncate">{item.title}</p>
@@ -851,7 +1002,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           {/* MIGRATION TAB */}
           {tab === 'migration' && (

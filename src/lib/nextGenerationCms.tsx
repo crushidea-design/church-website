@@ -54,6 +54,34 @@ export interface NextGenerationResourceTab {
 
 export type NextGenerationIntroSectionType = 'text' | 'highlights' | 'gallery';
 
+export const PROTECTED_NEXT_GEN_DEPARTMENT_SLUGS = ['elementary', 'young-adults'] as const;
+
+export const PROTECTED_NEXT_GEN_TAB_SLUGS = [
+  'elementary_weekly',
+  'elementary_script',
+  'elementary_workbook',
+  'elementary_guide',
+  'family_column',
+  'pilgrim_lecture',
+] as const;
+
+export const NEXT_GEN_HERO_CLASS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'bg-white', label: '기본 (흰색)' },
+  { value: 'bg-amber-50', label: '엠버 50' },
+  { value: 'bg-sky-50', label: '스카이 50' },
+  { value: 'bg-emerald-50', label: '에메랄드 50' },
+  { value: 'bg-rose-50', label: '로즈 50' },
+  { value: 'bg-stone-50', label: '스톤 50' },
+];
+
+export const NEXT_GEN_BADGE_CLASS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'bg-white text-coral-800', label: '흰색 배지 / 코랄 글자' },
+  { value: 'bg-sky-100 text-emerald-950', label: '스카이 배지 / 에메랄드 글자' },
+  { value: 'bg-amber-100 text-emerald-950', label: '엠버 배지 / 에메랄드 글자' },
+  { value: 'bg-emerald-100 text-emerald-900', label: '에메랄드 배지 / 진녹색 글자' },
+  { value: 'bg-rose-100 text-rose-900', label: '로즈 배지 / 진로즈 글자' },
+];
+
 export interface NextGenerationIntroSection {
   id: string;
   departmentSlug: string;

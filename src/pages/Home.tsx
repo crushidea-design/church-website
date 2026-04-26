@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { requestNotificationPermission } from '../services/notificationService';
 import { useStore } from '../store/useStore';
+import SiteCmsSections from '../components/SiteCmsSections';
 
 const DEFAULT_HERO_IMAGE = "https://lh3.googleusercontent.com/d/1V0VulPP6zYJLhZCS_Ytmq2Ad2tndcEm0";
 
@@ -388,6 +389,8 @@ export default function Home() {
         </div>
       </section>
 
+      <SiteCmsSections pageSlug="home" placement="top" />
+
       {/* Latest Posts Section */}
       <section className="py-24 relative" style={{ backgroundColor: '#fcfcfc', backgroundImage: brickPattern }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -458,6 +461,7 @@ export default function Home() {
         </div>
       </section>
 
+      <SiteCmsSections pageSlug="home" placement="bottom" />
     </div>
   );
 }

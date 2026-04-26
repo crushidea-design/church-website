@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { useNextGenerationAuth, Department, EmailSignUpData, SignUpData } from '../lib/nextGenerationAuth';
+import {
+  useNextGenerationAuth,
+  NEXT_GENERATION_DEPARTMENTS,
+  Department,
+  EmailSignUpData,
+  SignUpData,
+} from '../lib/nextGenerationAuth';
 
 type ModalView = 'login' | 'signup' | 'complete_google' | 'forgot_password' | 'pending' | 'rejected';
 
@@ -10,7 +16,7 @@ interface Props {
   rejectionReason?: string;
 }
 
-const DEPARTMENTS: Department[] = ['청년', '교사', '학부모'];
+const DEPARTMENTS: Department[] = [...NEXT_GENERATION_DEPARTMENTS];
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden>
@@ -74,10 +80,18 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
       setError('비밀번호는 6자 이상이어야 합니다.');
     } else if (code === 'auth/invalid-email') {
       setError('올바른 이메일 형식이 아닙니다.');
-    } else if (code === 'auth/popup-closed-by-user') {
+    } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
       setError('');
+    } else if (code === 'auth/popup-blocked') {
+      setError('브라우저가 팝업을 차단했습니다. 팝업을 허용한 뒤 다시 시도해 주세요.');
+    } else if (code === 'auth/unauthorized-domain') {
+      setError('관리자 설정이 누락되어 Google 로그인이 막혀 있습니다. 잠시 후 다시 시도해 주세요.');
+    } else if (code === 'auth/operation-not-allowed') {
+      setError('Google 로그인이 비활성화되어 있습니다. 관리자에게 문의해 주세요.');
+    } else if (code === 'permission-denied') {
+      setError('권한 문제로 처리할 수 없습니다. 관리자에게 문의해 주세요.');
     } else {
-      setError(err?.message || '오류가 발생했습니다. 다시 시도해 주세요.');
+      setError(err?.message || `오류가 발생했습니다. 다시 시도해 주세요.${code ? ` (${code})` : ''}`);
     }
   };
 

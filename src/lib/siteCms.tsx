@@ -17,6 +17,10 @@ export type SiteCmsPageSlug = 'home' | 'introduction' | 'archive' | 'community';
 
 export type SiteCmsSectionType = 'text' | 'highlights' | 'gallery' | 'hero';
 
+export type SiteCmsSectionPlacement = 'top' | 'bottom';
+
+export const PROTECTED_SITE_CMS_SLUGS = ['home', 'introduction', 'archive', 'community'] as const;
+
 export interface SiteCmsPage {
   id: string;
   slug: string;
@@ -38,6 +42,7 @@ export interface SiteCmsSection {
   media: Array<{ src: string; alt: string }>;
   order: number;
   visible: boolean;
+  placement?: SiteCmsSectionPlacement;
 }
 
 export interface SiteCmsToolState {
@@ -56,48 +61,52 @@ export const DEFAULT_SITE_CMS_PAGES: SiteCmsPage[] = [
 
 export const DEFAULT_SITE_CMS_SECTIONS: SiteCmsSection[] = [
   {
-    id: 'home_hero_1',
+    id: 'home_example_banner',
     pageSlug: 'home',
-    type: 'hero',
-    title: '함께 지어져 가는 교회',
-    content: '말씀과 예배, 교제와 기도를 통해 함께 자라가는 공동체를 지향합니다.',
-    highlights: ['예배 중심', '말씀 중심', '공동체 중심'],
+    type: 'text',
+    title: '(예시) 홈 상단 공지 배너',
+    content: '관리자 페이지에서 이 섹션을 수정·삭제하거나 새 공지를 추가할 수 있습니다.',
+    highlights: [],
     media: [],
     order: 1,
-    visible: true,
+    visible: false,
+    placement: 'top',
   },
   {
-    id: 'introduction_top_1',
+    id: 'introduction_example_notice',
     pageSlug: 'introduction',
     type: 'text',
-    title: '교회 소개',
-    content: '우리 교회는 오직 성경의 토대 위에서 함께 지어져 가는 공동체를 지향합니다.',
+    title: '(예시) 소개 페이지 보조 안내',
+    content: '교회 소개 본문 외에 임시 공지나 이벤트 안내가 있을 때 사용합니다.',
     highlights: [],
     media: [],
     order: 1,
-    visible: true,
+    visible: false,
+    placement: 'bottom',
   },
   {
-    id: 'archive_top_1',
+    id: 'archive_example_notice',
     pageSlug: 'archive',
     type: 'text',
-    title: '말씀 아카이브',
-    content: '말씀 콘텐츠를 카테고리별로 정리하여 필요한 자료를 빠르게 찾을 수 있습니다.',
+    title: '(예시) 아카이브 보조 안내',
+    content: '말씀 아카이브 상단에 노출할 임시 안내 영역입니다.',
     highlights: [],
     media: [],
     order: 1,
-    visible: true,
+    visible: false,
+    placement: 'top',
   },
   {
-    id: 'community_top_1',
+    id: 'community_example_notice',
     pageSlug: 'community',
     type: 'text',
-    title: '소통 게시판',
-    content: '교회 소식과 나눔을 자유롭게 공유하는 커뮤니티 공간입니다.',
+    title: '(예시) 소통 게시판 보조 안내',
+    content: '게시판 운영 정책이나 일시 공지 등을 띄울 수 있는 영역입니다.',
     highlights: [],
     media: [],
     order: 1,
-    visible: true,
+    visible: false,
+    placement: 'top',
   },
 ];
 

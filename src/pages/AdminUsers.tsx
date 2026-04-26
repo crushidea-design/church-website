@@ -10,6 +10,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import AdminLayout from '../components/AdminLayout';
 
+const roleLabel = (value: string) => {
+  if (value === 'admin') return '관리자';
+  if (value === 'regular') return '정회원';
+  if (value === 'student') return '학생';
+  return '일반회원';
+};
+
 export default function AdminUsers() {
   const { user, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -109,9 +116,10 @@ export default function AdminUsers() {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                         u.role === 'regular' ? 'bg-gold-100 text-gold-800' :
+                        u.role === 'student' ? 'bg-amber-100 text-amber-800' :
                         'bg-wood-100 text-wood-800'
                       }`}>
-                        {u.role === 'admin' ? '관리자' : u.role === 'regular' ? '정회원' : '일반회원'}
+                        {roleLabel(u.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -141,6 +149,17 @@ export default function AdminUsers() {
                               정회원
                             </button>
                             <button
+                              onClick={() => setShowRoleConfirm({ userId: u.id, role: 'student' })}
+                              disabled={updating === u.id || u.role === 'student'}
+                              className={`px-3 py-1 rounded text-xs font-medium transition ${
+                                u.role === 'student'
+                                  ? 'bg-amber-100 text-amber-800 cursor-not-allowed'
+                                  : 'bg-white border border-amber-200 text-amber-700 hover:bg-amber-50'
+                              }`}
+                            >
+                              학생
+                            </button>
+                            <button
                               onClick={() => setShowRoleConfirm({ userId: u.id, role: 'admin' })}
                               disabled={updating === u.id || u.role === 'admin'}
                               className={`px-3 py-1 rounded text-xs font-medium transition ${
@@ -155,7 +174,7 @@ export default function AdminUsers() {
                         ) : (
                           <div className="flex items-center space-x-2 bg-wood-50 p-1 rounded-lg border border-wood-200">
                             <span className="text-[10px] text-wood-600 font-bold px-1">
-                              {showRoleConfirm.role === 'admin' ? '관리자' : showRoleConfirm.role === 'regular' ? '정회원' : '일반'}로 변경?
+                              {roleLabel(showRoleConfirm.role)}로 변경?
                             </span>
                             <button
                               onClick={() => handleRoleChange(u.id, showRoleConfirm.role as any)}
@@ -189,7 +208,7 @@ export default function AdminUsers() {
           )}
         </div>
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
@@ -210,6 +229,17 @@ export default function AdminUsers() {
             </div>
             <p className="text-sm text-wood-600 leading-relaxed">
               말씀 서재의 모든 영상을 시청할 수 있습니다. 소통 게시판에서 자유롭게 활동할 수 있습니다.
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+                <UserIcon size={20} />
+              </div>
+              <h3 className="font-bold text-wood-900">학생 (Student)</h3>
+            </div>
+            <p className="text-sm text-wood-600 leading-relaxed">
+              다음세대 학생 회원으로 구분됩니다. 정회원 전용 공간은 별도 승인 전까지 제한됩니다.
             </p>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
