@@ -66,12 +66,14 @@ const translateActivity = (path: string, activityType: string) => {
 const roleLabel = (role: string) => {
   if (role === 'admin') return '관리자';
   if (role === 'regular') return '정회원';
+  if (role === 'student') return '학생';
   return '일반 회원';
 };
 
 const roleColor = (role: string) => {
   if (role === 'admin') return 'bg-red-100 text-red-700';
   if (role === 'regular') return 'bg-green-100 text-green-700';
+  if (role === 'student') return 'bg-amber-100 text-amber-700';
   return 'bg-gray-100 text-gray-700';
 };
 

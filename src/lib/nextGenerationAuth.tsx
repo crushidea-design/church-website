@@ -25,7 +25,8 @@ import { auth, db, googleProvider, signInWithGoogle as firebaseSignInWithGoogle 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
 export type MemberRole = 'pending' | 'member' | 'rejected';
-export type Department = '청년' | '교사' | '학부모' | '학생';
+export const NEXT_GENERATION_DEPARTMENTS = ['청년', '교사', '학부모', '학생'] as const;
+export type Department = typeof NEXT_GENERATION_DEPARTMENTS[number];
 
 /** Department members that can only access the workbook (공과) tab. */
 export const RESTRICTED_DEPARTMENTS: Department[] = ['학생'];
