@@ -1,4 +1,4 @@
-// Parse public/bible-reading-chart-blueprint.svg (a tracing of book outlines
+// Parse public/bible-reading-chart.svg (a tracing of book outlines
 // over the bookshelf illustration) and emit src/lib/bibleReadingLayout.ts
 // with each rect's bounding box converted to viewBox-relative percentages.
 //
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
-const blueprintPath = path.join(repoRoot, 'public/bible-reading-chart-blueprint.svg');
+const blueprintPath = path.join(repoRoot, 'public/bible-reading-chart.svg');
 const outPath = path.join(repoRoot, 'src/lib/bibleReadingLayout.ts');
 
 const svg = fs.readFileSync(blueprintPath, 'utf8');
@@ -79,7 +79,10 @@ for (const match of svg.matchAll(rectRegex)) {
   if (rotMatch) {
     aabb = rotateAabb(x, y, w, h, parseFloat(rotMatch[1]), parseFloat(rotMatch[2]), parseFloat(rotMatch[3]));
   }
-  items.push(aabb);
+  items.push({
+    ...aabb,
+    shape: { type: 'rect', x, y, width: w, height: h, ...(transform ? { transform } : {}) },
+  });
 }
 
 // paths (treat as quadrilaterals — extract Mx,y Lx,y Lx,y Lx,y Z)
@@ -87,7 +90,6 @@ for (const match of svg.matchAll(pathRegex)) {
   const attrs = match[1];
   const d = parseAttr(attrs, 'd', '');
   const nums = [...d.matchAll(/[-+]?\d*\.?\d+/g)].map((n) => parseFloat(n[0]));
-  // Expect 8 numbers (4 corners x,y)
   if (nums.length >= 8) {
     const xs = [nums[0], nums[2], nums[4], nums[6]];
     const ys = [nums[1], nums[3], nums[5], nums[7]];
@@ -96,6 +98,7 @@ for (const match of svg.matchAll(pathRegex)) {
       y: Math.min(...ys),
       w: Math.max(...xs) - Math.min(...xs),
       h: Math.max(...ys) - Math.min(...ys),
+      shape: { type: 'path', d },
     });
   }
 }
@@ -113,6 +116,7 @@ const toPct = (item) => ({
   height: (item.h / VBH) * 100,
   centerX: ((item.x + item.w / 2) / VBW) * 100,
   centerY: ((item.y + item.h / 2) / VBH) * 100,
+  shape: item.shape,
 });
 
 const pctItems = items.map(toPct);
@@ -258,6 +262,7 @@ shelves.forEach((shelfItems, shelfIdx) => {
       width: +item.width.toFixed(2),
       height: +item.height.toFixed(2),
       orientation,
+      shape: item.shape,
     });
   });
 });
@@ -267,12 +272,18 @@ shelves.forEach((shelfItems, shelfIdx) => {
 const tsLines = [
   `// Bible reading chart — book layout coordinates over the bookshelf illustration.`,
   `//`,
-  `// AUTO-GENERATED from public/bible-reading-chart-blueprint.svg by`,
+  `// AUTO-GENERATED from public/bible-reading-chart.svg by`,
   `// scripts/derive-bible-layout.mjs. Re-run that script if the blueprint changes.`,
   `// Coordinates are percentages of the container.`,
   ``,
   `export type BibleTestament = 'old' | 'new';`,
   `export type BibleBookOrientation = 'vertical' | 'horizontal';`,
+  ``,
+  `export type BibleBookShape =`,
+  `  | { type: 'rect'; x: number; y: number; width: number; height: number; transform?: string }`,
+  `  | { type: 'path'; d: string };`,
+  ``,
+  `export const CHART_VIEWBOX = '0 0 ${VBW} ${VBH}';`,
   ``,
   `export interface BibleBookSpot {`,
   `  name: string;`,
@@ -284,6 +295,9 @@ const tsLines = [
   `  width: number;`,
   `  height: number;`,
   `  orientation: BibleBookOrientation;`,
+  `  /** Original SVG geometry; render with preserveAspectRatio="none" so shapes`,
+  `   *  stretch to fit the container regardless of source vs PNG aspect ratio. */`,
+  `  shape: BibleBookShape;`,
   `}`,
   ``,
   `export const BIBLE_BOOK_SPOTS: BibleBookSpot[] = [`,
@@ -296,8 +310,15 @@ spots.forEach((s) => {
     tsLines.push(`  // ── Shelf ${s.shelf} ─────────────────────────────────────────────────────`);
     currentShelf = s.shelf;
   }
+  const shape = s.shape;
+  const shapeJson =
+    shape.type === 'path'
+      ? `{ type: 'path', d: '${shape.d}' }`
+      : `{ type: 'rect', x: ${shape.x}, y: ${shape.y}, width: ${shape.width}, height: ${shape.height}${
+          shape.transform ? `, transform: '${shape.transform}'` : ''
+        } }`;
   tsLines.push(
-    `  { name: '${s.name}', abbr: '${s.abbr}', testament: '${s.testament}', shelf: ${s.shelf}, top: ${s.top}, left: ${s.left}, width: ${s.width}, height: ${s.height}, orientation: '${s.orientation}' },`,
+    `  { name: '${s.name}', abbr: '${s.abbr}', testament: '${s.testament}', shelf: ${s.shelf}, top: ${s.top}, left: ${s.left}, width: ${s.width}, height: ${s.height}, orientation: '${s.orientation}', shape: ${shapeJson} },`,
   );
 });
 

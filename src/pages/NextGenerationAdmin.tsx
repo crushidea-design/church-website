@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { NextGenerationMember, Department } from '../lib/nextGenerationAuth';
+import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS } from '../lib/nextGenerationAuth';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
@@ -67,7 +67,7 @@ const NEXT_NOTIFICATION_TARGETS = [
   { value: '/next/contact', label: '문의하기' },
 ];
 
-const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = ['청년', '교사', '학부모', '학생'];
+const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = [...NEXT_GENERATION_DEPARTMENTS];
 
 const DEPT_COLORS: Record<Department, string> = {
   '청년': 'bg-blue-100 text-blue-700',

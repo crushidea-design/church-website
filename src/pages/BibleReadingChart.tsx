@@ -19,6 +19,7 @@ import {
   BIBLE_BOOKS_TOTAL,
   BIBLE_BOOK_SPOTS,
   BibleBookSpot,
+  CHART_VIEWBOX,
 } from '../lib/bibleReadingLayout';
 
 interface BibleReadingDoc {
@@ -30,6 +31,7 @@ interface BibleReadingDoc {
 }
 
 const READING_COLLECTION = 'next_generation_bible_reading';
+
 
 export default function BibleReadingChart() {
   const { user, member, isPastor, isMember } = useNextGenerationAuth();
@@ -230,59 +232,71 @@ export default function BibleReadingChart() {
                 const img = e.currentTarget as HTMLImageElement;
                 if (!img.dataset.fallback) {
                   img.dataset.fallback = '1';
-                  img.src = '/bible-reading-chart-blueprint.svg';
+                  img.src = '/bible-reading-chart.svg';
                 }
               }}
             />
-            <div className="absolute inset-0">
+            <svg
+              viewBox={CHART_VIEWBOX}
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full"
+              aria-label="성경 읽기 기록표 색칠 영역"
+              xmlns="http://www.w3.org/2000/svg"
+            >
               {BIBLE_BOOK_SPOTS.map((spot) => {
-                const completed = completedSet.has(spot.name);
-                const fillColor = completed
-                  ? spot.testament === 'old'
-                    ? 'bg-amber-400/55'
-                    : 'bg-rose-400/55'
-                  : 'bg-transparent';
-                const debugBorder = showDebug ? 'border border-emerald-500/80' : 'border-transparent';
+                const shape = spot.shape;
 
-                const commonClass = `absolute ${fillColor} ${debugBorder} transition-colors`;
-                const style: React.CSSProperties = {
-                  top: `${spot.top}%`,
-                  left: `${spot.left}%`,
-                  width: `${spot.width}%`,
-                  height: `${spot.height}%`,
+                const completed = completedSet.has(spot.name);
+                const fill = completed
+                  ? spot.testament === 'old'
+                    ? 'rgba(251, 191, 36, 0.55)'
+                    : 'rgba(251, 113, 133, 0.55)'
+                  : 'rgba(255, 255, 255, 0.001)';
+                const stroke = showDebug ? 'rgba(16, 185, 129, 0.9)' : 'transparent';
+                const commonProps = {
+                  fill,
+                  stroke,
+                  strokeWidth: 5,
+                  vectorEffect: 'non-scaling-stroke' as const,
+                  className: showInteractive
+                    ? 'cursor-pointer transition-colors hover:fill-amber-300/40'
+                    : 'transition-colors',
+                  style: { opacity: savingBook === spot.name ? 0.6 : 1 },
+                  onClick: () => {
+                    if (showInteractive && savingBook !== spot.name) toggleBook(spot);
+                  },
+                  onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {
+                    if (!showInteractive || savingBook === spot.name) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggleBook(spot);
+                    }
+                  },
+                  role: showInteractive ? 'button' : undefined,
+                  tabIndex: showInteractive ? 0 : -1,
+                  'aria-label': spot.name,
                 };
 
-                if (showInteractive) {
-                  return (
-                    <button
-                      key={spot.name}
-                      type="button"
-                      onClick={() => toggleBook(spot)}
-                      title={spot.name}
-                      disabled={savingBook === spot.name}
-                      style={style}
-                      className={`${commonClass} cursor-pointer rounded-sm hover:bg-amber-300/40 disabled:opacity-60`}
-                    >
-                      {showDebug && (
-                        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-emerald-900">
-                          {spot.abbr}
-                        </span>
-                      )}
-                    </button>
-                  );
-                }
-
-                return (
-                  <div key={spot.name} title={spot.name} style={style} className={commonClass}>
-                    {showDebug && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-emerald-900">
-                        {spot.abbr}
-                      </span>
-                    )}
-                  </div>
+                return shape.type === 'path' ? (
+                  <path key={spot.name} d={shape.d} {...commonProps}>
+                    <title>{spot.name}</title>
+                  </path>
+                ) : (
+                  <rect
+                    key={spot.name}
+                    x={shape.x}
+                    y={shape.y}
+                    width={shape.width}
+                    height={shape.height}
+                    transform={shape.transform}
+                    rx={14}
+                    {...commonProps}
+                  >
+                    <title>{spot.name}</title>
+                  </rect>
                 );
               })}
-            </div>
+            </svg>
           </div>
 
           {showReadOnlyData && reading && totalRead === 0 && (
