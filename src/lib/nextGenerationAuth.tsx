@@ -50,6 +50,7 @@ export interface NextGenerationMember {
   approvedAt?: Timestamp;
   rejectedAt?: Timestamp;
   rejectionReason?: string;
+  isNextGenerationAdmin?: boolean;
 }
 
 export interface NextGenerationNotification {
@@ -127,7 +128,8 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
   const [needsSignUp, setNeedsSignUp] = useState(false);
   const [notifications, setNotifications] = useState<NextGenerationNotification[]>([]);
 
-  const isPastor = user?.email === ADMIN_EMAIL;
+  const isRootNextGenerationAdmin = user?.email === ADMIN_EMAIL;
+  const isPastor = isRootNextGenerationAdmin || !!member?.isNextGenerationAdmin;
   const isMember = !isPastor && member?.role === 'member';
   const isPending = !isPastor && member?.role === 'pending';
   const isRejected = !isPastor && member?.role === 'rejected';
@@ -137,7 +139,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
 
   // Fetch member doc and subscribe to changes
   useEffect(() => {
-    if (!user || isPastor) {
+    if (!user || isRootNextGenerationAdmin) {
       setMember(null);
       setNeedsSignUp(false);
       return;
@@ -168,11 +170,11 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
     });
 
     return () => unsubscribe();
-  }, [user, isPastor]);
+  }, [user, isRootNextGenerationAdmin]);
 
   // Subscribe to notifications
   useEffect(() => {
-    if (!user || isPastor) {
+    if (!user || isRootNextGenerationAdmin) {
       setNotifications([]);
       return;
     }
@@ -194,7 +196,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
     });
 
     return () => unsubscribe();
-  }, [user, isPastor]);
+  }, [user, isRootNextGenerationAdmin]);
 
   // Auth state listener
   useEffect(() => {

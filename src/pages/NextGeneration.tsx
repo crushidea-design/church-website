@@ -39,7 +39,7 @@ import NextGenerationQA from './NextGenerationQA';
 import BibleReadingChart from './BibleReadingChart';
 import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
-import { BookOpen, HelpCircle, Library } from 'lucide-react';
+import { BookOpen, HelpCircle } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -2972,13 +2972,6 @@ function NextGenerationInner() {
                 label: '질문 있습니다',
                 summary: '신앙의 질문을 자유롭게 남겨 보세요',
                 content: <NextGenerationQA compact department="elementary" />,
-              },
-              {
-                id: 'bible',
-                icon: <Library size={18} />,
-                label: '성경 읽기 기록표',
-                summary: '한 권씩 읽을 때마다 책장에 색이 채워져요',
-                content: <BibleReadingChart />,
               },
             ];
             return (
