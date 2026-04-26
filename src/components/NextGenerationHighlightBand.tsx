@@ -68,13 +68,13 @@ export default function NextGenerationHighlightBand({
                   isActive ? activeRing : 'border-slate-200'
                 }`}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-emerald-700">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-emerald-700 sm:h-10 sm:w-10">
                   {entry.icon}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-black text-emerald-950">{entry.label}</div>
+                  <div className="truncate text-base font-black text-emerald-950 sm:text-[15px]">{entry.label}</div>
                   {entry.summary && (
-                    <div className="mt-0.5 truncate text-xs text-slate-500">{entry.summary}</div>
+                    <div className="mt-1 truncate text-sm font-medium text-slate-500 sm:text-[13px]">{entry.summary}</div>
                   )}
                 </div>
                 {entry.badge && (

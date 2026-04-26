@@ -21,6 +21,7 @@ interface Props {
 
 export default function NextGenerationTodayWord({ compact = false }: Props) {
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const [guideTextSize, setGuideTextSize] = useState(1);
   const {
     selectedDate,
     setSelectedDate,
@@ -41,6 +42,7 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
   } = useTodayWordData();
 
   const [bridge, setBridge] = useState<{ link: string; version: string } | null>(null);
+  const guideTextClasses = ['text-sm leading-7', 'text-base leading-8', 'text-lg leading-9', 'text-xl leading-10'];
 
   const openBridge = (link: string, version: string) => setBridge({ link, version });
 
@@ -139,7 +141,7 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
                     )}
                   </button>
                   <span
-                    className={`mb-3 mr-7 text-base font-black ${
+                    className={`mb-4 mr-9 text-xl font-black sm:text-base ${
                       completed ? 'text-slate-400 line-through' : 'text-emerald-950'
                     }`}
                   >
@@ -149,16 +151,16 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
                     <button
                       type="button"
                       onClick={() => openBridge(passage.gaeLink, '개역개정')}
-                      className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-emerald-950 shadow-sm hover:bg-sky-100"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-emerald-950 shadow-sm hover:bg-sky-100 sm:px-2.5 sm:py-1 sm:text-xs"
                     >
-                      <BookOpen size={12} /> 개역개정
+                      <BookOpen size={14} /> 개역개정
                     </button>
                     <button
                       type="button"
                       onClick={() => openBridge(passage.saeHangeulLink, '새한글성경')}
-                      className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-emerald-950 shadow-sm hover:bg-sky-100"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-emerald-950 shadow-sm hover:bg-sky-100 sm:px-2.5 sm:py-1 sm:text-xs"
                     >
-                      <BookOpen size={12} /> 새한글성경
+                      <BookOpen size={14} /> 새한글성경
                     </button>
                   </div>
                 </div>
@@ -173,18 +175,40 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
 
         {/* Guide post */}
         <div className="mt-5 rounded-xl border border-sky-100 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-base font-black text-emerald-950">묵상 가이드</h3>
-            {isAdmin && (
-              <Link
-                to="/create-post?type=today_word"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-full bg-coral-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-coral-700"
-              >
-                <Edit size={12} /> 가이드 작성
-              </Link>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-sky-200 bg-sky-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setGuideTextSize((size) => Math.max(0, size - 1))}
+                  className="rounded-md px-2.5 py-1 text-sm font-black text-emerald-900 hover:bg-white disabled:opacity-40"
+                  disabled={guideTextSize === 0}
+                  aria-label="묵상 가이드 글자 줄이기"
+                >
+                  A-
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGuideTextSize((size) => Math.min(guideTextClasses.length - 1, size + 1))}
+                  className="rounded-md px-2.5 py-1 text-sm font-black text-emerald-900 hover:bg-white disabled:opacity-40"
+                  disabled={guideTextSize === guideTextClasses.length - 1}
+                  aria-label="묵상 가이드 글자 키우기"
+                >
+                  A+
+                </button>
+              </div>
+              {isAdmin && (
+                <Link
+                  to="/create-post?type=today_word"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full bg-coral-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-coral-700"
+                >
+                  <Edit size={12} /> 가이드 작성
+                </Link>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -199,7 +223,7 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
                   ? format(latestPost.createdAt.toDate(), 'yyyy.MM.dd')
                   : ''}
               </p>
-              <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap text-sm leading-7 text-slate-800">
+              <div className={`mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap text-slate-800 ${guideTextClasses[guideTextSize]}`}>
                 {latestPost.content}
               </div>
             </div>
