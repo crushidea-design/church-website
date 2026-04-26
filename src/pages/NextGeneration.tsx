@@ -1439,7 +1439,10 @@ function ResourceLibraryPage({
                       return;
                     }
                     setAccessNotice(null);
-                    setSearchParams({ resource: tab.id });
+                    const next = new URLSearchParams(searchParams);
+                    next.set('resource', tab.id);
+                    next.delete('topic');
+                    setSearchParams(next, { replace: true });
                   }}
                   title={isTabLocked ? '로그인 후 이용할 수 있습니다' : undefined}
                   className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-3 text-sm font-black transition ${
@@ -1523,7 +1526,12 @@ function ResourceLibraryPage({
                     <button
                       key={topic.id}
                       type="button"
-                      onClick={() => setSearchParams({ resource: activeTab.id, topic: topic.id })}
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.set('resource', activeTab.id);
+                        next.set('topic', topic.id);
+                        setSearchParams(next, { replace: true });
+                      }}
                       className={`min-w-[120px] rounded-lg border px-4 py-4 text-left transition sm:min-w-[150px] ${
                         isActive
                           ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
