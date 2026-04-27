@@ -4,6 +4,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getStorage } from 'firebase/storage';
 import { isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { getInAppBrowserLoginMessage, isInAppBrowser } from './inAppBrowser';
 import { 
   handleFirestoreError as baseHandleFirestoreError, 
   OperationType
@@ -88,6 +89,12 @@ async function ensureUserDocument(user: any) {
 }
 
 export const signInWithGoogle = async () => {
+  if (typeof window !== 'undefined' && isInAppBrowser()) {
+    const error = new Error(getInAppBrowserLoginMessage()) as Error & { code?: string };
+    error.code = 'auth/in-app-browser-not-supported';
+    throw error;
+  }
+
   let result;
   try {
     result = await signInWithPopup(auth, googleProvider);
