@@ -11,9 +11,10 @@ import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachm
 import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
   Bell, MessageSquare, Mail, Clock, Search, ShieldCheck, RefreshCw,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, BookOpen,
 } from 'lucide-react';
 import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
+import BibleReadingChart from './BibleReadingChart';
 
 type QADepartment = 'elementary' | 'young-adults';
 
@@ -51,7 +52,7 @@ interface ContactItem {
   isRead: boolean;
 }
 
-type AdminTab = 'members' | 'qa' | 'contacts' | 'notifications' | 'migration';
+type AdminTab = 'members' | 'bibleReading' | 'qa' | 'contacts' | 'notifications' | 'migration';
 
 interface MigrationRow {
   postId: string;
@@ -720,6 +721,25 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
           {/* MEMBERS TAB */}
           {!loading && tab === 'members' && (
             <div>
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="pr-2">
+                    <p className="text-sm font-semibold text-amber-900">학생 성경 읽기 기록표</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">
+                      학생별 성경 읽기 기록표를 열어 읽은 책을 바로 색칠하거나 해제할 수 있습니다.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTab('bibleReading')}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
+                  >
+                    <BookOpen size={14} />
+                    기록표 열기
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 mb-3">
                 <div className="relative flex-1">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -918,6 +938,28 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                   <p className="text-sm">가입 신청이 없습니다.</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {!loading && tab === 'bibleReading' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-amber-900">학생 성경 읽기 기록표 관리</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    학생을 선택한 뒤 읽은 책을 눌러 색칠하거나 해제할 수 있습니다. 변경은 바로 저장됩니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTab('members')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                >
+                  회원 관리로 돌아가기
+                </button>
+              </div>
+
+              <BibleReadingChart />
             </div>
           )}
 
