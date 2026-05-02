@@ -332,8 +332,8 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         updateData.nextGenerationTabSlug = subCategory;
 
         if (youtubeUrl.trim()) {
-          updateData.youtubeUrl = youtubeUrl.trim();
-          updateData.videoUrl = deleteField();
+          updateData.videoUrl = youtubeUrl.trim();
+          updateData.youtubeUrl = deleteField();
         } else {
           updateData.youtubeUrl = deleteField();
           updateData.videoUrl = deleteField();
