@@ -15,11 +15,12 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
   const viewerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pinchDistanceRef = useRef<number | null>(null);
-  const pinchScaleRef = useRef(1.5);
+  const pinchScaleRef = useRef(1);
+  const autoFitEnabledRef = useRef(true);
   const [pdf, setPdf] = useState<any>(null);
   const [pageNum, setPageNum] = useState(1);
   const [numPages, setNumPages] = useState(0);
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScale] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,29 +83,35 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
   }, [url]);
 
   useEffect(() => {
-    if (!pdf || !isMobile || !viewerRef.current) return;
+    autoFitEnabledRef.current = true;
+  }, [url, pageNum]);
+
+  useEffect(() => {
+    if (!pdf || !viewerRef.current) return;
 
     let isCancelled = false;
 
-    const fitPageToMobileWidth = async () => {
+    const fitPageToViewport = async () => {
       try {
         const page = await pdf.getPage(pageNum);
         if (isCancelled || !viewerRef.current) return;
 
         const viewport = page.getViewport({ scale: 1 });
         const availableWidth = viewerRef.current.clientWidth;
-        const fitScale = Math.min(Math.max(availableWidth / viewport.width, 0.4), 2);
+        const fitScale = Math.min(Math.max(availableWidth / viewport.width, 0.35), 2.5);
 
         setScale(fitScale);
+        pinchScaleRef.current = fitScale;
       } catch (err) {
         console.error('Error fitting PDF page:', err);
       }
     };
 
-    fitPageToMobileWidth();
+    fitPageToViewport();
 
     const resizeObserver = new ResizeObserver(() => {
-      fitPageToMobileWidth();
+      if (!autoFitEnabledRef.current) return;
+      fitPageToViewport();
     });
 
     resizeObserver.observe(viewerRef.current);
@@ -113,7 +120,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
       isCancelled = true;
       resizeObserver.disconnect();
     };
-  }, [pdf, pageNum, isMobile]);
+  }, [pdf, pageNum]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -170,8 +177,14 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
   const goToPrevPage = () => setPageNum(prev => Math.max(prev - 1, 1));
   const goToNextPage = () => setPageNum(prev => Math.min(prev + 1, numPages));
-  const zoomIn = () => setScale(prev => Math.min(prev + (isMobile ? 0.25 : 0.5), isMobile ? 4 : 3));
-  const zoomOut = () => setScale(prev => Math.max(prev - (isMobile ? 0.25 : 0.5), 0.4));
+  const zoomIn = () => {
+    autoFitEnabledRef.current = false;
+    setScale(prev => Math.min(prev + (isMobile ? 0.25 : 0.5), isMobile ? 4 : 3));
+  };
+  const zoomOut = () => {
+    autoFitEnabledRef.current = false;
+    setScale(prev => Math.max(prev - (isMobile ? 0.25 : 0.5), 0.35));
+  };
 
   const getPinchDistance = (touches: React.TouchList) => {
     const firstTouch = touches[0];
@@ -194,11 +207,12 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
     if (!isMobile || event.touches.length !== 2 || !pinchDistanceRef.current) return;
 
     event.preventDefault();
+    autoFitEnabledRef.current = false;
 
     const nextDistance = getPinchDistance(event.touches);
     const nextScale = pinchScaleRef.current * (nextDistance / pinchDistanceRef.current);
 
-    setScale(Math.min(Math.max(nextScale, 0.4), 4));
+    setScale(Math.min(Math.max(nextScale, 0.35), 4));
   };
 
   const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {

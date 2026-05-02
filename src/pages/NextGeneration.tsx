@@ -40,7 +40,7 @@ import BibleReadingChart from './BibleReadingChart';
 import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
 import { BookOpen, HelpCircle } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import { formatDate, getYouTubeId } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
   getNextGenerationTopicLabel,
@@ -187,6 +187,8 @@ interface NextGenerationPost {
   authorName?: string;
   createdAt?: any;
   updatedAt?: any;
+  youtubeUrl?: string;
+  videoUrl?: string;
   pdfUrl?: string;
   pdfName?: string;
   attachments?: MaterialAttachment[];
@@ -235,6 +237,11 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 const getYouTubeVideoId = (url: string): string | null => {
   const match = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([^&\n?#]+)/);
   return match ? match[1] : null;
+};
+
+const getPostYouTubeVideoId = (post: Pick<NextGenerationPost, 'youtubeUrl' | 'videoUrl' | 'content'>) => {
+  const directUrl = post.youtubeUrl || post.videoUrl || '';
+  return getYouTubeVideoId(directUrl) || getYouTubeId(post.content || '');
 };
 
 const getCreatedAtTime = (value: any) => {
@@ -2093,17 +2100,35 @@ function NextGenerationCreatePost() {
   const [content, setContent] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [materialFiles, setMaterialFiles] = useState<File[]>([]);
+  const [weeklyMaterialFiles, setWeeklyMaterialFiles] = useState<Record<string, File[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [successPostId, setSuccessPostId] = useState<string | null>(null);
+  const [successPostCount, setSuccessPostCount] = useState(0);
   const selectedTab = mergedTabs.find((tab) => tab.id === selectedResourceId);
   const usesWeekKey = isWeeklyCreate || !!selectedTab?.useWeekKey;
   const usesTopic = !!selectedTab?.useTopic;
+  const weeklyMaterialFileCount = Object.values(weeklyMaterialFiles).reduce((total, files) => total + files.length, 0);
 
   useEffect(() => {
     setSelectedResourceId(isWeeklyCreate ? (weeklyTabsInDepartment[0]?.id || activeTab.id) : activeTab.id);
   }, [activeTab.id, isWeeklyCreate, weeklyTabsInDepartment]);
+
+  useEffect(() => {
+    if (!isWeeklyCreate) {
+      setWeeklyMaterialFiles({});
+      return;
+    }
+
+    setWeeklyMaterialFiles((current) => {
+      const next: Record<string, File[]> = {};
+      weeklyTabsInDepartment.forEach((tab) => {
+        next[tab.id] = current[tab.id] || [];
+      });
+      return next;
+    });
+  }, [isWeeklyCreate, weeklyTabsInDepartment]);
 
   useEffect(() => {
     if (!usesTopic) {
@@ -2137,8 +2162,35 @@ function NextGenerationCreatePost() {
     event.target.value = '';
   };
 
+  const handleWeeklyFileChange = (tabId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const existingCount = weeklyMaterialFileCount - (weeklyMaterialFiles[tabId]?.length || 0);
+    const validationError = validateMaterialFiles(files, existingCount);
+    if (validationError) {
+      setError(validationError);
+      event.target.value = '';
+      return;
+    }
+
+    setWeeklyMaterialFiles((current) => ({
+      ...current,
+      [tabId]: files,
+    }));
+    setError(null);
+    event.target.value = '';
+  };
+
   const removeMaterialFile = (indexToRemove: number) => {
     setMaterialFiles((currentFiles) => currentFiles.filter((_, index) => index !== indexToRemove));
+  };
+
+  const removeWeeklyMaterialFile = (tabId: string, indexToRemove: number) => {
+    setWeeklyMaterialFiles((current) => ({
+      ...current,
+      [tabId]: (current[tabId] || []).filter((_, index) => index !== indexToRemove),
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -2150,6 +2202,118 @@ function NextGenerationCreatePost() {
     setError(null);
 
     try {
+      if (isWeeklyCreate) {
+        const weeklyTargets = weeklyTabsInDepartment
+          .map((tab) => ({ tab, files: weeklyMaterialFiles[tab.id] || [] }))
+          .filter((entry) => entry.files.length > 0);
+
+        if (weeklyTargets.length === 0) {
+          throw new Error('세부 탭별로 자료 파일을 1개 이상 첨부해 주세요.');
+        }
+
+        const isLongContent = new TextEncoder().encode(content).length > 1400;
+        const createdPostIds: string[] = [];
+
+        for (let targetIndex = 0; targetIndex < weeklyTargets.length; targetIndex += 1) {
+          const target = weeklyTargets[targetIndex];
+          const attachments = await uploadMaterialFiles(storage, target.files, (progress) => {
+            setUploadProgress(Math.round(((targetIndex + progress / 100) / weeklyTargets.length) * 100));
+          });
+          const firstPdfAttachment = getFirstPdfAttachment(attachments);
+
+          const postData: any = {
+            title: title.trim(),
+            content: content.trim(),
+            category: NEXT_GENERATION_CATEGORY,
+            subCategory: target.tab.id,
+            nextGenerationTabSlug: target.tab.id,
+            nextGenerationDepartmentSlug: target.tab.departmentSlug,
+            isArchived: false,
+            sortOrder: generateSortOrder(title.trim()),
+            authorId: user.uid,
+            authorName: user.displayName || '?듬챸',
+            commentCount: 0,
+            viewCount: 0,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            isPublished: true,
+            nextGenerationWeekKey: weekKey,
+          };
+
+          if (target.tab.useTopic) {
+            postData.nextGenerationTopicId = selectedTopicId;
+          }
+
+          if (attachments.length > 0) {
+            postData.attachmentCount = attachments.length;
+          }
+
+          if (isLongContent) {
+            postData.content = content.substring(0, 400);
+            postData.isLongContent = true;
+            postData.fullContentLength = content.length;
+          }
+
+          let docRef;
+          try {
+            docRef = await addDoc(collection(db, 'posts'), postData);
+          } catch (postError: any) {
+            const shouldRetryWithoutTopic =
+              postError?.code === 'permission-denied' && 'nextGenerationTopicId' in postData;
+
+            if (!shouldRetryWithoutTopic) {
+              throw postError;
+            }
+
+            const fallbackPostData = { ...postData };
+            delete fallbackPostData.nextGenerationTopicId;
+            docRef = await addDoc(collection(db, 'posts'), fallbackPostData);
+          }
+
+          if (isLongContent) {
+            const chunkSize = 10000;
+            const chunks = [];
+            for (let i = 0; i < content.length; i += chunkSize) {
+              chunks.push(content.substring(i, i + chunkSize));
+            }
+
+            for (let i = 0; i < chunks.length; i++) {
+              await setDoc(doc(db, 'post_contents', `${docRef.id}_${i}`), {
+                postId: docRef.id,
+                index: i,
+                content: chunks[i],
+                createdAt: serverTimestamp(),
+              });
+            }
+          }
+
+          if (attachments.length > 0) {
+            const fileData: any = {
+              postId: docRef.id,
+              updatedAt: serverTimestamp(),
+              pdfBase64: serializeMaterialAttachments(attachments),
+            };
+            if (firstPdfAttachment) {
+              fileData.pdfUrl = firstPdfAttachment.url;
+              fileData.pdfName = firstPdfAttachment.name;
+            }
+            await setDoc(doc(db, 'next_generation_post_files', docRef.id), fileData);
+          }
+
+          createdPostIds.push(docRef.id);
+        }
+
+        setSuccessPostId(createdPostIds[0] || null);
+        setSuccessPostCount(createdPostIds.length);
+        setTitle('');
+        setContent('');
+        setYoutubeUrl('');
+        setMaterialFiles([]);
+        setWeeklyMaterialFiles({});
+        setUploadProgress(0);
+        return;
+      }
+
       const attachments = await uploadMaterialFiles(storage, materialFiles, setUploadProgress);
       const firstPdfAttachment = getFirstPdfAttachment(attachments);
 
@@ -2181,6 +2345,7 @@ function NextGenerationCreatePost() {
 
       if (youtubeUrl.trim()) {
         postData.youtubeUrl = youtubeUrl.trim();
+        postData.videoUrl = youtubeUrl.trim();
       }
 
       // Security (Option B): Do NOT store download URLs in the public post doc.
@@ -2246,10 +2411,12 @@ function NextGenerationCreatePost() {
       }
 
       setSuccessPostId(docRef.id);
+      setSuccessPostCount(1);
       setTitle('');
       setContent('');
       setYoutubeUrl('');
       setMaterialFiles([]);
+      setWeeklyMaterialFiles({});
       setUploadProgress(0);
     } catch (err: any) {
       console.error('Error creating next generation post:', err);
@@ -2322,17 +2489,24 @@ function NextGenerationCreatePost() {
 
           {successPostId && (
             <div className="mb-6 flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-bold text-emerald-700">자료가 성공적으로 등록되었습니다.</p>
+              <p className="text-sm font-bold text-emerald-700">
+                {successPostCount > 1
+                  ? `${successPostCount}개의 자료가 각 세부 탭에 등록되었습니다.`
+                  : '자료가 성공적으로 등록되었습니다.'}
+              </p>
               <div className="flex shrink-0 gap-2">
                 <Link
                   to={`${NEXT_GENERATION_PATH}/post/${successPostId}`}
                   className="inline-flex items-center rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
                 >
-                  등록된 자료 보기
+                  {successPostCount > 1 ? '첫 자료 보기' : '등록된 자료 보기'}
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setSuccessPostId(null)}
+                  onClick={() => {
+                    setSuccessPostId(null);
+                    setSuccessPostCount(0);
+                  }}
                   className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
                 >
                   자료 추가 등록
@@ -2349,24 +2523,20 @@ function NextGenerationCreatePost() {
 
           <form id="next-generation-create-form" onSubmit={handleSubmit} className="space-y-6">
             {isWeeklyCreate && (
-              <div>
-                <label htmlFor="next-generation-resource-type" className="mb-2 block text-sm font-black text-emerald-950">
-                  세부 탭
-                </label>
-                <select
-                  id="next-generation-resource-type"
-                  value={selectedResourceId}
-                  onChange={(event) => setSelectedResourceId(event.target.value)}
-                  className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
-                >
+              <div className="rounded-lg border border-sky-100 bg-sky-50 p-4">
+                <p className="text-sm font-black text-emerald-950">이번 저장에서 자동 생성될 세부 탭</p>
+                <div className="mt-3 flex flex-wrap gap-2">
                   {weeklyTabsInDepartment.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
+                    <span
+                      key={tab.id}
+                      className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800"
+                    >
                       {tab.name}
-                    </option>
+                    </span>
                   ))}
-                </select>
-                <p className="mt-2 text-xs font-bold text-slate-500">
-                  선택한 세부 탭에도 같은 자료가 자동으로 모입니다.
+                </div>
+                <p className="mt-3 text-xs font-bold text-slate-500">
+                  제목, 내용, 주일, 주제는 같게 저장되고 각 세부 탭에는 해당 파일만 따로 등록됩니다.
                 </p>
               </div>
             )}
@@ -2472,52 +2642,113 @@ function NextGenerationCreatePost() {
               <label className="mb-2 block text-sm font-black text-emerald-950">
                 자료 파일 첨부
               </label>
-              <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 transition hover:bg-sky-100">
-                <div className="text-center">
-                  <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
-                  <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
-                    PDF/PPT 파일 선택
-                  </label>
-                  <p className="mt-2 text-xs font-bold text-slate-500">
-                    여러 파일 선택 가능, 파일당 최대 20MB
-                  </p>
-                  <input
-                    id="next-generation-file"
-                    type="file"
-                    accept={MATERIAL_FILE_ACCEPT}
-                    multiple
-                    className="sr-only"
-                    onChange={handleFileChange}
-                  />
-                </div>
+              {isWeeklyCreate ? (
+                <div className="space-y-4">
+                  {weeklyTabsInDepartment.map((tab) => {
+                    const files = weeklyMaterialFiles[tab.id] || [];
+                    return (
+                      <div key={tab.id} className="rounded-lg border border-sky-100 bg-sky-50 p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-black text-emerald-950">{tab.name}</p>
+                            <p className="text-xs font-bold text-slate-500">이 탭 게시판에만 들어갈 파일을 올려 주세요.</p>
+                          </div>
+                          <label
+                            htmlFor={`next-generation-file-${tab.id}`}
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-white px-3 py-2 text-xs font-bold text-emerald-800 shadow-sm transition hover:bg-sky-100"
+                          >
+                            파일 선택
+                          </label>
+                          <input
+                            id={`next-generation-file-${tab.id}`}
+                            type="file"
+                            accept={MATERIAL_FILE_ACCEPT}
+                            multiple
+                            className="sr-only"
+                            onChange={(event) => handleWeeklyFileChange(tab.id, event)}
+                          />
+                        </div>
 
-                {materialFiles.length > 0 && (
-                  <ul className="mt-5 space-y-2">
-                    {materialFiles.map((file, index) => (
-                      <li
-                        key={`${file.name}-${file.lastModified}-${index}`}
-                        className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
-                          <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
-                          <span>
-                            {file.name}
-                            <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
-                          </span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeMaterialFile(index)}
-                          className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
+                        {files.length > 0 ? (
+                          <ul className="mt-4 space-y-2">
+                            {files.map((file, index) => (
+                              <li
+                                key={`${tab.id}-${file.name}-${file.lastModified}-${index}`}
+                                className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
+                                  <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
+                                  <span>
+                                    {file.name}
+                                    <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
+                                  </span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeWeeklyMaterialFile(tab.id, index)}
+                                  className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
+                                >
+                                  <X size={14} className="mr-1" />
+                                  제거
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-4 text-xs font-bold text-slate-400">아직 선택된 파일이 없습니다.</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-lg border-2 border-dashed border-sky-200 bg-sky-50 p-6 transition hover:bg-sky-100">
+                  <div className="text-center">
+                    <FileText className="mx-auto mb-3 h-10 w-10 text-sky-500" />
+                    <label htmlFor="next-generation-file" className="cursor-pointer text-sm font-black text-emerald-800 hover:text-emerald-950">
+                      PDF/PPT 파일 선택
+                    </label>
+                    <p className="mt-2 text-xs font-bold text-slate-500">
+                      여러 파일 선택 가능, 파일당 최대 20MB
+                    </p>
+                    <input
+                      id="next-generation-file"
+                      type="file"
+                      accept={MATERIAL_FILE_ACCEPT}
+                      multiple
+                      className="sr-only"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  {materialFiles.length > 0 && (
+                    <ul className="mt-5 space-y-2">
+                      {materialFiles.map((file, index) => (
+                        <li
+                          key={`${file.name}-${file.lastModified}-${index}`}
+                          className="flex flex-col gap-3 rounded-lg bg-white p-3 text-left shadow-sm sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <X size={14} className="mr-1" />
-                          제거
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                          <span className="flex items-center gap-3 text-sm font-bold text-emerald-950">
+                            <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
+                            <span>
+                              {file.name}
+                              <span className="ml-2 text-xs text-slate-500">{formatFileSize(file.size)}</span>
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeMaterialFile(index)}
+                            className="inline-flex w-fit items-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-700"
+                          >
+                            <X size={14} className="mr-1" />
+                            제거
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             {submitting && uploadProgress > 0 && uploadProgress < 100 && (
@@ -2702,11 +2933,11 @@ function NextGenerationPostDetail({ id }: { id: string }) {
           <p className="mt-3 text-sm font-bold text-slate-500">{post.authorName}</p>
 
           <>
-          {post.youtubeUrl && getYouTubeVideoId(post.youtubeUrl) && (
+          {getPostYouTubeVideoId(post) && (
             <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
               <div className="relative aspect-video">
                 <iframe
-                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(post.youtubeUrl)}`}
+                  src={`https://www.youtube.com/embed/${getPostYouTubeVideoId(post)}`}
                   title={post.title}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
