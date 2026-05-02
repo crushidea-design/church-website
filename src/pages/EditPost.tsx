@@ -333,7 +333,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
 
         if (youtubeUrl.trim()) {
           updateData.youtubeUrl = youtubeUrl.trim();
-          updateData.videoUrl = youtubeUrl.trim();
+          updateData.videoUrl = deleteField();
         } else {
           updateData.youtubeUrl = deleteField();
           updateData.videoUrl = deleteField();

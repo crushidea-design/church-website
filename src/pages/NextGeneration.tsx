@@ -2345,7 +2345,6 @@ function NextGenerationCreatePost() {
 
       if (youtubeUrl.trim()) {
         postData.youtubeUrl = youtubeUrl.trim();
-        postData.videoUrl = youtubeUrl.trim();
       }
 
       // Security (Option B): Do NOT store download URLs in the public post doc.
