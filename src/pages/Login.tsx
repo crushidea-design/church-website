@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, signInWithGoogle } from '../lib/firebase';
+import { getInAppBrowserLoginMessage, isInAppBrowser } from '../lib/inAppBrowser';
 import { Mail, Lock, LogIn, UserPlus, User, KeyRound } from 'lucide-react';
 
 export default function Login() {
@@ -16,6 +17,8 @@ export default function Login() {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const inAppBrowserMessage = getInAppBrowserLoginMessage();
+  const shouldBlockGoogleLogin = isInAppBrowser();
 
   const handleAuthError = (err: any) => {
     console.error(err);
@@ -115,6 +118,10 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setError('');
     setSuccessMsg('');
+    if (shouldBlockGoogleLogin) {
+      setError(inAppBrowserMessage);
+      return;
+    }
     setLoading(true);
     try {
       await signInWithGoogle();
@@ -360,6 +367,12 @@ export default function Login() {
           </form>
 
           <div className="mt-6">
+            {shouldBlockGoogleLogin && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {inAppBrowserMessage}
+              </div>
+            )}
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-wood-200" />
@@ -372,8 +385,8 @@ export default function Login() {
             <div className="mt-6">
               <button
                 onClick={handleGoogleLogin}
-                disabled={loading}
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-wood-300 rounded-md shadow-sm bg-white text-sm font-medium text-wood-700 hover:bg-wood-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-900 transition disabled:opacity-50"
+                disabled={loading || shouldBlockGoogleLogin}
+                className="w-full flex justify-center items-center py-2.5 px-4 border border-wood-300 rounded-md shadow-sm bg-white text-sm font-medium text-wood-700 hover:bg-wood-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-900 transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                   <path

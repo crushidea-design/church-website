@@ -7,6 +7,7 @@ import {
   EmailSignUpData,
   SignUpData,
 } from '../lib/nextGenerationAuth';
+import { getInAppBrowserLoginMessage, isInAppBrowser } from '../lib/inAppBrowser';
 
 type ModalView = 'login' | 'signup' | 'complete_google' | 'forgot_password' | 'pending' | 'rejected';
 
@@ -69,6 +70,8 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
 
   // Forgot password
   const [resetEmail, setResetEmail] = useState('');
+  const inAppBrowserMessage = getInAppBrowserLoginMessage();
+  const shouldBlockGoogleLogin = isInAppBrowser();
 
   const handleError = (err: any) => {
     const code = err?.code || '';
@@ -111,6 +114,10 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
 
   const handleGoogleLogin = async () => {
     setError('');
+    if (shouldBlockGoogleLogin) {
+      setError(inAppBrowserMessage);
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await signInWithGoogle();
@@ -318,10 +325,16 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                 </div>
               </div>
 
+              {shouldBlockGoogleLogin && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {inAppBrowserMessage}
+                </div>
+              )}
+
               <button
                 onClick={handleGoogleLogin}
-                disabled={submitting}
-                className="w-full py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm font-medium text-gray-700 disabled:opacity-60"
+                disabled={submitting || shouldBlockGoogleLogin}
+                className="w-full py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <GoogleIcon />
                 Google로 계속하기
