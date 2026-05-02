@@ -115,7 +115,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl', 'attachmentCount', 'nextGenerationDepartmentSlug', 'nextGenerationTabSlug', 'isArchived', 'archivedAt', 'archivedBy'];
+      let allowedFields = ['title', 'content', 'category', 'subCategory', 'sermonCategoryId', 'researchCategoryId', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount', 'pdfUrl', 'pdfName', 'pdfBase64', 'pdfChunkCount', 'attachments', 'journalDate', 'dateKey', 'uid', 'viewCount', 'sortOrder', 'isLongContent', 'fullContentLength', 'isPublished', 'scheduledAt', 'targetUserIds', 'nextGenerationWeekKey', 'nextGenerationTopicId', 'youtubeUrl', 'videoUrl', 'attachmentCount', 'nextGenerationDepartmentSlug', 'nextGenerationTabSlug', 'isArchived', 'archivedAt', 'archivedBy'];
       let baseValid = data.keys().hasAll(['title', 'content', 'category', 'authorId', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 50000 &&
@@ -146,6 +146,7 @@ service cloud.firestore {
              (!('scheduledAt' in data) || data.scheduledAt is timestamp) &&
              (!('targetUserIds' in data) || data.targetUserIds is list) &&
              (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() < 500)) &&
+             (!('videoUrl' in data) || (data.videoUrl is string && data.videoUrl.size() < 500)) &&
              (!('attachmentCount' in data) || (data.attachmentCount is number && data.attachmentCount >= 0 && data.attachmentCount <= 20)) &&
              (!('nextGenerationDepartmentSlug' in data) || (data.nextGenerationDepartmentSlug is string && data.nextGenerationDepartmentSlug.matches("^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$"))) &&
              (!('nextGenerationTabSlug' in data) || (data.nextGenerationTabSlug is string && data.nextGenerationTabSlug.matches("^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$"))) &&
