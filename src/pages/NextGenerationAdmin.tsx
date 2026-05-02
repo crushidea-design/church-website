@@ -689,6 +689,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         <div className="flex border-b border-gray-200 overflow-x-auto">
           {([
             { key: 'members', label: '회원 관리', badge: pendingMembers.length },
+            { key: 'bibleReading', label: '성경 읽기', badge: 0 },
             { key: 'qa', label: 'Q&A', badge: unansweredQA },
             { key: 'contacts', label: '문의', badge: unreadContacts },
             { key: 'migration', label: '자료 이전', badge: 0 },
