@@ -63,7 +63,32 @@ export const PROTECTED_NEXT_GEN_TAB_SLUGS = [
   'elementary_guide',
   'family_column',
   'pilgrim_lecture',
+  'podcast_review',
 ] as const;
+
+export interface NextGenerationPostTabLike {
+  title?: string;
+  subCategory?: string;
+  nextGenerationTabSlug?: string;
+  youtubeUrl?: string;
+  videoUrl?: string;
+}
+
+export const getStoredNextGenerationTabSlug = (post: NextGenerationPostTabLike) =>
+  post.nextGenerationTabSlug || post.subCategory || '';
+
+export const isLegacyPodcastReviewPost = (post: NextGenerationPostTabLike) => {
+  const storedTabSlug = getStoredNextGenerationTabSlug(post);
+  if (storedTabSlug !== 'pilgrim_lecture') return false;
+
+  const title = post.title || '';
+  const hasPodcastTitle = /복습\s*팟캐스트|podcast/i.test(title);
+  const hasReviewVideo = !!(post.youtubeUrl || post.videoUrl) && /복습|review/i.test(title);
+  return hasPodcastTitle || hasReviewVideo;
+};
+
+export const getEffectiveNextGenerationTabSlug = (post: NextGenerationPostTabLike) =>
+  isLegacyPodcastReviewPost(post) ? 'podcast_review' : getStoredNextGenerationTabSlug(post);
 
 export const NEXT_GEN_HERO_CLASS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'bg-white', label: '기본 (흰색)' },

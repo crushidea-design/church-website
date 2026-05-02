@@ -26,6 +26,7 @@ import {
   NextGenerationResourceTab,
   PROTECTED_NEXT_GEN_DEPARTMENT_SLUGS,
   PROTECTED_NEXT_GEN_TAB_SLUGS,
+  getEffectiveNextGenerationTabSlug,
   normalizeCmsSlug,
   seedNextGenerationCmsIfEmpty,
   upsertNextGenerationDepartment,
@@ -53,6 +54,8 @@ interface NextGenerationPostSummary {
   nextGenerationTabSlug?: string;
   nextGenerationWeekKey?: string;
   nextGenerationTopicId?: string;
+  youtubeUrl?: string;
+  videoUrl?: string;
   authorName?: string;
   isArchived?: boolean;
   createdAt?: any;
@@ -175,7 +178,7 @@ function AdminNextGenerationCmsInner() {
     const byText = search.trim().toLowerCase();
     return materials.filter((post) => {
       if (filterDepartment && post.nextGenerationDepartmentSlug !== filterDepartment) return false;
-      if (filterTab && (post.nextGenerationTabSlug || post.subCategory) !== filterTab) return false;
+      if (filterTab && getEffectiveNextGenerationTabSlug(post) !== filterTab) return false;
       if (archivedFilter === 'active' && post.isArchived) return false;
       if (archivedFilter === 'archived' && !post.isArchived) return false;
       if (!byText) return true;
@@ -434,7 +437,7 @@ function AdminNextGenerationCmsInner() {
       const batch = writeBatch(db);
       postSnap.docs.forEach((item) => {
         const data = item.data() as any;
-        const tabSlug = data.nextGenerationTabSlug || data.subCategory || '';
+        const tabSlug = getEffectiveNextGenerationTabSlug(data);
         if (tabSlug === tab.slug) {
           batch.update(item.ref, {
             subCategory: targetTab.slug,
@@ -549,7 +552,7 @@ function AdminNextGenerationCmsInner() {
       snap.docs.forEach((item) => {
         const data = item.data() as any;
         if (data.nextGenerationDepartmentSlug) return;
-        const tabSlug = data.nextGenerationTabSlug || data.subCategory;
+        const tabSlug = getEffectiveNextGenerationTabSlug(data);
         const inferred = inferDepartmentSlugFromTab(tabSlug);
         if (inferred) {
           batch.update(item.ref, {
@@ -575,7 +578,7 @@ function AdminNextGenerationCmsInner() {
       const validTabSlugs = new Set(tabs.map((t) => t.slug));
       const orphans = materials.filter((post) => {
         const ds = post.nextGenerationDepartmentSlug;
-        const ts = post.nextGenerationTabSlug || post.subCategory;
+        const ts = getEffectiveNextGenerationTabSlug(post);
         const dsBad = !ds || !validDepartmentSlugs.has(ds);
         const tsBad = !ts || !validTabSlugs.has(ts);
         return dsBad || tsBad;
@@ -1224,7 +1227,7 @@ function AdminNextGenerationCmsInner() {
               ) : (
                 <div className="space-y-2">
                   {filteredMaterials.map((post) => {
-                    const tabSlug = post.nextGenerationTabSlug || post.subCategory || '';
+                    const tabSlug = getEffectiveNextGenerationTabSlug(post);
                     const departmentSlug = post.nextGenerationDepartmentSlug || '';
                     const inlineTabs = tabsByDepartmentSlug[departmentSlug] || tabs;
                     const checked = selectedPostIds.includes(post.id);
@@ -1394,7 +1397,7 @@ function AdminNextGenerationCmsInner() {
                         <span className="font-bold">{post.title || '(제목 없음)'}</span>
                         <span className="ml-2 text-amber-700">
                           dept={post.nextGenerationDepartmentSlug || '∅'} / tab=
-                          {post.nextGenerationTabSlug || post.subCategory || '∅'}
+                          {getEffectiveNextGenerationTabSlug(post) || '∅'}
                         </span>
                       </li>
                     ))}

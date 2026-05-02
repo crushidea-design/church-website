@@ -67,6 +67,7 @@ import {
   NextGenerationDepartment,
   NextGenerationIntroSection,
   NextGenerationResourceTab,
+  getEffectiveNextGenerationTabSlug,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
 import { initializeNextGenerationBadgeSync, setNextGenerationBadgeCount } from '../services/appBadgeService';
@@ -1599,7 +1600,7 @@ function ResourceLibraryPage({
           if (post.isArchived === true) return false;
           const postDepartmentSlug = post.nextGenerationDepartmentSlug || getResourceDepartmentPath(post.subCategory).replace(`${NEXT_GENERATION_PATH}/`, '');
           if (postDepartmentSlug !== departmentSlug) return false;
-          const postTabSlug = post.nextGenerationTabSlug || post.subCategory;
+          const postTabSlug = getEffectiveNextGenerationTabSlug(post);
           if (isWeeklyTab) {
             return weeklyResourceIds.includes(postTabSlug || '');
           }
@@ -1668,7 +1669,7 @@ function ResourceLibraryPage({
 
     if (isWeeklyTab) {
       return weeklyResourceIds.flatMap((resourceId) => {
-        const resourcePosts = posts.filter((post) => (post.nextGenerationTabSlug || post.subCategory) === resourceId);
+        const resourcePosts = posts.filter((post) => getEffectiveNextGenerationTabSlug(post) === resourceId);
         const weeklyPosts = resourcePosts.filter((post) => getPostWeekKey(post) === currentWeekKey);
 
         return weeklyPosts.length > 0 ? weeklyPosts : resourcePosts.slice(0, 1);
@@ -1906,7 +1907,7 @@ function ResourceLibraryPage({
                     <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
                       <div className="mb-4 flex flex-wrap gap-2">
                         <span className="inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
-                          {getResourceLabel(post.nextGenerationTabSlug || post.subCategory, visibleTabs as any)}
+                          {getResourceLabel(getEffectiveNextGenerationTabSlug(post), visibleTabs as any)}
                         </span>
                         {supportsNextGenerationTopic(post.subCategory) && (
                           <span className="inline-flex rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-black text-emerald-950">
@@ -2799,7 +2800,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
         }
 
         if (isRestricted && !isAdmin) {
-          const postTabSlug = data.nextGenerationTabSlug || data.subCategory || '';
+          const postTabSlug = getEffectiveNextGenerationTabSlug(data);
           if (!(STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(postTabSlug)) {
             navigate(`${NEXT_GENERATION_PATH}/elementary?resource=elementary_workbook`, { replace: true });
             return;
@@ -2882,7 +2883,7 @@ function NextGenerationPostDetail({ id }: { id: string }) {
     icon: iconMap.Sparkles,
   }));
   const inferredTopicId = inferNextGenerationTopicId(post);
-  const postTabSlug = post.nextGenerationTabSlug || post.subCategory;
+  const postTabSlug = getEffectiveNextGenerationTabSlug(post);
   const backPath = supportsNextGenerationTopic(postTabSlug)
     ? `${getResourceDepartmentPath(postTabSlug, mergedTabs, mergedDepartments)}?resource=${postTabSlug || mergedTabs[0]?.id || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
     : `${getResourceDepartmentPath(postTabSlug, mergedTabs, mergedDepartments)}?resource=${postTabSlug || mergedTabs[0]?.id || elementaryResourceTabs[0].id}`;
