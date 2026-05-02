@@ -26,6 +26,7 @@ export interface Post {
   updatedAt?: Timestamp | Date;
   viewCount: number;
   commentCount: number;
+  youtubeUrl?: string;
   videoUrl?: string;
   pdfUrl?: string;
   thumbnailUrl?: string;

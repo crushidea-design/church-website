@@ -48,6 +48,11 @@ const getDateFromFirestoreValue = (value: any) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const getYouTubeVideoId = (url: string): string | null => {
+  const match = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([^&\n?#]+)/);
+  return match ? match[1] : null;
+};
+
 interface EditPostProps {
   postId?: string;
   nextGenerationMode?: boolean;
@@ -61,6 +66,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [type, setType] = useState('');
   const isNextGeneration = nextGenerationMode || type === 'next_generation';
   const [dateKey, setDateKey] = useState('');
@@ -116,6 +122,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
 
           setTitle(data.title);
           setContent(fullContent);
+          setYoutubeUrl(data.youtubeUrl || data.videoUrl || '');
           setType(data.category);
           setDateKey(data.dateKey || getLocalDateKey(getDateFromFirestoreValue(data.createdAt) || new Date()));
           setSubCategory(data.subCategory || 'general');
@@ -322,6 +329,15 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
       // Handle attachment fields explicitly to ensure they are cleared if needed
       if (isNextGeneration) {
         updateData.subCategory = subCategory;
+        updateData.nextGenerationTabSlug = subCategory;
+
+        if (youtubeUrl.trim()) {
+          updateData.youtubeUrl = youtubeUrl.trim();
+          updateData.videoUrl = youtubeUrl.trim();
+        } else {
+          updateData.youtubeUrl = deleteField();
+          updateData.videoUrl = deleteField();
+        }
 
         // Security (Option B): download URLs must not live in the public post doc.
         // Always strip them from `posts/{id}` and route them to the restricted
@@ -645,6 +661,26 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                     <Plus size={20} />
                   </button>
                 </div>
+              </div>
+            )}
+
+            {isNextGeneration && (
+              <div>
+                <label htmlFor="nextGenerationYoutubeUrl" className="block text-sm font-medium text-wood-700 mb-2">
+                  유튜브 링크
+                </label>
+                <input
+                  id="nextGenerationYoutubeUrl"
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={(e) => setYoutubeUrl(e.target.value)}
+                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  maxLength={500}
+                />
+                {youtubeUrl && !getYouTubeVideoId(youtubeUrl) && (
+                  <p className="mt-2 text-xs text-red-600">유효한 유튜브 링크를 입력하세요.</p>
+                )}
               </div>
             )}
 

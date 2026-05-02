@@ -669,10 +669,10 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 sm:p-4">
+      <div className="my-3 flex w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl max-h-[calc(100vh-1.5rem)] sm:my-6 sm:max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex items-center gap-2">
             <Users size={20} className="text-amber-500" />
             <h2 className="text-lg font-bold text-gray-900">다음세대 관리</h2>
@@ -686,7 +686,9 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 overflow-x-auto">
+        <div className="border-b border-gray-200 px-2 sm:px-3">
+          <div className="overflow-x-auto overflow-y-hidden">
+            <div className="flex min-w-max items-stretch gap-1">
           {([
             { key: 'members', label: '회원 관리', badge: pendingMembers.length },
             { key: 'bibleReading', label: '성경 읽기', badge: 0 },
@@ -697,24 +699,26 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-t-xl border-b-2 px-3 py-3 text-sm font-medium leading-5 transition-colors sm:px-4 ${
                 tab === t.key
-                  ? 'border-amber-500 text-amber-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-amber-500 bg-amber-50 text-amber-600'
+                  : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }`}
             >
               {t.label}
               {t.badge > 0 && (
-                <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none min-w-[18px] text-center">
+                <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-xs leading-none text-white">
                   {t.badge}
                 </span>
               )}
             </button>
           ))}
+            </div>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {loading && (
             <div className="text-center py-8 text-gray-400 text-sm">로딩 중...</div>
           )}
