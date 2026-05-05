@@ -11,12 +11,14 @@ import {
   LogOut,
   Plus,
   Search,
+  Sparkles,
   ShieldCheck,
   UserRound,
   Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { generateRaahVisitationDraft } from '../features/pastoral-notes/aiApi';
 import { createRaahNote, getRaahNoteDetail, listRaahNotes } from '../features/pastoral-notes/api';
 import {
   createRaahMember,
@@ -48,6 +50,23 @@ type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'visitation' | 'legacy
 
 const LOG_TYPES = ['심방', '상담', '기도', '전화', '양육', '기타'];
 
+const TEXT = {
+  tabs: {
+    dashboard: '홈',
+    members: '성도',
+    attendance: '출석',
+    visitation: '기록',
+    legacy: '이전',
+  },
+  search: {
+    dashboard: '성도, 기록, 구역 검색',
+    members: '이름, 구역, 직분, 연락처 검색',
+    attendance: '출석 체크할 성도 검색',
+    visitation: '성도, 기록 유형, 요약 검색',
+    legacy: '기존 기록 성도 검색',
+  },
+};
+
 const emptySummary: RaahDashboardSummary = {
   memberCount: 0,
   activeMemberCount: 0,
@@ -70,9 +89,17 @@ const emptyMemberForm: RaahMemberInput = {
   publicNote: '',
 };
 
-const emptyLogForm: RaahVisitationLogInput = {
-  memberId: '',
-  memberName: '',
+function getNearestSunday() {
+  const date = new Date();
+  const day = date.getDay();
+  const diff = day === 0 ? 0 : 7 - day;
+  date.setDate(date.getDate() + diff);
+  return date.toISOString().slice(0, 10);
+}
+
+const emptyLogForm = (member?: RaahMember): RaahVisitationLogInput => ({
+  memberId: member?.id || '',
+  memberName: member?.name || '',
   date: new Date().toISOString().slice(0, 10),
   logType: LOG_TYPES[0],
   publicSummary: '',
@@ -80,7 +107,7 @@ const emptyLogForm: RaahVisitationLogInput = {
   prayerTopics: '',
   nextSteps: '',
   privateRemarks: '',
-};
+});
 
 const shell = {
   page: 'min-h-screen bg-[#f4f1ea] text-[#202721]',
@@ -88,7 +115,8 @@ const shell = {
   mutedPanel: 'rounded-lg border border-[#d8d1c4] bg-[#f8f5ee]',
   input:
     'w-full rounded-md border border-[#cfc8ba] bg-[#fffdf8] px-3 py-2.5 text-sm text-[#202721] outline-none transition focus:border-[#596850] focus:ring-2 focus:ring-[#596850]/15',
-  button: 'inline-flex items-center justify-center gap-2 rounded-md bg-[#25352e] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1d2b25] disabled:cursor-not-allowed disabled:opacity-60',
+  button:
+    'inline-flex items-center justify-center gap-2 rounded-md bg-[#25352e] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1d2b25] disabled:cursor-not-allowed disabled:opacity-60',
   ghostButton:
     'inline-flex items-center justify-center gap-2 rounded-md border border-[#cfc8ba] bg-[#fffdf8] px-4 py-2.5 text-sm font-semibold text-[#39443d] transition hover:bg-[#f0ece2]',
   badge: 'inline-flex items-center gap-1.5 rounded-full border border-[#cfc8ba] bg-[#f8f5ee] px-2.5 py-1 text-xs font-semibold text-[#596850]',
@@ -103,79 +131,6 @@ function getErrorMessage(error: unknown, fallback: string) {
 function isRaahSubdomain() {
   if (typeof window === 'undefined') return false;
   return window.location.hostname === 'raah.builttogether.church';
-}
-
-function TextInput({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={shell.input} />
-    </label>
-  );
-}
-
-function TextArea({
-  label,
-  value,
-  onChange,
-  rows = 4,
-  locked,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  rows?: number;
-  locked?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">
-        {locked && <Lock size={13} />}
-        {label}
-      </span>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={rows} className={`${shell.input} leading-6`} />
-    </label>
-  );
-}
-
-function DetailBlock({ label, value, locked }: { label: string; value?: string; locked?: boolean }) {
-  return (
-    <div className={shell.mutedPanel + ' p-4'}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#667264]">
-        {locked && <Lock size={13} />}
-        {label}
-      </div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#2f3731]">{value?.trim() ? value : '-'}</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
-  return (
-    <div className={shell.panel + ' p-4'}>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#667264]">{label}</p>
-        <span className="text-[#718069]">{icon}</span>
-      </div>
-      <p className="mt-3 text-3xl font-semibold text-[#202721]">{value}</p>
-    </div>
-  );
-}
-
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-lg border border-dashed border-[#cfc8ba] bg-[#f8f5ee] p-8 text-center text-sm text-[#667264]">{children}</p>;
 }
 
 export default function AdminPastoralNotes() {
@@ -194,21 +149,27 @@ export default function AdminPastoralNotes() {
   const [legacyNotes, setLegacyNotes] = React.useState<PastoralNote[]>([]);
   const [searchTerm, setSearchTerm] = React.useState('');
 
+  const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
   const [memberForm, setMemberForm] = React.useState<RaahMemberInput>(emptyMemberForm);
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
   const [isMemberFormOpen, setIsMemberFormOpen] = React.useState(false);
 
-  const [logForm, setLogForm] = React.useState<RaahVisitationLogInput>(emptyLogForm);
+  const [logForm, setLogForm] = React.useState<RaahVisitationLogInput>(emptyLogForm());
   const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
   const [decryptedLog, setDecryptedLog] = React.useState<RaahVisitationLog | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = React.useState(false);
   const [isDetailLoading, setIsDetailLoading] = React.useState(false);
+  const [rawAiMemo, setRawAiMemo] = React.useState('');
+  const [aiSuggestion, setAiSuggestion] = React.useState('');
+  const [isAiDrafting, setIsAiDrafting] = React.useState(false);
 
-  const [attendanceDate, setAttendanceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [attendanceDate, setAttendanceDate] = React.useState(getNearestSunday);
   const [attendanceServiceType, setAttendanceServiceType] = React.useState('주일예배');
   const [attendanceIncludesCommunion, setAttendanceIncludesCommunion] = React.useState(true);
   const [attendanceMemo, setAttendanceMemo] = React.useState('');
   const [attendanceRecords, setAttendanceRecords] = React.useState<RaahAttendanceRecord[]>([]);
+  const [showAbsencesOnly, setShowAbsencesOnly] = React.useState(false);
+  const [expandedAttendanceNotes, setExpandedAttendanceNotes] = React.useState(false);
 
   const [legacyForm, setLegacyForm] = React.useState<PastoralNoteInput>(createEmptyPastoralNoteInput);
   const [selectedLegacyNoteId, setSelectedLegacyNoteId] = React.useState<string | null>(null);
@@ -235,7 +196,11 @@ export default function AdminPastoralNotes() {
 
   const loadManagementData = React.useCallback(async () => {
     if (!user) return;
-    const [nextSummary, nextMembers, nextLogs] = await Promise.all([getRaahDashboardSummary(user), listRaahMembers(user), listRaahVisitationLogs(user)]);
+    const [nextSummary, nextMembers, nextLogs] = await Promise.all([
+      getRaahDashboardSummary(user),
+      listRaahMembers(user),
+      listRaahVisitationLogs(user),
+    ]);
     const nextAttendance = await getRaahAttendance(attendanceDate, user).catch(() => null);
     setSummary(nextSummary);
     setMembers(nextMembers);
@@ -245,6 +210,7 @@ export default function AdminPastoralNotes() {
     setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? true);
     setAttendanceMemo(nextAttendance?.memo || '');
     setAttendanceRecords(buildAttendanceRecords(nextMembers, nextAttendance));
+    setSelectedMemberId((currentId) => (currentId && nextMembers.some((member) => member.id === currentId) ? currentId : nextMembers[0]?.id ?? null));
     setSelectedLogId((currentId) => (currentId && nextLogs.some((log) => log.id === currentId) ? currentId : nextLogs[0]?.id ?? null));
   }, [attendanceDate, buildAttendanceRecords, user]);
 
@@ -364,12 +330,28 @@ export default function AdminPastoralNotes() {
   }, []);
 
   const normalizedSearch = normalizeMemberName(searchTerm);
-  const filteredMembers = members.filter((member) => [member.searchName, member.position, member.district, member.phone].join(' ').toLocaleLowerCase('ko-KR').includes(normalizedSearch));
-  const filteredLogs = logs.filter((log) => [log.memberSearchName, log.logType, log.publicSummary].join(' ').toLocaleLowerCase('ko-KR').includes(normalizedSearch));
-  const filteredAttendanceRecords = attendanceRecords.filter((record) => [record.memberSearchName, record.memberName, record.note].join(' ').toLocaleLowerCase('ko-KR').includes(normalizedSearch));
-  const filteredLegacyNotes = legacyNotes.filter((note) => note.memberSearchName.includes(normalizedSearch));
+  const selectedMember = members.find((member) => member.id === selectedMemberId) || null;
+  const selectedMemberLogs = selectedMember ? logs.filter((log) => log.memberId === selectedMember.id || log.memberSearchName === selectedMember.searchName) : [];
+  const selectedMemberAttendance = selectedMember ? attendanceRecords.find((record) => record.memberId === selectedMember.id) : null;
   const attendanceCount = attendanceRecords.filter((record) => record.attended).length;
   const communionCount = attendanceRecords.filter((record) => record.communionParticipated).length;
+  const pendingFollowUps = logs.filter((log) => log.nextSteps?.trim()).slice(0, 5);
+
+  const filteredMembers = members.filter((member) => {
+    const text = [member.searchName, member.position, member.district, member.phone].join(' ').toLocaleLowerCase('ko-KR');
+    return !normalizedSearch || text.includes(normalizedSearch);
+  });
+  const filteredLogs = logs.filter((log) => {
+    const text = [log.memberSearchName, log.logType, log.publicSummary].join(' ').toLocaleLowerCase('ko-KR');
+    return !normalizedSearch || text.includes(normalizedSearch);
+  });
+  const filteredAttendanceRecords = attendanceRecords
+    .filter((record) => !showAbsencesOnly || !record.attended)
+    .filter((record) => {
+      const text = [record.memberSearchName, record.memberName, record.note].join(' ').toLocaleLowerCase('ko-KR');
+      return !normalizedSearch || text.includes(normalizedSearch);
+    });
+  const filteredLegacyNotes = legacyNotes.filter((note) => !normalizedSearch || note.memberSearchName.includes(normalizedSearch));
   const selectedLog = decryptedLog?.id === selectedLogId ? decryptedLog : logs.find((log) => log.id === selectedLogId) ?? filteredLogs[0] ?? null;
   const selectedLegacyNote =
     decryptedLegacyNote?.id === selectedLegacyNoteId ? decryptedLegacyNote : legacyNotes.find((note) => note.id === selectedLegacyNoteId) ?? filteredLegacyNotes[0] ?? null;
@@ -401,6 +383,50 @@ export default function AdminPastoralNotes() {
     setActiveTab('members');
   };
 
+  const openLogForm = (member?: RaahMember) => {
+    setDecryptedLog(null);
+    setLogForm(emptyLogForm(member));
+    setRawAiMemo('');
+    setAiSuggestion('');
+    setIsLogFormOpen(true);
+    setActiveTab('visitation');
+  };
+
+  const handleGenerateAiDraft = async () => {
+    if (!user || isAiDrafting) return;
+    if (!rawAiMemo.trim() || rawAiMemo.trim().length < 10) {
+      toast.error('AI로 정리할 긴 메모를 먼저 입력해 주세요.');
+      return;
+    }
+
+    setIsAiDrafting(true);
+    try {
+      const draft = await generateRaahVisitationDraft(
+        {
+          rawMemo: rawAiMemo,
+          memberName: logForm.memberName,
+          logType: logForm.logType,
+          date: logForm.date,
+        },
+        user
+      );
+      setLogForm((prev) => ({
+        ...prev,
+        publicSummary: draft.publicSummary || prev.publicSummary,
+        innerNote: draft.innerNote || prev.innerNote,
+        prayerTopics: draft.prayerTopics || prev.prayerTopics,
+        nextSteps: draft.nextSteps || prev.nextSteps,
+        privateRemarks: draft.privateRemarks || prev.privateRemarks,
+      }));
+      setAiSuggestion(draft.recommendedAction);
+      toast.success('AI가 기록 초안을 정리했습니다. 저장 전 내용을 확인해 주세요.');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'AI 기록 정리에 실패했습니다.'));
+    } finally {
+      setIsAiDrafting(false);
+    }
+  };
+
   const handleMemberSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || isSaving) return;
@@ -411,16 +437,12 @@ export default function AdminPastoralNotes() {
 
     setIsSaving(true);
     try {
-      if (editingMemberId) {
-        await updateRaahMember(editingMemberId, memberForm, user);
-        toast.success('성도 정보를 수정했습니다.');
-      } else {
-        await createRaahMember(memberForm, user);
-        toast.success('성도 명부에 등록했습니다.');
-      }
+      const saved = editingMemberId ? await updateRaahMember(editingMemberId, memberForm, user) : await createRaahMember(memberForm, user);
+      setSelectedMemberId(saved.id);
       setIsMemberFormOpen(false);
       setEditingMemberId(null);
       setMemberForm(emptyMemberForm);
+      toast.success(editingMemberId ? '성도 정보를 수정했습니다.' : '성도 명부에 등록했습니다.');
       await refreshSupabase();
     } catch (error) {
       toast.error(getErrorMessage(error, '성도 정보를 저장하지 못했습니다.'));
@@ -432,13 +454,6 @@ export default function AdminPastoralNotes() {
   const handleMemberSelectForLog = (memberId: string) => {
     const member = members.find((item) => item.id === memberId);
     setLogForm((prev) => ({ ...prev, memberId, memberName: member?.name || prev.memberName }));
-  };
-
-  const openLogForm = (member?: RaahMember) => {
-    setDecryptedLog(null);
-    setLogForm({ ...emptyLogForm, memberId: member?.id || '', memberName: member?.name || '' });
-    setIsLogFormOpen(true);
-    setActiveTab('visitation');
   };
 
   const handleLogSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -455,7 +470,9 @@ export default function AdminPastoralNotes() {
       setIsLogFormOpen(false);
       setSelectedLogId(created.id);
       setDecryptedLog(created);
-      setLogForm(emptyLogForm);
+      setLogForm(emptyLogForm());
+      setRawAiMemo('');
+      setAiSuggestion('');
       toast.success('심방/상담 기록을 암호화해 저장했습니다.');
       await refreshSupabase();
     } catch (error) {
@@ -507,7 +524,7 @@ export default function AdminPastoralNotes() {
       setAttendance(saved);
       setAttendanceRecords(buildAttendanceRecords(members, saved));
       toast.success('출석 체크를 저장했습니다.');
-      await refreshSupabase();
+      await loadManagementData();
     } catch (error) {
       toast.error(getErrorMessage(error, '출석 체크를 저장하지 못했습니다.'));
     } finally {
@@ -534,7 +551,7 @@ export default function AdminPastoralNotes() {
         setSelectedLegacyNoteId(created.id);
         setDecryptedLegacyNote(created);
         toast.success('기존 RAAH 기록을 Supabase에 암호화해 저장했습니다.');
-        await refreshSupabase();
+        await loadLegacyNotes();
       }
       setIsLegacyFormOpen(false);
       setLegacyForm(createEmptyPastoralNoteInput());
@@ -579,22 +596,20 @@ export default function AdminPastoralNotes() {
   }
 
   const tabs: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
-    { id: 'dashboard', label: '대시보드', icon: <BarChart3 size={17} /> },
-    { id: 'members', label: '성도 명부', icon: <Users size={17} /> },
-    { id: 'attendance', label: '출석 체크', icon: <CheckSquare size={17} /> },
-    { id: 'visitation', label: '심방/상담', icon: <ClipboardList size={17} /> },
-    { id: 'legacy', label: '기존 기록', icon: <FileText size={17} /> },
+    { id: 'dashboard', label: TEXT.tabs.dashboard, icon: <BarChart3 size={18} /> },
+    { id: 'members', label: TEXT.tabs.members, icon: <Users size={18} /> },
+    { id: 'attendance', label: TEXT.tabs.attendance, icon: <CheckSquare size={18} /> },
+    { id: 'visitation', label: TEXT.tabs.visitation, icon: <ClipboardList size={18} /> },
+    { id: 'legacy', label: TEXT.tabs.legacy, icon: <FileText size={18} /> },
   ];
 
   return (
     <div className={shell.page}>
-      <div className="min-h-screen lg:grid lg:grid-cols-[240px,minmax(0,1fr)]">
+      <div className="min-h-screen lg:grid lg:grid-cols-[232px,minmax(0,1fr)]">
         <aside className="hidden border-r border-[#d8d1c4] bg-[#25352e] text-white lg:flex lg:flex-col">
           <div className="border-b border-white/10 p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#d8d1c4] text-[#25352e]">
-                <ShieldCheck size={22} />
-              </div>
+              <img src="/raah-icon-48.png" alt="" className="h-11 w-11 rounded-lg" />
               <div>
                 <p className="text-lg font-semibold tracking-[0.16em]">RAAH</p>
                 <p className="text-xs text-white/60">Pastoral Care</p>
@@ -608,6 +623,7 @@ export default function AdminPastoralNotes() {
                 type="button"
                 onClick={() => {
                   setActiveTab(tab.id);
+                  setSearchTerm('');
                   setDecryptedLog(null);
                   setDecryptedLegacyNote(null);
                 }}
@@ -628,9 +644,9 @@ export default function AdminPastoralNotes() {
           </div>
         </aside>
 
-        <main className="min-w-0 pb-24 lg:pb-0">
-          <header className="sticky top-0 z-20 border-b border-[#d8d1c4] bg-[#f4f1ea]/95 px-4 py-4 backdrop-blur lg:px-8">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <main className="min-w-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
+          <header className="sticky top-0 z-20 border-b border-[#d8d1c4] bg-[#f4f1ea]/95 px-4 py-3 backdrop-blur lg:px-8 lg:py-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-center gap-3">
                 {!subdomainMode && (
                   <button type="button" onClick={() => navigate('/admin')} className="rounded-md border border-[#cfc8ba] bg-[#fffdf8] p-2 text-[#39443d]" aria-label="관리자 대시보드로 돌아가기">
@@ -639,260 +655,665 @@ export default function AdminPastoralNotes() {
                 )}
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-2xl font-semibold tracking-tight text-[#202721]">RAAH 목양 관리</h1>
+                    <h1 className="text-xl font-semibold tracking-tight text-[#202721] sm:text-2xl">RAAH 목양 관리</h1>
                     <span className={shell.badge}>
                       <Lock size={12} />
-                      {storageMode === 'supabase' ? 'Supabase 암호화 저장' : storageMode === 'firestore' ? 'Firestore 호환' : '저장소 확인 중'}
+                      {storageMode === 'supabase' ? '암호화 저장' : storageMode === 'firestore' ? 'Firestore 호환' : '저장소 확인 중'}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-[#667264]">성도 명부, 출석, 심방 기록을 한 곳에서 조용히 관리합니다.</p>
+                  <p className="mt-1 text-sm text-[#667264]">찾고, 체크하고, 기록하는 목양 관리 앱</p>
                 </div>
               </div>
               <label className="relative w-full xl:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#718069]" />
-                <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="이름, 구역, 유형 검색" className={`${shell.input} pl-9`} />
+                <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} pl-9`} />
               </label>
             </div>
-            <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
-                    activeTab === tab.id ? 'bg-[#25352e] text-white' : 'border border-[#cfc8ba] bg-[#fffdf8] text-[#39443d]'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
           </header>
 
-          <div className="space-y-6 px-4 py-6 lg:px-8">
+          <div className="space-y-5 px-4 py-5 lg:px-8">
             {activeTab === 'dashboard' && (
-              <section className="space-y-6">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-                  <StatCard label="전체 성도" value={summary.memberCount || members.length} icon={<Users size={20} />} />
-                  <StatCard label="활성 성도" value={summary.activeMemberCount || members.filter((member) => member.status === 'active').length} icon={<UserRound size={20} />} />
-                  <StatCard label="전체 기록" value={(summary.logCount || logs.length) + legacyNotes.length} icon={<ClipboardList size={20} />} />
-                  <StatCard label="이번 주 기록" value={summary.thisWeekLogCount} icon={<CalendarDays size={20} />} />
-                  <StatCard label="암호화 기록" value={(summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length) + legacyNotes.filter((note) => note.isEncrypted).length} icon={<Lock size={20} />} />
-                  <StatCard label="이번 주 출석" value={summary.thisWeekAttendanceCount} icon={<CheckSquare size={20} />} />
-                  <StatCard label="이번 주 성찬" value={summary.thisWeekCommunionCount} icon={<ShieldCheck size={20} />} />
-                </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <div className={shell.panel + ' p-5'}>
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold">최근 심방/상담</h2>
-                      <button type="button" onClick={() => openLogForm()} className={shell.button}>
-                        <Plus size={15} /> 기록
-                      </button>
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      {isLoading ? <EmptyState>RAAH 데이터를 불러오는 중입니다.</EmptyState> : logs.length === 0 ? <EmptyState>아직 새 심방/상담 기록이 없습니다.</EmptyState> : logs.slice(0, 5).map((log) => <LogListButton key={log.id} log={log} active={false} onClick={() => { setSelectedLogId(log.id); setActiveTab('visitation'); }} />)}
-                    </div>
-                  </div>
-                  <div className={shell.panel + ' p-5'}>
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold">최근 성도</h2>
-                      <button type="button" onClick={() => openMemberForm()} className={shell.button}>
-                        <Plus size={15} /> 등록
-                      </button>
-                    </div>
-                    <div className="mt-4 divide-y divide-[#e5ded1]">
-                      {members.length === 0 ? (
-                        <EmptyState>성도 명부가 비어 있습니다.</EmptyState>
-                      ) : (
-                        members.slice(0, 6).map((member) => (
-                          <button key={member.id} type="button" onClick={() => openMemberForm(member)} className="flex w-full items-center justify-between gap-3 py-3 text-left">
-                            <span>
-                              <span className="block font-semibold">{member.name}</span>
-                              <span className="mt-1 block text-xs text-[#667264]">{[member.position, member.district].filter(Boolean).join(' · ') || '기본 정보 미입력'}</span>
-                            </span>
-                            <span className={shell.badge}>{member.status === 'active' ? '활성' : '비활성'}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </section>
+              <DashboardTab
+                isLoading={isLoading}
+                summary={summary}
+                members={members}
+                logs={logs}
+                attendanceCount={attendanceCount}
+                communionCount={communionCount}
+                pendingFollowUps={pendingFollowUps}
+                onOpenAttendance={() => setActiveTab('attendance')}
+                onOpenLog={(logId) => {
+                  setSelectedLogId(logId);
+                  setActiveTab('visitation');
+                }}
+                onNewLog={() => openLogForm(selectedMember || undefined)}
+              />
             )}
 
             {activeTab === 'members' && (
-              <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr),380px]">
-                <div className={shell.panel + ' p-5'}>
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">성도 명부</h2>
-                    <button type="button" onClick={() => openMemberForm()} className={shell.button}>
-                      <Plus size={16} /> 성도 등록
-                    </button>
-                  </div>
-                  <ResponsiveTable
-                    empty="조건에 맞는 성도가 없습니다."
-                    headers={['이름', '직분', '구역', '연락처']}
-                    rows={filteredMembers.map((member) => ({
-                      id: member.id,
-                      cells: [member.name, member.position || '-', member.district || '-', member.phone || '-'],
-                      onClick: () => openMemberForm(member),
-                    }))}
-                  />
-                </div>
-                <MemberFormPanel
-                  isOpen={isMemberFormOpen}
-                  isSaving={isSaving}
-                  editing={Boolean(editingMemberId)}
-                  form={memberForm}
-                  setForm={setMemberForm}
-                  onSubmit={handleMemberSubmit}
-                  onClose={() => setIsMemberFormOpen(false)}
-                />
-              </section>
+              <MembersTab
+                members={filteredMembers}
+                selectedMember={selectedMember}
+                selectedMemberLogs={selectedMemberLogs}
+                selectedMemberAttendance={selectedMemberAttendance}
+                onSelectMember={setSelectedMemberId}
+                onEditMember={openMemberForm}
+                onNewMember={() => openMemberForm()}
+                onNewLog={(member) => openLogForm(member)}
+                isFormOpen={isMemberFormOpen}
+                isSaving={isSaving}
+                editing={Boolean(editingMemberId)}
+                form={memberForm}
+                setForm={setMemberForm}
+                onSubmit={handleMemberSubmit}
+                onCloseForm={() => setIsMemberFormOpen(false)}
+              />
             )}
 
             {activeTab === 'attendance' && (
-              <section className="grid gap-4 xl:grid-cols-[320px,minmax(0,1fr)]">
-                <div className={shell.panel + ' p-5'}>
-                  <h2 className="text-lg font-semibold">출석 설정</h2>
-                  <div className="mt-4 space-y-4">
-                    <TextInput label="날짜" type="date" value={attendanceDate} onChange={setAttendanceDate} />
-                    <TextInput label="예배 유형" value={attendanceServiceType} onChange={setAttendanceServiceType} placeholder="주일예배" />
-                    <label className="flex items-center justify-between rounded-md border border-[#cfc8ba] bg-[#f8f5ee] px-3 py-2.5 text-sm font-semibold text-[#39443d]">
-                      <span>성찬 체크 포함</span>
-                      <input
-                        type="checkbox"
-                        checked={attendanceIncludesCommunion}
-                        onChange={(event) => {
-                          setAttendanceIncludesCommunion(event.target.checked);
-                          if (!event.target.checked) setAttendanceRecords((prev) => prev.map((record) => ({ ...record, communionParticipated: false })));
-                        }}
-                        className="h-5 w-5 accent-[#25352e]"
-                      />
-                    </label>
-                    <TextArea label="메모" value={attendanceMemo} onChange={setAttendanceMemo} rows={3} />
-                    <div className="grid grid-cols-2 gap-3">
-                      <MiniCount label="출석" value={attendanceCount} />
-                      <MiniCount label="성찬" value={communionCount} />
-                    </div>
-                    <button type="button" onClick={handleSaveAttendance} disabled={isSaving || storageMode !== 'supabase'} className={shell.button + ' w-full'}>
-                      <CheckSquare size={16} />
-                      {isSaving ? '저장 중...' : '출석 저장'}
-                    </button>
-                    {attendance?.updatedAt && <p className="text-xs text-[#667264]">마지막 저장: {new Date(attendance.updatedAt).toLocaleString('ko-KR')}</p>}
-                  </div>
-                </div>
-                <div className={shell.panel + ' p-5'}>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold">주일 출석 및 성찬 체크</h2>
-                      <p className="mt-1 text-sm text-[#667264]">성도 명부의 활성 성도 기준으로 체크합니다.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setAttendanceRecords((prev) => prev.map((record) => ({ ...record, attended: true })))} className={shell.ghostButton}>
-                        전체 출석
-                      </button>
-                      <button type="button" onClick={() => setAttendanceRecords((prev) => prev.map((record) => ({ ...record, attended: false, communionParticipated: false })))} className={shell.ghostButton}>
-                        전체 해제
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-4 overflow-hidden rounded-lg border border-[#d8d1c4]">
-                    <div className={`grid ${attendanceIncludesCommunion ? 'grid-cols-[1.3fr,78px,78px,1fr]' : 'grid-cols-[1.3fr,78px,1fr]'} bg-[#f8f5ee] px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#667264]`}>
-                      <span>성도</span>
-                      <span>출석</span>
-                      {attendanceIncludesCommunion && <span>성찬</span>}
-                      <span>메모</span>
-                    </div>
-                    {filteredAttendanceRecords.length === 0 ? (
-                      <p className="p-8 text-center text-sm text-[#667264]">체크할 활성 성도가 없습니다.</p>
-                    ) : (
-                      filteredAttendanceRecords.map((record) => (
-                        <div key={record.memberId} className={`grid ${attendanceIncludesCommunion ? 'grid-cols-[1.3fr,78px,78px,1fr]' : 'grid-cols-[1.3fr,78px,1fr]'} items-center gap-3 border-t border-[#e5ded1] px-4 py-3 text-sm`}>
-                          <div>
-                            <p className="font-semibold">{record.memberName}</p>
-                            <p className="mt-1 text-xs text-[#667264]">{record.attended ? '출석' : '미체크'}{record.communionParticipated ? ' · 성찬' : ''}</p>
-                          </div>
-                          <IconToggle active={record.attended} label={`${record.memberName} 출석 체크`} onClick={() => toggleAttendance(record.memberId, 'attended')} icon={<CheckSquare size={18} />} />
-                          {attendanceIncludesCommunion && <IconToggle active={record.communionParticipated} label={`${record.memberName} 성찬 체크`} onClick={() => toggleAttendance(record.memberId, 'communionParticipated')} icon={<ShieldCheck size={18} />} accent />}
-                          <input value={record.note || ''} onChange={(event) => setAttendanceRecords((prev) => prev.map((row) => (row.memberId === record.memberId ? { ...row, note: event.target.value } : row)))} className={shell.input} placeholder="메모" />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </section>
+              <AttendanceTab
+                attendance={attendance}
+                date={attendanceDate}
+                setDate={setAttendanceDate}
+                serviceType={attendanceServiceType}
+                setServiceType={setAttendanceServiceType}
+                includesCommunion={attendanceIncludesCommunion}
+                setIncludesCommunion={setAttendanceIncludesCommunion}
+                memo={attendanceMemo}
+                setMemo={setAttendanceMemo}
+                records={filteredAttendanceRecords}
+                allRecords={attendanceRecords}
+                setRecords={setAttendanceRecords}
+                attendanceCount={attendanceCount}
+                communionCount={communionCount}
+                showAbsencesOnly={showAbsencesOnly}
+                setShowAbsencesOnly={setShowAbsencesOnly}
+                expandedNotes={expandedAttendanceNotes}
+                setExpandedNotes={setExpandedAttendanceNotes}
+                isSaving={isSaving}
+                onToggle={toggleAttendance}
+                onSave={handleSaveAttendance}
+                disabled={storageMode !== 'supabase'}
+              />
             )}
 
             {activeTab === 'visitation' && (
-              <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
-                <div className={shell.panel + ' p-5'}>
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">심방/상담 기록</h2>
-                    <button type="button" onClick={() => openLogForm()} className={shell.button}>
-                      <Plus size={16} /> 새 기록
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-2">{filteredLogs.length === 0 ? <EmptyState>심방/상담 기록이 없습니다.</EmptyState> : filteredLogs.map((log) => <LogListButton key={log.id} log={log} active={selectedLog?.id === log.id} onClick={() => { setSelectedLogId(log.id); setIsLogFormOpen(false); setDecryptedLog(null); }} />)}</div>
-                </div>
-                <LogDetailPanel
-                  isOpen={isLogFormOpen}
-                  isSaving={isSaving}
-                  members={members}
-                  form={logForm}
-                  setForm={setLogForm}
-                  selectedLog={selectedLog}
-                  isDetailLoading={isDetailLoading}
-                  onSubmit={handleLogSubmit}
-                  onClose={() => setIsLogFormOpen(false)}
-                  onNew={() => openLogForm()}
-                  onMemberSelect={handleMemberSelectForLog}
-                />
-              </section>
+              <VisitationTab
+                logs={filteredLogs}
+                selectedLog={selectedLog}
+                selectedLogId={selectedLogId}
+                setSelectedLogId={setSelectedLogId}
+                clearDecrypted={() => setDecryptedLog(null)}
+                isFormOpen={isLogFormOpen}
+                isSaving={isSaving}
+                members={members}
+                form={logForm}
+                setForm={setLogForm}
+                rawAiMemo={rawAiMemo}
+                setRawAiMemo={setRawAiMemo}
+                aiSuggestion={aiSuggestion}
+                isAiDrafting={isAiDrafting}
+                isDetailLoading={isDetailLoading}
+                onAiDraft={handleGenerateAiDraft}
+                onSubmit={handleLogSubmit}
+                onCloseForm={() => {
+                  setIsLogFormOpen(false);
+                  setRawAiMemo('');
+                  setAiSuggestion('');
+                }}
+                onNew={() => openLogForm(selectedMember || undefined)}
+                onMemberSelect={handleMemberSelectForLog}
+              />
             )}
 
             {activeTab === 'legacy' && (
-              <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
-                <div className={shell.panel + ' p-5'}>
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">기존 RAAH 기록</h2>
-                    <button type="button" onClick={() => setIsLegacyFormOpen(true)} className={shell.button}>
-                      <Plus size={16} /> 기존 양식 기록
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {filteredLegacyNotes.length === 0 ? (
-                      <EmptyState>기존 기록이 없습니다.</EmptyState>
-                    ) : (
-                      filteredLegacyNotes.map((note) => (
-                        <button key={note.id} type="button" onClick={() => { setSelectedLegacyNoteId(note.id); setIsLegacyFormOpen(false); setDecryptedLegacyNote(null); }} className={`w-full rounded-lg border px-4 py-3 text-left transition ${selectedLegacyNote?.id === note.id ? 'border-[#25352e] bg-[#25352e] text-white' : 'border-[#d8d1c4] bg-[#f8f5ee] hover:bg-[#fffdf8]'}`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="font-semibold">{note.memberName}</p>
-                              <p className={`mt-1 text-xs ${selectedLegacyNote?.id === note.id ? 'text-white/70' : 'text-[#667264]'}`}>{formatDisplayDate(note.date)} · {note.meetingType}</p>
-                            </div>
-                            {note.isEncrypted && <Lock size={16} />}
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <LegacyPanel
-                  isOpen={isLegacyFormOpen}
-                  isSaving={isSaving}
-                  form={legacyForm}
-                  setForm={setLegacyForm}
-                  selectedNote={selectedLegacyNote}
-                  onSubmit={handleLegacySubmit}
-                  onClose={() => setIsLegacyFormOpen(false)}
-                />
-              </section>
+              <LegacyTab
+                notes={filteredLegacyNotes}
+                selectedNote={selectedLegacyNote}
+                selectedNoteId={selectedLegacyNoteId}
+                setSelectedNoteId={setSelectedLegacyNoteId}
+                clearDecrypted={() => setDecryptedLegacyNote(null)}
+                isFormOpen={isLegacyFormOpen}
+                isSaving={isSaving}
+                form={legacyForm}
+                setForm={setLegacyForm}
+                onSubmit={handleLegacySubmit}
+                onCloseForm={() => setIsLegacyFormOpen(false)}
+                onNew={() => setIsLegacyFormOpen(true)}
+              />
             )}
           </div>
         </main>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#d8d1c4] bg-[#fffdf8]/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(32,39,33,0.08)] backdrop-blur lg:hidden">
+        <div className="grid grid-cols-5 gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab.id);
+                setSearchTerm('');
+                setDecryptedLog(null);
+                setDecryptedLegacyNote(null);
+              }}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-semibold transition ${
+                activeTab === tab.id ? 'bg-[#25352e] text-white' : 'text-[#596850]'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function DashboardTab({
+  isLoading,
+  summary,
+  members,
+  logs,
+  attendanceCount,
+  communionCount,
+  pendingFollowUps,
+  onOpenAttendance,
+  onOpenLog,
+  onNewLog,
+}: {
+  isLoading: boolean;
+  summary: RaahDashboardSummary;
+  members: RaahMember[];
+  logs: RaahVisitationLog[];
+  attendanceCount: number;
+  communionCount: number;
+  pendingFollowUps: RaahVisitationLog[];
+  onOpenAttendance: () => void;
+  onOpenLog: (logId: string) => void;
+  onNewLog: () => void;
+}) {
+  return (
+    <section className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-4">
+        <FocusCard label="활성 성도" value={summary.activeMemberCount || members.filter((member) => member.status === 'active').length} icon={<Users size={20} />} />
+        <FocusCard label="오늘 출석 체크" value={attendanceCount} helper={`성찬 ${communionCount}`} icon={<CheckSquare size={20} />} />
+        <FocusCard label="이번 주 기록" value={summary.thisWeekLogCount} icon={<ClipboardList size={20} />} />
+        <FocusCard label="암호화 기록" value={summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length} icon={<Lock size={20} />} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
+        <div className={shell.panel + ' p-5'}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">오늘 할 일</h2>
+              <p className="mt-1 text-sm text-[#667264]">출석과 후속 목양을 먼저 처리합니다.</p>
+            </div>
+            <button type="button" onClick={onNewLog} className={shell.button}>
+              <Plus size={16} />
+              기록
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={onOpenAttendance} className="rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-4 text-left transition hover:bg-[#fffdf8]">
+              <p className="text-sm font-semibold text-[#202721]">주일 출석 체크</p>
+              <p className="mt-2 text-sm text-[#667264]">출석 {attendanceCount}명 · 성찬 {communionCount}명</p>
+            </button>
+            <div className="rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-4">
+              <p className="text-sm font-semibold text-[#202721]">후속 확인</p>
+              <p className="mt-2 text-sm text-[#667264]">{pendingFollowUps.length ? `${pendingFollowUps.length}건의 다음 단계가 있습니다.` : '남은 다음 단계가 없습니다.'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className={shell.panel + ' p-5'}>
+          <h2 className="text-lg font-semibold">최근 심방/상담</h2>
+          <div className="mt-4 space-y-2">
+            {isLoading ? <EmptyState>RAAH 데이터를 불러오는 중입니다.</EmptyState> : logs.length === 0 ? <EmptyState>아직 심방/상담 기록이 없습니다.</EmptyState> : logs.slice(0, 5).map((log) => <LogRow key={log.id} log={log} active={false} onClick={() => onOpenLog(log.id)} />)}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MembersTab({
+  members,
+  selectedMember,
+  selectedMemberLogs,
+  selectedMemberAttendance,
+  onSelectMember,
+  onEditMember,
+  onNewMember,
+  onNewLog,
+  isFormOpen,
+  isSaving,
+  editing,
+  form,
+  setForm,
+  onSubmit,
+  onCloseForm,
+}: {
+  members: RaahMember[];
+  selectedMember: RaahMember | null;
+  selectedMemberLogs: RaahVisitationLog[];
+  selectedMemberAttendance: RaahAttendanceRecord | null | undefined;
+  onSelectMember: (id: string) => void;
+  onEditMember: (member?: RaahMember) => void;
+  onNewMember: () => void;
+  onNewLog: (member: RaahMember) => void;
+  isFormOpen: boolean;
+  isSaving: boolean;
+  editing: boolean;
+  form: RaahMemberInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahMemberInput>>;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCloseForm: () => void;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr),minmax(360px,0.7fr)]">
+      <div className={shell.panel + ' p-4'}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">성도 명부</h2>
+          <button type="button" onClick={onNewMember} className={shell.button}>
+            <Plus size={16} />
+            등록
+          </button>
+        </div>
+        <div className="mt-4 space-y-2">
+          {members.length === 0 ? (
+            <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState>
+          ) : (
+            members.map((member) => (
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => onSelectMember(member.id)}
+                className={`w-full rounded-lg border px-4 py-3 text-left transition ${
+                  selectedMember?.id === member.id ? 'border-[#25352e] bg-[#25352e] text-white' : 'border-[#d8d1c4] bg-[#f8f5ee] hover:bg-[#fffdf8]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{member.name}</p>
+                    <p className={`mt-1 text-xs ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>
+                      {[member.position, member.district, member.phone].filter(Boolean).join(' · ') || '기본 정보 미입력'}
+                    </p>
+                  </div>
+                  <span className={selectedMember?.id === member.id ? 'text-xs text-white/70' : shell.badge}>{member.status === 'active' ? '활성' : '비활성'}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {isFormOpen ? (
+          <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} />
+        ) : selectedMember ? (
+          <MemberHub member={selectedMember} logs={selectedMemberLogs} attendance={selectedMemberAttendance} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} />
+        ) : (
+          <div className={shell.panel + ' p-5'}>
+            <EmptyState>성도를 선택하거나 새로 등록해 주세요.</EmptyState>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MemberHub({
+  member,
+  logs,
+  attendance,
+  onEdit,
+  onNewLog,
+}: {
+  member: RaahMember;
+  logs: RaahVisitationLog[];
+  attendance?: RaahAttendanceRecord | null;
+  onEdit: () => void;
+  onNewLog: () => void;
+}) {
+  return (
+    <div className={shell.panel + ' p-5'}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#667264]">성도 허브</p>
+          <h2 className="mt-2 text-2xl font-semibold">{member.name}</h2>
+          <p className="mt-1 text-sm text-[#667264]">{[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}</p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={onNewLog} className={shell.button}>
+            <Plus size={16} />
+            기록
+          </button>
+          <button type="button" onClick={onEdit} className={shell.ghostButton}>
+            수정
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <MiniCount label="심방/상담" value={logs.length} />
+        <MiniCount label="오늘 출석" value={attendance?.attended ? 1 : 0} />
+        <MiniCount label="성찬" value={attendance?.communionParticipated ? 1 : 0} />
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <DetailBlock label="연락처" value={member.phone || '-'} />
+        <DetailBlock label="주소" value={member.address || '-'} />
+        <DetailBlock label="공개 메모" value={member.publicNote || '-'} />
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold text-[#202721]">최근 기록</h3>
+        <div className="mt-3 space-y-2">
+          {logs.length === 0 ? <EmptyState>이 성도의 심방/상담 기록이 없습니다.</EmptyState> : logs.slice(0, 4).map((log) => <CompactLog key={log.id} log={log} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AttendanceTab({
+  attendance,
+  date,
+  setDate,
+  serviceType,
+  setServiceType,
+  includesCommunion,
+  setIncludesCommunion,
+  memo,
+  setMemo,
+  records,
+  allRecords,
+  setRecords,
+  attendanceCount,
+  communionCount,
+  showAbsencesOnly,
+  setShowAbsencesOnly,
+  expandedNotes,
+  setExpandedNotes,
+  isSaving,
+  disabled,
+  onToggle,
+  onSave,
+}: {
+  attendance: RaahAttendanceEvent | null;
+  date: string;
+  setDate: (value: string) => void;
+  serviceType: string;
+  setServiceType: (value: string) => void;
+  includesCommunion: boolean;
+  setIncludesCommunion: (value: boolean) => void;
+  memo: string;
+  setMemo: (value: string) => void;
+  records: RaahAttendanceRecord[];
+  allRecords: RaahAttendanceRecord[];
+  setRecords: React.Dispatch<React.SetStateAction<RaahAttendanceRecord[]>>;
+  attendanceCount: number;
+  communionCount: number;
+  showAbsencesOnly: boolean;
+  setShowAbsencesOnly: (value: boolean) => void;
+  expandedNotes: boolean;
+  setExpandedNotes: (value: boolean) => void;
+  isSaving: boolean;
+  disabled: boolean;
+  onToggle: (memberId: string, field: 'attended' | 'communionParticipated') => void;
+  onSave: () => void;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[320px,minmax(0,1fr)]">
+      <div className={shell.panel + ' p-5'}>
+        <h2 className="text-lg font-semibold">출석 설정</h2>
+        <div className="mt-4 space-y-4">
+          <TextInput label="날짜" type="date" value={date} onChange={setDate} />
+          <TextInput label="예배 유형" value={serviceType} onChange={setServiceType} placeholder="주일예배" />
+          <label className="flex items-center justify-between rounded-md border border-[#cfc8ba] bg-[#f8f5ee] px-3 py-2.5 text-sm font-semibold text-[#39443d]">
+            <span>성찬 체크 포함</span>
+            <input
+              type="checkbox"
+              checked={includesCommunion}
+              onChange={(event) => {
+                setIncludesCommunion(event.target.checked);
+                if (!event.target.checked) setRecords((prev) => prev.map((record) => ({ ...record, communionParticipated: false })));
+              }}
+              className="h-5 w-5 accent-[#25352e]"
+            />
+          </label>
+          <TextArea label="예배 메모" value={memo} onChange={setMemo} rows={3} />
+          <div className="grid grid-cols-2 gap-3">
+            <MiniCount label="출석" value={attendanceCount} />
+            <MiniCount label="성찬" value={communionCount} />
+          </div>
+          <button type="button" onClick={onSave} disabled={isSaving || disabled} className={shell.button + ' w-full'}>
+            <CheckSquare size={16} />
+            {isSaving ? '저장 중...' : '출석 저장'}
+          </button>
+          {attendance?.updatedAt && <p className="text-xs text-[#667264]">저장됨 · {new Date(attendance.updatedAt).toLocaleString('ko-KR')}</p>}
+        </div>
+      </div>
+
+      <div className={shell.panel + ' p-5'}>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">주일 출석 및 성찬 체크</h2>
+            <p className="mt-1 text-sm text-[#667264]">큰 버튼으로 빠르게 체크하고, 메모는 필요할 때만 펼칩니다.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setRecords((prev) => prev.map((record) => ({ ...record, attended: true })))} className={shell.ghostButton}>전체 출석</button>
+            <button type="button" onClick={() => setRecords((prev) => prev.map((record) => ({ ...record, communionParticipated: includesCommunion ? record.attended : false })))} className={shell.ghostButton}>성찬 전체</button>
+            <button type="button" onClick={() => setRecords((prev) => prev.map((record) => ({ ...record, attended: false, communionParticipated: false })))} className={shell.ghostButton}>전체 해제</button>
+            <button type="button" onClick={() => setShowAbsencesOnly(!showAbsencesOnly)} className={showAbsencesOnly ? shell.button : shell.ghostButton}>미출석만</button>
+            <button type="button" onClick={() => setExpandedNotes(!expandedNotes)} className={expandedNotes ? shell.button : shell.ghostButton}>메모</button>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {records.length === 0 ? (
+            <EmptyState>{allRecords.length === 0 ? '체크할 활성 성도가 없습니다.' : '조건에 맞는 성도가 없습니다.'}</EmptyState>
+          ) : (
+            records.map((record) => (
+              <div key={record.memberId} className="rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-3">
+                <div className="grid grid-cols-[minmax(0,1fr),72px,72px] items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{record.memberName}</p>
+                    <p className="mt-1 text-xs text-[#667264]">{record.attended ? '출석' : '미출석'}{record.communionParticipated ? ' · 성찬' : ''}</p>
+                  </div>
+                  <BigToggle active={record.attended} label={`${record.memberName} 출석`} onClick={() => onToggle(record.memberId, 'attended')} text="출석" />
+                  <BigToggle disabled={!includesCommunion} active={record.communionParticipated} label={`${record.memberName} 성찬`} onClick={() => onToggle(record.memberId, 'communionParticipated')} text="성찬" accent />
+                </div>
+                {expandedNotes && (
+                  <input
+                    value={record.note || ''}
+                    onChange={(event) => setRecords((prev) => prev.map((row) => (row.memberId === record.memberId ? { ...row, note: event.target.value } : row)))}
+                    className={`${shell.input} mt-3`}
+                    placeholder="메모"
+                  />
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function VisitationTab({
+  logs,
+  selectedLog,
+  selectedLogId,
+  setSelectedLogId,
+  clearDecrypted,
+  isFormOpen,
+  isSaving,
+  members,
+  form,
+  setForm,
+  rawAiMemo,
+  setRawAiMemo,
+  aiSuggestion,
+  isAiDrafting,
+  isDetailLoading,
+  onAiDraft,
+  onSubmit,
+  onCloseForm,
+  onNew,
+  onMemberSelect,
+}: {
+  logs: RaahVisitationLog[];
+  selectedLog: RaahVisitationLog | null;
+  selectedLogId: string | null;
+  setSelectedLogId: (id: string) => void;
+  clearDecrypted: () => void;
+  isFormOpen: boolean;
+  isSaving: boolean;
+  members: RaahMember[];
+  form: RaahVisitationLogInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
+  rawAiMemo: string;
+  setRawAiMemo: (value: string) => void;
+  aiSuggestion: string;
+  isAiDrafting: boolean;
+  isDetailLoading: boolean;
+  onAiDraft: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCloseForm: () => void;
+  onNew: () => void;
+  onMemberSelect: (memberId: string) => void;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
+      <div className={shell.panel + ' p-5'}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">심방/상담 기록</h2>
+          <button type="button" onClick={onNew} className={shell.button}>
+            <Plus size={16} />
+            새 기록
+          </button>
+        </div>
+        <div className="mt-4 space-y-2">
+          {logs.length === 0 ? (
+            <EmptyState>심방/상담 기록이 없습니다.</EmptyState>
+          ) : (
+            logs.map((log) => (
+              <LogRow
+                key={log.id}
+                log={log}
+                active={selectedLogId === log.id}
+                onClick={() => {
+                  setSelectedLogId(log.id);
+                  clearDecrypted();
+                }}
+              />
+            ))
+          )}
+        </div>
+      </div>
+      <LogPanel
+        isOpen={isFormOpen}
+        isSaving={isSaving}
+        members={members}
+        form={form}
+        setForm={setForm}
+        rawAiMemo={rawAiMemo}
+        setRawAiMemo={setRawAiMemo}
+        aiSuggestion={aiSuggestion}
+        isAiDrafting={isAiDrafting}
+        selectedLog={selectedLog}
+        isDetailLoading={isDetailLoading}
+        onAiDraft={onAiDraft}
+        onSubmit={onSubmit}
+        onClose={onCloseForm}
+        onNew={onNew}
+        onMemberSelect={onMemberSelect}
+      />
+    </section>
+  );
+}
+
+function LegacyTab({
+  notes,
+  selectedNote,
+  selectedNoteId,
+  setSelectedNoteId,
+  clearDecrypted,
+  isFormOpen,
+  isSaving,
+  form,
+  setForm,
+  onSubmit,
+  onCloseForm,
+  onNew,
+}: {
+  notes: PastoralNote[];
+  selectedNote: PastoralNote | null;
+  selectedNoteId: string | null;
+  setSelectedNoteId: (id: string) => void;
+  clearDecrypted: () => void;
+  isFormOpen: boolean;
+  isSaving: boolean;
+  form: PastoralNoteInput;
+  setForm: React.Dispatch<React.SetStateAction<PastoralNoteInput>>;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCloseForm: () => void;
+  onNew: () => void;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
+      <div className={shell.panel + ' p-5'}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">기존 RAAH 기록</h2>
+          <button type="button" onClick={onNew} className={shell.button}>
+            <Plus size={16} />
+            이전 양식
+          </button>
+        </div>
+        <div className="mt-4 space-y-2">
+          {notes.length === 0 ? (
+            <EmptyState>기존 기록이 없습니다.</EmptyState>
+          ) : (
+            notes.map((note) => (
+              <button
+                key={note.id}
+                type="button"
+                onClick={() => {
+                  setSelectedNoteId(note.id);
+                  clearDecrypted();
+                }}
+                className={`w-full rounded-lg border px-4 py-3 text-left transition ${selectedNoteId === note.id ? 'border-[#25352e] bg-[#25352e] text-white' : 'border-[#d8d1c4] bg-[#f8f5ee] hover:bg-[#fffdf8]'}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{note.memberName}</p>
+                    <p className={`mt-1 text-xs ${selectedNoteId === note.id ? 'text-white/70' : 'text-[#667264]'}`}>{formatDisplayDate(note.date)} · {note.meetingType}</p>
+                  </div>
+                  {note.isEncrypted && <Lock size={16} />}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+      <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} />
+    </section>
+  );
+}
+
+function FocusCard({ label, value, helper, icon }: { label: string; value: number; helper?: string; icon: React.ReactNode }) {
+  return (
+    <div className={shell.panel + ' p-4'}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#667264]">{label}</p>
+        <span className="text-[#718069]">{icon}</span>
+      </div>
+      <p className="mt-3 text-3xl font-semibold">{value}</p>
+      {helper && <p className="mt-1 text-xs text-[#667264]">{helper}</p>}
     </div>
   );
 }
@@ -906,41 +1327,60 @@ function MiniCount({ label, value }: { label: string; value: number }) {
   );
 }
 
-function IconToggle({ active, label, onClick, icon, accent }: { active: boolean; label: string; onClick: () => void; icon: React.ReactNode; accent?: boolean }) {
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-lg border border-dashed border-[#cfc8ba] bg-[#f8f5ee] p-8 text-center text-sm text-[#667264]">{children}</p>;
+}
+
+function TextInput({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex h-10 w-10 items-center justify-center rounded-md border transition ${
-        active ? (accent ? 'border-[#718069] bg-[#e7eadf] text-[#25352e]' : 'border-[#25352e] bg-[#25352e] text-white') : 'border-[#cfc8ba] bg-[#fffdf8] text-[#718069] hover:bg-[#f0ece2]'
-      }`}
-      aria-label={label}
-    >
-      {icon}
-    </button>
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={shell.input} />
+    </label>
   );
 }
 
-function ResponsiveTable({ headers, rows, empty }: { headers: string[]; rows: Array<{ id: string; cells: string[]; onClick: () => void }>; empty: string }) {
+function TextArea({ label, value, onChange, rows = 4, locked }: { label: string; value: string; onChange: (value: string) => void; rows?: number; locked?: boolean }) {
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border border-[#d8d1c4]">
-      <div className="hidden grid-cols-4 bg-[#f8f5ee] px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#667264] md:grid">
-        {headers.map((header) => <span key={header}>{header}</span>)}
+    <label className="block">
+      <span className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">
+        {locked && <Lock size={13} />}
+        {label}
+      </span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={rows} className={`${shell.input} leading-6`} />
+    </label>
+  );
+}
+
+function DetailBlock({ label, value, locked }: { label: string; value?: string; locked?: boolean }) {
+  return (
+    <div className={shell.mutedPanel + ' p-4'}>
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#667264]">
+        {locked && <Lock size={13} />}
+        {label}
       </div>
-      {rows.length === 0 ? (
-        <p className="p-8 text-center text-sm text-[#667264]">{empty}</p>
-      ) : (
-        rows.map((row) => (
-          <button key={row.id} type="button" onClick={row.onClick} className="grid w-full gap-2 border-t border-[#e5ded1] px-4 py-3 text-left text-sm transition hover:bg-[#f8f5ee] md:grid-cols-4">
-            {row.cells.map((cell, index) => <span key={`${row.id}-${index}`} className={index === 0 ? 'font-semibold text-[#202721]' : 'text-[#4e5a51]'}>{cell}</span>)}
-          </button>
-        ))
-      )}
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#2f3731]">{value?.trim() ? value : '-'}</p>
     </div>
   );
 }
 
-function LogListButton({ log, active, onClick }: { log: RaahVisitationLog; active: boolean; onClick: () => void }) {
+function BigToggle({ active, label, onClick, text, accent, disabled }: { active: boolean; label: string; onClick: () => void; text: string; accent?: boolean; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-h-12 rounded-md border px-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        active ? (accent ? 'border-[#718069] bg-[#e7eadf] text-[#25352e]' : 'border-[#25352e] bg-[#25352e] text-white') : 'border-[#cfc8ba] bg-[#fffdf8] text-[#596850] hover:bg-[#f0ece2]'
+      }`}
+      aria-label={label}
+    >
+      {text}
+    </button>
+  );
+}
+
+function LogRow({ log, active, onClick }: { log: RaahVisitationLog; active: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={`w-full rounded-lg border px-4 py-3 text-left transition ${active ? 'border-[#25352e] bg-[#25352e] text-white' : 'border-[#d8d1c4] bg-[#f8f5ee] hover:bg-[#fffdf8]'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -962,8 +1402,19 @@ function LogListButton({ log, active, onClick }: { log: RaahVisitationLog; activ
   );
 }
 
-function MemberFormPanel({
-  isOpen,
+function CompactLog({ log }: { log: RaahVisitationLog }) {
+  return (
+    <div className="rounded-md border border-[#d8d1c4] bg-[#f8f5ee] px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold">{log.logType}</span>
+        <span className="text-xs text-[#667264]">{formatDisplayDate(log.date)}</span>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[#4e5a51]">{log.publicSummary || '공개 요약 없음'}</p>
+    </div>
+  );
+}
+
+function MemberForm({
   isSaving,
   editing,
   form,
@@ -971,7 +1422,6 @@ function MemberFormPanel({
   onSubmit,
   onClose,
 }: {
-  isOpen: boolean;
   isSaving: boolean;
   editing: boolean;
   form: RaahMemberInput;
@@ -981,48 +1431,49 @@ function MemberFormPanel({
 }) {
   return (
     <div className={shell.panel + ' p-5'}>
-      <h2 className="text-lg font-semibold">{isOpen ? (editing ? '성도 정보 수정' : '성도 등록') : '성도 입력'}</h2>
-      {isOpen ? (
-        <form onSubmit={onSubmit} className="mt-4 space-y-4">
-          <TextInput label="이름" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextInput label="생년월일" type="date" value={form.birthDate || ''} onChange={(value) => setForm((prev) => ({ ...prev, birthDate: value }))} />
-            <TextInput label="등록일" type="date" value={form.registeredAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, registeredAt: value }))} />
-          </div>
-          <TextInput label="연락처" value={form.phone || ''} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} />
-          <TextInput label="주소" value={form.address || ''} onChange={(value) => setForm((prev) => ({ ...prev, address: value }))} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextInput label="직분" value={form.position || ''} onChange={(value) => setForm((prev) => ({ ...prev, position: value }))} />
-            <TextInput label="구역" value={form.district || ''} onChange={(value) => setForm((prev) => ({ ...prev, district: value }))} />
-          </div>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">상태</span>
-            <select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as RaahMemberInput['status'] }))} className={shell.input}>
-              <option value="active">활성</option>
-              <option value="inactive">비활성</option>
-            </select>
-          </label>
-          <TextArea label="공개 메모" value={form.publicNote || ''} onChange={(value) => setForm((prev) => ({ ...prev, publicNote: value }))} rows={3} />
-          <div className="flex gap-2">
-            <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : '저장'}</button>
-            <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
-          </div>
-        </form>
-      ) : (
-        <p className="mt-4 rounded-lg border border-dashed border-[#cfc8ba] bg-[#f8f5ee] p-5 text-sm leading-6 text-[#667264]">성도를 선택하거나 새로 등록해 주세요. 내밀한 목양 기록은 심방/상담 기록에 암호화해 저장합니다.</p>
-      )}
+      <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
+      <form onSubmit={onSubmit} className="mt-4 space-y-4">
+        <TextInput label="이름" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextInput label="생년월일" type="date" value={form.birthDate || ''} onChange={(value) => setForm((prev) => ({ ...prev, birthDate: value }))} />
+          <TextInput label="등록일" type="date" value={form.registeredAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, registeredAt: value }))} />
+        </div>
+        <TextInput label="연락처" value={form.phone || ''} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} />
+        <TextInput label="주소" value={form.address || ''} onChange={(value) => setForm((prev) => ({ ...prev, address: value }))} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextInput label="직분" value={form.position || ''} onChange={(value) => setForm((prev) => ({ ...prev, position: value }))} />
+          <TextInput label="구역" value={form.district || ''} onChange={(value) => setForm((prev) => ({ ...prev, district: value }))} />
+        </div>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">상태</span>
+          <select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as RaahMemberInput['status'] }))} className={shell.input}>
+            <option value="active">활성</option>
+            <option value="inactive">비활성</option>
+          </select>
+        </label>
+        <TextArea label="공개 메모" value={form.publicNote || ''} onChange={(value) => setForm((prev) => ({ ...prev, publicNote: value }))} rows={3} />
+        <div className="flex gap-2">
+          <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : '저장'}</button>
+          <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
+        </div>
+      </form>
     </div>
   );
 }
 
-function LogDetailPanel({
+function LogPanel({
   isOpen,
   isSaving,
   members,
   form,
   setForm,
+  rawAiMemo,
+  setRawAiMemo,
+  aiSuggestion,
+  isAiDrafting,
   selectedLog,
   isDetailLoading,
+  onAiDraft,
   onSubmit,
   onClose,
   onNew,
@@ -1033,8 +1484,13 @@ function LogDetailPanel({
   members: RaahMember[];
   form: RaahVisitationLogInput;
   setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
+  rawAiMemo: string;
+  setRawAiMemo: (value: string) => void;
+  aiSuggestion: string;
+  isAiDrafting: boolean;
   selectedLog: RaahVisitationLog | null;
   isDetailLoading: boolean;
+  onAiDraft: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
   onNew: () => void;
@@ -1048,7 +1504,35 @@ function LogDetailPanel({
       </div>
       {isOpen ? (
         <form onSubmit={onSubmit} className="mt-4 space-y-4">
-          <div className={shell.mutedPanel + ' px-4 py-3 text-sm leading-6 text-[#4e5a51]'}>보안 저장이 켜져 있습니다. 민감 본문은 서버에서 암호화합니다.</div>
+          <div className={shell.mutedPanel + ' px-4 py-3 text-sm leading-6 text-[#4e5a51]'}>
+            <span className={shell.badge}><Lock size={12} />보안 저장</span>
+            <p className="mt-2">민감 본문은 서버에서 암호화해 저장합니다.</p>
+          </div>
+          <div className="rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[#202721]">긴 메모 AI 정리</p>
+                <p className="mt-1 text-xs leading-5 text-[#667264]">상담 후 남긴 긴 메모를 붙여넣으면 아래 기록 칸으로 나눠 초안을 만듭니다.</p>
+              </div>
+              <button type="button" onClick={onAiDraft} disabled={isAiDrafting || rawAiMemo.trim().length < 10} className={shell.button + ' shrink-0'}>
+                <Sparkles size={16} />
+                {isAiDrafting ? '정리 중...' : 'AI로 정리'}
+              </button>
+            </div>
+            <textarea
+              value={rawAiMemo}
+              onChange={(event) => setRawAiMemo(event.target.value)}
+              rows={5}
+              className={`${shell.input} mt-3 leading-6`}
+              placeholder="정리되지 않은 긴 메모를 여기에 붙여넣으세요. AI 결과는 바로 저장되지 않고, 아래 칸에 초안으로만 채워집니다."
+            />
+            {aiSuggestion && (
+              <div className="mt-3 rounded-md border border-[#cfc8ba] bg-[#fffdf8] p-3 text-sm leading-6 text-[#39443d]">
+                <span className={shell.badge}><Sparkles size={12} />AI 후속 제안</span>
+                <p className="mt-2 whitespace-pre-wrap">{aiSuggestion}</p>
+              </div>
+            )}
+          </div>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#667264]">성도 선택</span>
             <select value={form.memberId || ''} onChange={(event) => onMemberSelect(event.target.value)} className={shell.input}>
