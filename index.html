@@ -7,36 +7,72 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="함께 지어져가는 교회" />
+    <meta name="theme-color" content="#c5a059" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48-v7.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-icon-192-v7.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-icon-512-v7.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon-v7.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v7.png" />
-    <link rel="manifest" href="/site.webmanifest" />
+    <link id="app-svg-icon" rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link id="app-icon-48" rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48-v7.png" />
+    <link id="app-icon-192" rel="icon" type="image/png" sizes="192x192" href="/pwa-icon-192-v7.png" />
+    <link id="app-icon-512" rel="icon" type="image/png" sizes="512x512" href="/pwa-icon-512-v7.png" />
+    <link id="app-apple-icon" rel="apple-touch-icon" href="/apple-touch-icon-v7.png" />
+    <link id="app-apple-icon-sized" rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v7.png" />
+    <link id="app-manifest" rel="manifest" href="/site.webmanifest" />
     <title>함께 지어져가는 교회</title>
     <script>
       (() => {
         const path = window.location.pathname;
+        const hostname = window.location.hostname;
         const isNextGeneration =
           path === '/next' ||
           path.startsWith('/next/') ||
           path === '/next-generation' ||
           path.startsWith('/next-generation/');
+        const isRaah = hostname === 'raah.builttogether.church' || path === '/raah' || path.startsWith('/raah/');
+
         const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-        const manifest = document.querySelector('link[rel="manifest"]');
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        const manifest = document.getElementById('app-manifest');
+        const svgIcon = document.getElementById('app-svg-icon');
+        const icon48 = document.getElementById('app-icon-48');
+        const icon192 = document.getElementById('app-icon-192');
+        const icon512 = document.getElementById('app-icon-512');
+        const appleIcon = document.getElementById('app-apple-icon');
+        const appleIconSized = document.getElementById('app-apple-icon-sized');
 
-        if (appleTitle) {
-          appleTitle.setAttribute('content', isNextGeneration ? '한우리 다음세대' : '함께 지어져가는 교회');
-        }
-
-        if (manifest) {
-          manifest.setAttribute('href', isNextGeneration ? '/next.webmanifest' : '/site.webmanifest');
-        }
+        const applyAppMeta = ({ title, manifestHref, svgHref, icon48Href, icon192Href, icon512Href, appleHref, theme }) => {
+          document.title = title;
+          if (appleTitle) appleTitle.setAttribute('content', title);
+          if (themeColor) themeColor.setAttribute('content', theme);
+          if (manifest) manifest.setAttribute('href', manifestHref);
+          if (svgIcon) svgIcon.setAttribute('href', svgHref);
+          if (icon48) icon48.setAttribute('href', icon48Href);
+          if (icon192) icon192.setAttribute('href', icon192Href);
+          if (icon512) icon512.setAttribute('href', icon512Href);
+          if (appleIcon) appleIcon.setAttribute('href', appleHref);
+          if (appleIconSized) appleIconSized.setAttribute('href', appleHref);
+        };
 
         if (isNextGeneration) {
-          document.title = '한우리 다음세대';
+          applyAppMeta({
+            title: '한우리 다음세대',
+            manifestHref: '/next.webmanifest',
+            svgHref: '/next-generation-favicon.svg',
+            icon48Href: '/next-generation-icon-48.png',
+            icon192Href: '/next-generation-icon-192.png',
+            icon512Href: '/next-generation-icon-512.png',
+            appleHref: '/next-generation-apple-touch-icon.png',
+            theme: '#16a34a',
+          });
+        } else if (isRaah) {
+          applyAppMeta({
+            title: 'RAAH',
+            manifestHref: hostname === 'raah.builttogether.church' ? '/raah.webmanifest' : '/raah-path.webmanifest',
+            svgHref: '/raah-favicon.svg',
+            icon48Href: '/raah-icon-48.png',
+            icon192Href: '/raah-icon-192.png',
+            icon512Href: '/raah-icon-512.png',
+            appleHref: '/raah-apple-touch-icon.png',
+            theme: '#25352e',
+          });
         }
       })();
     </script>
