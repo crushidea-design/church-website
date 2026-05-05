@@ -48,6 +48,10 @@ export function sortNotesByDate<T extends { date: string; createdAt?: unknown }>
 function getTimestampMillis(value: unknown) {
   if (!value) return 0;
   if (value instanceof Date) return value.getTime();
+  if (typeof value === 'string') {
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
   if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate: () => Date }).toDate === 'function') {
     return (value as { toDate: () => Date }).toDate().getTime();
   }

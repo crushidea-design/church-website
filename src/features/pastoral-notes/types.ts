@@ -10,31 +10,33 @@ export const PASTORAL_MEETING_TYPES = [
 ] as const;
 
 export type PastoralMeetingType = typeof PASTORAL_MEETING_TYPES[number];
+export type PastoralNoteSource = 'supabase' | 'firestore';
 
-export interface PastoralNote {
+export interface PastoralNoteSensitiveFields {
+  currentSituation: string;
+  encouragement: string;
+  prayerTopics: string;
+  nextFollowUpDate?: string;
+  remarks?: string;
+}
+
+export interface PastoralNote extends Partial<PastoralNoteSensitiveFields> {
   id: string;
   memberName: string;
   memberSearchName: string;
   date: string;
   meetingType: PastoralMeetingType | string;
-  currentSituation: string;
-  encouragement: string;
-  prayerTopics: string;
-  nextFollowUpDate?: string;
-  remarks?: string;
-  createdAt?: Timestamp | Date;
-  updatedAt?: Timestamp | Date;
+  createdAt?: Timestamp | Date | string;
+  updatedAt?: Timestamp | Date | string;
   createdByUid: string;
   createdByName: string;
+  isEncrypted?: boolean;
+  encryptionVersion?: number;
+  source?: PastoralNoteSource;
 }
 
-export interface PastoralNoteInput {
+export interface PastoralNoteInput extends PastoralNoteSensitiveFields {
   memberName: string;
   date: string;
   meetingType: PastoralMeetingType | string;
-  currentSituation: string;
-  encouragement: string;
-  prayerTopics: string;
-  nextFollowUpDate?: string;
-  remarks?: string;
 }

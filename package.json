@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "raah:migrate:dry-run": "node scripts/migrate-raah-notes-to-supabase.mjs",
+    "raah:migrate:sql": "node scripts/migrate-raah-notes-to-supabase.mjs --sql",
+    "raah:migrate": "node scripts/migrate-raah-notes-to-supabase.mjs --apply"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

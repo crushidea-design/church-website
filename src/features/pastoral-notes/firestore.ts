@@ -17,6 +17,8 @@ export function subscribePastoralNotes(
     (snapshot) => {
       const notes = snapshot.docs.map((noteDoc) => ({
         id: noteDoc.id,
+        source: 'firestore' as const,
+        isEncrypted: false,
         ...(noteDoc.data() as Omit<PastoralNote, 'id'>),
       }));
 

@@ -53,6 +53,11 @@ function CmsSlugRedirect() {
   return <Navigate to={matched.targetPath} replace />;
 }
 
+function isRaahSubdomain() {
+  if (typeof window === 'undefined') return false;
+  return window.location.hostname === 'raah.builttogether.church';
+}
+
 export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = React.useState(
     localStorage.getItem('firestore_quota_exceeded') === 'true'
@@ -80,42 +85,48 @@ export default function App() {
       <AuthProvider>
         <SiteCmsProvider>
           <BrowserRouter>
-            <Routes>
-              <Route path="/next/*" element={<NextGeneration />} />
-              <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Home />} />
-                <Route path="login" element={<Login />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="intro" element={<Introduction />} />
-                <Route path="archive" element={<ArchiveLayout />}>
-                  <Route index element={<Navigate to="today" replace />} />
-                  <Route path="today" element={<TodayWord />} />
-                  <Route path="sermons" element={<Sermons />} />
-                  <Route path="research" element={<ResearchLab />} />
+            {isRaahSubdomain() ? (
+              <Routes>
+                <Route path="*" element={<AdminPastoralNotes />} />
+              </Routes>
+            ) : (
+              <Routes>
+                <Route path="/next/*" element={<NextGeneration />} />
+                <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Home />} />
+                  <Route path="login" element={<Login />} />
+                  <Route path="profile" element={<Profile />} />
+                  <Route path="intro" element={<Introduction />} />
+                  <Route path="archive" element={<ArchiveLayout />}>
+                    <Route index element={<Navigate to="today" replace />} />
+                    <Route path="today" element={<TodayWord />} />
+                    <Route path="sermons" element={<Sermons />} />
+                    <Route path="research" element={<ResearchLab />} />
+                  </Route>
+                  <Route path="community" element={<Community />} />
+                  <Route path="prayer-room" element={<PrayerRoom />} />
+                  <Route path="post/:id" element={<PostDetail />} />
+                  <Route path="edit-post/:id" element={<EditPost />} />
+                  <Route path="create-post" element={<CreatePost />} />
+                  <Route path="admin/users" element={<AdminUsers />} />
+                  <Route path="admin/contacts" element={<AdminContacts />} />
+                  <Route path="admin/site-cms" element={<AdminSiteCms />} />
+                  <Route path="admin/sermon-categories" element={<Navigate to="/admin/site-cms" replace />} />
+                  <Route path="admin/research-categories" element={<Navigate to="/admin/site-cms" replace />} />
+                  <Route path="admin/church-info" element={<AdminChurchInfo />} />
+                  <Route path="admin/activity-logs" element={<Navigate to="/admin/site-cms" replace />} />
+                  <Route path="admin/notifications" element={<AdminNotifications />} />
+                  <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
+                  <Route path="raah" element={<AdminPastoralNotes />} />
+                  <Route path="admin" element={<AdminDashboard />} />
+                  <Route path="journal" element={<Journal />} />
+                  <Route path="contact" element={<Contact />} />
+                  <Route path="privacy" element={<PrivacyPolicy />} />
+                  <Route path=":cmsSlug" element={<CmsSlugRedirect />} />
                 </Route>
-                <Route path="community" element={<Community />} />
-                <Route path="prayer-room" element={<PrayerRoom />} />
-                <Route path="post/:id" element={<PostDetail />} />
-                <Route path="edit-post/:id" element={<EditPost />} />
-                <Route path="create-post" element={<CreatePost />} />
-                <Route path="admin/users" element={<AdminUsers />} />
-                <Route path="admin/contacts" element={<AdminContacts />} />
-                <Route path="admin/site-cms" element={<AdminSiteCms />} />
-                <Route path="admin/sermon-categories" element={<Navigate to="/admin/site-cms" replace />} />
-                <Route path="admin/research-categories" element={<Navigate to="/admin/site-cms" replace />} />
-                <Route path="admin/church-info" element={<AdminChurchInfo />} />
-                <Route path="admin/activity-logs" element={<Navigate to="/admin/site-cms" replace />} />
-                <Route path="admin/notifications" element={<AdminNotifications />} />
-                <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
-                <Route path="raah" element={<AdminPastoralNotes />} />
-                <Route path="admin" element={<AdminDashboard />} />
-                <Route path="journal" element={<Journal />} />
-                <Route path="contact" element={<Contact />} />
-                <Route path="privacy" element={<PrivacyPolicy />} />
-                <Route path=":cmsSlug" element={<CmsSlugRedirect />} />
-              </Route>
-            </Routes>
+              </Routes>
+            )}
           </BrowserRouter>
         </SiteCmsProvider>
       </AuthProvider>
