@@ -27,6 +27,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import PrayerRoom from './pages/PrayerRoom';
 import NextGeneration from './pages/NextGeneration';
 import WordFruitPrintView from './features/word-fruit/WordFruitPrintView';
+import WordFruitTreePreview from './features/word-fruit/WordFruitTreePreview';
 
 import Login from './pages/Login';
 import Profile from './pages/Profile';
@@ -95,6 +96,7 @@ export default function App() {
                 <Route path="/next/*" element={<NextGeneration />} />
                 <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
                 <Route path="/print/word-fruit/:weekId" element={<WordFruitPrintView />} />
+                <Route path="/preview/word-fruit-tree" element={<WordFruitTreePreview />} />
                 <Route path="/" element={<Layout />}>
                   <Route index element={<Home />} />
                   <Route path="login" element={<Login />} />

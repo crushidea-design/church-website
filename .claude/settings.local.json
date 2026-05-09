@@ -10,7 +10,8 @@
       "Bash(npx tsc *)",
       "Bash(npm run *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(firebase firestore:rules:get)"
     ]
   }
 }
