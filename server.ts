@@ -413,6 +413,318 @@ async function startServer() {
     }
   });
 
+  // ─── 다음세대 말씀 열매 체크 (Asia/Seoul 기준 서버 검증) ─────────────
+  app.post('/api/word-fruit/check', async (req, res) => {
+    if (!admin.apps.length) {
+      return res.status(500).json({ error: 'Firebase Admin not initialized' });
+    }
+    const decoded = await verifyRequestUser(req).catch(() => null);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const weekId = typeof req.body?.weekId === 'string' ? req.body.weekId.trim() : '';
+    if (!weekId) {
+      return res.status(400).json({ error: 'weekId required' });
+    }
+
+    const dayName = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      weekday: 'short',
+    }).format(new Date());
+    const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(dayName);
+    if (dow === 0) {
+      return res
+        .status(400)
+        .json({ error: 'CHECK_NOT_ALLOWED_SUNDAY', message: '주일은 새 말씀 열매를 받는 날이에요.' });
+    }
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+
+    const fruitStageOf = (count: number) => (count <= 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : 3);
+    const docId = `${weekId}__${decoded.uid}`;
+    const db = getAppDb();
+    const ref = db.collection('next_generation_word_fruit_progress').doc(docId);
+
+    try {
+      const result = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error('PROGRESS_NOT_FOUND');
+        const data = snap.data() as any;
+        if (data.userId !== decoded.uid) throw new Error('FORBIDDEN');
+        const dates: string[] = Array.isArray(data.checkedDates) ? data.checkedDates : [];
+        if (dates.includes(today)) throw new Error('ALREADY_CHECKED_TODAY');
+        const nextCount = (data.checkCount ?? 0) + 1;
+        const nextDates = [...dates, today];
+        tx.update(ref, {
+          checkCount: nextCount,
+          checkedDates: nextDates,
+          fruitStage: fruitStageOf(nextCount),
+          completed: nextCount >= 3,
+          lastCheckedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return { count: nextCount, dates: nextDates, childName: data.childName ?? '' };
+      });
+
+      // Fire-and-forget parent notification
+      (async () => {
+        try {
+          const parentSnap = await db
+            .collection('next_generation_members')
+            .where('department', '==', '학부모')
+            .where('role', '==', 'member')
+            .where('childIds', 'array-contains', decoded.uid)
+            .get();
+          const parentUids: string[] = [];
+          parentSnap.forEach((d) => {
+            const data = d.data() as any;
+            if (typeof data?.uid === 'string') parentUids.push(data.uid);
+          });
+          if (parentUids.length === 0) return;
+          const completed = result.count >= 3;
+          const name = result.childName || '자녀';
+          const body = completed
+            ? `${name} — 이번 주 말씀 열매가 모두 익었어요! 🎉`
+            : `${name} — 오늘도 작은 순종을 실천했어요. (${Math.min(result.count, 3)}/3)`;
+
+          // In-app
+          for (let i = 0; i < parentUids.length; i += 500) {
+            const batch = db.batch();
+            parentUids.slice(i, i + 500).forEach((uid) => {
+              batch.set(db.collection('next_generation_notifications').doc(), {
+                uid,
+                type: 'announcement',
+                message: body,
+                createdAt: FieldValue.serverTimestamp(),
+                isRead: false,
+              });
+            });
+            await batch.commit();
+          }
+
+          // FCM
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 30);
+          const tokenSet = new Set<string>();
+          for (let i = 0; i < parentUids.length; i += 30) {
+            const chunk = parentUids.slice(i, i + 30);
+            const snap = await db
+              .collection('fcm_tokens')
+              .where('userId', 'in', chunk)
+              .where('updatedAt', '>=', cutoff)
+              .get();
+            snap.forEach((d) => {
+              const t = d.data().token;
+              if (typeof t === 'string') tokenSet.add(t);
+            });
+          }
+          const tokens = Array.from(tokenSet);
+          if (tokens.length > 0) {
+            const baseMessage: any = {
+              notification: { title: '자녀 말씀 열매', body },
+              data: { url: '/next/elementary?highlight=word-fruit', appScope: 'next' },
+              webpush: {
+                notification: {
+                  icon: '/pwa-icon-192-v7.png',
+                  badge: '/favicon-48x48-v7.png',
+                  vibrate: [100, 50, 100],
+                },
+                fcm_options: { link: '/next/elementary?highlight=word-fruit' },
+              },
+            };
+            await admin.messaging().sendEachForMulticast({ ...baseMessage, tokens });
+          }
+        } catch (err) {
+          console.error('notifyLinkedParents failed:', err);
+        }
+      })();
+
+      res.json({ success: true, count: result.count, dates: result.dates });
+    } catch (e: any) {
+      const code = String(e?.message ?? e);
+      if (code === 'PROGRESS_NOT_FOUND') {
+        return res
+          .status(404)
+          .json({ error: code, message: '이번 주 작은 순종이 등록되지 않았어요.' });
+      }
+      if (code === 'FORBIDDEN') return res.status(403).json({ error: code });
+      if (code === 'ALREADY_CHECKED_TODAY') {
+        return res.status(409).json({ error: code, message: '오늘은 이미 열매를 돌보았어요.' });
+      }
+      console.error('word-fruit-check failed:', e);
+      res.status(500).json({ error: 'INTERNAL', message: '체크 중 오류가 발생했습니다.' });
+    }
+  });
+
+  // ─── 다음세대 말씀 열매: AI 카드 생성 (서버 측, 키 보호) ────────────
+  app.post('/api/word-fruit/generate-cards', async (req, res) => {
+    if (!admin.apps.length) {
+      return res.status(500).json({ error: 'Firebase Admin not initialized' });
+    }
+    const decoded = await verifyRequestUser(req).catch(() => null);
+    if (!decoded) return res.status(401).json({ error: 'Authentication required' });
+
+    const isPastor = await (async () => {
+      if (decoded.email === ADMIN_EMAIL) return true;
+      const snap = await getAppDb().collection('next_generation_members').doc(decoded.uid).get();
+      if (!snap.exists) return false;
+      const data = snap.data() as any;
+      return data?.role === 'member' && data?.isNextGenerationAdmin === true;
+    })();
+    if (!isPastor) return res.status(403).json({ error: 'Pastor permission required' });
+
+    const manuscript = typeof req.body?.manuscript === 'string' ? req.body.manuscript.trim() : '';
+    if (manuscript.length < 30) {
+      return res
+        .status(400)
+        .json({ error: 'MANUSCRIPT_TOO_SHORT', message: '강의원고가 너무 짧습니다.' });
+    }
+    if (manuscript.length > 60_000) {
+      return res
+        .status(400)
+        .json({ error: 'MANUSCRIPT_TOO_LONG', message: '강의원고가 너무 깁니다.' });
+    }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res
+        .status(500)
+        .json({ error: 'AI_KEY_MISSING', message: 'AI 키가 서버에 설정되지 않았습니다.' });
+    }
+
+    const PROMPT = `다음은 유초등부 주일 강의원고입니다. 이 원고를 바탕으로 “이번 주 말씀 열매” 기능에 사용할 3개의 실천 카드를 만들어 주세요.\n\n대상: 초등학교 유초등부 아이들\n신학 방향: 실천을 아이의 공로나 점수로 표현하지 말고, 하나님께서 말씀으로 우리 삶에 열매를 맺게 하신다는 관점으로 작성\n문체: 짧고 따뜻하게, 아이들이 이해할 수 있는 말로 작성\n분량: 각 카드의 요약은 1-2문장, 질문 1개, 기도문 1문장\n반드시 다음 3단계로 작성:\n1회차: 말씀을 기억해요\n2회차: 마음을 돌아보아요\n3회차: 하나님께 감사해요\n\n오로지 다음 JSON 스키마만 출력하세요. JSON 외의 다른 텍스트는 절대 출력하지 마세요.\n{\n  "recommendedPractices": ["string"],\n  "fruitName": "string",\n  "memoryVerse": "string",\n  "cards": [\n    { "order": 1, "title": "말씀을 기억해요", "summary": "string", "question": "string", "prayer": "string" },\n    { "order": 2, "title": "마음을 돌아보아요", "summary": "string", "question": "string", "prayer": "string" },\n    { "order": 3, "title": "하나님께 감사해요", "summary": "string", "question": "string", "prayer": "string" }\n  ]\n}\n\n강의원고:\n`;
+
+    try {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: PROMPT + manuscript,
+        config: { responseMimeType: 'application/json' },
+      });
+      const text = (response as any).text ?? '';
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        const m = text.match(/\{[\s\S]*\}/);
+        if (!m) throw new Error('JSON parse failed');
+        parsed = JSON.parse(m[0]);
+      }
+      res.json({ success: true, data: parsed });
+    } catch (err: any) {
+      console.error('generate-cards error:', err);
+      res.status(500).json({ error: 'AI_FAILED', message: err?.message || String(err) });
+    }
+  });
+
+  // ─── 다음세대 말씀 열매 게시 알림 (인앱 + FCM) ────────────────────
+  const ensureNextGenerationPastor = async (uid: string, email: string | undefined) => {
+    if (email === ADMIN_EMAIL) return true;
+    const snap = await getAppDb().collection('next_generation_members').doc(uid).get();
+    if (!snap.exists) return false;
+    const data = snap.data() as any;
+    return data?.role === 'member' && data?.isNextGenerationAdmin === true;
+  };
+
+  app.post('/api/word-fruit/notify-publish', async (req, res) => {
+    if (!admin.apps.length) {
+      return res.status(500).json({ error: 'Firebase Admin not initialized' });
+    }
+    const decoded = await verifyRequestUser(req).catch(() => null);
+    if (!decoded) return res.status(401).json({ error: 'Authentication required' });
+    if (!(await ensureNextGenerationPastor(decoded.uid, decoded.email))) {
+      return res.status(403).json({ error: 'Pastor permission required' });
+    }
+    const weekId = typeof req.body?.weekId === 'string' ? req.body.weekId.trim() : '';
+    if (!weekId) return res.status(400).json({ error: 'weekId required' });
+
+    const db = getAppDb();
+    const fruitSnap = await db.collection('next_generation_word_fruits').doc(weekId).get();
+    if (!fruitSnap.exists) return res.status(404).json({ error: 'FRUIT_NOT_FOUND' });
+    const fruit: any = fruitSnap.data();
+    if (fruit.status !== 'published') {
+      return res
+        .status(400)
+        .json({ error: 'NOT_PUBLISHED', message: '게시 후 알림을 보낼 수 있습니다.' });
+    }
+
+    const memberIds = new Set<string>();
+    for (const department of ['학생', '학부모', '교사']) {
+      const snap = await db
+        .collection('next_generation_members')
+        .where('department', '==', department)
+        .where('role', '==', 'member')
+        .get();
+      snap.forEach((d) => {
+        const data = d.data() as any;
+        if (data?.uid) memberIds.add(data.uid);
+      });
+    }
+    const targets = Array.from(memberIds);
+    const messageBody = `${fruit.title || ''} — 한 주 동안 작은 순종을 함께 실천해 보아요.`;
+
+    // In-app
+    if (targets.length > 0) {
+      for (let i = 0; i < targets.length; i += 500) {
+        const batch = db.batch();
+        targets.slice(i, i + 500).forEach((uid) => {
+          batch.set(db.collection('next_generation_notifications').doc(), {
+            uid,
+            type: 'announcement',
+            message: messageBody,
+            createdAt: FieldValue.serverTimestamp(),
+            isRead: false,
+          });
+        });
+        await batch.commit();
+      }
+    }
+
+    // FCM
+    const tokenSet = new Set<string>();
+    if (targets.length > 0) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      for (let i = 0; i < targets.length; i += 30) {
+        const chunk = targets.slice(i, i + 30);
+        const snap = await db
+          .collection('fcm_tokens')
+          .where('userId', 'in', chunk)
+          .where('updatedAt', '>=', cutoff)
+          .get();
+        snap.forEach((d) => {
+          const t = d.data().token;
+          if (typeof t === 'string') tokenSet.add(t);
+        });
+      }
+    }
+    const tokens = Array.from(tokenSet);
+    let result: any = { successCount: 0, failureCount: 0 };
+    if (tokens.length > 0) {
+      const baseMessage: any = {
+        notification: { title: '이번 주 말씀 열매', body: messageBody },
+        data: { url: '/next/elementary?highlight=word-fruit', appScope: 'next' },
+        webpush: {
+          notification: {
+            icon: '/pwa-icon-192-v7.png',
+            badge: '/favicon-48x48-v7.png',
+            vibrate: [100, 50, 100],
+          },
+          fcm_options: { link: '/next/elementary?highlight=word-fruit' },
+        },
+      };
+      result = await admin
+        .messaging()
+        .sendEachForMulticast({ ...baseMessage, tokens });
+    }
+
+    res.json({ success: true, inAppCount: targets.length, fcmTokenCount: tokens.length, ...result });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "raah:migrate:dry-run": "node scripts/migrate-raah-notes-to-supabase.mjs",
     "raah:migrate:sql": "node scripts/migrate-raah-notes-to-supabase.mjs --sql",
     "raah:migrate": "node scripts/migrate-raah-notes-to-supabase.mjs --apply"
@@ -48,6 +50,7 @@
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^4.1.5"
   }
 }
