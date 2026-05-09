@@ -1742,7 +1742,8 @@ function ResourceLibraryPage({
 
       <section className="bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-8 flex gap-2 overflow-x-auto pb-2">
+          <div className="relative mb-8">
+            <div className="flex gap-1.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2">
             {visibleTabs.map((tab) => {
               const isActive = tab.id === activeTab.id;
               const isTabLocked = isGuest && !!guestTabId && tab.id !== guestTabId;
@@ -1763,7 +1764,7 @@ function ResourceLibraryPage({
                     setSearchParams(next, { replace: true });
                   }}
                   title={isTabLocked ? '로그인 후 이용할 수 있습니다' : undefined}
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-3 text-sm font-black transition ${
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black transition sm:gap-2 sm:px-4 sm:py-3 sm:text-sm ${
                     isActive
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : isTabLocked
@@ -1771,11 +1772,15 @@ function ResourceLibraryPage({
                       : 'bg-sky-50 text-emerald-950 hover:bg-sky-100'
                   }`}
                 >
-                  {isTabLocked ? <Lock size={16} /> : <Icon size={18} />}
+                  {isTabLocked ? <Lock size={14} className="sm:hidden" /> : <Icon size={14} className="sm:hidden" />}
+                  {isTabLocked ? <Lock size={16} className="hidden sm:block" /> : <Icon size={18} className="hidden sm:block" />}
                   {tab.name}
                 </button>
               );
             })}
+            </div>
+            {/* 모바일에서 오른쪽 끝 스크롤 힌트 그라데이션 */}
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-white to-transparent sm:hidden" />
           </div>
 
           {accessNotice && (

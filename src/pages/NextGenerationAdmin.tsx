@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
 import BibleReadingChart from './BibleReadingChart';
+import WordFruitSettings from '../features/word-fruit/WordFruitSettings';
 
 type QADepartment = 'elementary' | 'young-adults';
 
@@ -52,7 +53,7 @@ interface ContactItem {
   isRead: boolean;
 }
 
-type AdminTab = 'members' | 'bibleReading' | 'qa' | 'contacts' | 'notifications' | 'migration';
+type AdminTab = 'members' | 'bibleReading' | 'qa' | 'contacts' | 'notifications' | 'migration' | 'wordFruit';
 
 interface MigrationRow {
   postId: string;
@@ -694,6 +695,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
             { key: 'bibleReading', label: '성경 읽기', badge: 0 },
             { key: 'qa', label: 'Q&A', badge: unansweredQA },
             { key: 'contacts', label: '문의', badge: unreadContacts },
+            { key: 'wordFruit', label: '말씀 열매', badge: 0 },
             { key: 'migration', label: '자료 이전', badge: 0 },
           ] as const).map(t => (
             <button
@@ -1095,6 +1097,20 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
             </div>
             );
           })()}
+
+          {/* WORD FRUIT TAB */}
+          {tab === 'wordFruit' && (
+            <div>
+              <div className="flex items-start gap-3 rounded-lg bg-emerald-50 border border-emerald-200 p-4 mb-4">
+                <BookOpen size={20} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-emerald-800 space-y-1">
+                  <p className="font-semibold">유초등부 “이번 주 말씀 열매” 운영 설정</p>
+                  <p>주차마다 바뀌지 않는 회원·구조 설정입니다. 주간 강의 등록은 다음세대 페이지의 “이번 주 말씀 열매 → 관리”에서 진행하세요.</p>
+                </div>
+              </div>
+              <WordFruitSettings />
+            </div>
+          )}
 
           {/* MIGRATION TAB */}
           {tab === 'migration' && (
