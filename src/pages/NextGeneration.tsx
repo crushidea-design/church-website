@@ -40,6 +40,8 @@ import BibleReadingChart from './BibleReadingChart';
 import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
 import { BookOpen, HelpCircle } from 'lucide-react';
+import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
+import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
 import { formatDate, getYouTubeId } from '../lib/utils';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
@@ -1792,9 +1794,19 @@ function ResourceLibraryPage({
               </h2>
               <p className="mt-3 text-base leading-7 text-slate-700">{activeTab.description}</p>
               {isWeeklyTab && (
-                <p className="mt-2 text-sm font-bold text-emerald-700">
-                  기준 주일: {currentWeekKey}
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-bold text-emerald-700">
+                    기준 주일: {currentWeekKey}
+                  </p>
+                  {departmentSlug === 'elementary' && currentWeekKey && (
+                    <Link
+                      to={`${NEXT_GENERATION_PATH}/elementary?highlight=word-fruit&wfWeekId=${fruitWeekIdFromSundayKey(currentWeekKey)}`}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <Sparkles size={12} /> 이번 주 말씀 열매 열기
+                    </Link>
+                  )}
+                </div>
               )}
               {usesTopicFolders && activeTopicId && (
                 <p className="mt-2 text-sm font-bold text-emerald-700">
@@ -3202,6 +3214,13 @@ function NextGenerationInner() {
                 label: '질문 있습니다',
                 summary: '신앙의 질문을 자유롭게 남겨 보세요',
                 content: <NextGenerationQA compact department="elementary" />,
+              },
+              {
+                id: 'word-fruit',
+                icon: <Sparkles size={18} />,
+                label: '이번 주 말씀 열매',
+                summary: '한 주 동안 작은 순종을 실천하며 열매가 익어가요',
+                content: <WordFruitPanel />,
               },
             ];
             return (

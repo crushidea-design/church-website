@@ -424,6 +424,41 @@ service cloud.firestore {
       return isNextGenerationFullMember() || isNextGenerationPastor();
     }
 
+    function ngMemberData() {
+      return get(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)).data;
+    }
+
+    function isNextGenerationTeacher() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+        ngMemberData().role == 'member' &&
+        ngMemberData().department == '교사';
+    }
+
+    /**
+     * Teacher with no groupIds set sees all (legacy behavior). Teacher with
+     * groupIds sees only progress whose groupId matches one of theirs.
+     * Progress without a groupId is treated as common (all teachers).
+     */
+    function teacherCanReadProgress(progressData) {
+      return isNextGenerationTeacher() && (
+        !('groupIds' in ngMemberData()) ||
+        ngMemberData().groupIds.size() == 0 ||
+        !('groupId' in progressData) ||
+        progressData.groupId == '' ||
+        progressData.groupId in ngMemberData().groupIds
+      );
+    }
+
+    function isParentOfNgUser(targetUid) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+        ngMemberData().role == 'member' &&
+        ngMemberData().department == '학부모' &&
+        'childIds' in ngMemberData() &&
+        targetUid in ngMemberData().childIds;
+    }
+
     match /next_generation_members/{memberId} {
       allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
       allow create: if isAuthenticated() && request.auth.uid == memberId &&
@@ -537,6 +572,58 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // ─── 말씀 열매: 교사 담당 그룹 ──────────────────────────────────
+    match /next_generation_word_fruit_groups/{groupId} {
+      // Group catalog is readable by any next-gen authenticated member so
+      // teachers/parents can resolve names. Only pastor manages groups.
+      allow read: if isNextGenerationAccess();
+      allow create, update, delete: if isNextGenerationPastor();
+    }
+
+    // ─── 이번 주 말씀 열매 (유초등부) ─────────────────────────────────
+    match /next_generation_word_fruits/{weekId} {
+      allow read: if (resource.data.status == 'published') || isNextGenerationPastor();
+      allow create, update, delete: if isNextGenerationPastor();
+    }
+
+    match /next_generation_word_fruit_progress/{progressId} {
+      // Owner / pastor / linked parent / teacher (group-scoped if groupIds set)
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isNextGenerationPastor() ||
+        isParentOfNgUser(resource.data.userId) ||
+        teacherCanReadProgress(resource.data)
+      );
+      // Only pastor can create / set practice (and thereby grant access).
+      allow create: if isNextGenerationPastor() &&
+        request.resource.data.keys().hasOnly([
+          'weekId','userId','childName','practice','groupId','checkCount','checkedDates',
+          'fruitStage','completed','lastCheckedAt','createdAt','updatedAt'
+        ]) &&
+        request.resource.data.weekId is string &&
+        request.resource.data.userId is string &&
+        request.resource.data.childName is string && request.resource.data.childName.size() <= 100 &&
+        request.resource.data.practice is string && request.resource.data.practice.size() <= 200 &&
+        request.resource.data.checkCount == 0 &&
+        request.resource.data.checkedDates is list && request.resource.data.checkedDates.size() == 0 &&
+        request.resource.data.fruitStage == 0 &&
+        request.resource.data.completed == false &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.updatedAt is timestamp;
+
+      // Pastor: free-form updates within the schema.
+      // Student check-in goes through the server (Admin SDK bypasses rules);
+      // direct client writes by the student are not allowed.
+      allow update: if isNextGenerationPastor() &&
+        request.resource.data.weekId == resource.data.weekId &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.checkedDates is list &&
+        request.resource.data.checkCount is number &&
+        request.resource.data.checkCount == request.resource.data.checkedDates.size();
+      allow delete: if isNextGenerationPastor();
+    }
+    // ──────────────────────────────────────────────────────────────────
 
     // ──────────────────────────────────────────────────────────────────
 

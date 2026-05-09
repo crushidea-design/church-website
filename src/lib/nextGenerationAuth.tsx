@@ -51,6 +51,12 @@ export interface NextGenerationMember {
   rejectedAt?: Timestamp;
   rejectionReason?: string;
   isNextGenerationAdmin?: boolean;
+  /** Child member uids linked to a parent account ('학부모' department). */
+  childIds?: string[];
+  /** Student's word-fruit group (single). */
+  groupId?: string;
+  /** Groups a teacher is responsible for. */
+  groupIds?: string[];
 }
 
 export interface NextGenerationNotification {
