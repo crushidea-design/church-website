@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Lock, Loader2, Sparkles, BookOpen, AlertCircle, Settings, History, Printer } from 'lucide-react';
+import { Lock, Loader2, Sparkles, BookOpen, AlertCircle, Settings, History } from 'lucide-react';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
   checkInToday,
@@ -168,16 +168,6 @@ export default function WordFruitPanel() {
         >
           <History size={14} /> {showArchive ? '닫기' : '지난주'}
         </button>
-        {fruit && fruit.status === 'published' && (
-          <button
-            type="button"
-            onClick={() => window.open(`/print/word-fruit/${fruit.weekId}`, '_blank')}
-            title="PDF로 저장하거나 인쇄할 수 있어요"
-            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
-          >
-            <Printer size={14} /> PDF / 인쇄
-          </button>
-        )}
         {isPastor && (
           <button
             type="button"
@@ -192,10 +182,9 @@ export default function WordFruitPanel() {
   );
 
   const renderCommonInfo = () => (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       <InfoTile label="이번 주 강의" value={fruit?.title || '준비 중'} />
       <InfoTile label="성경 본문" value={fruit?.passage || '-'} />
-      <InfoTile label="이번 주 열매" value={fruit?.fruitName || '-'} />
     </div>
   );
 

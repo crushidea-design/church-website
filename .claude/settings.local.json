@@ -11,7 +11,8 @@
       "Bash(npm run *)",
       "Bash(echo \"exit: $?\")",
       "Bash(echo \"exit:$?\")",
-      "Bash(firebase firestore:rules:get)"
+      "Bash(firebase firestore:rules:get)",
+      "Bash(npm test *)"
     ]
   }
 }
