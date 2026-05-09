@@ -36,10 +36,10 @@ const FRUIT_TOKENS: Record<FruitStage, Token> = {
 
 /** 단계별로 가지 처짐(=열매 top%)을 미세 조정 */
 const STAGE_TOP: Record<FruitStage, number> = {
-  0: 36,
-  1: 36.5,
-  2: 37,
-  3: 37.5,
+  0: 40,
+  1: 40.5,
+  2: 41,
+  3: 41.5,
 };
 
 /* ===== Sparkle (4-point star) ===== */
@@ -186,7 +186,7 @@ export default function WordFruitTree({ stage, fruitName, className = '' }: Prop
       <div
         className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
         style={{
-          left: '53.5%',
+          left: '54.9%',
           top: `${STAGE_TOP[stage]}%`,
           width: '38%',
           aspectRatio: '1',
