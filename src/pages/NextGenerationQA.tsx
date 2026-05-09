@@ -174,7 +174,9 @@ export default function NextGenerationQA({ department, compact = false }: Props)
   };
 
   return (
-    <div className={compact ? '' : 'mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8'}>
+    <div className={compact
+      ? 'rounded-2xl border border-amber-100 bg-white p-5 shadow-sm sm:p-6'
+      : 'mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8'}>
       {/* Section header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div className="flex items-start gap-4">
