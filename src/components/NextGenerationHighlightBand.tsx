@@ -72,7 +72,7 @@ export default function NextGenerationHighlightBand({
                   {entry.icon}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-base font-black text-emerald-950 sm:text-[15px]">{entry.label}</div>
+                  <div className="truncate text-lg font-black text-emerald-950 sm:text-base">{entry.label}</div>
                   {entry.summary && (
                     <div className="mt-1 truncate text-sm font-medium text-slate-500 sm:text-[13px]">{entry.summary}</div>
                   )}

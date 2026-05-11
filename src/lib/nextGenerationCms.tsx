@@ -114,7 +114,7 @@ export const DEFAULT_NEXT_GENERATION_DEPARTMENTS: NextGenerationDepartment[] = [
     name: '청년부',
     description: '복음 안에서 부르심을 찾고 함께 자라 가는 청년 공동체입니다.',
     image: '/young-adults-pilgrims-progress.png',
-    heroTitle: '복음 안에서 함께 질문하고 함께 걸어갑니다',
+    heroTitle: '복음 안에서 함께 걸어갑니다',
     heroDescription: '천로역정 특강과 수련회 자료를 한곳에서 확인합니다.',
     heroClassName: 'bg-white',
     badgeClassName: 'bg-sky-100 text-emerald-950',
