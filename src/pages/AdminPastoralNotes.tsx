@@ -23,11 +23,8 @@ import { createRaahNote, getRaahNoteDetail, listRaahNotes } from '../features/pa
 import {
   createRaahMember,
   createRaahVisitationLog,
-  getRaahAttendance,
-  getRaahDashboardSummary,
+  getRaahBootstrap,
   getRaahVisitationLogDetail,
-  listRaahMembers,
-  listRaahVisitationLogs,
   RaahAttendanceEvent,
   RaahAttendanceInput,
   RaahAttendanceRecord,
@@ -147,6 +144,8 @@ export default function AdminPastoralNotes() {
   const [logs, setLogs] = React.useState<RaahVisitationLog[]>([]);
   const [attendance, setAttendance] = React.useState<RaahAttendanceEvent | null>(null);
   const [legacyNotes, setLegacyNotes] = React.useState<PastoralNote[]>([]);
+  const [legacyLoaded, setLegacyLoaded] = React.useState(false);
+  const [isLegacyLoading, setIsLegacyLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
@@ -196,12 +195,12 @@ export default function AdminPastoralNotes() {
 
   const loadManagementData = React.useCallback(async () => {
     if (!user) return;
-    const [nextSummary, nextMembers, nextLogs] = await Promise.all([
-      getRaahDashboardSummary(user),
-      listRaahMembers(user),
-      listRaahVisitationLogs(user),
-    ]);
-    const nextAttendance = await getRaahAttendance(attendanceDate, user).catch(() => null);
+    const {
+      summary: nextSummary,
+      members: nextMembers,
+      logs: nextLogs,
+      attendance: nextAttendance,
+    } = await getRaahBootstrap(attendanceDate, user);
     setSummary(nextSummary);
     setMembers(nextMembers);
     setLogs(nextLogs);
@@ -211,15 +210,21 @@ export default function AdminPastoralNotes() {
     setAttendanceMemo(nextAttendance?.memo || '');
     setAttendanceRecords(buildAttendanceRecords(nextMembers, nextAttendance));
     setSelectedMemberId((currentId) => (currentId && nextMembers.some((member) => member.id === currentId) ? currentId : nextMembers[0]?.id ?? null));
-    setSelectedLogId((currentId) => (currentId && nextLogs.some((log) => log.id === currentId) ? currentId : nextLogs[0]?.id ?? null));
+    setSelectedLogId((currentId) => (currentId && nextLogs.some((log) => log.id === currentId) ? currentId : null));
   }, [attendanceDate, buildAttendanceRecords, user]);
 
   const loadLegacyNotes = React.useCallback(async () => {
     if (!user) return [];
-    const nextNotes = sortNotesByDate(await listRaahNotes(user));
-    setLegacyNotes(nextNotes);
-    setSelectedLegacyNoteId((currentId) => (currentId && nextNotes.some((note) => note.id === currentId) ? currentId : nextNotes[0]?.id ?? null));
-    return nextNotes;
+    setIsLegacyLoading(true);
+    try {
+      const nextNotes = sortNotesByDate(await listRaahNotes(user));
+      setLegacyNotes(nextNotes);
+      setSelectedLegacyNoteId((currentId) => (currentId && nextNotes.some((note) => note.id === currentId) ? currentId : null));
+      setLegacyLoaded(true);
+      return nextNotes;
+    } finally {
+      setIsLegacyLoading(false);
+    }
   }, [user]);
 
   React.useEffect(() => {
@@ -236,33 +241,27 @@ export default function AdminPastoralNotes() {
     const start = async () => {
       setIsLoading(true);
       setStorageMode('loading');
-      let loadedLegacyNotes: PastoralNote[] = [];
       try {
-        loadedLegacyNotes = await loadLegacyNotes();
         await loadManagementData();
         if (!cancelled) setStorageMode('supabase');
       } catch (error) {
         const apiError = error as { status?: number; code?: string };
         if (apiError.status === 503 || apiError.status === 404 || apiError.code === 'RAAH_SUPABASE_NOT_CONFIGURED') {
-          if (loadedLegacyNotes.length > 0) {
-            setStorageMode('supabase');
-            toast.info('새 목양 관리 테이블 설정 전입니다. 기존 RAAH 기록은 Supabase에서 계속 표시합니다.');
-          } else {
-            setStorageMode('firestore');
-            toast.info('Supabase 설정 전입니다. 기존 Firestore 호환 모드로 기록을 불러옵니다.');
-            unsubscribe = subscribePastoralNotes(
-              (nextNotes) => {
-                if (cancelled) return;
-                const sorted = sortNotesByDate(nextNotes);
-                setLegacyNotes(sorted);
-                setSelectedLegacyNoteId((currentId) => (currentId && sorted.some((note) => note.id === currentId) ? currentId : sorted[0]?.id ?? null));
-              },
-              (firestoreError) => {
-                console.error('Error loading pastoral notes:', firestoreError);
-                toast.error(getErrorMessage(firestoreError, '기존 RAAH 기록을 불러오지 못했습니다.'));
-              }
-            );
-          }
+          setStorageMode('firestore');
+          setLegacyLoaded(true);
+          toast.info('Supabase 설정 전입니다. 기존 Firestore 호환 모드로 기록을 불러옵니다.');
+          unsubscribe = subscribePastoralNotes(
+            (nextNotes) => {
+              if (cancelled) return;
+              const sorted = sortNotesByDate(nextNotes);
+              setLegacyNotes(sorted);
+              setSelectedLegacyNoteId((currentId) => (currentId && sorted.some((note) => note.id === currentId) ? currentId : null));
+            },
+            (firestoreError) => {
+              console.error('Error loading pastoral notes:', firestoreError);
+              toast.error(getErrorMessage(firestoreError, '기존 RAAH 기록을 불러오지 못했습니다.'));
+            }
+          );
         } else {
           console.error('Error loading RAAH data:', error);
           toast.error(getErrorMessage(error, 'RAAH 데이터를 불러오지 못했습니다.'));
@@ -280,13 +279,20 @@ export default function AdminPastoralNotes() {
       setDecryptedLog(null);
       setDecryptedLegacyNote(null);
     };
-  }, [authLoading, loadLegacyNotes, loadManagementData, role, user]);
+  }, [authLoading, loadManagementData, role, user]);
 
   React.useEffect(() => {
-    setDecryptedLog(null);
+    if (activeTab !== 'legacy' || legacyLoaded || isLegacyLoading || storageMode !== 'supabase') return;
+    loadLegacyNotes().catch((error) => {
+      toast.error(getErrorMessage(error, '기존 RAAH 기록을 불러오지 못했습니다.'));
+    });
+  }, [activeTab, isLegacyLoading, legacyLoaded, loadLegacyNotes, storageMode]);
+
+  React.useEffect(() => {
     if (!selectedLogId || !user || storageMode !== 'supabase') return;
 
     let cancelled = false;
+    setDecryptedLog(null);
     setIsDetailLoading(true);
     getRaahVisitationLogDetail(selectedLogId, user)
       .then((log) => {
@@ -306,10 +312,10 @@ export default function AdminPastoralNotes() {
   }, [selectedLogId, storageMode, user]);
 
   React.useEffect(() => {
-    setDecryptedLegacyNote(null);
     if (!selectedLegacyNoteId || !user || storageMode !== 'supabase') return;
 
     let cancelled = false;
+    setDecryptedLegacyNote(null);
     getRaahNoteDetail(selectedLegacyNoteId, user)
       .then((note) => {
         if (!cancelled) setDecryptedLegacyNote(note);
@@ -352,13 +358,13 @@ export default function AdminPastoralNotes() {
       return !normalizedSearch || text.includes(normalizedSearch);
     });
   const filteredLegacyNotes = legacyNotes.filter((note) => !normalizedSearch || note.memberSearchName.includes(normalizedSearch));
-  const selectedLog = decryptedLog?.id === selectedLogId ? decryptedLog : logs.find((log) => log.id === selectedLogId) ?? filteredLogs[0] ?? null;
+  const selectedLog = selectedLogId ? (decryptedLog?.id === selectedLogId ? decryptedLog : logs.find((log) => log.id === selectedLogId) ?? null) : null;
   const selectedLegacyNote =
-    decryptedLegacyNote?.id === selectedLegacyNoteId ? decryptedLegacyNote : legacyNotes.find((note) => note.id === selectedLegacyNoteId) ?? filteredLegacyNotes[0] ?? null;
+    selectedLegacyNoteId ? (decryptedLegacyNote?.id === selectedLegacyNoteId ? decryptedLegacyNote : legacyNotes.find((note) => note.id === selectedLegacyNoteId) ?? null) : null;
 
   const refreshSupabase = async () => {
     if (!user || storageMode !== 'supabase') return;
-    await Promise.all([loadManagementData(), loadLegacyNotes()]);
+    await Promise.all([loadManagementData(), legacyLoaded || activeTab === 'legacy' ? loadLegacyNotes() : Promise.resolve([])]);
   };
 
   const openMemberForm = (member?: RaahMember) => {
@@ -773,6 +779,7 @@ export default function AdminPastoralNotes() {
                 selectedNoteId={selectedLegacyNoteId}
                 setSelectedNoteId={setSelectedLegacyNoteId}
                 clearDecrypted={() => setDecryptedLegacyNote(null)}
+                isLoading={isLegacyLoading}
                 isFormOpen={isLegacyFormOpen}
                 isSaving={isSaving}
                 form={legacyForm}
@@ -1243,6 +1250,7 @@ function LegacyTab({
   selectedNoteId,
   setSelectedNoteId,
   clearDecrypted,
+  isLoading,
   isFormOpen,
   isSaving,
   form,
@@ -1256,6 +1264,7 @@ function LegacyTab({
   selectedNoteId: string | null;
   setSelectedNoteId: (id: string) => void;
   clearDecrypted: () => void;
+  isLoading: boolean;
   isFormOpen: boolean;
   isSaving: boolean;
   form: PastoralNoteInput;
@@ -1275,7 +1284,9 @@ function LegacyTab({
           </button>
         </div>
         <div className="mt-4 space-y-2">
-          {notes.length === 0 ? (
+          {isLoading ? (
+            <EmptyState>기존 기록을 불러오는 중입니다.</EmptyState>
+          ) : notes.length === 0 ? (
             <EmptyState>기존 기록이 없습니다.</EmptyState>
           ) : (
             notes.map((note) => (

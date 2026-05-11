@@ -139,6 +139,13 @@ type ApiLog = {
 
 type ApiAttendanceEvent = RaahAttendanceEvent;
 
+type ApiBootstrap = {
+  summary: RaahDashboardSummary;
+  members: ApiMember[];
+  logs: ApiLog[];
+  attendance: ApiAttendanceEvent | null;
+};
+
 async function getAuthHeaders(user: User) {
   const token = await user.getIdToken();
   return {
@@ -191,6 +198,19 @@ export async function getRaahDashboardSummary(user: User) {
   });
   const data = await readJsonResponse<{ summary: RaahDashboardSummary }>(response);
   return data.summary;
+}
+
+export async function getRaahBootstrap(date: string, user: User) {
+  const response = await fetch(`/api/raah/bootstrap?date=${encodeURIComponent(date)}`, {
+    headers: await getAuthHeaders(user),
+  });
+  const data = await readJsonResponse<ApiBootstrap>(response);
+  return {
+    summary: data.summary,
+    members: data.members.map(toMember),
+    logs: data.logs.map(toLog),
+    attendance: data.attendance,
+  };
 }
 
 export async function listRaahMembers(user: User) {

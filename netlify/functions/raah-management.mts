@@ -423,6 +423,103 @@ const handleSummary = async () => {
   });
 };
 
+const loadAttendanceForDate = async (
+  date: string
+): Promise<{ response: Response } | { attendance: ReturnType<typeof rowToAttendance> | null }> => {
+  const eventResult = await supabaseFetch(
+    `raah_attendance_events?select=id,date,service_type,includes_communion,memo,created_at,updated_at&date=eq.${encodeURIComponent(date)}&order=created_at.desc&limit=1`
+  );
+  if (eventResult.response) return { response: eventResult.response };
+
+  const events = (await eventResult.supabaseResponse.json().catch(() => [])) as SupabaseAttendanceEventRow[];
+  if (!eventResult.supabaseResponse.ok) {
+    return { response: noStoreJson({ error: 'Failed to load RAAH attendance event.' }, eventResult.supabaseResponse.status) };
+  }
+  if (!events[0]) return { attendance: null };
+
+  const recordsResult = await supabaseFetch(
+    `raah_attendance_records?select=id,event_id,member_id,member_name,member_search_name,attended,communion_participated,note&event_id=eq.${encodeURIComponent(events[0].id)}&order=member_name.asc`
+  );
+  if (recordsResult.response) return { response: recordsResult.response };
+
+  const records = (await recordsResult.supabaseResponse.json().catch(() => [])) as SupabaseAttendanceRecordRow[];
+  if (!recordsResult.supabaseResponse.ok) {
+    return { response: noStoreJson({ error: 'Failed to load RAAH attendance records.' }, recordsResult.supabaseResponse.status) };
+  }
+
+  return { attendance: rowToAttendance(events[0], records) };
+};
+
+const buildSummary = (
+  members: SupabaseMemberRow[],
+  logs: SupabaseLogRow[],
+  attendanceRecords: Array<{
+    attended?: boolean;
+    communion_participated?: boolean;
+    raah_attendance_events?: { date?: string };
+  }>
+) => {
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+  return {
+    memberCount: members.length,
+    activeMemberCount: members.filter((member) => member.status !== 'inactive').length,
+    logCount: logs.length,
+    encryptedLogCount: logs.filter((log) => log.is_encrypted !== false).length,
+    thisWeekLogCount: logs.filter((log) => log.date && new Date(`${log.date}T00:00:00`) >= weekStart).length,
+    thisWeekAttendanceCount: attendanceRecords.filter(
+      (record) => record.attended && record.raah_attendance_events?.date && new Date(`${record.raah_attendance_events.date}T00:00:00`) >= weekStart
+    ).length,
+    thisWeekCommunionCount: attendanceRecords.filter(
+      (record) => record.communion_participated && record.raah_attendance_events?.date && new Date(`${record.raah_attendance_events.date}T00:00:00`) >= weekStart
+    ).length,
+  };
+};
+
+const handleBootstrap = async (req: Request) => {
+  const date = new URL(req.url).searchParams.get('date') || new Date().toISOString().slice(0, 10);
+  if (!validDate(date)) return noStoreJson({ error: 'Invalid attendance date.' }, 400);
+
+  const [membersResult, logsResult, attendanceResult, attendanceSummaryResult] = await Promise.all([
+    supabaseFetch(
+      'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at&order=name.asc'
+    ),
+    supabaseFetch(
+      'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
+    ),
+    loadAttendanceForDate(date),
+    supabaseFetch('raah_attendance_records?select=attended,communion_participated,raah_attendance_events!inner(date)'),
+  ]);
+
+  if ('response' in membersResult && membersResult.response) return membersResult.response;
+  if ('response' in logsResult && logsResult.response) return logsResult.response;
+  if ('response' in attendanceResult) return attendanceResult.response;
+  if ('response' in attendanceSummaryResult && attendanceSummaryResult.response) return attendanceSummaryResult.response;
+
+  if (!membersResult.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH members.' }, membersResult.supabaseResponse.status);
+  if (!logsResult.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH visitation logs.' }, logsResult.supabaseResponse.status);
+  if (!attendanceSummaryResult.supabaseResponse.ok) {
+    return noStoreJson({ error: 'Failed to load RAAH attendance summary.' }, attendanceSummaryResult.supabaseResponse.status);
+  }
+
+  const members = (await membersResult.supabaseResponse.json().catch(() => [])) as SupabaseMemberRow[];
+  const logs = (await logsResult.supabaseResponse.json().catch(() => [])) as SupabaseLogRow[];
+  const attendanceSummaryRecords = (await attendanceSummaryResult.supabaseResponse.json().catch(() => [])) as Array<{
+    attended?: boolean;
+    communion_participated?: boolean;
+    raah_attendance_events?: { date?: string };
+  }>;
+
+  return noStoreJson({
+    summary: buildSummary(members, logs, attendanceSummaryRecords),
+    members: members.map(rowToMember),
+    logs: logs.map((row) => rowToLog(row)),
+    attendance: attendanceResult.attendance,
+  });
+};
+
 const handleListMembers = async () => {
   const result = await supabaseFetch(
     'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at&order=name.asc'
@@ -580,24 +677,9 @@ const handleGetAttendance = async (req: Request) => {
   const date = new URL(req.url).searchParams.get('date') || new Date().toISOString().slice(0, 10);
   if (!validDate(date)) return noStoreJson({ error: 'Invalid attendance date.' }, 400);
 
-  const eventResult = await supabaseFetch(
-    `raah_attendance_events?select=id,date,service_type,includes_communion,memo,created_at,updated_at&date=eq.${encodeURIComponent(date)}&order=created_at.desc&limit=1`
-  );
-  if (eventResult.response) return eventResult.response;
-
-  const events = (await eventResult.supabaseResponse.json().catch(() => [])) as SupabaseAttendanceEventRow[];
-  if (!eventResult.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH attendance event.' }, eventResult.supabaseResponse.status);
-  if (!events[0]) return noStoreJson({ attendance: null });
-
-  const recordsResult = await supabaseFetch(
-    `raah_attendance_records?select=id,event_id,member_id,member_name,member_search_name,attended,communion_participated,note&event_id=eq.${encodeURIComponent(events[0].id)}&order=member_name.asc`
-  );
-  if (recordsResult.response) return recordsResult.response;
-
-  const records = (await recordsResult.supabaseResponse.json().catch(() => [])) as SupabaseAttendanceRecordRow[];
-  if (!recordsResult.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH attendance records.' }, recordsResult.supabaseResponse.status);
-
-  return noStoreJson({ attendance: rowToAttendance(events[0], records) });
+  const result = await loadAttendanceForDate(date);
+  if ('response' in result) return result.response;
+  return noStoreJson({ attendance: result.attendance });
 };
 
 const handleSaveAttendance = async (req: Request, user: RaahUser) => {
@@ -669,11 +751,14 @@ export default async (req: Request, context: Context) => {
       ? 'visitation-logs'
       : pathname.includes('/members')
         ? 'members'
-        : pathname.includes('/summary')
-          ? 'summary'
-          : '';
+        : pathname.includes('/bootstrap')
+          ? 'bootstrap'
+          : pathname.includes('/summary')
+            ? 'summary'
+            : '';
   const id = context.params?.id;
 
+  if (req.method === 'GET' && route === 'bootstrap') return handleBootstrap(req);
   if (req.method === 'GET' && route === 'summary') return handleSummary();
   if (route === 'attendance' && req.method === 'GET') return handleGetAttendance(req);
   if (route === 'attendance' && req.method === 'POST') return handleSaveAttendance(req, adminCheck.user);
@@ -688,5 +773,5 @@ export default async (req: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ['/api/raah/summary', '/api/raah/members', '/api/raah/members/:id', '/api/raah/visitation-logs', '/api/raah/visitation-logs/:id', '/api/raah/attendance'],
+  path: ['/api/raah/bootstrap', '/api/raah/summary', '/api/raah/members', '/api/raah/members/:id', '/api/raah/visitation-logs', '/api/raah/visitation-logs/:id', '/api/raah/attendance'],
 };
