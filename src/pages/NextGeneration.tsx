@@ -39,7 +39,7 @@ import NextGenerationQA from './NextGenerationQA';
 import BibleReadingChart from './BibleReadingChart';
 import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
-import { BookOpen, HelpCircle } from 'lucide-react';
+import { Apple, BookOpen, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
 import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
 import { formatDate, getYouTubeId } from '../lib/utils';
@@ -1573,7 +1573,7 @@ function ResourceLibraryPage({
   const usesTopicFolders = !isWeeklyTab && (!!activeTab.useTopic || supportsNextGenerationTopic(activeTab.id));
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -1663,10 +1663,12 @@ function ResourceLibraryPage({
   }, [activeTopicId]);
 
   const filteredPosts = useMemo(() => {
-    const byDate = (a: NextGenerationPost, b: NextGenerationPost) =>
-      sortDir === 'desc'
-        ? getPostPrimarySortTime(b) - getPostPrimarySortTime(a)
-        : getPostPrimarySortTime(a) - getPostPrimarySortTime(b);
+    const byName = (a: NextGenerationPost, b: NextGenerationPost) => {
+      const titleA = (a.title || '').trim();
+      const titleB = (b.title || '').trim();
+      const cmp = titleA.localeCompare(titleB, 'ko', { numeric: true, sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    };
 
     if (isWeeklyTab) {
       return weeklyResourceIds.flatMap((resourceId) => {
@@ -1680,10 +1682,10 @@ function ResourceLibraryPage({
     if (usesTopicFolders && activeTopicId) {
       return posts
         .filter((post) => inferNextGenerationTopicId(post) === activeTopicId)
-        .sort(byDate);
+        .sort(byName);
     }
 
-    return [...posts].sort(byDate);
+    return [...posts].sort(byName);
   }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
 
   if (visibleTabs.length === 0) {
@@ -1827,8 +1829,8 @@ function ResourceLibraryPage({
                   onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
                   className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-3 text-sm font-bold text-emerald-950 transition hover:bg-sky-50"
                 >
-                  {sortDir === 'desc' ? <ArrowDown01 size={16} /> : <ArrowUp10 size={16} />}
-                  {sortDir === 'desc' ? '최신순' : '오래된순'}
+                  {sortDir === 'asc' ? <ArrowDown01 size={16} /> : <ArrowUp10 size={16} />}
+                  {sortDir === 'asc' ? '이름 오름차순' : '이름 내림차순'}
                 </button>
               )}
               {isAdmin && (
@@ -2044,7 +2046,7 @@ function YoungAdultsPage() {
       imageAlt="천로역정 특강 청년부 자료"
       badgeClassName="bg-sky-100 text-emerald-950"
       heroClassName="bg-white"
-      title="복음 안에서 함께 질문하고 함께 걸어갑니다"
+      title="복음 안에서 함께 걸어갑니다"
       description="천로역정 특강과 수련회 자료를 한곳에서 확인합니다. 청년들이 말씀 앞에서 질문하고, 공동체 안에서 믿음의 길을 함께 걸어갑니다."
       tabs={youngAdultResourceTabs as any}
       guestTabId="pilgrim_lecture"
@@ -2361,7 +2363,7 @@ function NextGenerationCreatePost() {
       }
 
       if (youtubeUrl.trim()) {
-        postData.videoUrl = youtubeUrl.trim();
+        postData.youtubeUrl = youtubeUrl.trim();
       }
 
       // Security (Option B): Do NOT store download URLs in the public post doc.
@@ -3192,7 +3194,7 @@ function NextGenerationInner() {
                 id: 'qa',
                 icon: <HelpCircle size={18} />,
                 label: '질문 있습니다',
-                summary: '말씀과 신앙의 질문을 자유롭게 남겨 보세요',
+                summary: '신앙의 질문을 자유롭게 남겨 보세요',
                 content: <NextGenerationQA compact department="young-adults" />,
               },
               {
@@ -3222,9 +3224,9 @@ function NextGenerationInner() {
               },
               {
                 id: 'word-fruit',
-                icon: <Sparkles size={18} />,
+                icon: <Apple size={18} />,
                 label: '이번 주 말씀 열매',
-                summary: '한 주 동안 작은 순종을 실천하며 열매가 익어가요',
+                summary: '작은 순종으로 열매가 익어가요',
                 content: <WordFruitPanel />,
               },
             ];
