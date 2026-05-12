@@ -87,11 +87,10 @@ const emptyMemberForm: RaahMemberInput = {
   publicNote: '',
 };
 
-function getNearestSunday() {
+function getLatestSunday() {
   const date = new Date();
   const day = date.getDay();
-  const diff = day === 0 ? 0 : 7 - day;
-  date.setDate(date.getDate() + diff);
+  date.setDate(date.getDate() - day);
   return date.toISOString().slice(0, 10);
 }
 
@@ -177,7 +176,7 @@ export default function AdminPastoralNotes() {
   const [aiSuggestion, setAiSuggestion] = React.useState('');
   const [isAiDrafting, setIsAiDrafting] = React.useState(false);
 
-  const [attendanceDate, setAttendanceDate] = React.useState(getNearestSunday);
+  const [attendanceDate, setAttendanceDate] = React.useState(getLatestSunday);
   const [attendanceServiceType, setAttendanceServiceType] = React.useState('주일예배');
   const [attendanceIncludesCommunion, setAttendanceIncludesCommunion] = React.useState(true);
   const [attendanceMemo, setAttendanceMemo] = React.useState('');
