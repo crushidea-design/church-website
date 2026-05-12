@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
   deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
@@ -6,8 +6,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
-import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS } from '../lib/nextGenerationAuth';
+import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
+import { buildNextGenerationClassDashboard } from '../lib/nextGenerationClassDashboard';
 import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
   Bell, MessageSquare, Mail, Clock, Search, ShieldCheck, RefreshCw,
@@ -53,13 +54,19 @@ interface ContactItem {
   isRead: boolean;
 }
 
-type AdminTab = 'members' | 'bibleReading' | 'qa' | 'contacts' | 'notifications' | 'migration' | 'wordFruit';
+type AdminTab = 'members' | 'classes' | 'bibleReading' | 'qa' | 'contacts' | 'notifications' | 'migration' | 'wordFruit';
 
 interface MigrationRow {
   postId: string;
   title: string;
   status: 'pending' | 'done' | 'skipped' | 'error';
   error?: string;
+}
+
+interface ClassReadingDoc {
+  uid: string;
+  completedBooks?: string[];
+  updatedAt?: Timestamp;
 }
 
 const NEXT_NOTIFICATION_TARGETS = [
@@ -92,14 +99,24 @@ function formatDate(ts: Timestamp | undefined): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function formatActivityDate(millis: number): string {
+  if (!millis) return '-';
+  const d = new Date(millis);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
+  const { member: nextMember, isPastor: isNextGenerationPastor } = useNextGenerationAuth();
   const [tab, setTab] = useState<AdminTab>('members');
   const [members, setMembers] = useState<NextGenerationMember[]>([]);
   const [qaItems, setQaItems] = useState<QAItem[]>([]);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [classReadings, setClassReadings] = useState<ClassReadingDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [classSearch, setClassSearch] = useState('');
+  const [classGroupFilter, setClassGroupFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Reject modal
@@ -193,6 +210,14 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     return () => unsub();
   }, []);
 
+  // Subscribe to student Bible-reading progress for the class dashboard
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'next_generation_bible_reading'), (snap) => {
+      setClassReadings(snap.docs.map(d => ({ uid: d.id, ...d.data() } as ClassReadingDoc)));
+    }, () => setClassReadings([]));
+    return () => unsub();
+  }, []);
+
   // Subscribe to contacts
   useEffect(() => {
     const q = query(collection(db, 'next_generation_contacts'), orderBy('createdAt', 'desc'));
@@ -207,6 +232,33 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const rejectedMembers = members.filter(m => m.role === 'rejected');
   const unreadContacts = contacts.filter(c => !c.isRead).length;
   const unansweredQA = qaItems.filter(q => !q.isAnswered).length;
+  const studentDepartment = NEXT_GENERATION_DEPARTMENTS[3];
+  const teacherGroupIds = !isNextGenerationPastor && nextMember?.groupIds?.length
+    ? nextMember.groupIds
+    : undefined;
+  const classDashboard = useMemo(() => buildNextGenerationClassDashboard({
+    members,
+    readings: classReadings,
+    qaItems,
+    studentDepartment,
+    visibleGroupIds: teacherGroupIds,
+  }), [classReadings, members, qaItems, studentDepartment, teacherGroupIds]);
+  const visibleClassGroups = classDashboard.groups.filter((group) =>
+    classGroupFilter === 'all' ? true : group.groupId === classGroupFilter
+  );
+  const normalizedClassSearch = classSearch.trim().toLowerCase();
+  const filteredClassGroups = visibleClassGroups
+    .map((group) => ({
+      ...group,
+      students: normalizedClassSearch
+        ? group.students.filter((student) =>
+            `${student.displayName ?? ''} ${student.email ?? ''} ${student.church ?? ''} ${student.groupLabel}`
+              .toLowerCase()
+              .includes(normalizedClassSearch)
+          )
+        : group.students,
+    }))
+    .filter((group) => group.students.length > 0);
   const notificationAudienceCount =
     notificationAudience === 'all'
       ? approvedMembers.length
@@ -671,7 +723,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 sm:p-4">
-      <div className="my-3 flex w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl max-h-[calc(100vh-1.5rem)] sm:my-6 sm:max-h-[90vh]">
+      <div className="my-3 flex w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl max-h-[calc(100vh-1.5rem)] sm:my-6 sm:max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex items-center gap-2">
@@ -693,6 +745,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
           {([
             { key: 'members', label: '회원 관리', badge: pendingMembers.length },
             { key: 'bibleReading', label: '성경 읽기', badge: 0 },
+            { key: 'classes', label: '반별 관리', badge: classDashboard.totalUnansweredQuestions },
             { key: 'qa', label: 'Q&A', badge: unansweredQA },
             { key: 'contacts', label: '문의', badge: unreadContacts },
             { key: 'wordFruit', label: '말씀 열매', badge: 0 },
@@ -943,6 +996,126 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                 <div className="text-center py-12 text-gray-400">
                   <Users size={32} className="mx-auto mb-2 opacity-40" />
                   <p className="text-sm">가입 신청이 없습니다.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loading && tab === 'classes' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">교사용 반별 관리 대시보드</p>
+                    <p className="mt-1 text-xs leading-5 text-emerald-800">
+                      승인된 학생을 반별로 묶고 성경읽기, 질문, 미답변 상태를 한눈에 확인합니다.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <div className="rounded-lg bg-white px-3 py-2 text-center shadow-sm">
+                      <p className="font-bold text-slate-400">학생</p>
+                      <p className="mt-1 text-lg font-black text-emerald-900">{classDashboard.totalStudents}</p>
+                    </div>
+                    <div className="rounded-lg bg-white px-3 py-2 text-center shadow-sm">
+                      <p className="font-bold text-slate-400">완료 권수</p>
+                      <p className="mt-1 text-lg font-black text-emerald-900">{classDashboard.totalCompletedBooks}</p>
+                    </div>
+                    <div className="rounded-lg bg-white px-3 py-2 text-center shadow-sm">
+                      <p className="font-bold text-slate-400">질문</p>
+                      <p className="mt-1 text-lg font-black text-emerald-900">{classDashboard.totalQuestions}</p>
+                    </div>
+                    <div className="rounded-lg bg-white px-3 py-2 text-center shadow-sm">
+                      <p className="font-bold text-slate-400">미답변</p>
+                      <p className="mt-1 text-lg font-black text-amber-700">{classDashboard.totalUnansweredQuestions}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={classSearch}
+                    onChange={e => setClassSearch(e.target.value)}
+                    placeholder="학생 이름, 이메일, 교회 검색"
+                    className="w-full rounded-lg border border-gray-300 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+                <select
+                  value={classGroupFilter}
+                  onChange={(e) => setClassGroupFilter(e.target.value)}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  <option value="all">전체 반</option>
+                  {classDashboard.groups.map((group) => (
+                    <option key={group.groupId} value={group.groupId}>
+                      {group.groupLabel} ({group.students.length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {filteredClassGroups.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
+                  조건에 맞는 승인 학생이 없습니다.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredClassGroups.map((group) => (
+                    <section key={group.groupId} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                      <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-sm font-black text-emerald-950">{group.groupLabel}</h3>
+                          <p className="mt-1 text-xs font-bold text-slate-500">
+                            학생 {group.students.length}명 · 완료 {group.totalCompletedBooks}권 · 미답변 {group.totalUnansweredQuestions}개
+                          </p>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {group.students.map((student) => (
+                          <div key={student.uid} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1.2fr)_120px_120px_90px] sm:items-center">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-black text-slate-900">{student.displayName || '이름 없음'}</p>
+                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                                  {student.groupLabel}
+                                </span>
+                              </div>
+                              <p className="mt-1 truncate text-xs font-medium text-slate-500">
+                                {student.email || '-'} · {student.church || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                                <span>성경읽기</span>
+                                <span>{student.completedBooks}/66</span>
+                              </div>
+                              <div className="mt-1 h-2 rounded-full bg-slate-100">
+                                <div
+                                  className="h-2 rounded-full bg-emerald-500"
+                                  style={{ width: `${student.readingPercent}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-600 sm:justify-center">
+                              <MessageSquare size={14} className="text-amber-500" />
+                              질문 {student.questionCount}
+                              {student.unansweredQuestionCount > 0 && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">
+                                  미답변 {student.unansweredQuestionCount}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs font-bold text-slate-500 sm:text-right">
+                              최근 {formatActivityDate(student.lastActivityMillis)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               )}
             </div>
