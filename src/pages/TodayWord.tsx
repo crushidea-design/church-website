@@ -198,15 +198,18 @@ export default function TodayWord() {
 
       {/* 묵상 가이드라인 섹션 */}
       <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-6 md:p-8">
-        <div className="flex justify-between items-center mb-6 border-b border-wood-100 pb-4">
-          <h3 className="text-2xl font-serif font-bold text-wood-900">묵상 가이드</h3>
+        <div className="flex flex-col gap-4 mb-6 border-b border-wood-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-2xl font-serif font-bold text-wood-900">묵상 가이드</h3>
+            <p className="mt-1 text-sm text-wood-500">{dateStr} 말씀 읽기에 맞춘 가이드입니다.</p>
+          </div>
           {role === 'admin' && (
             <Link
-              to="/create-post?type=today_word"
+              to={`/create-post?type=today_word&date=${dateStr}`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-wood-900 text-white text-sm font-medium rounded-full hover:bg-wood-800 transition-colors"
             >
               <Edit size={16} />
-              가이드라인 작성
+              이 날짜 가이드 작성
             </Link>
           )}
         </div>
@@ -220,7 +223,6 @@ export default function TodayWord() {
             <h4 className="text-xl font-bold text-wood-900 mb-2">{latestPost.title}</h4>
             <div className="text-sm text-wood-500 mb-6 flex items-center gap-4">
               <span>작성자: {latestPost.authorName}</span>
-              <span>{latestPost.createdAt?.toDate ? format(latestPost.createdAt.toDate(), 'yyyy.MM.dd') : ''}</span>
             </div>
             <div className="prose prose-wood max-w-none whitespace-pre-wrap text-wood-800 leading-relaxed mb-8">
               {latestPost.content}
@@ -229,7 +231,7 @@ export default function TodayWord() {
         ) : (
           <div className="py-12 text-center text-wood-500 bg-wood-50 rounded-xl border border-wood-100 border-dashed mb-8">
             <BookOpen size={48} className="mx-auto mb-4 opacity-20" />
-            <p>해당 날짜에 등록된 묵상 가이드라인이 없습니다.</p>
+            <p>{dateStr}에 등록된 묵상 가이드가 없습니다.</p>
           </div>
         )}
 

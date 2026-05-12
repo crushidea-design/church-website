@@ -200,7 +200,7 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
               </div>
               {isAdmin && (
                 <Link
-                  to="/create-post?type=today_word"
+                  to={`/create-post?type=today_word&date=${dateStr}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 rounded-full bg-coral-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-coral-700"
@@ -219,9 +219,7 @@ export default function NextGenerationTodayWord({ compact = false }: Props) {
             <div>
               <h4 className="text-base font-black text-emerald-950">{latestPost.title}</h4>
               <p className="mt-1 text-xs text-slate-500">
-                {latestPost.authorName} · {latestPost.createdAt?.toDate
-                  ? format(latestPost.createdAt.toDate(), 'yyyy.MM.dd')
-                  : ''}
+                {latestPost.authorName}
               </p>
               <div className={`mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap text-slate-800 ${guideTextClasses[guideTextSize]}`}>
                 {latestPost.content}
