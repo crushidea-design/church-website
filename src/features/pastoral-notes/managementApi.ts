@@ -47,6 +47,7 @@ export type RaahVisitationLog = RaahVisitationSensitiveFields & {
   publicSummary?: string;
   isEncrypted: boolean;
   encryptionVersion: number;
+  hasFollowUp?: boolean;
   createdByName?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -91,6 +92,13 @@ export type RaahAttendanceEvent = {
   updatedAt?: string;
 };
 
+export type RaahAttendanceHistoryRecord = {
+  memberId: string;
+  date: string;
+  attended: boolean;
+  communionParticipated: boolean;
+};
+
 export type RaahAttendanceInput = {
   date: string;
   serviceType: string;
@@ -131,6 +139,7 @@ type ApiLog = {
   publicSummary?: string;
   isEncrypted: boolean;
   encryptionVersion: number;
+  hasFollowUp?: boolean;
   createdByName?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -144,6 +153,7 @@ type ApiBootstrap = {
   members: ApiMember[];
   logs: ApiLog[];
   attendance: ApiAttendanceEvent | null;
+  attendanceHistory?: RaahAttendanceHistoryRecord[];
 };
 
 async function getAuthHeaders(user: User) {
@@ -182,6 +192,7 @@ function toLog(log: ApiLog): RaahVisitationLog {
     publicSummary: log.publicSummary,
     isEncrypted: log.isEncrypted,
     encryptionVersion: log.encryptionVersion,
+    hasFollowUp: log.hasFollowUp,
     createdByName: log.createdByName,
     createdAt: log.createdAt,
     updatedAt: log.updatedAt,
@@ -210,6 +221,7 @@ export async function getRaahBootstrap(date: string, user: User) {
     members: data.members.map(toMember),
     logs: data.logs.map(toLog),
     attendance: data.attendance,
+    attendanceHistory: data.attendanceHistory || [],
   };
 }
 

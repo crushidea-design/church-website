@@ -341,6 +341,15 @@ const rowToMember = (row: SupabaseMemberRow) => ({
 const rowToLog = (row: SupabaseLogRow, includeSensitive = false, secret?: string) => {
   const createdBy = row.created_by || {};
   const sensitive = includeSensitive ? decryptPayload(row.encrypted_payload, secret || '') : undefined;
+  let followUpPayload: LogSensitivePayload | undefined;
+  if (!includeSensitive && secret && row.encrypted_payload) {
+    try {
+      followUpPayload = decryptPayload(row.encrypted_payload, secret);
+    } catch {
+      followUpPayload = undefined;
+    }
+  }
+  const hasFollowUp = Boolean((sensitive?.nextSteps || followUpPayload?.nextSteps || '').trim());
 
   return {
     id: row.id,
@@ -352,6 +361,7 @@ const rowToLog = (row: SupabaseLogRow, includeSensitive = false, secret?: string
     publicSummary: row.public_summary || '',
     isEncrypted: row.is_encrypted !== false,
     encryptionVersion: row.encryption_version || ENCRYPTION_VERSION,
+    hasFollowUp,
     createdByName: createdBy.name || createdBy.email || 'Admin',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -487,10 +497,10 @@ const handleBootstrap = async (req: Request) => {
       'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at&order=name.asc'
     ),
     supabaseFetch(
-      'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
+      'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encrypted_payload,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
     ),
     loadAttendanceForDate(date),
-    supabaseFetch('raah_attendance_records?select=attended,communion_participated,raah_attendance_events!inner(date)'),
+    supabaseFetch('raah_attendance_records?select=member_id,attended,communion_participated,raah_attendance_events!inner(date)'),
   ]);
 
   if ('response' in membersResult && membersResult.response) return membersResult.response;
@@ -507,16 +517,28 @@ const handleBootstrap = async (req: Request) => {
   const members = (await membersResult.supabaseResponse.json().catch(() => [])) as SupabaseMemberRow[];
   const logs = (await logsResult.supabaseResponse.json().catch(() => [])) as SupabaseLogRow[];
   const attendanceSummaryRecords = (await attendanceSummaryResult.supabaseResponse.json().catch(() => [])) as Array<{
+    member_id?: string;
     attended?: boolean;
     communion_participated?: boolean;
     raah_attendance_events?: { date?: string };
   }>;
 
+  const attendanceHistory = attendanceSummaryRecords
+    .map((record) => ({
+      memberId: record.member_id || '',
+      date: record.raah_attendance_events?.date || '',
+      attended: Boolean(record.attended),
+      communionParticipated: Boolean(record.communion_participated),
+    }))
+    .filter((record) => record.memberId && record.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
   return noStoreJson({
     summary: buildSummary(members, logs, attendanceSummaryRecords),
     members: members.map(rowToMember),
-    logs: logs.map((row) => rowToLog(row)),
+    logs: logs.map((row) => rowToLog(row, false, logsResult.config.secret)),
     attendance: attendanceResult.attendance,
+    attendanceHistory,
   });
 };
 
@@ -595,13 +617,13 @@ const handleUpdateMember = async (req: Request, memberId: string) => {
 
 const handleListLogs = async () => {
   const result = await supabaseFetch(
-    'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
+    'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encrypted_payload,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
   );
   if (result.response) return result.response;
 
   const rows = (await result.supabaseResponse.json().catch(() => [])) as SupabaseLogRow[];
   if (!result.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH visitation logs.' }, result.supabaseResponse.status);
-  return noStoreJson({ logs: rows.map((row) => rowToLog(row)) });
+  return noStoreJson({ logs: rows.map((row) => rowToLog(row, false, result.config.secret)) });
 };
 
 const handleLogDetail = async (logId: string) => {

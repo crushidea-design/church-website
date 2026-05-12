@@ -26,6 +26,7 @@ import {
   getRaahBootstrap,
   getRaahVisitationLogDetail,
   RaahAttendanceEvent,
+  RaahAttendanceHistoryRecord,
   RaahAttendanceInput,
   RaahAttendanceRecord,
   RaahDashboardSummary,
@@ -94,6 +95,19 @@ function getNearestSunday() {
   return date.toISOString().slice(0, 10);
 }
 
+function getDashboardSeason() {
+  const today = new Date();
+  const day = today.getDay();
+  if (day <= 2) return 'attendance' as const;
+  if (day <= 5) return 'follow-up' as const;
+  return 'prepare' as const;
+}
+
+function percent(value: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((value / total) * 100));
+}
+
 const emptyLogForm = (member?: RaahMember): RaahVisitationLogInput => ({
   memberId: member?.id || '',
   memberName: member?.name || '',
@@ -143,6 +157,7 @@ export default function AdminPastoralNotes() {
   const [members, setMembers] = React.useState<RaahMember[]>([]);
   const [logs, setLogs] = React.useState<RaahVisitationLog[]>([]);
   const [attendance, setAttendance] = React.useState<RaahAttendanceEvent | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = React.useState<RaahAttendanceHistoryRecord[]>([]);
   const [legacyNotes, setLegacyNotes] = React.useState<PastoralNote[]>([]);
   const [legacyLoaded, setLegacyLoaded] = React.useState(false);
   const [isLegacyLoading, setIsLegacyLoading] = React.useState(false);
@@ -200,11 +215,13 @@ export default function AdminPastoralNotes() {
       members: nextMembers,
       logs: nextLogs,
       attendance: nextAttendance,
+      attendanceHistory: nextAttendanceHistory,
     } = await getRaahBootstrap(attendanceDate, user);
     setSummary(nextSummary);
     setMembers(nextMembers);
     setLogs(nextLogs);
     setAttendance(nextAttendance);
+    setAttendanceHistory(nextAttendanceHistory);
     setAttendanceServiceType(nextAttendance?.serviceType || '주일예배');
     setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? true);
     setAttendanceMemo(nextAttendance?.memo || '');
@@ -339,9 +356,15 @@ export default function AdminPastoralNotes() {
   const selectedMember = members.find((member) => member.id === selectedMemberId) || null;
   const selectedMemberLogs = selectedMember ? logs.filter((log) => log.memberId === selectedMember.id || log.memberSearchName === selectedMember.searchName) : [];
   const selectedMemberAttendance = selectedMember ? attendanceRecords.find((record) => record.memberId === selectedMember.id) : null;
+  const selectedMemberAttendanceHistory = selectedMember
+    ? attendanceHistory
+      .filter((record) => record.memberId === selectedMember.id)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 6)
+    : [];
   const attendanceCount = attendanceRecords.filter((record) => record.attended).length;
   const communionCount = attendanceRecords.filter((record) => record.communionParticipated).length;
-  const pendingFollowUps = logs.filter((log) => log.nextSteps?.trim()).slice(0, 5);
+  const pendingFollowUps = logs.filter((log) => log.hasFollowUp || log.nextSteps?.trim()).slice(0, 5);
 
   const filteredMembers = members.filter((member) => {
     const text = [member.searchName, member.position, member.district, member.phone].join(' ').toLocaleLowerCase('ko-KR');
@@ -609,49 +632,65 @@ export default function AdminPastoralNotes() {
     { id: 'legacy', label: TEXT.tabs.legacy, icon: <FileText size={18} /> },
   ];
 
+  const switchTab = (tabId: ActiveTab) => {
+    setActiveTab(tabId);
+    setSearchTerm('');
+    setDecryptedLog(null);
+    setDecryptedLegacyNote(null);
+  };
+
   return (
     <div className={shell.page}>
-      <div className="min-h-screen lg:grid lg:grid-cols-[232px,minmax(0,1fr)]">
-        <aside className="hidden border-r border-[#d8d1c4] bg-[#25352e] text-white lg:flex lg:flex-col">
-          <div className="border-b border-white/10 p-6">
-            <div className="flex items-center gap-3">
+      <div className="min-h-screen">
+        <header className="hidden border-b border-[#d8d1c4] bg-[#25352e] text-white shadow-sm lg:sticky lg:top-0 lg:z-30 lg:block">
+          <div className="flex min-h-20 items-center gap-4 px-6 xl:px-8">
+            <div className="flex shrink-0 items-center gap-3 pr-2">
               <img src="/raah-icon-48.png" alt="" className="h-11 w-11 rounded-lg" />
               <div>
                 <p className="text-lg font-semibold tracking-[0.16em]">RAAH</p>
                 <p className="text-xs text-white/60">Pastoral Care</p>
               </div>
             </div>
-          </div>
-          <nav className="flex-1 space-y-1 p-4">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setSearchTerm('');
-                  setDecryptedLog(null);
-                  setDecryptedLegacyNote(null);
-                }}
-                className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition ${
-                  activeTab === tab.id ? 'bg-[#f4f1ea] text-[#202721]' : 'text-white/70 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
+
+            <nav className="flex min-w-0 flex-1 items-center gap-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => switchTab(tab.id)}
+                  className={`inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
+                    activeTab === tab.id ? 'bg-[#f4f1ea] text-[#202721]' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <label className="relative w-64 shrink-0 xl:w-80">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#718069]" />
+              <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-10 bg-[#fffdf8] pl-9`} />
+            </label>
+
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
+              <Lock size={12} />
+              {storageMode === 'supabase' ? '암호화 저장' : storageMode === 'firestore' ? 'Firestore 호환' : '저장소 확인 중'}
+            </span>
+
+            {!subdomainMode && (
+              <button type="button" onClick={() => navigate('/admin')} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="관리자 대시보드로 돌아가기">
+                <ArrowLeft size={18} />
               </button>
-            ))}
-          </nav>
-          <div className="border-t border-white/10 p-4">
-            <button type="button" onClick={() => logout()} className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white">
+            )}
+            <button type="button" onClick={() => logout()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="로그아웃">
               <LogOut size={17} />
-              로그아웃
             </button>
           </div>
-        </aside>
+        </header>
 
         <main className="min-w-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
-          <header className="sticky top-0 z-20 border-b border-[#d8d1c4] bg-[#f4f1ea]/95 px-4 py-3 backdrop-blur lg:px-8 lg:py-4">
+          <header className="sticky top-0 z-20 border-b border-[#d8d1c4] bg-[#f4f1ea]/95 px-4 py-3 backdrop-blur lg:hidden">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-center gap-3">
                 {!subdomainMode && (
@@ -684,6 +723,7 @@ export default function AdminPastoralNotes() {
                 summary={summary}
                 members={members}
                 logs={logs}
+                attendanceDate={attendanceDate}
                 attendanceCount={attendanceCount}
                 communionCount={communionCount}
                 pendingFollowUps={pendingFollowUps}
@@ -702,6 +742,9 @@ export default function AdminPastoralNotes() {
                 selectedMember={selectedMember}
                 selectedMemberLogs={selectedMemberLogs}
                 selectedMemberAttendance={selectedMemberAttendance}
+                selectedMemberAttendanceHistory={selectedMemberAttendanceHistory}
+                attendanceDate={attendanceDate}
+                hasAttendanceEvent={Boolean(attendance)}
                 onSelectMember={setSelectedMemberId}
                 onEditMember={openMemberForm}
                 onNewMember={() => openMemberForm()}
@@ -799,12 +842,7 @@ export default function AdminPastoralNotes() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => {
-                setActiveTab(tab.id);
-                setSearchTerm('');
-                setDecryptedLog(null);
-                setDecryptedLegacyNote(null);
-              }}
+              onClick={() => switchTab(tab.id)}
               className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-semibold transition ${
                 activeTab === tab.id ? 'bg-[#25352e] text-white' : 'text-[#596850]'
               }`}
@@ -824,6 +862,7 @@ function DashboardTab({
   summary,
   members,
   logs,
+  attendanceDate,
   attendanceCount,
   communionCount,
   pendingFollowUps,
@@ -835,6 +874,7 @@ function DashboardTab({
   summary: RaahDashboardSummary;
   members: RaahMember[];
   logs: RaahVisitationLog[];
+  attendanceDate: string;
   attendanceCount: number;
   communionCount: number;
   pendingFollowUps: RaahVisitationLog[];
@@ -842,13 +882,46 @@ function DashboardTab({
   onOpenLog: (logId: string) => void;
   onNewLog: () => void;
 }) {
+  const activeMemberCount = summary.activeMemberCount || members.filter((member) => member.status === 'active').length;
+  const absentCount = Math.max(activeMemberCount - attendanceCount, 0);
+  const attendanceRate = percent(attendanceCount, activeMemberCount);
+  const communionRate = percent(communionCount, attendanceCount);
+  const dashboardSeason = getDashboardSeason();
+  const attendanceTaskTitle = dashboardSeason === 'attendance' ? '주일 출석 체크' : dashboardSeason === 'follow-up' ? '출석 후속 확인' : '다가오는 주일 준비';
+  const attendanceTaskCopy =
+    dashboardSeason === 'attendance'
+      ? '주일 이후 1-2일 안에 출석과 성찬 참여를 정리합니다.'
+      : dashboardSeason === 'follow-up'
+        ? '미출석 성도와 오랜만에 출석한 성도를 확인합니다.'
+        : '다음 주일 출석 체크 전 명부와 예배 메모를 점검합니다.';
+
   return (
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-4">
-        <FocusCard label="활성 성도" value={summary.activeMemberCount || members.filter((member) => member.status === 'active').length} icon={<Users size={20} />} />
-        <FocusCard label="오늘 출석 체크" value={attendanceCount} helper={`성찬 ${communionCount}`} icon={<CheckSquare size={20} />} />
+        <FocusCard label="활성 성도" value={activeMemberCount} icon={<Users size={20} />} />
+        <FocusCard label="주일 출석" value={attendanceCount} helper={`성찬 ${communionCount} · 미출석 ${absentCount}`} icon={<CheckSquare size={20} />} />
         <FocusCard label="이번 주 기록" value={summary.thisWeekLogCount} icon={<ClipboardList size={20} />} />
         <FocusCard label="암호화 기록" value={summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length} icon={<Lock size={20} />} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
+        <AttendanceSnapshot
+          date={attendanceDate}
+          activeMemberCount={activeMemberCount}
+          attendanceCount={attendanceCount}
+          communionCount={communionCount}
+          absentCount={absentCount}
+          attendanceRate={attendanceRate}
+          communionRate={communionRate}
+          onOpenAttendance={onOpenAttendance}
+        />
+
+        <div className={shell.panel + ' p-5'}>
+          <h2 className="text-lg font-semibold">최근 심방/상담</h2>
+          <div className="mt-4 space-y-2">
+            {isLoading ? <EmptyState>RAAH 데이터를 불러오는 중입니다.</EmptyState> : logs.length === 0 ? <EmptyState>아직 심방/상담 기록이 없습니다.</EmptyState> : logs.slice(0, 5).map((log) => <LogRow key={log.id} log={log} active={false} onClick={() => onOpenLog(log.id)} />)}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
@@ -856,7 +929,7 @@ function DashboardTab({
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">오늘 할 일</h2>
-              <p className="mt-1 text-sm text-[#667264]">출석과 후속 목양을 먼저 처리합니다.</p>
+              <p className="mt-1 text-sm text-[#667264]">요일 흐름에 맞춰 우선순위를 바꿉니다.</p>
             </div>
             <button type="button" onClick={onNewLog} className={shell.button}>
               <Plus size={16} />
@@ -865,8 +938,8 @@ function DashboardTab({
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={onOpenAttendance} className="rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-4 text-left transition hover:bg-[#fffdf8]">
-              <p className="text-sm font-semibold text-[#202721]">주일 출석 체크</p>
-              <p className="mt-2 text-sm text-[#667264]">출석 {attendanceCount}명 · 성찬 {communionCount}명</p>
+              <p className="text-sm font-semibold text-[#202721]">{attendanceTaskTitle}</p>
+              <p className="mt-2 text-sm text-[#667264]">{attendanceTaskCopy}</p>
             </button>
             <div className="rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-4">
               <p className="text-sm font-semibold text-[#202721]">후속 확인</p>
@@ -876,13 +949,96 @@ function DashboardTab({
         </div>
 
         <div className={shell.panel + ' p-5'}>
-          <h2 className="text-lg font-semibold">최근 심방/상담</h2>
+          <h2 className="text-lg font-semibold">후속 확인 후보</h2>
           <div className="mt-4 space-y-2">
-            {isLoading ? <EmptyState>RAAH 데이터를 불러오는 중입니다.</EmptyState> : logs.length === 0 ? <EmptyState>아직 심방/상담 기록이 없습니다.</EmptyState> : logs.slice(0, 5).map((log) => <LogRow key={log.id} log={log} active={false} onClick={() => onOpenLog(log.id)} />)}
+            {isLoading ? (
+              <EmptyState>후속 확인 목록을 불러오는 중입니다.</EmptyState>
+            ) : pendingFollowUps.length === 0 ? (
+              <EmptyState>후속 확인이 필요한 기록이 아직 없습니다.</EmptyState>
+            ) : (
+              pendingFollowUps.map((log) => <LogRow key={log.id} log={log} active={false} onClick={() => onOpenLog(log.id)} />)
+            )}
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function AttendanceSnapshot({
+  date,
+  activeMemberCount,
+  attendanceCount,
+  communionCount,
+  absentCount,
+  attendanceRate,
+  communionRate,
+  onOpenAttendance,
+}: {
+  date: string;
+  activeMemberCount: number;
+  attendanceCount: number;
+  communionCount: number;
+  absentCount: number;
+  attendanceRate: number;
+  communionRate: number;
+  onOpenAttendance: () => void;
+}) {
+  return (
+    <div className={shell.panel + ' p-5'}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">주일 출석 현황</h2>
+          <p className="mt-1 text-sm text-[#667264]">{formatDisplayDate(date)} 기준</p>
+        </div>
+        <button type="button" onClick={onOpenAttendance} className={shell.ghostButton}>
+          출석 열기
+        </button>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        <ProgressMetric label="출석률" value={`${attendanceRate}%`} width={attendanceRate} helper={`출석 ${attendanceCount}명 / 활성 ${activeMemberCount}명`} />
+        <ProgressMetric label="성찬 참여" value={`${communionRate}%`} width={communionRate} helper={attendanceCount ? `성찬 ${communionCount}명 / 출석 ${attendanceCount}명` : '아직 출석 체크가 없습니다.'} />
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        <MiniCount label="출석" value={attendanceCount} />
+        <MiniCount label="성찬" value={communionCount} />
+        <MiniCount label="미출석" value={absentCount} />
+      </div>
+    </div>
+  );
+}
+
+function ProgressMetric({ label, value, width, helper }: { label: string; value: string; width: number; helper: string }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-semibold text-[#202721]">{label}</span>
+        <span className="font-semibold text-[#596850]">{value}</span>
+      </div>
+      <div className="mt-2 h-3 overflow-hidden rounded-full bg-[#e7dfd1]">
+        <div className="h-full rounded-full bg-[#25352e] transition-[width]" style={{ width: `${width}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-[#667264]">{helper}</p>
+    </div>
+  );
+}
+
+function StatusMetric({ label, value, tone, helper }: { label: string; value: string; tone: 'good' | 'alert' | 'neutral'; helper: string }) {
+  const toneClass =
+    tone === 'good'
+      ? 'border-[#596850] bg-[#eef3ec] text-[#25352e]'
+      : tone === 'alert'
+        ? 'border-[#d8b7a6] bg-[#fff6ef] text-[#8a4b32]'
+        : 'border-[#d8d1c4] bg-[#fffdf8] text-[#667264]';
+
+  return (
+    <div className={shell.mutedPanel + ' p-4'}>
+      <p className="text-xs font-semibold text-[#667264]">{label}</p>
+      <span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-sm font-semibold ${toneClass}`}>{value}</span>
+      <p className="mt-2 text-xs text-[#667264]">{helper}</p>
+    </div>
   );
 }
 
@@ -891,6 +1047,9 @@ function MembersTab({
   selectedMember,
   selectedMemberLogs,
   selectedMemberAttendance,
+  selectedMemberAttendanceHistory,
+  attendanceDate,
+  hasAttendanceEvent,
   onSelectMember,
   onEditMember,
   onNewMember,
@@ -907,6 +1066,9 @@ function MembersTab({
   selectedMember: RaahMember | null;
   selectedMemberLogs: RaahVisitationLog[];
   selectedMemberAttendance: RaahAttendanceRecord | null | undefined;
+  selectedMemberAttendanceHistory: RaahAttendanceHistoryRecord[];
+  attendanceDate: string;
+  hasAttendanceEvent: boolean;
   onSelectMember: (id: string) => void;
   onEditMember: (member?: RaahMember) => void;
   onNewMember: () => void;
@@ -920,7 +1082,7 @@ function MembersTab({
   onCloseForm: () => void;
 }) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr),minmax(360px,0.7fr)]">
+    <section className="grid gap-4 xl:grid-cols-[minmax(640px,1.25fr),minmax(420px,0.75fr)]">
       <div className={shell.panel + ' p-4'}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">성도 명부</h2>
@@ -929,7 +1091,14 @@ function MembersTab({
             등록
           </button>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 overflow-hidden rounded-lg border border-[#d8d1c4] bg-[#f8f5ee]">
+          <div className="hidden grid-cols-[minmax(120px,1fr),minmax(160px,1.15fr),minmax(140px,0.9fr),88px] gap-3 border-b border-[#d8d1c4] bg-[#ede8dd] px-4 py-2 text-xs font-semibold text-[#667264] lg:grid">
+            <span>이름</span>
+            <span>직분 / 구역</span>
+            <span>연락처</span>
+            <span className="text-right">상태</span>
+          </div>
+          <div className="max-h-[68vh] overflow-y-auto p-2 lg:max-h-[calc(100vh-220px)]">
           {members.length === 0 ? (
             <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState>
           ) : (
@@ -938,22 +1107,27 @@ function MembersTab({
                 key={member.id}
                 type="button"
                 onClick={() => onSelectMember(member.id)}
-                className={`w-full rounded-lg border px-4 py-3 text-left transition ${
-                  selectedMember?.id === member.id ? 'border-[#25352e] bg-[#25352e] text-white' : 'border-[#d8d1c4] bg-[#f8f5ee] hover:bg-[#fffdf8]'
+                className={`mb-2 grid w-full gap-2 rounded-lg border px-4 py-3 text-left transition last:mb-0 lg:mb-0 lg:grid-cols-[minmax(120px,1fr),minmax(160px,1.15fr),minmax(140px,0.9fr),88px] lg:items-center lg:gap-3 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-2.5 ${
+                  selectedMember?.id === member.id ? 'border-[#25352e] bg-[#25352e] text-white lg:border-[#25352e]' : 'border-[#d8d1c4] bg-[#fffdf8] hover:bg-white lg:border-[#d8d1c4] lg:bg-transparent'
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{member.name}</p>
-                    <p className={`mt-1 text-xs ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>
-                      {[member.position, member.district, member.phone].filter(Boolean).join(' · ') || '기본 정보 미입력'}
-                    </p>
-                  </div>
-                  <span className={selectedMember?.id === member.id ? 'text-xs text-white/70' : shell.badge}>{member.status === 'active' ? '활성' : '비활성'}</span>
+                <div>
+                  <p className="font-semibold">{member.name}</p>
+                  <p className={`mt-1 text-xs lg:hidden ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>
+                    {[member.position, member.district, member.phone].filter(Boolean).join(' · ') || '기본 정보 미입력'}
+                  </p>
                 </div>
+                <span className={`hidden truncate text-sm lg:block ${selectedMember?.id === member.id ? 'text-white/80' : 'text-[#39443d]'}`}>
+                  {[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}
+                </span>
+                <span className={`hidden truncate text-sm lg:block ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>{member.phone || '-'}</span>
+                <span className={`justify-self-end rounded-full border px-2.5 py-1 text-xs font-semibold ${selectedMember?.id === member.id ? 'border-white/20 text-white/70' : 'border-[#d8d1c4] bg-[#fffdf8] text-[#39443d]'}`}>
+                  {member.status === 'active' ? '활성' : '비활성'}
+                </span>
               </button>
             ))
           )}
+          </div>
         </div>
       </div>
 
@@ -961,7 +1135,16 @@ function MembersTab({
         {isFormOpen ? (
           <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} />
         ) : selectedMember ? (
-          <MemberHub member={selectedMember} logs={selectedMemberLogs} attendance={selectedMemberAttendance} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} />
+          <MemberHub
+            member={selectedMember}
+            logs={selectedMemberLogs}
+            attendance={selectedMemberAttendance}
+            attendanceHistory={selectedMemberAttendanceHistory}
+            attendanceDate={attendanceDate}
+            hasAttendanceEvent={hasAttendanceEvent}
+            onEdit={() => onEditMember(selectedMember)}
+            onNewLog={() => onNewLog(selectedMember)}
+          />
         ) : (
           <div className={shell.panel + ' p-5'}>
             <EmptyState>성도를 선택하거나 새로 등록해 주세요.</EmptyState>
@@ -976,15 +1159,26 @@ function MemberHub({
   member,
   logs,
   attendance,
+  attendanceHistory,
+  attendanceDate,
+  hasAttendanceEvent,
   onEdit,
   onNewLog,
 }: {
   member: RaahMember;
   logs: RaahVisitationLog[];
   attendance?: RaahAttendanceRecord | null;
+  attendanceHistory: RaahAttendanceHistoryRecord[];
+  attendanceDate: string;
+  hasAttendanceEvent: boolean;
   onEdit: () => void;
   onNewLog: () => void;
 }) {
+  const weeklyAttendanceLabel = !hasAttendanceEvent ? '미체크' : attendance?.attended ? '출석' : '미출석';
+  const weeklyAttendanceTone = !hasAttendanceEvent ? 'neutral' : attendance?.attended ? 'good' : 'alert';
+  const communionLabel = !hasAttendanceEvent || !attendance?.attended ? '-' : attendance.communionParticipated ? '참여' : '미참여';
+  const recentAttendance = attendanceHistory.slice(0, 6);
+
   return (
     <div className={shell.panel + ' p-5'}>
       <div className="flex items-start justify-between gap-3">
@@ -1006,14 +1200,35 @@ function MemberHub({
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <MiniCount label="심방/상담" value={logs.length} />
-        <MiniCount label="오늘 출석" value={attendance?.attended ? 1 : 0} />
-        <MiniCount label="성찬" value={attendance?.communionParticipated ? 1 : 0} />
+        <StatusMetric label="이번주 출석" value={weeklyAttendanceLabel} tone={weeklyAttendanceTone} helper={`${formatDisplayDate(attendanceDate)} 기준`} />
+        <StatusMetric label="성찬" value={communionLabel} tone={attendance?.communionParticipated ? 'good' : 'neutral'} helper={hasAttendanceEvent ? '주일예배 기록' : '출석 미체크'} />
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5 rounded-lg border border-[#d8d1c4] bg-[#f8f5ee] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-[#202721]">최근 출석 흐름</h3>
+          <span className="text-xs font-semibold text-[#667264]">최근 {recentAttendance.length || 0}회</span>
+        </div>
+        {recentAttendance.length === 0 ? (
+          <p className="mt-3 text-sm text-[#667264]">아직 누적된 출석 기록이 없습니다.</p>
+        ) : (
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {recentAttendance.map((record) => (
+              <div key={`${record.date}-${record.memberId}`} className={`rounded-md border px-2 py-2 text-center ${record.attended ? 'border-[#596850] bg-[#eef3ec]' : 'border-[#d8d1c4] bg-[#fffdf8]'}`}>
+                <p className="text-[11px] font-semibold text-[#667264]">{record.date.slice(5).replace('-', '.')}</p>
+                <p className={`mt-1 text-sm font-semibold ${record.attended ? 'text-[#25352e]' : 'text-[#8a5a4a]'}`}>{record.attended ? '출석' : '미출석'}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
         <DetailBlock label="연락처" value={member.phone || '-'} />
         <DetailBlock label="주소" value={member.address || '-'} />
-        <DetailBlock label="공개 메모" value={member.publicNote || '-'} />
+        <div className="lg:col-span-2">
+          <DetailBlock label="공개 메모" value={member.publicNote || '-'} />
+        </div>
       </div>
 
       <div className="mt-5">
