@@ -42,7 +42,20 @@ import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextG
 import { Apple, BookOpen, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
 import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
-import { formatDate, getYouTubeId } from '../lib/utils';
+import { formatDate } from '../lib/utils';
+import {
+  formatShortDate,
+  getContentPreview,
+  getCurrentSundayKey,
+  getPostPrimarySortTime,
+  getPostWeekKey,
+  getPostYouTubeVideoId,
+  getResourceDepartmentPath,
+  getResourceLabel,
+  getResourceTab,
+  getYouTubeVideoId,
+  NEXT_GENERATION_PATH,
+} from '../lib/nextGenerationResources';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
   getNextGenerationTopicLabel,
@@ -79,7 +92,6 @@ import {
 } from '../services/notificationService';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
-const NEXT_GENERATION_PATH = '/next';
 const RESOURCE_PAGE_SIZE = 12;
 
 const introImage = '/elementary-intro.png';
@@ -236,52 +248,6 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   Users,
 };
 
-const getYouTubeVideoId = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([^&\n?#]+)/);
-  return match ? match[1] : null;
-};
-
-const getPostYouTubeVideoId = (post: Pick<NextGenerationPost, 'youtubeUrl' | 'videoUrl' | 'content'>) => {
-  const directUrl = post.youtubeUrl || post.videoUrl || '';
-  return getYouTubeVideoId(directUrl) || getYouTubeId(post.content || '');
-};
-
-const getCreatedAtTime = (value: any) => {
-  if (!value) return 0;
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (value instanceof Date) return value.getTime();
-  if (typeof value === 'number') return value;
-
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
-
-const toLocalDateKey = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getSundayDate = (baseDate = new Date()) => {
-  const date = new Date(baseDate);
-  date.setHours(12, 0, 0, 0);
-  date.setDate(date.getDate() + ((7 - date.getDay()) % 7));
-  return date;
-};
-
-const getCurrentSundayKey = () => toLocalDateKey(getSundayDate());
-
-const getPostWeekKey = (post: NextGenerationPost) => {
-  if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
-    return post.nextGenerationWeekKey;
-  }
-
-  const createdAtTime = getCreatedAtTime(post.createdAt);
-  if (!createdAtTime) return '';
-  return toLocalDateKey(getSundayDate(new Date(createdAtTime)));
-};
-
 const getRejectedNoticeVersion = (member: any) => {
   if (!member) return '';
   if (typeof member.rejectedAt?.toMillis === 'function') {
@@ -291,37 +257,6 @@ const getRejectedNoticeVersion = (member: any) => {
     return String(member.rejectionReason);
   }
   return 'rejected';
-};
-
-const getPostPrimarySortTime = (post: NextGenerationPost): number => {
-  if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
-    return new Date(post.nextGenerationWeekKey).getTime();
-  }
-  return getCreatedAtTime(post.createdAt);
-};
-
-const getResourceLabel = (id?: string, tabs: ResourceTabItem[] = allResourceTabs as any) => {
-  return tabs.find((tab) => tab.id === id || tab.slug === id)?.name || '다음세대 자료';
-};
-
-const getResourceDepartmentPath = (
-  id?: string,
-  tabs: ResourceTabItem[] = allResourceTabs as any,
-  departments: DepartmentCardItem[] = sectionTabs as any
-) => {
-  const foundTab = tabs.find((tab) => tab.id === id || tab.slug === id);
-  const fallbackSlug = youngAdultResourceTabs.some((tab) => (tab as any).id === id) ? 'young-adults' : 'elementary';
-  const departmentSlug = foundTab?.departmentSlug || fallbackSlug || departments[0]?.slug || 'elementary';
-  return `${NEXT_GENERATION_PATH}/${departmentSlug}`;
-};
-
-const getResourceTab = (id?: string, tabs: ResourceTabItem[] = allResourceTabs as any) => {
-  return tabs.find((tab) => tab.id === id || tab.slug === id) || tabs[0] || (elementaryResourceTabs[0] as any);
-};
-
-const getContentPreview = (content?: string) => {
-  if (!content) return '함께 확인할 자료가 준비되어 있습니다.';
-  return content.replace(/\s+/g, ' ').trim().slice(0, 110);
 };
 
 function useNextGenerationHead() {
@@ -1226,20 +1161,6 @@ interface MyReadingItem {
   meditation?: string;
   updatedAt?: any;
 }
-
-const toDateOrNull = (value: any): Date | null => {
-  if (!value) return null;
-  if (typeof value.toDate === 'function') return value.toDate();
-  if (value instanceof Date) return value;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatShortDate = (value: any) => {
-  const date = toDateOrNull(value);
-  if (!date) return '';
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
-};
 
 function NextGenerationMyPage() {
   const {

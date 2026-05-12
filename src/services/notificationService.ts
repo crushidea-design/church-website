@@ -1,5 +1,4 @@
-import { messaging, db, auth } from '../lib/firebase';
-import { getToken, onMessage, isSupported } from 'firebase/messaging';
+import { getFirebaseMessaging, db, auth } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { handleNextGenerationBadgePayload } from './appBadgeService';
 
@@ -47,21 +46,14 @@ export const requestNotificationPermission = async (
     console.log('Notification permission status:', permission);
 
     if (permission === 'granted') {
+      const { getToken, isSupported } = await import('firebase/messaging');
       const supported = await isSupported();
       if (!supported) {
         console.warn('Firebase Messaging is not supported in this browser after notification permission was granted.');
         return null;
       }
 
-      let activeMessaging = messaging;
-      if (!activeMessaging) {
-        console.log('Messaging not yet initialized, waiting...');
-        for (let i = 0; i < 30; i++) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          activeMessaging = (window as any).firebase_messaging || messaging;
-          if (activeMessaging) break;
-        }
-      }
+      const activeMessaging = await getFirebaseMessaging();
 
       if (!activeMessaging) {
         console.error('Messaging failed to initialize');
@@ -164,23 +156,37 @@ export const requestNotificationPermission = async (
 };
 
 let messageListenerUnsubscribe: (() => void) | null = null;
+let messageListenerInitPromise: Promise<void> | null = null;
 const activeCallbacks: Set<(payload: any) => void> = new Set();
 
-export const onMessageListener = (callback: (payload: any) => void) => {
-  const activeMessaging = (window as any).firebase_messaging || messaging;
-  if (!activeMessaging) {
-    console.warn('Messaging not initialized yet for onMessageListener');
-    return () => {};
-  }
+const ensureMessageListener = async () => {
+  if (messageListenerUnsubscribe || messageListenerInitPromise) return;
 
-  activeCallbacks.add(callback);
+  messageListenerInitPromise = (async () => {
+    const activeMessaging = await getFirebaseMessaging();
+    if (!activeMessaging || activeCallbacks.size === 0) {
+      return;
+    }
 
-  if (!messageListenerUnsubscribe) {
+    const { onMessage } = await import('firebase/messaging');
+    if (activeCallbacks.size === 0) {
+      return;
+    }
+
     messageListenerUnsubscribe = onMessage(activeMessaging, (payload) => {
       void handleNextGenerationBadgePayload(payload);
       activeCallbacks.forEach((cb) => cb(payload));
     });
-  }
+  })().finally(() => {
+    messageListenerInitPromise = null;
+  });
+
+  await messageListenerInitPromise;
+};
+
+export const onMessageListener = (callback: (payload: any) => void) => {
+  activeCallbacks.add(callback);
+  void ensureMessageListener();
 
   return () => {
     activeCallbacks.delete(callback);

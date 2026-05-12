@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { getInAppBrowserLoginMessage, isInAppBrowser } from './inAppBrowser';
 import { 
@@ -40,20 +39,34 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Messaging initialization with support check
 export let messaging: any = null;
+let messagingInitPromise: Promise<any | null> | null = null;
+
+export const getFirebaseMessaging = async () => {
+  if (typeof window === 'undefined') return null;
+  if (messaging) return messaging;
+
+  if (!messagingInitPromise) {
+    messagingInitPromise = import('firebase/messaging').then(async (messagingModule) => {
+      const supported = await messagingModule.isSupported();
+      if (!supported) return null;
+
+      messaging = messagingModule.getMessaging(app);
+      (window as any).firebase_messaging = messaging;
+      console.log('Firebase Messaging initialized');
+      return messaging;
+    }).catch(err => {
+      console.warn('Failed to initialize Firebase Messaging:', err);
+      return null;
+    }).finally(() => {
+      messagingInitPromise = null;
+    });
+  }
+
+  return messagingInitPromise;
+};
 
 if (typeof window !== 'undefined') {
-  isSupported().then(supported => {
-    if (supported) {
-      // Lazy load messaging to avoid issues in unsupported environments
-      import('firebase/messaging').then((messagingModule) => {
-        messaging = messagingModule.getMessaging(app);
-        (window as any).firebase_messaging = messaging;
-        console.log('Firebase Messaging initialized');
-      }).catch(err => {
-        console.warn('Failed to lazy load Firebase Messaging:', err);
-      });
-    }
-  }).catch(err => {
+  void getFirebaseMessaging().catch(err => {
     console.warn('Error checking messaging support:', err);
   });
 }
