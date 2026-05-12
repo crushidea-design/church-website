@@ -61,7 +61,8 @@ export const translatePassage = (passage: string): ReadingPassage => {
     const chapterAndVerses = match[2].trim();
     const koreanBookName = bookNameMap[bookName] || bookName;
     let translated = `${koreanBookName} ${chapterAndVerses}`.trim();
-    if (/\d$/.test(translated)) {
+    const hasVerseRange = chapterAndVerses.includes(':');
+    if (!hasVerseRange && /\d$/.test(translated)) {
       if (koreanBookName === '시편') {
         translated += '편';
       } else {

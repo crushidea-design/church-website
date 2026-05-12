@@ -1090,14 +1090,7 @@ function MembersTab({
             등록
           </button>
         </div>
-        <div className="mt-4 overflow-hidden rounded-lg border border-[#d8d1c4] bg-[#f8f5ee]">
-          <div className="hidden grid-cols-[minmax(120px,1fr),minmax(160px,1.15fr),minmax(140px,0.9fr),88px] gap-3 border-b border-[#d8d1c4] bg-[#ede8dd] px-4 py-2 text-xs font-semibold text-[#667264] lg:grid">
-            <span>이름</span>
-            <span>직분 / 구역</span>
-            <span>연락처</span>
-            <span className="text-right">상태</span>
-          </div>
-          <div className="max-h-[68vh] overflow-y-auto p-2 lg:max-h-[calc(100vh-220px)]">
+        <div className="mt-4 lg:hidden">
           {members.length === 0 ? (
             <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState>
           ) : (
@@ -1106,27 +1099,64 @@ function MembersTab({
                 key={member.id}
                 type="button"
                 onClick={() => onSelectMember(member.id)}
-                className={`mb-2 grid w-full gap-2 rounded-lg border px-4 py-3 text-left transition last:mb-0 lg:mb-0 lg:grid-cols-[minmax(120px,1fr),minmax(160px,1.15fr),minmax(140px,0.9fr),88px] lg:items-center lg:gap-3 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-2.5 ${
-                  selectedMember?.id === member.id ? 'border-[#25352e] bg-[#25352e] text-white lg:border-[#25352e]' : 'border-[#d8d1c4] bg-[#fffdf8] hover:bg-white lg:border-[#d8d1c4] lg:bg-transparent'
+                className={`mb-2 w-full rounded-lg border px-4 py-3 text-left transition last:mb-0 ${
+                  selectedMember?.id === member.id ? 'border-[#25352e] bg-[#25352e] text-white' : 'border-[#d8d1c4] bg-[#fffdf8] hover:bg-white'
                 }`}
               >
-                <div>
-                  <p className="font-semibold">{member.name}</p>
-                  <p className={`mt-1 text-xs lg:hidden ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{member.name}</p>
+                    <p className={`mt-1 text-xs ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>
                     {[member.position, member.district, member.phone].filter(Boolean).join(' · ') || '기본 정보 미입력'}
-                  </p>
+                    </p>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selectedMember?.id === member.id ? 'border-white/20 text-white/70' : 'border-[#d8d1c4] bg-[#fffdf8] text-[#39443d]'}`}>
+                    {member.status === 'active' ? '활성' : '비활성'}
+                  </span>
                 </div>
-                <span className={`hidden truncate text-sm lg:block ${selectedMember?.id === member.id ? 'text-white/80' : 'text-[#39443d]'}`}>
-                  {[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}
-                </span>
-                <span className={`hidden truncate text-sm lg:block ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#667264]'}`}>{member.phone || '-'}</span>
-                <span className={`justify-self-end rounded-full border px-2.5 py-1 text-xs font-semibold ${selectedMember?.id === member.id ? 'border-white/20 text-white/70' : 'border-[#d8d1c4] bg-[#fffdf8] text-[#39443d]'}`}>
-                  {member.status === 'active' ? '활성' : '비활성'}
-                </span>
               </button>
             ))
           )}
-          </div>
+        </div>
+
+        <div className="mt-4 hidden max-h-[calc(100vh-220px)] overflow-auto rounded-lg border border-[#d8d1c4] bg-[#fffdf8] lg:block">
+          {members.length === 0 ? (
+            <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState>
+          ) : (
+            <table className="w-full table-fixed border-collapse text-sm">
+              <thead className="sticky top-0 bg-[#ede8dd] text-left text-xs font-semibold text-[#667264]">
+                <tr>
+                  <th className="w-[22%] px-3 py-2">이름</th>
+                  <th className="w-[30%] px-3 py-2">직분 / 구역</th>
+                  <th className="w-[28%] px-3 py-2">연락처</th>
+                  <th className="w-[20%] px-3 py-2 text-right">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((member) => {
+                  const isSelected = selectedMember?.id === member.id;
+                  return (
+                    <tr
+                      key={member.id}
+                      onClick={() => onSelectMember(member.id)}
+                      className={`cursor-pointer border-t border-[#e4ddd0] transition ${isSelected ? 'bg-[#25352e] text-white' : 'hover:bg-[#f8f5ee]'}`}
+                    >
+                      <td className="truncate px-3 py-2.5 font-semibold">{member.name}</td>
+                      <td className={`truncate px-3 py-2.5 ${isSelected ? 'text-white/80' : 'text-[#39443d]'}`}>
+                        {[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}
+                      </td>
+                      <td className={`truncate px-3 py-2.5 ${isSelected ? 'text-white/70' : 'text-[#667264]'}`}>{member.phone || '-'}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${isSelected ? 'border-white/20 text-white/70' : 'border-[#d8d1c4] bg-[#fffdf8] text-[#39443d]'}`}>
+                          {member.status === 'active' ? '활성' : '비활성'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
