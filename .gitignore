@@ -9,3 +9,4 @@ coverage/
 !.env.example
 raah-migration-insert*.sql
 .claude/worktrees/
+.superpowers/
