@@ -8,6 +8,7 @@ export interface HighlightEntry {
   label: string;
   summary?: string;
   badge?: { text: string; tone: 'amber' | 'emerald' | 'sky' | 'rose' };
+  tourTarget?: string;
   content: React.ReactNode;
 }
 
@@ -94,7 +95,10 @@ export default function NextGenerationHighlightBand({
         </div>
 
         {activeEntry && (
-          <div className="mt-4 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div
+            className="mt-4 scroll-mt-44 animate-in fade-in slide-in-from-top-1 duration-200 sm:scroll-mt-24"
+            data-next-tour={activeEntry.tourTarget}
+          >
             {activeEntry.content}
           </div>
         )}

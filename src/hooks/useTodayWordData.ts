@@ -93,6 +93,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
         try {
           const byDateKeyQuery = query(
             collection(db, 'posts'),
+            where('category', '==', 'today_word'),
             where('dateKey', '==', dateStr),
             limit(10),
           );
