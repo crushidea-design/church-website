@@ -71,6 +71,8 @@ export type RaahDashboardSummary = {
   thisWeekCommunionCount: number;
 };
 
+export type RaahAttendanceEventType = 'sunday_morning' | 'sunday_afternoon' | 'young_adults' | 'wednesday_prayer' | 'other';
+
 export type RaahAttendanceRecord = {
   id?: string;
   memberId: string;
@@ -84,6 +86,7 @@ export type RaahAttendanceRecord = {
 export type RaahAttendanceEvent = {
   id: string;
   date: string;
+  eventType?: RaahAttendanceEventType;
   serviceType: string;
   includesCommunion: boolean;
   memo?: string;
@@ -101,6 +104,7 @@ export type RaahAttendanceHistoryRecord = {
 
 export type RaahAttendanceInput = {
   date: string;
+  eventType?: RaahAttendanceEventType;
   serviceType: string;
   includesCommunion: boolean;
   memo?: string;
@@ -111,6 +115,77 @@ export type RaahAttendanceInput = {
     communionParticipated: boolean;
     note?: string;
   }>;
+};
+
+export type RaahFollowUpResolution = {
+  id: string;
+  sourceType: 'visitation';
+  sourceId: string;
+  candidateKey: string;
+  memberId?: string;
+  memberName?: string;
+  memo?: string;
+  completedAt: string;
+  completedByName?: string;
+};
+
+export type RaahMinistryScheduleItemType = 'visitation' | 'counseling' | 'task' | 'meeting' | 'other';
+
+export type RaahMinistryScheduleItem = {
+  id: string;
+  title: string;
+  date: string;
+  startsAt?: string;
+  endsAt?: string;
+  itemType: RaahMinistryScheduleItemType;
+  memberId?: string;
+  memberName?: string;
+  status: 'open' | 'done';
+  source: 'manual' | 'google_calendar';
+  externalId?: string;
+  memo?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RaahMinistryScheduleItemInput = {
+  title: string;
+  date: string;
+  startsAt?: string;
+  endsAt?: string;
+  itemType: RaahMinistryScheduleItemType;
+  memberId?: string;
+  memberName?: string;
+  memo?: string;
+};
+
+export type RaahFollowUpResolutionInput = {
+  sourceType: 'visitation';
+  sourceId: string;
+  memberId?: string;
+  memberName?: string;
+  memo?: string;
+};
+
+export type RaahCalendarStatus = {
+  configured: boolean;
+  connected: boolean;
+  calendarId?: string;
+  calendarSummary?: string;
+  googleAccountEmail?: string;
+  connectedAt?: string;
+  message?: string;
+};
+
+export type RaahGoogleCalendarEventInput = {
+  title: string;
+  date: string;
+  startsAt: string;
+  endsAt?: string;
+  memberId?: string;
+  memberName?: string;
+  memo?: string;
+  sourceLogId?: string;
 };
 
 type ApiMember = {
@@ -147,13 +222,18 @@ type ApiLog = {
 };
 
 type ApiAttendanceEvent = RaahAttendanceEvent;
+type ApiFollowUpResolution = RaahFollowUpResolution;
+type ApiScheduleItem = RaahMinistryScheduleItem;
 
 type ApiBootstrap = {
   summary: RaahDashboardSummary;
   members: ApiMember[];
   logs: ApiLog[];
   attendance: ApiAttendanceEvent | null;
+  attendanceEvents?: ApiAttendanceEvent[];
   attendanceHistory?: RaahAttendanceHistoryRecord[];
+  followUpResolutions?: ApiFollowUpResolution[];
+  ministryScheduleItems?: ApiScheduleItem[];
 };
 
 async function getAuthHeaders(user: User) {
@@ -221,7 +301,10 @@ export async function getRaahBootstrap(date: string, user: User) {
     members: data.members.map(toMember),
     logs: data.logs.map(toLog),
     attendance: data.attendance,
+    attendanceEvents: data.attendanceEvents || (data.attendance ? [data.attendance] : []),
     attendanceHistory: data.attendanceHistory || [],
+    followUpResolutions: data.followUpResolutions || [],
+    ministryScheduleItems: data.ministryScheduleItems || [],
   };
 }
 
@@ -295,4 +378,66 @@ export async function saveRaahAttendance(input: RaahAttendanceInput, user: User)
   });
   const data = await readJsonResponse<{ attendance: ApiAttendanceEvent }>(response);
   return data.attendance;
+}
+
+export async function resolveRaahFollowUp(input: RaahFollowUpResolutionInput, user: User) {
+  const response = await fetch('/api/raah/follow-ups/resolve', {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<{ resolution: ApiFollowUpResolution }>(response);
+  return data.resolution;
+}
+
+export async function createRaahMinistryScheduleItem(input: RaahMinistryScheduleItemInput, user: User) {
+  const response = await fetch('/api/raah/schedule', {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<{ item: ApiScheduleItem }>(response);
+  return data.item;
+}
+
+export async function completeRaahMinistryScheduleItem(itemId: string, user: User) {
+  const response = await fetch(`/api/raah/schedule/${encodeURIComponent(itemId)}/complete`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+  });
+  const data = await readJsonResponse<{ item: ApiScheduleItem }>(response);
+  return data.item;
+}
+
+export async function getRaahCalendarStatus(user: User) {
+  const response = await fetch('/api/raah/calendar/status', {
+    headers: await getAuthHeaders(user),
+  });
+  return readJsonResponse<RaahCalendarStatus>(response);
+}
+
+export async function getRaahCalendarAuthUrl(user: User) {
+  const response = await fetch('/api/raah/calendar/auth-url', {
+    headers: await getAuthHeaders(user),
+  });
+  return readJsonResponse<{ url: string }>(response);
+}
+
+export async function syncRaahGoogleCalendar(user: User) {
+  const response = await fetch('/api/raah/calendar/sync', {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+  });
+  const data = await readJsonResponse<{ items: ApiScheduleItem[] }>(response);
+  return data.items;
+}
+
+export async function createRaahGoogleCalendarEvent(input: RaahGoogleCalendarEventInput, user: User) {
+  const response = await fetch('/api/raah/calendar/events', {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<{ item: ApiScheduleItem }>(response);
+  return data.item;
 }

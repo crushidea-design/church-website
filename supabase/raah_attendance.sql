@@ -3,17 +3,26 @@ begin;
 create table if not exists public.raah_attendance_events (
   id uuid primary key default gen_random_uuid(),
   date date not null,
-  service_type text not null default '주일예배',
+  event_type text not null default 'sunday_morning' check (event_type in ('sunday_morning', 'sunday_afternoon', 'young_adults', 'wednesday_prayer', 'other')),
+  service_type text not null default '주일?�배',
   includes_communion boolean not null default true,
   memo text,
   created_by jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (date, service_type)
+  updated_at timestamptz not null default now()
 );
+
+alter table public.raah_attendance_events
+  add column if not exists event_type text not null default 'sunday_morning';
+
+alter table public.raah_attendance_events
+  drop constraint if exists raah_attendance_events_date_service_type_key;
 
 create index if not exists raah_attendance_events_date_idx
   on public.raah_attendance_events (date desc);
+
+create unique index if not exists raah_attendance_events_date_event_type_idx
+  on public.raah_attendance_events (date, event_type);
 
 create table if not exists public.raah_attendance_records (
   id uuid primary key default gen_random_uuid(),
@@ -59,7 +68,6 @@ create policy "raah_attendance_events_admin_select"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_events_admin_insert" on public.raah_attendance_events;
@@ -69,7 +77,6 @@ create policy "raah_attendance_events_admin_insert"
   with check (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_events_admin_update" on public.raah_attendance_events;
@@ -79,12 +86,10 @@ create policy "raah_attendance_events_admin_update"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   )
   with check (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_events_admin_delete" on public.raah_attendance_events;
@@ -94,7 +99,6 @@ create policy "raah_attendance_events_admin_delete"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_records_admin_select" on public.raah_attendance_records;
@@ -104,7 +108,6 @@ create policy "raah_attendance_records_admin_select"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_records_admin_insert" on public.raah_attendance_records;
@@ -114,7 +117,6 @@ create policy "raah_attendance_records_admin_insert"
   with check (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_records_admin_update" on public.raah_attendance_records;
@@ -124,12 +126,10 @@ create policy "raah_attendance_records_admin_update"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   )
   with check (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_attendance_records_admin_delete" on public.raah_attendance_records;
@@ -139,7 +139,6 @@ create policy "raah_attendance_records_admin_delete"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 commit;

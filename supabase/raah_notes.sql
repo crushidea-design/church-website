@@ -24,7 +24,6 @@ create policy "raah_notes_admin_read"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_notes_admin_insert" on public.raah_notes;
@@ -34,7 +33,6 @@ create policy "raah_notes_admin_insert"
   with check (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_notes_admin_update" on public.raah_notes;
@@ -44,12 +42,10 @@ create policy "raah_notes_admin_update"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   )
   with check (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
 
 drop policy if exists "raah_notes_admin_delete" on public.raah_notes;
@@ -59,5 +55,4 @@ create policy "raah_notes_admin_delete"
   using (
     auth.jwt() ->> 'email' = 'crushidea@gmail.com'
     or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin'
   );
