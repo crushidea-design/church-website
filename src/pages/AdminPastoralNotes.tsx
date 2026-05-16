@@ -162,12 +162,13 @@ function getWeekStartIso(dateIso: string) {
 
 function getWeekCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[]) {
   const weekStart = getWeekStartIso(todayIso);
+  const openItems = getOpenScheduleItems(items);
   return WEEKDAY_LABELS.map((label, index) => {
     const dateIso = addDaysIso(weekStart, index);
     return {
       dateIso,
       label,
-      items: items.filter((item) => item.date === dateIso),
+      items: openItems.filter((item) => item.date === dateIso),
       isToday: dateIso === todayIso,
     };
   });
@@ -182,6 +183,7 @@ function getMonthCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[
   const monthStart = getMonthStartIso(todayIso);
   const gridStart = getWeekStartIso(monthStart);
   const currentMonth = parseIsoDateParts(todayIso).month;
+  const openItems = getOpenScheduleItems(items);
 
   return Array.from({ length: 42 }, (_, index) => {
     const dateIso = addDaysIso(gridStart, index);
@@ -189,7 +191,7 @@ function getMonthCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[
     return {
       dateIso,
       label: WEEKDAY_LABELS[index % 7],
-      items: items.filter((item) => item.date === dateIso),
+      items: openItems.filter((item) => item.date === dateIso),
       isToday: dateIso === todayIso,
       isCurrentMonth: month === currentMonth,
     };
@@ -199,6 +201,12 @@ function getMonthCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[
 function getMonthRangeLabel(dateIso: string) {
   const { year, month } = parseIsoDateParts(dateIso);
   return `${year}.${String(month).padStart(2, '0')}`;
+}
+
+function getOpenScheduleItems(items: RaahMinistryScheduleItem[]) {
+  return items
+    .filter((item) => item.status === 'open')
+    .sort((a, b) => `${a.date} ${a.startsAt || ''}`.localeCompare(`${b.date} ${b.startsAt || ''}`));
 }
 
 function getAttendanceOption(type: RaahAttendanceEventType) {
@@ -1470,6 +1478,7 @@ function MinistrySchedulePanel({
   const monthDays = getMonthCalendarDays(todayIso, items);
   const weekRange = `${formatDisplayDate(weekDays[0]?.dateIso || todayIso)} - ${formatDisplayDate(weekDays[6]?.dateIso || todayIso)}`;
   const monthRange = getMonthRangeLabel(todayIso);
+  const hasOpenItems = items.some((item) => item.status === 'open');
   return (
     <div className={shell.panel + ' p-5'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1554,7 +1563,7 @@ function MinistrySchedulePanel({
       ) : (
         <MonthScheduleGrid days={monthDays} rangeLabel={monthRange} isSaving={isSaving} onComplete={onComplete} />
       )}
-      {items.length === 0 && <EmptyState>등록된 사역 일정이 없습니다.</EmptyState>}
+      {!hasOpenItems && <EmptyState>등록된 사역 일정이 없습니다.</EmptyState>}
     </div>
   );
 }
@@ -1599,8 +1608,8 @@ function WeekScheduleGrid({
                 <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 px-2 py-2 text-xs text-[#7a8b9a]">일정 없음</p>
               ) : (
                 day.items.map((item) => (
-                  <div key={item.id} className="rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
-                    <div className="flex items-start justify-between gap-2">
+                  <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-9 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
+                    <div>
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold text-[#17202b]">{item.title}</p>
                         <p className="mt-1 text-[11px] text-[#607080]">
@@ -1608,7 +1617,8 @@ function WeekScheduleGrid({
                           {item.memberName ? ` · ${item.memberName}` : ''}
                         </p>
                       </div>
-                      <button type="button" disabled={isSaving} onClick={() => onComplete(item.id)} className="rounded-md border border-[#d5dee5] px-2 py-1 text-[11px] font-semibold text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                      <button type="button" disabled={isSaving} onClick={() => onComplete(item.id)} title="완료" aria-label={`${item.title} 완료`} className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                        <CheckSquare size={12} strokeWidth={2.4} />
                         완료
                       </button>
                     </div>
@@ -1671,8 +1681,8 @@ function MonthScheduleGrid({
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {day.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
-                      <div className="flex items-start justify-between gap-2">
+                    <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-7 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
+                      <div>
                         <div className="min-w-0">
                           <p className="truncate text-[11px] font-semibold text-[#17202b]">{item.title}</p>
                           <p className="mt-0.5 truncate text-[10px] text-[#607080]">
@@ -1684,8 +1694,11 @@ function MonthScheduleGrid({
                           type="button"
                           disabled={isSaving}
                           onClick={() => onComplete(item.id)}
-                          className="rounded-md border border-[#d5dee5] px-1.5 py-0.5 text-[10px] font-semibold text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                          title="완료"
+                          aria-label={`${item.title} 완료`}
+                          className="absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
                         >
+                          <CheckSquare size={11} strokeWidth={2.4} />
                           완료
                         </button>
                       </div>
