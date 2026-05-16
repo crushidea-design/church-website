@@ -111,7 +111,7 @@ export async function saveWeeklyWordFruit(
   await setDoc(ref, payload, { merge: true });
 }
 
-export async function upsertProgressByPastor(input: {
+export async function upsertProgressByLeader(input: {
   weekId: string;
   userId: string;
   childName: string;
@@ -146,6 +146,64 @@ export async function upsertProgressByPastor(input: {
       updatedAt: serverTimestamp(),
     });
   }
+}
+
+/** Backwards-compatible alias for the pastor flow. */
+export const upsertProgressByPastor = upsertProgressByLeader;
+
+/**
+ * Adds one today's check to a progress doc on behalf of a teacher or parent.
+ * Idempotent per day. Caller is expected to have permission (firestore.rules).
+ */
+export async function addTodayCheckByLeader(input: {
+  weekId: string;
+  userId: string;
+  childName: string;
+  practice?: string;
+  groupId?: string;
+}) {
+  const id = progressDocId(input.weekId, input.userId);
+  const ref = doc(db, WORD_FRUIT_PROGRESS_COLLECTION, id);
+  const todayKey = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const existing = await getDoc(ref);
+  if (!existing.exists()) {
+    const checkedDates = [todayKey];
+    await setDoc(ref, {
+      weekId: input.weekId,
+      userId: input.userId,
+      childName: input.childName,
+      practice: input.practice ?? '',
+      groupId: input.groupId ?? '',
+      checkCount: 1,
+      checkedDates,
+      fruitStage: 1,
+      completed: false,
+      lastCheckedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return { skipped: false } as const;
+  }
+  const cur = existing.data() as WordFruitProgress;
+  const checkedDates = Array.isArray(cur.checkedDates) ? cur.checkedDates : [];
+  if (checkedDates.includes(todayKey)) {
+    return { skipped: true } as const;
+  }
+  const nextDates = [...checkedDates, todayKey];
+  const checkCount = nextDates.length;
+  await updateDoc(ref, {
+    checkedDates: nextDates,
+    checkCount,
+    fruitStage: fruitStageOf(checkCount),
+    completed: checkCount >= 3,
+    lastCheckedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...(input.practice ? { practice: input.practice } : {}),
+  });
+  return { skipped: false } as const;
 }
 
 /**

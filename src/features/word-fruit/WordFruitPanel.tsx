@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Lock, Loader2, Sparkles, BookOpen, AlertCircle, Settings, History } from 'lucide-react';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
+  addTodayCheckByLeader,
   checkInToday,
   fruitStageOf,
   getTodayKey,
@@ -15,7 +16,15 @@ import {
   subscribeProgressForUsers,
   subscribePublishedFruits,
   subscribeWeeklyWordFruit,
+  upsertProgressByLeader,
 } from './api';
+import { onSnapshot, query, collection, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import {
+  setAttendanceBatch,
+  subscribeAttendanceForGroup,
+  getRecentSundayWeekKeys,
+} from './attendanceApi';
 import { GUIDE_MESSAGE_DEFAULT, TOP_MESSAGE_DEFAULT, WeeklyWordFruit, WordFruitProgress } from './types';
 import WordFruitTree, { stageMessage } from './WordFruitTree';
 import WordFruitAdmin from './WordFruitAdmin';
@@ -52,6 +61,11 @@ export default function WordFruitPanel() {
   const isParent = member?.department === '학부모';
   const isTeacher = member?.department === '교사' && member?.role === 'member';
   const childIds = useMemo(() => member?.childIds ?? [], [member?.childIds]);
+  const proxyChildren = useMemo(() => member?.proxyChildren ?? [], [member?.proxyChildren]);
+  const combinedChildUserIds = useMemo(
+    () => [...childIds, ...proxyChildren.map((p) => p.id)],
+    [childIds, proxyChildren],
+  );
   const teacherGroupIds = useMemo(() => member?.groupIds ?? [], [member?.groupIds]);
   const teacherIsScoped = isTeacher && teacherGroupIds.length > 0;
 
@@ -68,12 +82,12 @@ export default function WordFruitPanel() {
   }, []);
 
   useEffect(() => {
-    if (!isParent || childIds.length === 0) {
+    if (!isParent || combinedChildUserIds.length === 0) {
       setChildProgresses([]);
       return;
     }
-    return subscribeProgressForUsers(selectedWeekId, childIds, setChildProgresses);
-  }, [selectedWeekId, isParent, childIds]);
+    return subscribeProgressForUsers(selectedWeekId, combinedChildUserIds, setChildProgresses);
+  }, [selectedWeekId, isParent, combinedChildUserIds]);
 
   useEffect(() => {
     if (!user) {
@@ -261,9 +275,21 @@ export default function WordFruitPanel() {
                 myAllProgress={myAllProgress}
               />
             ) : isParent ? (
-              <ParentView fruit={fruit} childProgresses={childProgresses} childIds={childIds} />
+              <ParentView
+                fruit={fruit}
+                weekId={selectedWeekId}
+                childProgresses={childProgresses}
+                childIds={childIds}
+                proxyChildren={member?.proxyChildren ?? []}
+                canEdit={isCurrentWeek}
+              />
             ) : isTeacher ? (
-              <TeacherView allProgress={allProgress} />
+              <TeacherView
+                weekId={selectedWeekId}
+                allProgress={allProgress}
+                teacherGroupIds={teacherGroupIds}
+                canEdit={isCurrentWeek}
+              />
             ) : isPastor ? (
               <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-sm text-emerald-800">
                 관리자 계정입니다. 위의 “관리” 버튼으로 이번 주 말씀 열매를 등록하고 아이별 작은 순종을 입력해 주세요.
@@ -575,50 +601,113 @@ function ArchiveList({
 
 function ParentView({
   fruit,
+  weekId,
   childProgresses,
   childIds,
+  proxyChildren,
+  canEdit,
 }: {
   fruit: WeeklyWordFruit;
+  weekId: string;
   childProgresses: WordFruitProgress[];
   childIds: string[];
+  proxyChildren: Array<{ id: string; name: string; grade?: string; usesPhone: boolean; groupId?: string }>;
+  canEdit: boolean;
 }) {
-  if (childIds.length === 0) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState('');
+  const todayKey = getTodayKey();
+  const progressByUserId = new Map(childProgresses.map((p) => [p.userId, p]));
+  const realChildEntries = childIds.map((uid) => ({
+    kind: 'real' as const,
+    id: uid,
+    name: progressByUserId.get(uid)?.childName || '자녀',
+    grade: undefined as string | undefined,
+    progress: progressByUserId.get(uid) ?? null,
+  }));
+  const proxyEntries = proxyChildren.map((c) => ({
+    kind: 'proxy' as const,
+    id: c.id,
+    name: c.name,
+    grade: c.grade,
+    progress: progressByUserId.get(c.id) ?? null,
+  }));
+  const entries = [...realChildEntries, ...proxyEntries];
+
+  if (entries.length === 0) {
     return (
       <div className="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
-        자녀 계정 연결이 아직 되어 있지 않아요. 관리자에게 연결을 요청해 주세요.
+        등록된 자녀가 없어요. 학부모 첫 설정에서 자녀를 추가해 주세요.
       </div>
     );
   }
-  if (childProgresses.length === 0) {
-    return (
-      <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        이번 주 자녀의 작은 순종이 아직 등록되지 않았어요.
-      </div>
-    );
-  }
+
+  const handlePlusOne = async (entry: typeof entries[number]) => {
+    if (!canEdit) return;
+    setErr('');
+    setBusy(entry.id);
+    try {
+      await addTodayCheckByLeader({
+        weekId,
+        userId: entry.id,
+        childName: entry.name,
+        practice: entry.progress?.practice,
+        groupId: entry.progress?.groupId ?? '',
+      });
+    } catch (e: any) {
+      setErr(e?.message || '저장 실패');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="mt-5 space-y-3">
       <h3 className="text-base font-black text-emerald-950">우리 아이 말씀 열매</h3>
-      {childProgresses.map((p) => {
-        const stage = (p.completed ? 3 : Math.min(p.checkCount, 3)) as 0 | 1 | 2 | 3;
+      {err && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>
+      )}
+      {entries.map((entry) => {
+        const p = entry.progress;
+        const checkCount = p?.checkCount ?? 0;
+        const stage = (p?.completed ? 3 : Math.min(checkCount, 3)) as 0 | 1 | 2 | 3;
+        const checkedToday = !!p && (p.checkedDates ?? []).includes(todayKey);
         return (
-          <div key={p.id} className="rounded-xl border border-emerald-100 bg-white p-3">
+          <div key={entry.id} className="rounded-xl border border-emerald-100 bg-white p-3">
             <div className="flex items-center justify-between">
-              <p className="font-bold text-emerald-950">{p.childName}</p>
+              <p className="font-bold text-emerald-950">
+                {entry.name}
+                {entry.kind === 'proxy' && (
+                  <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">대리</span>
+                )}
+                {entry.grade && (
+                  <span className="ml-2 text-xs font-bold text-slate-500">({entry.grade})</span>
+                )}
+              </p>
               <span
                 className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                  p.completed
+                  p?.completed
                     ? 'bg-emerald-100 text-emerald-800'
-                    : p.checkCount > 0
+                    : checkCount > 0
                       ? 'bg-amber-100 text-amber-800'
                       : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                {p.completed ? '완료' : p.checkCount > 0 ? '익어가는 중' : '자라는 중'}
+                {p?.completed ? '완료' : checkCount > 0 ? '익어가는 중' : '자라는 중'}
               </span>
             </div>
-            <p className="mt-2 text-sm text-slate-700">{p.practice}</p>
-            <p className="mt-1 text-xs text-slate-500">체크 {Math.min(p.checkCount, 3)}/3 · {stageMessage(stage)}</p>
+            {p?.practice && <p className="mt-2 text-sm text-slate-700">{p.practice}</p>}
+            <p className="mt-1 text-xs text-slate-500">체크 {Math.min(checkCount, 3)}/3 · {stageMessage(stage)}</p>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => handlePlusOne(entry)}
+                disabled={busy === entry.id || checkedToday || p?.completed}
+                className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:bg-slate-300"
+              >
+                {checkedToday ? '오늘은 이미 체크했어요' : p?.completed ? '이번 주 완료' : '오늘 열매 +1'}
+              </button>
+            )}
           </div>
         );
       })}
@@ -627,8 +716,61 @@ function ParentView({
   );
 }
 
-function TeacherView({ allProgress }: { allProgress: WordFruitProgress[] }) {
-  if (allProgress.length === 0) {
+interface TeacherStudent {
+  uid: string;
+  displayName: string;
+  groupId: string;
+}
+
+function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] {
+  const [students, setStudents] = useState<TeacherStudent[]>([]);
+  useEffect(() => {
+    if (teacherGroupIds.length === 0) {
+      setStudents([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'next_generation_members'),
+      where('role', '==', 'member'),
+      where('department', '==', '학생'),
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const items: TeacherStudent[] = [];
+        snap.docs.forEach((d) => {
+          const data = d.data() as any;
+          const gid = data.groupId ?? '';
+          if (teacherGroupIds.includes(gid)) {
+            items.push({
+              uid: data.uid ?? d.id,
+              displayName: data.displayName ?? '이름 없음',
+              groupId: gid,
+            });
+          }
+        });
+        items.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
+        setStudents(items);
+      },
+      () => setStudents([]),
+    );
+  }, [teacherGroupIds.join('|')]);
+  return students;
+}
+
+function TeacherView({
+  weekId,
+  allProgress,
+  teacherGroupIds,
+  canEdit,
+}: {
+  weekId: string;
+  allProgress: WordFruitProgress[];
+  teacherGroupIds: string[];
+  canEdit: boolean;
+}) {
+  const teacherStudents = useTeacherStudents(teacherGroupIds);
+  if (allProgress.length === 0 && teacherStudents.length === 0) {
     return (
       <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
         이번 주 등록된 학생 진행이 없어요.
@@ -712,6 +854,271 @@ function TeacherView({ allProgress }: { allProgress: WordFruitProgress[] }) {
           </tbody>
         </table>
       </div>
+
+      {canEdit && teacherStudents.length > 0 && (
+        <TeacherStudentActionList
+          students={teacherStudents}
+          weekId={weekId}
+          allProgress={allProgress}
+        />
+      )}
+
+      {teacherStudents.length > 0 && (
+        <TeacherAttendanceSection students={teacherStudents} canEdit={canEdit} />
+      )}
+    </div>
+  );
+}
+
+function TeacherStudentActionList({
+  students,
+  weekId,
+  allProgress,
+}: {
+  students: TeacherStudent[];
+  weekId: string;
+  allProgress: WordFruitProgress[];
+}) {
+  const progressByUid = new Map(allProgress.map((p) => [p.userId, p]));
+  const todayKey = getTodayKey();
+  return (
+    <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+      <h4 className="text-sm font-black text-emerald-900">학생별 빠른 입력</h4>
+      <p className="mt-1 text-xs text-slate-600">실천 내용을 수정하거나 오늘 체크를 +1 할 수 있어요.</p>
+      <div className="mt-3 space-y-2">
+        {students.map((s) => {
+          const p = progressByUid.get(s.uid);
+          const checkedToday = !!p && (p.checkedDates ?? []).includes(todayKey);
+          return (
+            <TeacherStudentRow
+              key={s.uid}
+              student={s}
+              progress={p ?? null}
+              weekId={weekId}
+              checkedToday={checkedToday}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TeacherStudentRow({
+  student,
+  progress,
+  weekId,
+  checkedToday,
+}: {
+  student: TeacherStudent;
+  progress: WordFruitProgress | null;
+  weekId: string;
+  checkedToday: boolean;
+}) {
+  const [practice, setPractice] = useState(progress?.practice ?? '');
+  const [busy, setBusy] = useState<'save' | 'plus' | null>(null);
+  const [err, setErr] = useState('');
+  const [savedTick, setSavedTick] = useState(false);
+
+  useEffect(() => {
+    setPractice(progress?.practice ?? '');
+  }, [progress?.practice]);
+
+  const handleSave = async () => {
+    setErr('');
+    setBusy('save');
+    try {
+      await upsertProgressByLeader({
+        weekId,
+        userId: student.uid,
+        childName: student.displayName,
+        practice: practice.trim(),
+        groupId: student.groupId,
+      });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 1500);
+    } catch (e: any) {
+      setErr(e?.message || '저장 실패');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handlePlus = async () => {
+    setErr('');
+    setBusy('plus');
+    try {
+      await addTodayCheckByLeader({
+        weekId,
+        userId: student.uid,
+        childName: student.displayName,
+        practice: practice.trim() || progress?.practice,
+        groupId: student.groupId,
+      });
+    } catch (e: any) {
+      setErr(e?.message || '저장 실패');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const checkCount = progress?.checkCount ?? 0;
+
+  return (
+    <div className="rounded-lg border border-white bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-bold text-emerald-950">{student.displayName}</p>
+        <span className="text-xs font-bold text-slate-500">체크 {Math.min(checkCount, 3)}/3</span>
+      </div>
+      <textarea
+        value={practice}
+        onChange={(e) => setPractice(e.target.value)}
+        rows={2}
+        maxLength={200}
+        placeholder="이번 주 실천 내용을 입력하세요"
+        className="mt-2 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+      />
+      {err && <p className="mt-1 text-xs text-rose-700">{err}</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={busy !== null}
+          className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+        >
+          {busy === 'save' ? '저장 중…' : savedTick ? '저장됨' : '실천 내용 저장'}
+        </button>
+        <button
+          type="button"
+          onClick={handlePlus}
+          disabled={busy !== null || checkedToday || progress?.completed}
+          className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:bg-slate-300"
+        >
+          {checkedToday ? '오늘 체크 완료' : progress?.completed ? '주간 완료' : '이번 주 체크 +1'}
+        </button>
+      </div>
+      {progress && progress.checkedDates && progress.checkedDates.length > 0 && (
+        <div className="mt-2 flex gap-1">
+          {Array.from({ length: 4 }).map((_, i) => {
+            const filled = i < Math.min(progress.checkedDates.length, 4);
+            return (
+              <span
+                key={i}
+                className={`h-2 w-6 rounded-full ${filled ? 'bg-emerald-400' : 'bg-slate-200'}`}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeacherAttendanceSection({
+  students,
+  canEdit,
+}: {
+  students: TeacherStudent[];
+  canEdit: boolean;
+}) {
+  const { user } = useNextGenerationAuth();
+  const recentWeekKeys = useMemo(() => getRecentSundayWeekKeys(4), []);
+  const thisWeekKey = recentWeekKeys[0];
+  const groupId = students[0]?.groupId ?? '';
+  const [rows, setRows] = useState<{ [studentUid: string]: boolean }>({});
+  const [history, setHistory] = useState<Record<string, Record<string, boolean>>>({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    if (!groupId) return;
+    return subscribeAttendanceForGroup(groupId, recentWeekKeys, (records) => {
+      const next: Record<string, Record<string, boolean>> = {};
+      records.forEach((r) => {
+        if (!next[r.studentUid]) next[r.studentUid] = {};
+        next[r.studentUid][r.weekKey] = !!r.present;
+      });
+      setHistory(next);
+      // seed current week's checkbox state from existing record
+      const seeded: Record<string, boolean> = {};
+      students.forEach((s) => {
+        seeded[s.uid] = !!next[s.uid]?.[thisWeekKey];
+      });
+      setRows(seeded);
+    });
+  }, [groupId, recentWeekKeys.join('|'), students.map((s) => s.uid).join('|')]);
+
+  const togglePresent = (uid: string, val: boolean) => {
+    setRows((r) => ({ ...r, [uid]: val }));
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+    setMsg('');
+    setBusy(true);
+    try {
+      const batch = students.map((s) => ({
+        weekKey: thisWeekKey,
+        sundayDate: thisWeekKey,
+        studentUid: s.uid,
+        studentName: s.displayName,
+        groupId: s.groupId,
+        present: !!rows[s.uid],
+        checkedBy: user.uid,
+      }));
+      await setAttendanceBatch(batch);
+      setMsg('저장되었습니다.');
+      setTimeout(() => setMsg(''), 1500);
+    } catch (e: any) {
+      setMsg(e?.message || '저장 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-black text-sky-900">출석부 ({thisWeekKey})</h4>
+        {msg && <span className="text-xs font-bold text-emerald-700">{msg}</span>}
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {students.map((s) => {
+          const past = history[s.uid] ?? {};
+          const presentCount = recentWeekKeys.reduce((acc, k) => acc + (past[k] ? 1 : 0), 0);
+          const pct = Math.round((presentCount / recentWeekKeys.length) * 100);
+          return (
+            <label
+              key={s.uid}
+              className="flex items-center justify-between rounded-md border border-white bg-white px-3 py-2"
+            >
+              <span className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={!!rows[s.uid]}
+                  onChange={(e) => togglePresent(s.uid, e.target.checked)}
+                  disabled={!canEdit}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-bold text-slate-800">{s.displayName}</span>
+              </span>
+              <span className="text-xs font-bold text-slate-500">최근 4주 {pct}%</span>
+            </label>
+          );
+        })}
+      </div>
+      {canEdit && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={busy || students.length === 0}
+            className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-60"
+          >
+            {busy ? '저장 중…' : '출석부 저장'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -57,6 +57,12 @@ export interface NextGenerationMember {
   groupId?: string;
   /** Groups a teacher is responsible for. */
   groupIds?: string[];
+  /** True once the parent has completed the onboarding modal. */
+  parentOnboardingCompleted?: boolean;
+  /** Children that don't use a phone — managed entirely by the parent. */
+  proxyChildren?: Array<{ id: string; name: string; grade?: string; usesPhone: boolean; groupId?: string }>;
+  /** On a student doc: parent's email entered at signup, used to auto-link on approval. */
+  parentEmail?: string;
 }
 
 export interface NextGenerationNotification {
@@ -74,6 +80,8 @@ export interface SignUpData {
   department: Department;
   church: string;
   intro: string;
+  /** Only set when department === '학생' — used to auto-link the parent on approval. */
+  parentEmail?: string;
 }
 
 export interface EmailSignUpData extends SignUpData {
@@ -232,7 +240,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
     try {
       await updateProfile(credential.user, { displayName: data.displayName });
       const memberRef = doc(db, 'next_generation_members', credential.user.uid);
-      await setDoc(memberRef, {
+      const payload: Record<string, unknown> = {
         uid: credential.user.uid,
         email: data.email,
         displayName: data.displayName,
@@ -242,7 +250,11 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
         intro: data.intro,
         provider: 'email',
         createdAt: serverTimestamp(),
-      });
+      };
+      if (data.department === '학생' && data.parentEmail && data.parentEmail.trim()) {
+        payload.parentEmail = data.parentEmail.trim().toLowerCase();
+      }
+      await setDoc(memberRef, payload);
     } catch (err) {
       // Roll back the Auth account if Firestore write fails
       await credential.user.delete().catch(() => {});
@@ -267,7 +279,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
   const completeGoogleSignUp = useCallback(async (data: SignUpData) => {
     if (!user) throw new Error('로그인 상태가 아닙니다.');
     const memberRef = doc(db, 'next_generation_members', user.uid);
-    await setDoc(memberRef, {
+    const payload: Record<string, unknown> = {
       uid: user.uid,
       email: user.email,
       displayName: data.displayName,
@@ -277,7 +289,11 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
       intro: data.intro,
       provider: 'google',
       createdAt: serverTimestamp(),
-    });
+    };
+    if (data.department === '학생' && data.parentEmail && data.parentEmail.trim()) {
+      payload.parentEmail = data.parentEmail.trim().toLowerCase();
+    }
+    await setDoc(memberRef, payload);
     setNeedsSignUp(false);
   }, [user]);
 
