@@ -1,0 +1,330 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
+import {
+  addTodayCheckByLeader,
+  fruitStageOf,
+  getTodayKey,
+  getWeekId,
+  subscribeMyProgress,
+  subscribeProgressForGroups,
+  subscribeProgressForUsers,
+} from './api';
+import { WordFruitProgress } from './types';
+import WordFruitTree from './WordFruitTree';
+import {
+  subscribeAttendanceForGroup,
+  subscribeAttendanceForStudent,
+  getRecentSundayWeekKeys,
+  AttendanceDoc,
+} from './attendanceApi';
+import {
+  setFamilyWorshipLog,
+  subscribeMyFamilyWorshipLogs,
+  FamilyWorshipLog,
+} from './familyWorshipApi';
+
+/* ---------------- Student ---------------- */
+
+export function StudentRoleCards() {
+  const { user } = useNextGenerationAuth();
+  const weekId = useMemo(() => getWeekId(), []);
+  const [progress, setProgress] = useState<WordFruitProgress | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
+  const recentWeekKeys = useMemo(() => getRecentSundayWeekKeys(8), []);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeMyProgress(weekId, user.uid, setProgress);
+  }, [user, weekId]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeAttendanceForStudent(user.uid, setAttendance);
+  }, [user]);
+
+  const attMap = useMemo(() => {
+    const m = new Map<string, boolean>();
+    attendance.forEach((a) => m.set(a.weekKey, !!a.present));
+    return m;
+  }, [attendance]);
+
+  const stage = (progress ? fruitStageOf(progress.checkCount) : 0) as 0 | 1 | 2 | 3;
+
+  return (
+    <>
+      <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-black text-emerald-950">내 이번 주 열매</h2>
+        {progress ? (
+          <>
+            <p className="mt-1 text-xs font-bold text-slate-500">{progress.practice || '작은 순종이 등록되지 않았어요.'}</p>
+            <div className="mt-3">
+              <WordFruitTree stage={stage} fruitName={'열매'} />
+            </div>
+            <p className="mt-2 text-center text-xs font-bold text-emerald-800">체크 {progress.checkCount}/3</p>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-slate-500">이번 주 작은 순종이 아직 등록되지 않았어요.</p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-black text-emerald-950">최근 8주 출석</h2>
+        <p className="mt-1 text-xs text-slate-500">왼쪽이 가장 최근입니다.</p>
+        <div className="mt-3 flex gap-1.5">
+          {recentWeekKeys.map((k) => (
+            <span
+              key={k}
+              title={k}
+              className={`h-4 w-4 rounded-full ${attMap.get(k) ? 'bg-emerald-500' : 'bg-slate-200'}`}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- Parent ---------------- */
+
+export function ParentRoleCards() {
+  const { user, member } = useNextGenerationAuth();
+  const weekId = useMemo(() => getWeekId(), []);
+  const childIds = member?.childIds ?? [];
+  const proxyChildren = member?.proxyChildren ?? [];
+  const combinedIds = useMemo(
+    () => [...childIds, ...proxyChildren.map((p) => p.id)],
+    [childIds.join('|'), proxyChildren.map((p) => p.id).join('|')],
+  );
+  const [progresses, setProgresses] = useState<WordFruitProgress[]>([]);
+  const [logs, setLogs] = useState<FamilyWorshipLog[]>([]);
+  const [savingWorship, setSavingWorship] = useState(false);
+  const [savingChild, setSavingChild] = useState<string | null>(null);
+  const todayKey = getTodayKey();
+  const recentWeekKeys = useMemo(() => getRecentSundayWeekKeys(8), []);
+  const thisWeekKey = recentWeekKeys[0];
+
+  useEffect(() => {
+    if (combinedIds.length === 0) {
+      setProgresses([]);
+      return;
+    }
+    return subscribeProgressForUsers(weekId, combinedIds, setProgresses);
+  }, [weekId, combinedIds]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeMyFamilyWorshipLogs(user.uid, setLogs);
+  }, [user]);
+
+  const progressByUid = new Map(progresses.map((p) => [p.userId, p]));
+  const worshipMap = new Map(logs.map((l) => [l.weekKey, l]));
+  const thisWeekDone = worshipMap.has(thisWeekKey);
+
+  const handleChildPlus = async (id: string, name: string, groupId?: string) => {
+    setSavingChild(id);
+    try {
+      await addTodayCheckByLeader({
+        weekId,
+        userId: id,
+        childName: name,
+        groupId: groupId ?? '',
+      });
+    } catch {
+      // ignore
+    } finally {
+      setSavingChild(null);
+    }
+  };
+
+  const handleWorship = async () => {
+    if (!user) return;
+    setSavingWorship(true);
+    try {
+      await setFamilyWorshipLog({
+        weekKey: thisWeekKey,
+        parentUid: user.uid,
+        childUids: combinedIds,
+      });
+    } finally {
+      setSavingWorship(false);
+    }
+  };
+
+  const entries = [
+    ...childIds.map((uid) => ({
+      id: uid,
+      name: progressByUid.get(uid)?.childName || '자녀',
+      groupId: progressByUid.get(uid)?.groupId,
+    })),
+    ...proxyChildren.map((c) => ({ id: c.id, name: c.name, groupId: c.groupId })),
+  ];
+
+  return (
+    <>
+      <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-black text-emerald-950">우리 아이 열매</h2>
+        {entries.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">등록된 자녀가 없어요.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {entries.map((c) => {
+              const p = progressByUid.get(c.id);
+              const checkedToday = !!p && (p.checkedDates ?? []).includes(todayKey);
+              return (
+                <div key={c.id} className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-emerald-950">{c.name}</p>
+                    <p className="text-xs text-slate-500">체크 {Math.min(p?.checkCount ?? 0, 3)}/3</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleChildPlus(c.id, c.name, c.groupId)}
+                    disabled={savingChild === c.id || checkedToday || p?.completed}
+                    className="ml-2 shrink-0 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white disabled:bg-slate-300"
+                  >
+                    {checkedToday ? '오늘 완료' : '오늘 +1'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-black text-emerald-950">이번 주 가정예배</h2>
+        <p className="mt-1 text-xs text-slate-500">{thisWeekKey} 기준</p>
+        <button
+          type="button"
+          onClick={handleWorship}
+          disabled={savingWorship || thisWeekDone}
+          className="mt-3 w-full rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-600 disabled:bg-slate-300"
+        >
+          {thisWeekDone ? '이번 주 가정예배 드림 ✓' : '이번 주 가정예배 드렸어요'}
+        </button>
+        <div className="mt-3 flex gap-1.5">
+          {recentWeekKeys.map((k) => (
+            <span
+              key={k}
+              title={k}
+              className={`h-3 w-3 rounded-full ${worshipMap.has(k) ? 'bg-amber-500' : 'bg-slate-200'}`}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- Teacher ---------------- */
+
+export function TeacherRoleCards() {
+  const { member } = useNextGenerationAuth();
+  const groupIds = member?.groupIds ?? [];
+  const weekId = useMemo(() => getWeekId(), []);
+  const recentWeekKeys = useMemo(() => getRecentSundayWeekKeys(1), []);
+  const thisWeekKey = recentWeekKeys[0];
+
+  const [progresses, setProgresses] = useState<WordFruitProgress[]>([]);
+  const [studentsByGroup, setStudentsByGroup] = useState<Record<string, Array<{ uid: string; displayName: string }>>>({});
+  const [attendance, setAttendance] = useState<Record<string, AttendanceDoc[]>>({});
+
+  useEffect(() => {
+    if (groupIds.length === 0) return;
+    return subscribeProgressForGroups(weekId, groupIds, setProgresses);
+  }, [weekId, groupIds.join('|')]);
+
+  useEffect(() => {
+    if (groupIds.length === 0) return;
+    const q = query(
+      collection(db, 'next_generation_members'),
+      where('role', '==', 'member'),
+      where('department', '==', '학생'),
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const grouped: Record<string, Array<{ uid: string; displayName: string }>> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data() as any;
+          const gid = data.groupId ?? '';
+          if (!groupIds.includes(gid)) return;
+          if (!grouped[gid]) grouped[gid] = [];
+          grouped[gid].push({ uid: data.uid ?? d.id, displayName: data.displayName ?? '이름 없음' });
+        });
+        setStudentsByGroup(grouped);
+      },
+      () => setStudentsByGroup({}),
+    );
+  }, [groupIds.join('|')]);
+
+  useEffect(() => {
+    const unsubs: Array<() => void> = [];
+    groupIds.forEach((gid) => {
+      const u = subscribeAttendanceForGroup(gid, [thisWeekKey], (rows) => {
+        setAttendance((prev) => ({ ...prev, [gid]: rows }));
+      });
+      unsubs.push(u);
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [groupIds.join('|'), thisWeekKey]);
+
+  if (groupIds.length === 0) {
+    return (
+      <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-black text-emerald-950">우리 반 현황</h2>
+        <p className="mt-2 text-sm text-slate-500">담당 반이 아직 지정되지 않았어요.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-black text-emerald-950">우리 반 현황</h2>
+      <p className="mt-1 text-xs text-slate-500">{thisWeekKey} 기준</p>
+      <div className="mt-3 space-y-2">
+        {groupIds.map((gid) => {
+          const list = studentsByGroup[gid] ?? [];
+          const groupProgress = progresses.filter((p) => p.groupId === gid);
+          const completed = groupProgress.filter((p) => p.completed).length;
+          const fruitPct = list.length > 0 ? Math.round((completed / list.length) * 100) : 0;
+          const presentCount = (attendance[gid] ?? []).filter((a) => a.present).length;
+          const attPct = list.length > 0 ? Math.round((presentCount / list.length) * 100) : 0;
+          return (
+            <a
+              key={gid}
+              href={'/next/elementary?highlight=word-fruit'}
+              className="block rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 hover:bg-emerald-50"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-black text-emerald-950">{gid}</p>
+                <span className="text-xs font-bold text-slate-500">{list.length}명</span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-white px-2 py-1.5">
+                  <p className="text-slate-500">열매 완료</p>
+                  <p className="font-black text-emerald-700">{fruitPct}%</p>
+                </div>
+                <div className="rounded-md bg-white px-2 py-1.5">
+                  <p className="text-slate-500">출석</p>
+                  <p className="font-black text-sky-700">{attPct}%</p>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function RoleCardsLoader() {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+      <Loader2 className="inline animate-spin" size={14} /> 불러오는 중
+    </div>
+  );
+}

@@ -41,6 +41,7 @@ import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
 import { Apple, BookOpen, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
+import ParentOnboardingModal from '../features/word-fruit/ParentOnboardingModal';
 import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
 import { formatDate } from '../lib/utils';
 import {
@@ -919,6 +920,9 @@ function NextGenerationHeader() {
         />
       )}
       {showAdminModal && <NextGenerationAdmin onClose={() => setShowAdminModal(false)} />}
+      {hasAccess && member?.department === '학부모' && !member?.parentOnboardingCompleted && (
+        <ParentOnboardingModal />
+      )}
     </>
   );
 }
@@ -1969,7 +1973,7 @@ function ResourceLibraryPage({
                     setSearchParams(next, { replace: true });
                   }}
                   title={isTabLocked ? '로그인 후 이용할 수 있습니다' : undefined}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-black transition sm:gap-2 sm:px-4 sm:py-3 sm:text-sm ${
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-black transition min-h-[44px] sm:gap-2 sm:px-4 sm:py-3 ${
                     isActive
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : isTabLocked
@@ -1977,8 +1981,8 @@ function ResourceLibraryPage({
                       : 'bg-sky-50 text-emerald-950 hover:bg-sky-100'
                   }`}
                 >
-                  {isTabLocked ? <Lock size={14} className="sm:hidden" /> : <Icon size={14} className="sm:hidden" />}
-                  {isTabLocked ? <Lock size={16} className="hidden sm:block" /> : <Icon size={18} className="hidden sm:block" />}
+                  {isTabLocked ? <Lock size={16} className="sm:hidden" /> : <Icon size={16} className="sm:hidden" />}
+                  {isTabLocked ? <Lock size={18} className="hidden sm:block" /> : <Icon size={18} className="hidden sm:block" />}
                   {tab.name}
                 </button>
               );

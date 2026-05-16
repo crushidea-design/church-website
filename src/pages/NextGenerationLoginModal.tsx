@@ -61,6 +61,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
   const [signupDept, setSignupDept] = useState<Department>('청년');
   const [signupChurch, setSignupChurch] = useState('');
   const [signupIntro, setSignupIntro] = useState('');
+  const [signupParentEmail, setSignupParentEmail] = useState('');
 
   // Complete Google signup form
   const [googleName, setGoogleName] = useState('');
@@ -161,6 +162,9 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
         department: signupDept,
         church: signupChurch.trim(),
         intro: signupIntro.trim(),
+        ...(signupDept === '학생' && signupParentEmail.trim()
+          ? { parentEmail: signupParentEmail.trim() }
+          : {}),
       };
       await signUpWithEmail(data);
       setView('pending');
@@ -447,6 +451,21 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                     placeholder="예: 한우리교회"
                   />
                 </div>
+                {signupDept === '학생' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">학부모 이메일 <span className="text-gray-400 text-xs">(권장)</span></label>
+                    <input
+                      type="email"
+                      value={signupParentEmail}
+                      onChange={e => setSignupParentEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+                      placeholder="부모님이 가입하신 이메일 (선택)"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      부모님 계정이 이미 가입되어 있으면 승인 시 자동으로 연결됩니다.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">자기소개</label>
                   <textarea

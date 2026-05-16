@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
   deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
-  getDocs, getDoc, setDoc,
+  getDocs, getDoc, setDoc, arrayUnion, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
@@ -282,12 +282,28 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const approveMember = async (uid: string) => {
     setSubmitting(true);
     try {
-      await updateDoc(doc(db, 'next_generation_members', uid), {
+      const target = members.find((m) => m.uid === uid);
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'next_generation_members', uid), {
         role: 'member',
         approvedAt: serverTimestamp(),
         rejectedAt: deleteField(),
         rejectionReason: deleteField(),
       });
+
+      // Auto-link student → parent via parentEmail
+      if (target?.department === '학생' && (target as any).parentEmail) {
+        const parentEmail = String((target as any).parentEmail).trim().toLowerCase();
+        const parent = members.find(
+          (m) => m.department === '학부모' && m.role === 'member' && m.email?.toLowerCase() === parentEmail,
+        );
+        if (parent) {
+          batch.update(doc(db, 'next_generation_members', parent.uid), {
+            childIds: arrayUnion(uid),
+          });
+        }
+      }
+      await batch.commit();
       await addDoc(collection(db, 'next_generation_notifications'), {
         uid,
         type: 'approved',

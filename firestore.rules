@@ -462,7 +462,7 @@ service cloud.firestore {
     match /next_generation_members/{memberId} {
       allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
       allow create: if isAuthenticated() && request.auth.uid == memberId &&
-        request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider', 'isNextGenerationAdmin']) &&
+        request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider', 'isNextGenerationAdmin', 'parentEmail']) &&
         request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.email is string && isValidEmail(request.resource.data.email) &&
@@ -473,11 +473,12 @@ service cloud.firestore {
         request.resource.data.department in ['청년', '교사', '학부모', '학생'] &&
         request.resource.data.church is string && request.resource.data.church.size() > 0 &&
         request.resource.data.intro is string &&
-        request.resource.data.createdAt is timestamp;
+        request.resource.data.createdAt is timestamp &&
+        (!('parentEmail' in request.resource.data) || (request.resource.data.parentEmail is string && request.resource.data.parentEmail.size() <= 200));
       allow update: if isAuthenticated() &&
         (isNextGenerationPastor() ||
          (request.auth.uid == memberId &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro'])));
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro', 'parentOnboardingCompleted', 'proxyChildren'])));
       allow delete: if isNextGenerationPastor() ||
         (isAuthenticated() && request.auth.uid == memberId && resource.data.role == 'pending');
     }
@@ -587,16 +588,41 @@ service cloud.firestore {
       allow create, update, delete: if isNextGenerationPastor();
     }
 
+    function teacherCanWriteProgress(progressData) {
+      return isNextGenerationTeacher() &&
+        'groupIds' in ngMemberData() &&
+        ngMemberData().groupIds.size() > 0 &&
+        'groupId' in progressData &&
+        progressData.groupId in ngMemberData().groupIds;
+    }
+
+    function parentCanWriteProgress(progressData) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+        ngMemberData().role == 'member' &&
+        ngMemberData().department == '학부모' &&
+        (
+          ('childIds' in ngMemberData() && progressData.userId in ngMemberData().childIds) ||
+          progressData.userId.matches('^proxy:' + request.auth.uid + ':.*$')
+        );
+    }
+
     match /next_generation_word_fruit_progress/{progressId} {
       // Owner / pastor / linked parent / teacher (group-scoped if groupIds set)
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         isNextGenerationPastor() ||
         isParentOfNgUser(resource.data.userId) ||
-        teacherCanReadProgress(resource.data)
+        teacherCanReadProgress(resource.data) ||
+        // Parent reads own proxy children
+        (ngMemberData().department == '학부모' && resource.data.userId.matches('^proxy:' + request.auth.uid + ':.*$'))
       );
-      // Only pastor can create / set practice (and thereby grant access).
-      allow create: if isNextGenerationPastor() &&
+      // Pastor, teacher (own group), or parent (own child or proxy) can create.
+      allow create: if (
+        isNextGenerationPastor() ||
+        teacherCanWriteProgress(request.resource.data) ||
+        parentCanWriteProgress(request.resource.data)
+      ) &&
         request.resource.data.keys().hasOnly([
           'weekId','userId','childName','practice','groupId','checkCount','checkedDates',
           'fruitStage','completed','lastCheckedAt','createdAt','updatedAt'
@@ -605,17 +631,19 @@ service cloud.firestore {
         request.resource.data.userId is string &&
         request.resource.data.childName is string && request.resource.data.childName.size() <= 100 &&
         request.resource.data.practice is string && request.resource.data.practice.size() <= 200 &&
-        request.resource.data.checkCount == 0 &&
-        request.resource.data.checkedDates is list && request.resource.data.checkedDates.size() == 0 &&
-        request.resource.data.fruitStage == 0 &&
-        request.resource.data.completed == false &&
+        request.resource.data.checkCount is number &&
+        request.resource.data.checkedDates is list &&
+        request.resource.data.checkCount == request.resource.data.checkedDates.size() &&
         request.resource.data.createdAt is timestamp &&
         request.resource.data.updatedAt is timestamp;
 
-      // Pastor: free-form updates within the schema.
-      // Student check-in goes through the server (Admin SDK bypasses rules);
-      // direct client writes by the student are not allowed.
-      allow update: if isNextGenerationPastor() &&
+      // Pastor + teacher (own group) + parent (own child/proxy) can update.
+      // Student check-in goes through the server (Admin SDK bypasses rules).
+      allow update: if (
+        isNextGenerationPastor() ||
+        teacherCanWriteProgress(resource.data) ||
+        parentCanWriteProgress(resource.data)
+      ) &&
         request.resource.data.weekId == resource.data.weekId &&
         request.resource.data.userId == resource.data.userId &&
         request.resource.data.checkedDates is list &&
@@ -625,6 +653,46 @@ service cloud.firestore {
     }
     // ──────────────────────────────────────────────────────────────────
 
+    // ─── 출석부 ──────────────────────────────────────────────────────
+    match /next_generation_attendance/{attendanceId} {
+      allow read: if isAuthenticated() && (
+        isNextGenerationPastor() ||
+        resource.data.studentUid == request.auth.uid ||
+        isParentOfNgUser(resource.data.studentUid) ||
+        (isNextGenerationTeacher() &&
+          (!('groupIds' in ngMemberData()) ||
+           ngMemberData().groupIds.size() == 0 ||
+           resource.data.groupId in ngMemberData().groupIds))
+      );
+      allow create, update: if (
+        isNextGenerationPastor() ||
+        (isNextGenerationTeacher() &&
+          'groupIds' in ngMemberData() &&
+          request.resource.data.groupId in ngMemberData().groupIds)
+      ) &&
+        request.resource.data.keys().hasOnly(['weekKey','sundayDate','studentUid','studentName','groupId','present','note','checkedBy','checkedAt']) &&
+        request.resource.data.weekKey is string &&
+        request.resource.data.studentUid is string &&
+        request.resource.data.groupId is string &&
+        request.resource.data.present is bool &&
+        request.resource.data.checkedBy == request.auth.uid;
+      allow delete: if isNextGenerationPastor();
+    }
+
+    // ─── 가정예배 로그 ─────────────────────────────────────────────────
+    match /next_generation_family_worship_logs/{logId} {
+      allow read: if isAuthenticated() && (
+        isNextGenerationPastor() ||
+        resource.data.parentUid == request.auth.uid
+      );
+      allow create, update: if isAuthenticated() &&
+        request.resource.data.parentUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['weekKey','parentUid','completedAt','childUids','note']) &&
+        request.resource.data.weekKey is string &&
+        request.resource.data.childUids is list;
+      allow delete: if isNextGenerationPastor() ||
+        (isAuthenticated() && resource.data.parentUid == request.auth.uid);
+    }
     // ──────────────────────────────────────────────────────────────────
 
     match /prayer_requests/{requestId} {
