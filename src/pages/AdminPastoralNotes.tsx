@@ -50,7 +50,7 @@ import {
   syncRaahGoogleCalendar,
   updateRaahMember,
 } from '../features/pastoral-notes/managementApi';
-import { buildAttendanceRecordsForEvent, filterResolvedFollowUps, groupMinistryScheduleItems, selectAttendanceEvent } from '../features/pastoral-notes/raahWorkflow';
+import { buildAttendanceRecordsForEvent, filterResolvedFollowUps, selectAttendanceEvent } from '../features/pastoral-notes/raahWorkflow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PASTORAL_MEETING_TYPES, PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
 import { createEmptyPastoralNoteInput, formatDisplayDate, normalizeMemberName, sortNotesByDate } from '../features/pastoral-notes/utils';
@@ -59,6 +59,7 @@ import { logout, signInWithGoogle } from '../lib/firebase';
 
 type StorageMode = 'loading' | 'supabase' | 'firestore';
 type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'visitation' | 'legacy';
+type ScheduleViewMode = 'week' | 'month';
 
 const LOG_TYPES = ['심방', '상담', '기도', '전화', '양육', '기타'];
 const ATTENDANCE_EVENT_OPTIONS: Array<{ type: RaahAttendanceEventType; label: string; serviceType: string; includesCommunion: boolean }> = [
@@ -170,6 +171,34 @@ function getWeekCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[]
       isToday: dateIso === todayIso,
     };
   });
+}
+
+function getMonthStartIso(dateIso: string) {
+  const { year, month } = parseIsoDateParts(dateIso);
+  return new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 10);
+}
+
+function getMonthCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[]) {
+  const monthStart = getMonthStartIso(todayIso);
+  const gridStart = getWeekStartIso(monthStart);
+  const currentMonth = parseIsoDateParts(todayIso).month;
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const dateIso = addDaysIso(gridStart, index);
+    const { month } = parseIsoDateParts(dateIso);
+    return {
+      dateIso,
+      label: WEEKDAY_LABELS[index % 7],
+      items: items.filter((item) => item.date === dateIso),
+      isToday: dateIso === todayIso,
+      isCurrentMonth: month === currentMonth,
+    };
+  });
+}
+
+function getMonthRangeLabel(dateIso: string) {
+  const { year, month } = parseIsoDateParts(dateIso);
+  return `${year}.${String(month).padStart(2, '0')}`;
 }
 
 function getAttendanceOption(type: RaahAttendanceEventType) {
@@ -478,7 +507,6 @@ export default function AdminPastoralNotes() {
   const attendanceCount = attendanceRecords.filter((record) => record.attended).length;
   const communionCount = attendanceRecords.filter((record) => record.communionParticipated).length;
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
-  const scheduleGroups = groupMinistryScheduleItems(ministryScheduleItems, getTodayIso());
 
   const filteredMembers = members.filter((member) => {
     const text = [member.searchName, member.position, member.district, member.phone].join(' ').toLocaleLowerCase('ko-KR');
@@ -1092,7 +1120,7 @@ export default function AdminPastoralNotes() {
                 attendanceCount={attendanceCount}
                 communionCount={communionCount}
                 pendingFollowUps={pendingFollowUps}
-                scheduleGroups={scheduleGroups}
+                scheduleItems={ministryScheduleItems}
                 scheduleForm={scheduleForm}
                 setScheduleForm={setScheduleForm}
                 isScheduleFormOpen={isScheduleFormOpen}
@@ -1253,7 +1281,7 @@ function DashboardTab({
   attendanceCount,
   communionCount,
   pendingFollowUps,
-  scheduleGroups,
+  scheduleItems,
   scheduleForm,
   setScheduleForm,
   isScheduleFormOpen,
@@ -1277,7 +1305,7 @@ function DashboardTab({
   attendanceCount: number;
   communionCount: number;
   pendingFollowUps: RaahVisitationLog[];
-  scheduleGroups: ReturnType<typeof groupMinistryScheduleItems>;
+  scheduleItems: RaahMinistryScheduleItem[];
   scheduleForm: RaahMinistryScheduleItemInput;
   setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   isScheduleFormOpen: boolean;
@@ -1374,7 +1402,7 @@ function DashboardTab({
       </div>
 
       <MinistrySchedulePanel
-        groups={scheduleGroups}
+        items={scheduleItems}
         form={scheduleForm}
         setForm={setScheduleForm}
         isOpen={isScheduleFormOpen}
@@ -1412,7 +1440,7 @@ function FollowUpRow({
 }
 
 function MinistrySchedulePanel({
-  groups,
+  items,
   form,
   setForm,
   isOpen,
@@ -1424,7 +1452,7 @@ function MinistrySchedulePanel({
   onConnectCalendar,
   onSyncCalendar,
 }: {
-  groups: ReturnType<typeof groupMinistryScheduleItems>;
+  items: RaahMinistryScheduleItem[];
   form: RaahMinistryScheduleItemInput;
   setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   isOpen: boolean;
@@ -1436,15 +1464,32 @@ function MinistrySchedulePanel({
   onConnectCalendar: () => void;
   onSyncCalendar: () => void;
 }) {
-  const items = [...groups.today, ...groups.thisWeek];
-  const weekDays = getWeekCalendarDays(getTodayIso(), items);
-  const weekRange = `${formatDisplayDate(weekDays[0]?.dateIso || getTodayIso())} - ${formatDisplayDate(weekDays[6]?.dateIso || getTodayIso())}`;
+  const [viewMode, setViewMode] = React.useState<ScheduleViewMode>('week');
+  const todayIso = getTodayIso();
+  const weekDays = getWeekCalendarDays(todayIso, items);
+  const monthDays = getMonthCalendarDays(todayIso, items);
+  const weekRange = `${formatDisplayDate(weekDays[0]?.dateIso || todayIso)} - ${formatDisplayDate(weekDays[6]?.dateIso || todayIso)}`;
+  const monthRange = getMonthRangeLabel(todayIso);
   return (
     <div className={shell.panel + ' p-5'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">오늘/이번 주 사역 일정</h2>
           <p className="mt-1 text-sm text-[#607080]">심방 일정과 사역 할 일을 먼저 RAAH 안에서 정리합니다.</p>
+        </div>
+        <div className="flex rounded-lg border border-[#d5dee5] bg-white p-1">
+          {(['week', 'month'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${
+                viewMode === mode ? 'bg-[#12345a] text-white shadow-sm' : 'text-[#607080] hover:bg-[#f1f5f8] hover:text-[#17202b]'
+              }`}
+            >
+              {mode === 'week' ? '주간' : '월간'}
+            </button>
+          ))}
         </div>
         <button type="button" onClick={() => setIsOpen(!isOpen)} className={isOpen ? shell.button : shell.ghostButton}>
           <Plus size={16} />
@@ -1504,7 +1549,11 @@ function MinistrySchedulePanel({
         </form>
       )}
 
-      <WeekScheduleGrid days={weekDays} rangeLabel={weekRange} isSaving={isSaving} onComplete={onComplete} />
+      {viewMode === 'week' ? (
+        <WeekScheduleGrid days={weekDays} rangeLabel={weekRange} isSaving={isSaving} onComplete={onComplete} />
+      ) : (
+        <MonthScheduleGrid days={monthDays} rangeLabel={monthRange} isSaving={isSaving} onComplete={onComplete} />
+      )}
       {items.length === 0 && <EmptyState>등록된 사역 일정이 없습니다.</EmptyState>}
     </div>
   );
@@ -1570,6 +1619,85 @@ function WeekScheduleGrid({
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function MonthScheduleGrid({
+  days,
+  rangeLabel,
+  isSaving,
+  onComplete,
+}: {
+  days: ReturnType<typeof getMonthCalendarDays>;
+  rangeLabel: string;
+  isSaving: boolean;
+  onComplete: (itemId: string) => void;
+}) {
+  return (
+    <div className="mt-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#607080]">Monthly Care Calendar</p>
+          <h3 className="mt-1 text-base font-semibold text-[#17202b]">이번 달 사역 일정</h3>
+        </div>
+        <p className="text-xs font-medium text-[#607080]">{rangeLabel}</p>
+      </div>
+      <div className="mt-3 overflow-x-auto pb-1">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-7 gap-2">
+            {WEEKDAY_LABELS.map((label) => (
+              <div key={label} className="rounded-lg bg-[#edf2f5] px-3 py-2 text-center text-xs font-semibold text-[#607080]">
+                {label}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-7 gap-2">
+            {days.map((day) => (
+              <div
+                key={day.dateIso}
+                className={`min-h-[128px] rounded-xl border p-2 transition ${
+                  day.isToday
+                    ? 'border-[#2e6b5f] bg-[#eef7f3] shadow-[inset_0_0_0_1px_rgba(46,107,95,0.16)]'
+                    : day.isCurrentMonth
+                      ? 'border-[#dbe3e8] bg-[#f8fafb]'
+                      : 'border-[#e3e9ee] bg-[#f5f7f9] opacity-60'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-xs font-semibold ${day.isToday ? 'text-[#245b51]' : 'text-[#17202b]'}`}>{Number(day.dateIso.slice(8, 10))}</p>
+                  {day.isToday && <span className="rounded-full bg-[#2e6b5f] px-1.5 py-0.5 text-[10px] font-semibold text-white">오늘</span>}
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {day.items.slice(0, 3).map((item) => (
+                    <div key={item.id} className="rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-semibold text-[#17202b]">{item.title}</p>
+                          <p className="mt-0.5 truncate text-[10px] text-[#607080]">
+                            {item.startsAt || '시간 미정'}
+                            {item.memberName ? ` · ${item.memberName}` : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => onComplete(item.id)}
+                          className="rounded-md border border-[#d5dee5] px-1.5 py-0.5 text-[10px] font-semibold text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                        >
+                          완료
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {day.items.length > 3 && <p className="px-1 text-[10px] font-semibold text-[#607080]">+{day.items.length - 3}개 더</p>}
+                  {day.items.length === 0 && day.isCurrentMonth && <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 px-2 py-2 text-[11px] text-[#7a8b9a]">일정 없음</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
