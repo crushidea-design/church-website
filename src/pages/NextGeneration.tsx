@@ -42,6 +42,7 @@ import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextG
 import { Apple, BookOpen, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
 import ParentOnboardingModal from '../features/word-fruit/ParentOnboardingModal';
+import { shouldShowParentOnboarding } from '../features/word-fruit/parentOnboarding';
 import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
 import { formatDate } from '../lib/utils';
 import {
@@ -920,7 +921,7 @@ function NextGenerationHeader() {
         />
       )}
       {showAdminModal && <NextGenerationAdmin onClose={() => setShowAdminModal(false)} />}
-      {hasAccess && member?.department === '학부모' && !member?.parentOnboardingCompleted && (
+      {shouldShowParentOnboarding(member, hasAccess) && (
         <ParentOnboardingModal />
       )}
     </>
