@@ -833,10 +833,6 @@ export default function AdminPastoralNotes() {
       toast.error('일정 제목과 날짜를 입력해 주세요.');
       return;
     }
-    if (calendarStatus?.connected && !scheduleForm.startsAt) {
-      toast.error('Google Calendar에 넣으려면 시작 시간을 입력해 주세요.');
-      return;
-    }
     setIsSaving(true);
     try {
       const input = {
@@ -845,20 +841,11 @@ export default function AdminPastoralNotes() {
         memberId: scheduleForm.memberId || selectedMember?.id || '',
         memberName: scheduleForm.memberName || selectedMember?.name || '',
       };
-      const item =
-        calendarStatus?.connected && input.startsAt
-          ? await createRaahGoogleCalendarEvent(
-              {
-                ...input,
-                startsAt: input.startsAt,
-              },
-              user
-            )
-          : await createRaahMinistryScheduleItem(input, user);
+      const item = await createRaahMinistryScheduleItem(input, user);
       setMinistryScheduleItems((prev) => [...prev, item]);
       setScheduleForm(emptyScheduleForm());
       setIsScheduleFormOpen(false);
-      toast.success(calendarStatus?.connected ? 'Google Calendar와 RAAH에 사역 일정을 추가했습니다.' : '사역 일정을 추가했습니다.');
+      toast.success('사역 일정을 추가했습니다.');
     } catch (error) {
       toast.error(getErrorMessage(error, '사역 일정을 추가하지 못했습니다.'));
     } finally {

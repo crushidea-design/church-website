@@ -81,6 +81,46 @@ describe('buildNextGenerationClassDashboard', () => {
     expect(dashboard.groups).toHaveLength(1);
     expect(dashboard.groups[0].groupId).toBe('class-2');
   });
+
+  it('adds current week and recent attendance summaries', () => {
+    const dashboard = buildNextGenerationClassDashboard({
+      members: [
+        baseStudent('student-a', 'class-1'),
+        baseStudent('student-b', 'class-1'),
+        baseStudent('student-c', 'class-1'),
+      ],
+      readings: [],
+      qaItems: [],
+      attendanceItems: [
+        attendance('2026-05-17', 'student-a', 'class-1', true),
+        attendance('2026-05-17', 'student-b', 'class-1', false),
+        attendance('2026-05-10', 'student-a', 'class-1', true),
+        attendance('2026-05-10', 'student-b', 'class-1', true),
+      ],
+      currentWeekKey: '2026-05-17',
+      recentWeekKeys: ['2026-05-17', '2026-05-10'],
+      studentDepartment: 'student',
+    });
+
+    expect(dashboard.currentPresentCount).toBe(1);
+    expect(dashboard.currentAbsentCount).toBe(1);
+    expect(dashboard.currentUncheckedCount).toBe(1);
+    expect(dashboard.groups[0]).toMatchObject({
+      currentPresentCount: 1,
+      currentAbsentCount: 1,
+      currentUncheckedCount: 1,
+      recentAttendancePercent: 50,
+    });
+    expect(dashboard.students.map((student) => ({
+      uid: student.uid,
+      status: student.currentAttendanceStatus,
+      percent: student.recentAttendancePercent,
+    }))).toEqual([
+      { uid: 'student-a', status: 'present', percent: 100 },
+      { uid: 'student-b', status: 'absent', percent: 50 },
+      { uid: 'student-c', status: 'unchecked', percent: 0 },
+    ]);
+  });
 });
 
 function baseStudent(uid: string, groupId?: string) {
@@ -101,5 +141,18 @@ function baseStudent(uid: string, groupId?: string) {
 function makeTimestamp(value: number) {
   return {
     toMillis: () => value,
+  };
+}
+
+function attendance(weekKey: string, studentUid: string, groupId: string, present: boolean) {
+  return {
+    id: `${weekKey}_${studentUid}`,
+    weekKey,
+    sundayDate: weekKey,
+    studentUid,
+    studentName: studentUid,
+    groupId,
+    present,
+    checkedBy: 'teacher',
   };
 }

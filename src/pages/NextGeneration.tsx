@@ -41,6 +41,7 @@ import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
 import { Apple, BookOpen, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
+import { TeacherRoleCards } from '../features/word-fruit/MyPageRoleCards';
 import ParentOnboardingModal from '../features/word-fruit/ParentOnboardingModal';
 import { shouldShowParentOnboarding } from '../features/word-fruit/parentOnboarding';
 import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
@@ -1463,6 +1464,7 @@ function NextGenerationMyPage() {
 
   const roleLabel = member?.department || (isPastor ? '관리자' : '다음세대');
   const isStudentRole = member?.department === NEXT_GENERATION_DEPARTMENTS[3];
+  const isTeacherRole = member?.department === NEXT_GENERATION_DEPARTMENTS[1];
   const isYoungAdultRole = member?.department === NEXT_GENERATION_DEPARTMENTS[0];
 
   useEffect(() => {
@@ -1615,7 +1617,9 @@ function NextGenerationMyPage() {
             </div>
           )}
 
-          {!isStudentRole && !isYoungAdultRole && (
+          {isTeacherRole && <TeacherRoleCards />}
+
+          {!isStudentRole && !isYoungAdultRole && !isTeacherRole && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-black tracking-normal text-emerald-950">{roleLabel} 활동</h2>
               <p className="mt-3 text-sm font-medium leading-6 text-slate-600">

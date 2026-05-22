@@ -10,6 +10,12 @@ import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS, useNextG
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import { buildNextGenerationClassDashboard } from '../lib/nextGenerationClassDashboard';
 import {
+  AttendanceDoc,
+  ATTENDANCE_COLLECTION,
+  getRecentSundayWeekKeys,
+  setAttendanceBatch,
+} from '../features/word-fruit/attendanceApi';
+import {
   Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
   Bell, MessageSquare, Mail, Clock, Search, ShieldCheck, RefreshCw,
   AlertTriangle, CheckCircle2, BookOpen,
@@ -113,6 +119,9 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [qaItems, setQaItems] = useState<QAItem[]>([]);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [classReadings, setClassReadings] = useState<ClassReadingDoc[]>([]);
+  const [classAttendance, setClassAttendance] = useState<AttendanceDoc[]>([]);
+  const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, boolean>>({});
+  const [savingAttendanceGroup, setSavingAttendanceGroup] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [classSearch, setClassSearch] = useState('');
@@ -218,6 +227,14 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     return () => unsub();
   }, []);
 
+  // Subscribe to attendance records for the class dashboard
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, ATTENDANCE_COLLECTION), (snap) => {
+      setClassAttendance(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceDoc)));
+    }, () => setClassAttendance([]));
+    return () => unsub();
+  }, []);
+
   // Subscribe to contacts
   useEffect(() => {
     const q = query(collection(db, 'next_generation_contacts'), orderBy('createdAt', 'desc'));
@@ -233,6 +250,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const unreadContacts = contacts.filter(c => !c.isRead).length;
   const unansweredQA = qaItems.filter(q => !q.isAnswered).length;
   const studentDepartment = NEXT_GENERATION_DEPARTMENTS[3];
+  const attendanceWeekKeys = useMemo(() => getRecentSundayWeekKeys(4), []);
+  const currentAttendanceWeekKey = attendanceWeekKeys[0] ?? '';
   const teacherGroupIds = !isNextGenerationPastor && nextMember?.groupIds?.length
     ? nextMember.groupIds
     : undefined;
@@ -240,9 +259,12 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     members,
     readings: classReadings,
     qaItems,
+    attendanceItems: classAttendance,
+    currentWeekKey: currentAttendanceWeekKey,
+    recentWeekKeys: attendanceWeekKeys,
     studentDepartment,
     visibleGroupIds: teacherGroupIds,
-  }), [classReadings, members, qaItems, studentDepartment, teacherGroupIds]);
+  }), [attendanceWeekKeys, classAttendance, classReadings, currentAttendanceWeekKey, members, qaItems, studentDepartment, teacherGroupIds]);
   const visibleClassGroups = classDashboard.groups.filter((group) =>
     classGroupFilter === 'all' ? true : group.groupId === classGroupFilter
   );
@@ -278,6 +300,39 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     m.email.includes(search) ||
     m.church.includes(search)
   );
+
+  const getAttendanceChecked = (studentUid: string, fallbackPresent: boolean) =>
+    attendanceDrafts[studentUid] ?? fallbackPresent;
+
+  const setAttendanceDraft = (studentUid: string, present: boolean) => {
+    setAttendanceDrafts((drafts) => ({ ...drafts, [studentUid]: present }));
+  };
+
+  const saveGroupAttendance = async (group: typeof classDashboard.groups[number]) => {
+    if (!user || !currentAttendanceWeekKey) return;
+    setSavingAttendanceGroup(group.groupId);
+    try {
+      await setAttendanceBatch(group.students.map((student) => ({
+        weekKey: currentAttendanceWeekKey,
+        sundayDate: currentAttendanceWeekKey,
+        studentUid: student.uid,
+        studentName: student.displayName || '이름 없음',
+        groupId: student.groupId,
+        present: getAttendanceChecked(student.uid, student.currentAttendanceStatus === 'present'),
+        checkedBy: user.uid,
+      })));
+      setAttendanceDrafts((drafts) => {
+        const next = { ...drafts };
+        group.students.forEach((student) => delete next[student.uid]);
+        return next;
+      });
+      showToast('출석부를 저장했습니다.');
+    } catch {
+      showToast('출석부 저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingAttendanceGroup(null);
+    }
+  };
 
   const approveMember = async (uid: string) => {
     setSubmitting(true);
@@ -1048,6 +1103,25 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                 </div>
               </div>
 
+              <div className="grid gap-2 text-xs sm:grid-cols-4">
+                <div className="rounded-xl border border-sky-100 bg-white px-3 py-3 text-center shadow-sm">
+                  <p className="font-bold text-slate-400">이번 주 출석</p>
+                  <p className="mt-1 text-lg font-black text-sky-700">{classDashboard.currentPresentCount}</p>
+                </div>
+                <div className="rounded-xl border border-rose-100 bg-white px-3 py-3 text-center shadow-sm">
+                  <p className="font-bold text-slate-400">이번 주 미출석</p>
+                  <p className="mt-1 text-lg font-black text-rose-700">{classDashboard.currentAbsentCount}</p>
+                </div>
+                <div className="rounded-xl border border-amber-100 bg-white px-3 py-3 text-center shadow-sm">
+                  <p className="font-bold text-slate-400">미체크</p>
+                  <p className="mt-1 text-lg font-black text-amber-700">{classDashboard.currentUncheckedCount}</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-white px-3 py-3 text-center shadow-sm">
+                  <p className="font-bold text-slate-400">최근 4주 출석률</p>
+                  <p className="mt-1 text-lg font-black text-emerald-700">{classDashboard.recentAttendancePercent}%</p>
+                </div>
+              </div>
+
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1085,13 +1159,24 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                         <div>
                           <h3 className="text-sm font-black text-emerald-950">{group.groupLabel}</h3>
                           <p className="mt-1 text-xs font-bold text-slate-500">
+                            이번 주 출석 {group.currentPresentCount}명 · 미출석 {group.currentAbsentCount}명 · 미체크 {group.currentUncheckedCount}명 · 최근 4주 {group.recentAttendancePercent}%
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-slate-500">
                             학생 {group.students.length}명 · 완료 {group.totalCompletedBooks}권 · 미답변 {group.totalUnansweredQuestions}개
                           </p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => saveGroupAttendance(group)}
+                          disabled={savingAttendanceGroup === group.groupId || group.students.length === 0}
+                          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white transition hover:bg-sky-700 disabled:opacity-60"
+                        >
+                          {savingAttendanceGroup === group.groupId ? '저장 중...' : '출석 저장'}
+                        </button>
                       </div>
                       <div className="divide-y divide-slate-100">
                         {group.students.map((student) => (
-                          <div key={student.uid} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1.2fr)_120px_120px_90px] sm:items-center">
+                          <div key={student.uid} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1.2fr)_120px_120px_120px_90px] sm:items-center">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="truncate text-sm font-black text-slate-900">{student.displayName || '이름 없음'}</p>
@@ -1115,6 +1200,18 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
                                 />
                               </div>
                             </div>
+                            <label className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={getAttendanceChecked(student.uid, student.currentAttendanceStatus === 'present')}
+                                onChange={(event) => setAttendanceDraft(student.uid, event.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-400"
+                              />
+                              <span>
+                                {getAttendanceChecked(student.uid, student.currentAttendanceStatus === 'present') ? '출석' : '미출석'}
+                                {student.currentAttendanceStatus === 'unchecked' && attendanceDrafts[student.uid] === undefined ? ' (미체크)' : ''}
+                              </span>
+                            </label>
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-600 sm:justify-center">
                               <MessageSquare size={14} className="text-amber-500" />
                               질문 {student.questionCount}
