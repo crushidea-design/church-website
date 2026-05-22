@@ -20,14 +20,10 @@ import {
 } from './api';
 import { onSnapshot, query, collection, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import {
-  setAttendanceBatch,
-  subscribeAttendanceForGroup,
-  getRecentSundayWeekKeys,
-} from './attendanceApi';
 import { GUIDE_MESSAGE_DEFAULT, TOP_MESSAGE_DEFAULT, WeeklyWordFruit, WordFruitProgress } from './types';
 import WordFruitTree, { stageMessage } from './WordFruitTree';
 import WordFruitAdmin from './WordFruitAdmin';
+import { mergeTeacherStudentsWithProgress, TeacherStudent } from './teacherRoster';
 
 export default function WordFruitPanel() {
   const { user, member, isPastor } = useNextGenerationAuth();
@@ -716,12 +712,6 @@ function ParentView({
   );
 }
 
-interface TeacherStudent {
-  uid: string;
-  displayName: string;
-  groupId: string;
-}
-
 function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] {
   const [students, setStudents] = useState<TeacherStudent[]>([]);
   useEffect(() => {
@@ -770,7 +760,21 @@ function TeacherView({
   canEdit: boolean;
 }) {
   const teacherStudents = useTeacherStudents(teacherGroupIds);
-  if (allProgress.length === 0 && teacherStudents.length === 0) {
+  const visibleTeacherStudents = useMemo(
+    () => mergeTeacherStudentsWithProgress(teacherStudents, allProgress, teacherGroupIds),
+    [teacherStudents, allProgress, teacherGroupIds],
+  );
+  if (teacherGroupIds.length === 0) {
+    return (
+      <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-black">담당 반이 아직 지정되지 않았습니다.</p>
+        <p className="mt-1 leading-6">
+          담당 반 학생의 말씀 열매 진행을 보려면 다음세대 관리자에게 교사 계정의 담당 반을 먼저 배정해 달라고 요청해 주세요.
+        </p>
+      </div>
+    );
+  }
+  if (allProgress.length === 0 && visibleTeacherStudents.length === 0) {
     return (
       <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
         이번 주 등록된 학생 진행이 없어요.
@@ -855,17 +859,14 @@ function TeacherView({
         </table>
       </div>
 
-      {canEdit && teacherStudents.length > 0 && (
+      {canEdit && visibleTeacherStudents.length > 0 && (
         <TeacherStudentActionList
-          students={teacherStudents}
+          students={visibleTeacherStudents}
           weekId={weekId}
           allProgress={allProgress}
         />
       )}
 
-      {teacherStudents.length > 0 && (
-        <TeacherAttendanceSection students={teacherStudents} canEdit={canEdit} />
-      )}
     </div>
   );
 }
@@ -1008,115 +1009,6 @@ function TeacherStudentRow({
               />
             );
           })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TeacherAttendanceSection({
-  students,
-  canEdit,
-}: {
-  students: TeacherStudent[];
-  canEdit: boolean;
-}) {
-  const { user } = useNextGenerationAuth();
-  const recentWeekKeys = useMemo(() => getRecentSundayWeekKeys(4), []);
-  const thisWeekKey = recentWeekKeys[0];
-  const groupId = students[0]?.groupId ?? '';
-  const [rows, setRows] = useState<{ [studentUid: string]: boolean }>({});
-  const [history, setHistory] = useState<Record<string, Record<string, boolean>>>({});
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-
-  useEffect(() => {
-    if (!groupId) return;
-    return subscribeAttendanceForGroup(groupId, recentWeekKeys, (records) => {
-      const next: Record<string, Record<string, boolean>> = {};
-      records.forEach((r) => {
-        if (!next[r.studentUid]) next[r.studentUid] = {};
-        next[r.studentUid][r.weekKey] = !!r.present;
-      });
-      setHistory(next);
-      // seed current week's checkbox state from existing record
-      const seeded: Record<string, boolean> = {};
-      students.forEach((s) => {
-        seeded[s.uid] = !!next[s.uid]?.[thisWeekKey];
-      });
-      setRows(seeded);
-    });
-  }, [groupId, recentWeekKeys.join('|'), students.map((s) => s.uid).join('|')]);
-
-  const togglePresent = (uid: string, val: boolean) => {
-    setRows((r) => ({ ...r, [uid]: val }));
-  };
-
-  const handleSave = async () => {
-    if (!user) return;
-    setMsg('');
-    setBusy(true);
-    try {
-      const batch = students.map((s) => ({
-        weekKey: thisWeekKey,
-        sundayDate: thisWeekKey,
-        studentUid: s.uid,
-        studentName: s.displayName,
-        groupId: s.groupId,
-        present: !!rows[s.uid],
-        checkedBy: user.uid,
-      }));
-      await setAttendanceBatch(batch);
-      setMsg('저장되었습니다.');
-      setTimeout(() => setMsg(''), 1500);
-    } catch (e: any) {
-      setMsg(e?.message || '저장 실패');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/40 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-black text-sky-900">출석부 ({thisWeekKey})</h4>
-        {msg && <span className="text-xs font-bold text-emerald-700">{msg}</span>}
-      </div>
-      <div className="mt-3 space-y-1.5">
-        {students.map((s) => {
-          const past = history[s.uid] ?? {};
-          const presentCount = recentWeekKeys.reduce((acc, k) => acc + (past[k] ? 1 : 0), 0);
-          const pct = Math.round((presentCount / recentWeekKeys.length) * 100);
-          return (
-            <label
-              key={s.uid}
-              className="flex items-center justify-between rounded-md border border-white bg-white px-3 py-2"
-            >
-              <span className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={!!rows[s.uid]}
-                  onChange={(e) => togglePresent(s.uid, e.target.checked)}
-                  disabled={!canEdit}
-                  className="h-4 w-4"
-                />
-                <span className="text-sm font-bold text-slate-800">{s.displayName}</span>
-              </span>
-              <span className="text-xs font-bold text-slate-500">최근 4주 {pct}%</span>
-            </label>
-          );
-        })}
-      </div>
-      {canEdit && (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={busy || students.length === 0}
-            className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-60"
-          >
-            {busy ? '저장 중…' : '출석부 저장'}
-          </button>
         </div>
       )}
     </div>

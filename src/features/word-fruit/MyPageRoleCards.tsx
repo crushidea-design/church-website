@@ -19,7 +19,9 @@ import {
   subscribeAttendanceForStudent,
   getRecentSundayWeekKeys,
   AttendanceDoc,
+  setAttendanceBatch,
 } from './attendanceApi';
+import { mergeTeacherStudentsWithProgress, TeacherStudent } from './teacherRoster';
 import {
   setFamilyWorshipLog,
   subscribeMyFamilyWorshipLogs,
@@ -222,15 +224,18 @@ export function ParentRoleCards() {
 /* ---------------- Teacher ---------------- */
 
 export function TeacherRoleCards() {
-  const { member } = useNextGenerationAuth();
+  const { user, member } = useNextGenerationAuth();
   const groupIds = member?.groupIds ?? [];
   const weekId = useMemo(() => getWeekId(), []);
   const recentWeekKeys = useMemo(() => getRecentSundayWeekKeys(1), []);
   const thisWeekKey = recentWeekKeys[0];
 
   const [progresses, setProgresses] = useState<WordFruitProgress[]>([]);
-  const [studentsByGroup, setStudentsByGroup] = useState<Record<string, Array<{ uid: string; displayName: string }>>>({});
+  const [studentsByGroup, setStudentsByGroup] = useState<Record<string, TeacherStudent[]>>({});
   const [attendance, setAttendance] = useState<Record<string, AttendanceDoc[]>>({});
+  const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, boolean>>({});
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     if (groupIds.length === 0) return;
@@ -247,13 +252,13 @@ export function TeacherRoleCards() {
     return onSnapshot(
       q,
       (snap) => {
-        const grouped: Record<string, Array<{ uid: string; displayName: string }>> = {};
+        const grouped: Record<string, TeacherStudent[]> = {};
         snap.docs.forEach((d) => {
           const data = d.data() as any;
           const gid = data.groupId ?? '';
           if (!groupIds.includes(gid)) return;
           if (!grouped[gid]) grouped[gid] = [];
-          grouped[gid].push({ uid: data.uid ?? d.id, displayName: data.displayName ?? '이름 없음' });
+          grouped[gid].push({ uid: data.uid ?? d.id, displayName: data.displayName ?? '이름 없음', groupId: gid });
         });
         setStudentsByGroup(grouped);
       },
@@ -272,6 +277,52 @@ export function TeacherRoleCards() {
     return () => unsubs.forEach((u) => u());
   }, [groupIds.join('|'), thisWeekKey]);
 
+  const studentsByVisibleGroup = useMemo(() => {
+    const result: Record<string, TeacherStudent[]> = {};
+    groupIds.forEach((gid) => {
+      result[gid] = mergeTeacherStudentsWithProgress(
+        studentsByGroup[gid] ?? [],
+        progresses.filter((p) => p.groupId === gid),
+        [gid],
+      );
+    });
+    return result;
+  }, [groupIds.join('|'), progresses, studentsByGroup]);
+
+  useEffect(() => {
+    const seeded: Record<string, boolean> = {};
+    groupIds.forEach((gid) => {
+      const presentByStudent = new Map((attendance[gid] ?? []).map((record) => [record.studentUid, !!record.present]));
+      (studentsByVisibleGroup[gid] ?? []).forEach((student) => {
+        seeded[student.uid] = presentByStudent.get(student.uid) ?? false;
+      });
+    });
+    setAttendanceDrafts(seeded);
+  }, [attendance, groupIds.join('|'), studentsByVisibleGroup]);
+
+  const saveAttendanceGroup = async (gid: string, students: TeacherStudent[]) => {
+    if (!user || !thisWeekKey) return;
+    setSavingGroup(gid);
+    setMessage('');
+    try {
+      await setAttendanceBatch(students.map((student) => ({
+        weekKey: thisWeekKey,
+        sundayDate: thisWeekKey,
+        studentUid: student.uid,
+        studentName: student.displayName || '이름 없음',
+        groupId: gid,
+        present: !!attendanceDrafts[student.uid],
+        checkedBy: user.uid,
+      })));
+      setMessage('출석부를 저장했습니다.');
+      setTimeout(() => setMessage(''), 1600);
+    } catch {
+      setMessage('출석부 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSavingGroup(null);
+    }
+  };
+
   if (groupIds.length === 0) {
     return (
       <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
@@ -283,22 +334,23 @@ export function TeacherRoleCards() {
 
   return (
     <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-black text-emerald-950">우리 반 현황</h2>
-      <p className="mt-1 text-xs text-slate-500">{thisWeekKey} 기준</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-black text-emerald-950">반 출석부</h2>
+          <p className="mt-1 text-xs text-slate-500">{thisWeekKey} 기준</p>
+        </div>
+        {message && <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">{message}</span>}
+      </div>
       <div className="mt-3 space-y-2">
         {groupIds.map((gid) => {
-          const list = studentsByGroup[gid] ?? [];
+          const list = studentsByVisibleGroup[gid] ?? [];
           const groupProgress = progresses.filter((p) => p.groupId === gid);
           const completed = groupProgress.filter((p) => p.completed).length;
           const fruitPct = list.length > 0 ? Math.round((completed / list.length) * 100) : 0;
-          const presentCount = (attendance[gid] ?? []).filter((a) => a.present).length;
+          const presentCount = list.filter((student) => !!attendanceDrafts[student.uid]).length;
           const attPct = list.length > 0 ? Math.round((presentCount / list.length) * 100) : 0;
           return (
-            <a
-              key={gid}
-              href={'/next/elementary?highlight=word-fruit'}
-              className="block rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 hover:bg-emerald-50"
-            >
+            <div key={gid} className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-black text-emerald-950">{gid}</p>
                 <span className="text-xs font-bold text-slate-500">{list.length}명</span>
@@ -313,7 +365,42 @@ export function TeacherRoleCards() {
                   <p className="font-black text-sky-700">{attPct}%</p>
                 </div>
               </div>
-            </a>
+              {list.length === 0 ? (
+                <p className="mt-3 rounded-lg border border-dashed border-emerald-200 bg-white/70 p-3 text-xs font-bold text-slate-500">
+                  이 반에 표시할 학생이 아직 없습니다.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-1.5">
+                  {list.map((student) => (
+                    <label key={student.uid} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
+                      <span className="font-bold text-slate-800">{student.displayName}</span>
+                      <span className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                        {attendanceDrafts[student.uid] ? '출석' : '미출석'}
+                        <input
+                          type="checkbox"
+                          checked={!!attendanceDrafts[student.uid]}
+                          onChange={(event) => {
+                            setAttendanceDrafts((drafts) => ({
+                              ...drafts,
+                              [student.uid]: event.target.checked,
+                            }));
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-400"
+                        />
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => saveAttendanceGroup(gid, list)}
+                disabled={savingGroup === gid || list.length === 0}
+                className="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-black text-white transition hover:bg-sky-700 disabled:bg-slate-300"
+              >
+                {savingGroup === gid ? '저장 중...' : '출석부 저장'}
+              </button>
+            </div>
           );
         })}
       </div>
