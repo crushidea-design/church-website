@@ -1210,6 +1210,7 @@ export default function AdminPastoralNotes() {
                 }}
                 onResolveFollowUp={handleResolveFollowUp}
                 onNewLog={() => openLogForm(selectedMember || undefined)}
+                onNewLogForMember={(member) => openLogForm(member)}
                 onCreateScheduleItem={handleCreateScheduleItem}
                 onCompleteScheduleItem={handleCompleteScheduleItem}
                 onConnectCalendar={handleConnectCalendar}
@@ -1383,6 +1384,7 @@ function DashboardTab({
   onOpenLog,
   onResolveFollowUp,
   onNewLog,
+  onNewLogForMember,
   onCreateScheduleItem,
   onCompleteScheduleItem,
   onConnectCalendar,
@@ -1411,6 +1413,7 @@ function DashboardTab({
   onOpenLog: (logId: string) => void;
   onResolveFollowUp: (log: RaahVisitationLog) => void;
   onNewLog: () => void;
+  onNewLogForMember: (member: RaahMember) => void;
   onCreateScheduleItem: (event: React.FormEvent<HTMLFormElement>) => void;
   onCompleteScheduleItem: (itemId: string) => void;
   onConnectCalendar: () => void;
@@ -1424,14 +1427,22 @@ function DashboardTab({
     () => buildRaahAttendanceFlow({ members, history: attendanceHistory, limit: 1 }),
     [attendanceHistory, members]
   );
+  const todayTasks = React.useMemo(
+    () => buildDashboardTasks({
+      flow: dashboardAttendanceFlow,
+      members,
+      pendingFollowUps,
+      scheduleItems,
+    }),
+    [dashboardAttendanceFlow, members, pendingFollowUps, scheduleItems]
+  );
   const dashboardSeason = getDashboardSeason();
-  const attendanceTaskTitle = dashboardSeason === 'attendance' ? '주일 출석 체크' : dashboardSeason === 'follow-up' ? '출석 후속 확인' : '다가오는 주일 준비';
-  const attendanceTaskCopy =
+  const taskBoardCopy =
     dashboardSeason === 'attendance'
-      ? '주일 이후 1-2일 안에 출석과 성찬 참여를 정리합니다.'
+      ? '출석 정리와 후속 연락을 한 화면에서 처리합니다.'
       : dashboardSeason === 'follow-up'
-        ? '미출석 성도와 오랜만에 출석한 성도를 확인합니다.'
-        : '다음 주일 출석 체크 전 명부와 예배 메모를 점검합니다.';
+        ? '결석자와 남은 다음 단계를 먼저 확인합니다.'
+        : '다가오는 일정과 미체크 예배를 먼저 점검합니다.';
 
   return (
     <section className="space-y-5">
@@ -1468,23 +1479,24 @@ function DashboardTab({
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">오늘 할 일</h2>
-              <p className="mt-1 text-sm text-[#607080]">요일 흐름에 맞춰 우선순위를 바꿉니다.</p>
+              <p className="mt-1 text-sm text-[#607080]">{taskBoardCopy}</p>
             </div>
             <button type="button" onClick={onNewLog} className={shell.button}>
               <Plus size={16} />
               기록
             </button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={onOpenAttendance} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-4 text-left transition hover:bg-[#ffffff]">
-              <p className="text-sm font-semibold text-[#17202b]">{attendanceTaskTitle}</p>
-              <p className="mt-2 text-sm text-[#607080]">{attendanceTaskCopy}</p>
-            </button>
-            <div className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-4">
-              <p className="text-sm font-semibold text-[#17202b]">후속 확인</p>
-              <p className="mt-2 text-sm text-[#607080]">{pendingFollowUps.length ? `${pendingFollowUps.length}건의 다음 단계가 있습니다.` : '남은 다음 단계가 없습니다.'}</p>
-            </div>
-          </div>
+          <TodayTaskList
+            tasks={todayTasks}
+            members={members}
+            isSaving={isSaving}
+            onOpenAttendance={onOpenAttendance}
+            onOpenLog={onOpenLog}
+            onResolveFollowUp={onResolveFollowUp}
+            onNewLogForMember={onNewLogForMember}
+            onEditSchedule={onEdit}
+            onCompleteSchedule={onCompleteScheduleItem}
+          />
         </div>
 
         <div className={shell.panel + ' p-5'}>
@@ -1518,6 +1530,219 @@ function DashboardTab({
         onSyncCalendar={onSyncCalendar}
       />
     </section>
+  );
+}
+
+type DashboardTask =
+  | {
+      id: string;
+      kind: 'attendance_missing';
+      label: string;
+      title: string;
+      description: string;
+      event: RaahAttendanceFlowEvent;
+    }
+  | {
+      id: string;
+      kind: 'attendance_absence';
+      label: string;
+      title: string;
+      description: string;
+      memberId: string;
+      event?: RaahAttendanceFlowEvent;
+    }
+  | {
+      id: string;
+      kind: 'follow_up';
+      label: string;
+      title: string;
+      description: string;
+      log: RaahVisitationLog;
+    }
+  | {
+      id: string;
+      kind: 'schedule';
+      label: string;
+      title: string;
+      description: string;
+      item: RaahMinistryScheduleItem;
+    };
+
+function buildDashboardTasks({
+  flow,
+  members,
+  pendingFollowUps,
+  scheduleItems,
+}: {
+  flow: ReturnType<typeof buildRaahAttendanceFlow>;
+  members: RaahMember[];
+  pendingFollowUps: RaahVisitationLog[];
+  scheduleItems: RaahMinistryScheduleItem[];
+}): DashboardTask[] {
+  const tasks: DashboardTask[] = [];
+  const latestWeek = flow.weeks[0];
+  const latestEvent = latestWeek?.events[0];
+  if (latestWeek) {
+    latestWeek.events.forEach((event) => {
+      const index = flow.events.findIndex((flowEvent) => flowEvent.key === event.key);
+      const recordedCount = index >= 0 ? flow.rows.filter((row) => row.cells[index]?.attended !== null).length : 0;
+      if (recordedCount === 0) {
+        tasks.push({
+          id: `missing:${event.key}`,
+          kind: 'attendance_missing',
+          label: '미체크 예배',
+          title: getAttendanceEventLabel(event),
+          description: `${event.date.slice(5).replace('-', '.')} 출석 기록이 아직 없습니다.`,
+          event,
+        });
+      }
+    });
+  }
+
+  const latestEventIndex = latestEvent ? flow.events.findIndex((event) => event.key === latestEvent.key) : -1;
+  if (latestEventIndex >= 0) {
+    flow.rows
+      .filter((row) => row.cells[latestEventIndex]?.attended === false)
+      .slice(0, 2)
+      .forEach((row) => {
+        const member = members.find((current) => current.id === row.memberId);
+        tasks.push({
+          id: `absence:${row.memberId}:${latestEvent?.key}`,
+          kind: 'attendance_absence',
+          label: '출석 후속',
+          title: row.memberName,
+          description: `${getAttendanceEventLabel(latestEvent)} 결석${member?.phone ? ` · ${member.phone}` : ''}`,
+          memberId: row.memberId,
+          event: latestEvent,
+        });
+      });
+  }
+
+  flow.concernRows.slice(0, 2).forEach((row) => {
+    if (tasks.some((task) => task.kind === 'attendance_absence' && task.memberId === row.memberId)) return;
+    tasks.push({
+      id: `concern:${row.memberId}`,
+      kind: 'attendance_absence',
+      label: '연락 대상',
+      title: row.memberName,
+      description: row.consecutiveAbsences >= 2 ? `${row.consecutiveAbsences}회 연속 결석` : `최근 결석 ${row.absenceCount}회`,
+      memberId: row.memberId,
+      event: latestEvent,
+    });
+  });
+
+  pendingFollowUps.slice(0, 2).forEach((log) => {
+    tasks.push({
+      id: `follow:${log.id}`,
+      kind: 'follow_up',
+      label: '심방 후속',
+      title: log.memberName,
+      description: log.nextSteps || log.publicSummary || `${formatDisplayDate(log.date)} ${log.logType} 기록 확인`,
+      log,
+    });
+  });
+
+  const todayIso = getTodayIso();
+  getOpenScheduleItems(scheduleItems)
+    .filter((item) => item.date >= todayIso)
+    .slice(0, 2)
+    .forEach((item) => {
+      tasks.push({
+        id: `schedule:${item.id}`,
+        kind: 'schedule',
+        label: '다가오는 일정',
+        title: item.title,
+        description: `${formatDisplayDate(item.date)}${item.startsAt ? ` · ${item.startsAt}` : ''}${item.memberName ? ` · ${item.memberName}` : ''}`,
+        item,
+      });
+    });
+
+  return tasks.slice(0, 6);
+}
+
+function TodayTaskList({
+  tasks,
+  members,
+  isSaving,
+  onOpenAttendance,
+  onOpenLog,
+  onResolveFollowUp,
+  onNewLogForMember,
+  onEditSchedule,
+  onCompleteSchedule,
+}: {
+  tasks: DashboardTask[];
+  members: RaahMember[];
+  isSaving: boolean;
+  onOpenAttendance: () => void;
+  onOpenLog: (logId: string) => void;
+  onResolveFollowUp: (log: RaahVisitationLog) => void;
+  onNewLogForMember: (member: RaahMember) => void;
+  onEditSchedule: (item: RaahMinistryScheduleItem) => void;
+  onCompleteSchedule: (itemId: string) => void;
+}) {
+  if (tasks.length === 0) {
+    return (
+      <div className="mt-4">
+        <EmptyState>오늘 먼저 처리할 항목이 없습니다.</EmptyState>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      {tasks.map((task) => {
+        const member = task.kind === 'attendance_absence' ? members.find((current) => current.id === task.memberId) : null;
+        return (
+          <div key={task.id} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <span className={shell.badge}>{task.label}</span>
+                <p className="mt-2 font-semibold text-[#17202b]">{task.title}</p>
+                <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#607080]">{task.description}</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {task.kind === 'attendance_missing' && (
+                  <button type="button" onClick={onOpenAttendance} className={shell.ghostButton}>
+                    출석 열기
+                  </button>
+                )}
+                {task.kind === 'attendance_absence' && (
+                  <>
+                    <button type="button" onClick={() => (member ? onNewLogForMember(member) : onOpenAttendance())} className={shell.button}>
+                      기록
+                    </button>
+                    <button type="button" onClick={onOpenAttendance} className={shell.ghostButton}>
+                      출석
+                    </button>
+                  </>
+                )}
+                {task.kind === 'follow_up' && (
+                  <>
+                    <button type="button" onClick={() => onOpenLog(task.log.id)} className={shell.ghostButton}>
+                      열기
+                    </button>
+                    <button type="button" disabled={isSaving} onClick={() => onResolveFollowUp(task.log)} className={shell.button}>
+                      완료
+                    </button>
+                  </>
+                )}
+                {task.kind === 'schedule' && (
+                  <>
+                    <button type="button" onClick={() => onEditSchedule(task.item)} className={shell.ghostButton}>
+                      수정
+                    </button>
+                    <button type="button" disabled={isSaving} onClick={() => onCompleteSchedule(task.item.id)} className={shell.button}>
+                      완료
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
