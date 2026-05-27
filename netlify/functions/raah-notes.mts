@@ -326,6 +326,58 @@ const handleCreate = async (req: Request, user: { uid: string; email?: string; n
   return noStoreJson({ note: rowToNote(rows[0], true, config.secret) }, 201);
 };
 
+const handleUpdate = async (req: Request, noteId: string) => {
+  const input = parseInput(await req.json().catch(() => null));
+  if (!input) return noStoreJson({ error: 'Invalid RAAH note input.' }, 400);
+
+  const config = getSupabaseConfig();
+  if (!config) {
+    return noStoreJson(
+      {
+        error: 'RAAH Supabase environment variables are not configured.',
+        code: 'RAAH_SUPABASE_NOT_CONFIGURED',
+      },
+      503
+    );
+  }
+
+  const memberName = input.memberName.trim().replace(/\s+/g, ' ');
+  const encryptedPayload = encryptPayload(
+    {
+      currentSituation: input.currentSituation,
+      encouragement: input.encouragement,
+      prayerTopics: input.prayerTopics,
+      nextFollowUpDate: input.nextFollowUpDate || '',
+      remarks: input.remarks || '',
+    },
+    config.secret
+  );
+
+  const result = await supabaseFetch(
+    `raah_notes?select=id,member_name,member_search_name,date,meeting_type,encrypted_payload,encryption_version,is_encrypted,created_by,created_at,updated_at&id=eq.${encodeURIComponent(noteId)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        member_name: memberName,
+        member_search_name: normalizeMemberName(memberName),
+        date: input.date,
+        meeting_type: input.meetingType,
+        encrypted_payload: encryptedPayload,
+        encryption_version: ENCRYPTION_VERSION,
+        is_encrypted: true,
+      }),
+    }
+  );
+  if (result.response) return result.response;
+
+  const rows = (await result.supabaseResponse.json().catch(() => [])) as SupabaseRow[];
+  if (!result.supabaseResponse.ok) return noStoreJson({ error: 'Failed to update RAAH note.' }, result.supabaseResponse.status);
+  if (!rows[0]) return noStoreJson({ error: 'RAAH note not found.' }, 404);
+
+  return noStoreJson({ note: rowToNote(rows[0], true, config.secret) });
+};
+
 const handleDelete = async (noteId: string) => {
   const result = await supabaseFetch(`raah_notes?id=eq.${encodeURIComponent(noteId)}`, {
     method: 'DELETE',
@@ -345,6 +397,7 @@ export default async (req: Request, context: Context) => {
   if (req.method === 'GET' && noteId) return handleDetail(noteId);
   if (req.method === 'GET') return handleList();
   if (req.method === 'POST' && !noteId) return handleCreate(req, adminCheck.user);
+  if (req.method === 'PATCH' && noteId) return handleUpdate(req, noteId);
   if (req.method === 'DELETE' && noteId) return handleDelete(noteId);
 
   return noStoreJson({ error: 'Method not allowed' }, 405);

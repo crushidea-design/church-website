@@ -81,6 +81,16 @@ export async function createRaahNote(input: PastoralNoteInput, user: User) {
   return toPastoralNote(data.note);
 }
 
+export async function updateRaahNote(noteId: string, input: PastoralNoteInput, user: User) {
+  const response = await fetch(`/api/raah/notes/${encodeURIComponent(noteId)}`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<{ note: ApiNote }>(response);
+  return toPastoralNote(data.note);
+}
+
 export async function deleteRaahNote(noteId: string, user: User) {
   const response = await fetch(`/api/raah/notes/${encodeURIComponent(noteId)}`, {
     method: 'DELETE',

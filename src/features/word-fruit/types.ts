@@ -60,10 +60,22 @@ export interface WordFruitGroup {
   updatedAt?: Timestamp;
 }
 
+export interface LegacyWordFruitTotal {
+  id: string;
+  childName: string;
+  totalCount: number;
+  groupId?: string;
+  linkedUid?: string;
+  memo?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
 export const WORD_FRUIT_GROUPS_COLLECTION = 'next_generation_word_fruit_groups';
 
 export const WORD_FRUITS_COLLECTION = 'next_generation_word_fruits';
 export const WORD_FRUIT_PROGRESS_COLLECTION = 'next_generation_word_fruit_progress';
+export const WORD_FRUIT_LEGACY_TOTALS_COLLECTION = 'next_generation_word_fruit_legacy_totals';
 
 export const TOP_MESSAGE_DEFAULT = '하나님께서 우리 삶에 열매를 맺게 하세요.';
 export const GUIDE_MESSAGE_DEFAULT = '이번 주 말씀을 기억하며, 한 주에 3번 이상 작은 순종을 실천해 보세요.';

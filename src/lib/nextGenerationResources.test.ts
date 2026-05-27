@@ -5,6 +5,7 @@ import {
   getCurrentSundayKey,
   getPostPrimarySortTime,
   getPostWeekKey,
+  getNextGenerationPostBackPath,
   getResourceDepartmentPath,
   getResourceLabel,
   getResourceTab,
@@ -54,6 +55,26 @@ describe('next generation resource helpers', () => {
   it('keeps legacy young-adult tab ids under the young-adults department without CMS data', () => {
     expect(getResourceDepartmentPath('podcast_review')).toBe('/next/young-adults');
     expect(getResourceDepartmentPath('pilgrim_lecture')).toBe('/next/young-adults');
+  });
+
+  it('returns to the source resource list when a post was opened from a grouped tab', () => {
+    expect(
+      getNextGenerationPostBackPath('elementary_script', tabs, departments, 'elementary_weekly', {
+        sourcePath: '/next/elementary?resource=elementary_weekly',
+        topicId: 'faith',
+        includeTopic: true,
+      })
+    ).toBe('/next/elementary?resource=elementary_weekly');
+  });
+
+  it('falls back to the post resource tab when no safe source list is available', () => {
+    expect(
+      getNextGenerationPostBackPath('elementary_script', tabs, departments, 'elementary_weekly', {
+        sourcePath: 'https://example.com/next/elementary?resource=elementary_weekly',
+        topicId: 'faith',
+        includeTopic: true,
+      })
+    ).toBe('/next/elementary?resource=elementary_script&topic=faith');
   });
 
   it('formats Firestore-like timestamps for compact activity lists', () => {

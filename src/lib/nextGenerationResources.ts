@@ -94,6 +94,46 @@ export const getResourceDepartmentPath = (
   return `${NEXT_GENERATION_PATH}/${departmentSlug}`;
 };
 
+export interface NextGenerationPostBackPathOptions {
+  sourcePath?: string;
+  topicId?: string | null;
+  includeTopic?: boolean;
+}
+
+export const getSafeNextGenerationListPath = (sourcePath?: string) => {
+  if (!sourcePath) return null;
+  try {
+    const url = new URL(sourcePath, 'http://local.invalid');
+    if (url.origin !== 'http://local.invalid') return null;
+    if (!url.pathname.startsWith(`${NEXT_GENERATION_PATH}/`)) return null;
+    if (
+      url.pathname.startsWith(`${NEXT_GENERATION_PATH}/post/`) ||
+      url.pathname.startsWith(`${NEXT_GENERATION_PATH}/edit/`) ||
+      url.pathname.startsWith(`${NEXT_GENERATION_PATH}/create`)
+    ) {
+      return null;
+    }
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+};
+
+export const getNextGenerationPostBackPath = (
+  postTabSlug: string | undefined,
+  tabs: NextGenerationResourceTabLike[] = [],
+  departments: NextGenerationDepartmentLike[] = [],
+  fallbackResourceId?: string,
+  options: NextGenerationPostBackPathOptions = {}
+) => {
+  const sourcePath = getSafeNextGenerationListPath(options.sourcePath);
+  if (sourcePath) return sourcePath;
+
+  const resourceId = postTabSlug || fallbackResourceId || tabs[0]?.id || 'elementary_weekly';
+  const path = `${getResourceDepartmentPath(resourceId, tabs, departments)}?resource=${resourceId}`;
+  return options.includeTopic && options.topicId ? `${path}&topic=${options.topicId}` : path;
+};
+
 export const getResourceTab = <T extends NextGenerationResourceTabLike>(id: string | undefined, tabs: T[]) => {
   return tabs.find((tab) => tab.id === id || tab.slug === id) || tabs[0];
 };

@@ -98,6 +98,8 @@ export type RaahAttendanceEvent = {
 export type RaahAttendanceHistoryRecord = {
   memberId: string;
   date: string;
+  eventType?: RaahAttendanceEventType;
+  serviceType?: string;
   attended: boolean;
   communionParticipated: boolean;
 };
@@ -362,6 +364,16 @@ export async function createRaahVisitationLog(input: RaahVisitationLogInput, use
   return toLog(data.log);
 }
 
+export async function updateRaahVisitationLog(logId: string, input: RaahVisitationLogInput, user: User) {
+  const response = await fetch(`/api/raah/visitation-logs/${encodeURIComponent(logId)}`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<{ log: ApiLog }>(response);
+  return toLog(data.log);
+}
+
 export async function getRaahAttendance(date: string, user: User) {
   const response = await fetch(`/api/raah/attendance?date=${encodeURIComponent(date)}`, {
     headers: await getAuthHeaders(user),
@@ -393,6 +405,16 @@ export async function resolveRaahFollowUp(input: RaahFollowUpResolutionInput, us
 export async function createRaahMinistryScheduleItem(input: RaahMinistryScheduleItemInput, user: User) {
   const response = await fetch('/api/raah/schedule', {
     method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<{ item: ApiScheduleItem }>(response);
+  return data.item;
+}
+
+export async function updateRaahMinistryScheduleItem(itemId: string, input: RaahMinistryScheduleItemInput, user: User) {
+  const response = await fetch(`/api/raah/schedule/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(input),
   });
