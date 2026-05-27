@@ -50,6 +50,7 @@ import {
   formatShortDate,
   getContentPreview,
   getCurrentSundayKey,
+  getNextGenerationPostBackPath,
   getPostPrimarySortTime,
   getPostWeekKey,
   getPostYouTubeVideoId,
@@ -1748,6 +1749,7 @@ function ResourceLibraryPage({
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, member } = useNextGenerationAuth();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.
   const isRestricted = departmentSlug === 'elementary' && isRestrictedDepartment(member?.department);
@@ -1784,6 +1786,7 @@ function ResourceLibraryPage({
   const ActiveIcon = activeTab.icon;
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+  const listPath = `${location.pathname}${location.search}`;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -2134,7 +2137,11 @@ function ResourceLibraryPage({
                     transition={{ delay: Math.min(index * 0.04, 0.25) }}
                     className="rounded-lg border border-sky-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
-                    <Link to={`${NEXT_GENERATION_PATH}/post/${post.id}`} className="block">
+                    <Link
+                      to={`${NEXT_GENERATION_PATH}/post/${post.id}`}
+                      state={{ nextGenerationBackPath: listPath }}
+                      className="block"
+                    >
                       <div className="mb-4 flex flex-wrap gap-2">
                         <span className="inline-flex rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-black text-emerald-950">
                           {getResourceLabel(post.nextGenerationTabSlug || post.subCategory, visibleTabs as any)}
@@ -3000,6 +3007,7 @@ function NextGenerationCreatePost() {
 
 function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { role } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
   const isRestricted = isRestrictedDepartment(member?.department);
@@ -3116,9 +3124,17 @@ function NextGenerationPostDetail({ id }: { id: string }) {
   }));
   const inferredTopicId = inferNextGenerationTopicId(post);
   const postTabSlug = post.nextGenerationTabSlug || post.subCategory;
-  const backPath = supportsNextGenerationTopic(postTabSlug)
-    ? `${getResourceDepartmentPath(postTabSlug, mergedTabs, mergedDepartments)}?resource=${postTabSlug || mergedTabs[0]?.id || elementaryResourceTabs[0].id}&topic=${inferredTopicId}`
-    : `${getResourceDepartmentPath(postTabSlug, mergedTabs, mergedDepartments)}?resource=${postTabSlug || mergedTabs[0]?.id || elementaryResourceTabs[0].id}`;
+  const backPath = getNextGenerationPostBackPath(
+    postTabSlug,
+    mergedTabs,
+    mergedDepartments,
+    mergedTabs[0]?.id || elementaryResourceTabs[0].id,
+    {
+      sourcePath: (location.state as { nextGenerationBackPath?: string } | null)?.nextGenerationBackPath,
+      topicId: inferredTopicId,
+      includeTopic: supportsNextGenerationTopic(postTabSlug),
+    }
+  );
   const attachments = getPostAttachments(post);
 
   return (

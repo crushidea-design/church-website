@@ -4,9 +4,9 @@ import { AuthProvider } from './lib/auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import QuotaExceededView from './components/QuotaExceededView';
 import { SiteCmsProvider, useSiteCms } from './lib/siteCms';
+import Layout from './components/Layout';
+import Home from './pages/Home';
 
-const Layout = React.lazy(() => import('./components/Layout'));
-const Home = React.lazy(() => import('./pages/Home'));
 const Introduction = React.lazy(() => import('./pages/Introduction'));
 const ArchiveLayout = React.lazy(() => import('./pages/ArchiveLayout'));
 const TodayWord = React.lazy(() => import('./pages/TodayWord'));

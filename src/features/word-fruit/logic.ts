@@ -52,3 +52,18 @@ export function summarizeProgress(progresses: WordFruitProgress[]) {
   const growing = progresses.filter((p) => !p.completed && p.checkCount > 0).length;
   return { total, completed, growing };
 }
+
+export function normalizeLegacyFruitTotalInput(input: {
+  childName: string;
+  totalCount: number;
+  memo?: string;
+}) {
+  const childName = input.childName.trim();
+  if (!childName) return null;
+
+  return {
+    childName,
+    totalCount: Math.max(0, Math.floor(Number.isFinite(input.totalCount) ? input.totalCount : 0)),
+    memo: (input.memo ?? '').trim(),
+  };
+}

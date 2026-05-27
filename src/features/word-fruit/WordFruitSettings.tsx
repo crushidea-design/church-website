@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, Save, Users2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Save, Sparkles, Users2 } from 'lucide-react';
 import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import {
@@ -7,12 +7,14 @@ import {
   createGroup,
   fetchElementaryStudents,
   fetchTeachers,
+  saveLegacyFruitTotal,
   setMemberGroup,
   setMemberGroupIds,
   subscribeGroups,
+  subscribeLegacyFruitTotals,
 } from './api';
 import type { BackfillReport } from './api';
-import type { WordFruitGroup } from './types';
+import type { LegacyWordFruitTotal, WordFruitGroup } from './types';
 
 /**
  * Cross-week setup for the word-fruit feature: groups, parent linking, and
@@ -23,6 +25,7 @@ export default function WordFruitSettings() {
   return (
     <div className="space-y-8">
       <GroupManager />
+      <LegacyFruitTotalsManager />
       <ParentLinkManager />
       <MigrationTool />
     </div>
@@ -262,6 +265,255 @@ function GroupManager() {
 }
 
 /* ────────────────────────── 부모-자녀 연결 ─────────────────────────── */
+
+function LegacyFruitTotalsManager() {
+  const [items, setItems] = useState<LegacyWordFruitTotal[]>([]);
+  const [groups, setGroups] = useState<WordFruitGroup[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, { childName: string; totalCount: string; groupId: string; memo: string }>>({});
+  const [newDraft, setNewDraft] = useState({ childName: '', totalCount: '0', groupId: '', memo: '' });
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => subscribeGroups(setGroups), []);
+
+  useEffect(() => {
+    return subscribeLegacyFruitTotals(
+      (next) => {
+        setItems(next);
+        setLoading(false);
+      },
+      () => {
+        setItems([]);
+        setLoading(false);
+      },
+    );
+  }, []);
+
+  const updateDraft = (
+    id: string,
+    item: LegacyWordFruitTotal,
+    patch: Partial<{ childName: string; totalCount: string; groupId: string; memo: string }>,
+  ) => {
+    setDrafts((current) => ({
+      ...current,
+      [id]: {
+        childName: item.childName,
+        totalCount: String(item.totalCount ?? 0),
+        groupId: item.groupId ?? '',
+        memo: item.memo ?? '',
+        ...(current[id] ?? {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const saveItem = async (item: LegacyWordFruitTotal) => {
+    const draft = drafts[item.id] ?? {
+      childName: item.childName,
+      totalCount: String(item.totalCount ?? 0),
+      groupId: item.groupId ?? '',
+      memo: item.memo ?? '',
+    };
+    setBusyId(item.id);
+    setMsg(null);
+    try {
+      await saveLegacyFruitTotal({
+        id: item.id,
+        childName: draft.childName,
+        totalCount: Number(draft.totalCount),
+        groupId: draft.groupId,
+        linkedUid: item.linkedUid ?? '',
+        memo: draft.memo,
+      });
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setMsg({ tone: 'ok', text: `${draft.childName.trim()} 누적 열매를 저장했습니다.` });
+    } catch (e: any) {
+      console.error(e);
+      setMsg({ tone: 'err', text: e?.message === 'INVALID_CHILD_NAME' ? '아이 이름을 입력해 주세요.' : '저장 중 오류가 발생했습니다.' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const addItem = async () => {
+    setBusyId('new');
+    setMsg(null);
+    try {
+      await saveLegacyFruitTotal({
+        childName: newDraft.childName,
+        totalCount: Number(newDraft.totalCount),
+        groupId: newDraft.groupId,
+        memo: newDraft.memo,
+      });
+      setMsg({ tone: 'ok', text: `${newDraft.childName.trim()} 누적 열매를 추가했습니다.` });
+      setNewDraft({ childName: '', totalCount: '0', groupId: '', memo: '' });
+    } catch (e: any) {
+      console.error(e);
+      setMsg({ tone: 'err', text: e?.message === 'INVALID_CHILD_NAME' ? '아이 이름을 입력해 주세요.' : '추가 중 오류가 발생했습니다.' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section>
+      <div className="flex items-center gap-2">
+        <Sparkles size={16} className="text-emerald-700" />
+        <h3 className="text-base font-black text-emerald-950">누적 열매</h3>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        기존에 아이들이 모아 온 열매 개수를 아이별 누적 개수로 보관합니다. 주차별 말씀 열매 기록과는 섞지 않고, 나중에 아이 계정이 생기면 이 기록을 연결할 수 있습니다.
+      </p>
+
+      {msg && (
+        <div
+          className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+            msg.tone === 'ok'
+              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border border-red-200 bg-red-50 text-red-700'
+          }`}
+        >
+          {msg.tone === 'ok' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+          {msg.text}
+        </div>
+      )}
+
+      <div className="mt-3 grid gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 md:grid-cols-[1.2fr_0.7fr_0.7fr_1.5fr_auto]">
+        <input
+          type="text"
+          value={newDraft.childName}
+          onChange={(e) => setNewDraft((draft) => ({ ...draft, childName: e.target.value }))}
+          placeholder="아이 이름"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        />
+        <input
+          type="number"
+          min={0}
+          value={newDraft.totalCount}
+          onChange={(e) => setNewDraft((draft) => ({ ...draft, totalCount: e.target.value }))}
+          placeholder="누적 개수"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        />
+        <select
+          value={newDraft.groupId}
+          onChange={(e) => setNewDraft((draft) => ({ ...draft, groupId: e.target.value }))}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        >
+          <option value="">반 선택</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>{group.name}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={newDraft.memo}
+          onChange={(e) => setNewDraft((draft) => ({ ...draft, memo: e.target.value }))}
+          placeholder="메모 (선택)"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        />
+        <button
+          type="button"
+          onClick={addItem}
+          disabled={busyId === 'new' || !newDraft.childName.trim()}
+          className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {busyId === 'new' ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
+          추가
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
+          <Loader2 className="animate-spin" size={14} /> 누적 열매 목록을 불러오는 중...
+        </div>
+      ) : items.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-500">아직 등록된 누적 열매가 없습니다.</p>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-left font-bold">아이</th>
+                <th className="px-3 py-2 text-left font-bold">누적</th>
+                <th className="px-3 py-2 text-left font-bold">반</th>
+                <th className="px-3 py-2 text-left font-bold">메모</th>
+                <th className="px-3 py-2 text-right font-bold">저장</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const draft = drafts[item.id] ?? {
+                  childName: item.childName,
+                  totalCount: String(item.totalCount ?? 0),
+                  groupId: item.groupId ?? '',
+                  memo: item.memo ?? '',
+                };
+                const dirty = drafts[item.id] !== undefined;
+                return (
+                  <tr key={item.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2">
+                      <input
+                        type="text"
+                        value={draft.childName}
+                        onChange={(e) => updateDraft(item.id, item, { childName: e.target.value })}
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm font-bold text-slate-800"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={draft.totalCount}
+                        onChange={(e) => updateDraft(item.id, item, { totalCount: e.target.value })}
+                        className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={draft.groupId}
+                        onChange={(e) => updateDraft(item.id, item, { groupId: e.target.value })}
+                        className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                      >
+                        <option value="">미배정</option>
+                        {groups.map((group) => (
+                          <option key={group.id} value={group.id}>{group.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="text"
+                        value={draft.memo}
+                        onChange={(e) => updateDraft(item.id, item, { memo: e.target.value })}
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => saveItem(item)}
+                        disabled={!dirty || busyId === item.id}
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {busyId === item.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
+                        저장
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 
 interface ParentRow {
   uid: string;

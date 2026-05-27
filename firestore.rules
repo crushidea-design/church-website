@@ -588,6 +588,34 @@ service cloud.firestore {
       allow create, update, delete: if isNextGenerationPastor();
     }
 
+    match /next_generation_word_fruit_legacy_totals/{totalId} {
+      allow read: if isNextGenerationPastor();
+      allow delete: if isNextGenerationPastor();
+      allow create, update: if isNextGenerationPastor() &&
+        request.resource.data.keys().hasOnly([
+          'childName',
+          'totalCount',
+          'groupId',
+          'linkedUid',
+          'memo',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        request.resource.data.childName is string &&
+        request.resource.data.childName.size() > 0 &&
+        request.resource.data.childName.size() <= 100 &&
+        request.resource.data.totalCount is number &&
+        request.resource.data.totalCount >= 0 &&
+        request.resource.data.groupId is string &&
+        request.resource.data.groupId.size() <= 120 &&
+        request.resource.data.linkedUid is string &&
+        request.resource.data.linkedUid.size() <= 128 &&
+        request.resource.data.memo is string &&
+        request.resource.data.memo.size() <= 1000 &&
+        request.resource.data.updatedAt is timestamp &&
+        (!('createdAt' in request.resource.data) || request.resource.data.createdAt is timestamp);
+    }
+
     function teacherCanWriteProgress(progressData) {
       return isNextGenerationTeacher() &&
         'groupIds' in ngMemberData() &&

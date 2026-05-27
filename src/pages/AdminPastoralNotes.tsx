@@ -19,7 +19,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { generateRaahVisitationDraft } from '../features/pastoral-notes/aiApi';
-import { createRaahNote, getRaahNoteDetail, listRaahNotes } from '../features/pastoral-notes/api';
+import { createRaahNote, getRaahNoteDetail, listRaahNotes, updateRaahNote } from '../features/pastoral-notes/api';
 import {
   completeRaahMinistryScheduleItem,
   createRaahGoogleCalendarEvent,
@@ -49,8 +49,11 @@ import {
   saveRaahAttendance,
   syncRaahGoogleCalendar,
   updateRaahMember,
+  updateRaahMinistryScheduleItem,
+  updateRaahVisitationLog,
 } from '../features/pastoral-notes/managementApi';
 import { buildAttendanceRecordsForEvent, filterResolvedFollowUps, selectAttendanceEvent } from '../features/pastoral-notes/raahWorkflow';
+import { buildRaahAttendanceFlow, RaahAttendanceFlowCell, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PASTORAL_MEETING_TYPES, PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
 import { createEmptyPastoralNoteInput, formatDisplayDate, normalizeMemberName, sortNotesByDate } from '../features/pastoral-notes/utils';
@@ -314,6 +317,7 @@ export default function AdminPastoralNotes() {
 
   const [logForm, setLogForm] = React.useState<RaahVisitationLogInput>(emptyLogForm());
   const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
+  const [editingLogId, setEditingLogId] = React.useState<string | null>(null);
   const [decryptedLog, setDecryptedLog] = React.useState<RaahVisitationLog | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = React.useState(false);
   const [isDetailLoading, setIsDetailLoading] = React.useState(false);
@@ -329,6 +333,7 @@ export default function AdminPastoralNotes() {
   const [showAbsencesOnly, setShowAbsencesOnly] = React.useState(false);
   const [expandedAttendanceNotes, setExpandedAttendanceNotes] = React.useState(false);
   const [scheduleForm, setScheduleForm] = React.useState<RaahMinistryScheduleItemInput>(emptyScheduleForm);
+  const [editingScheduleItemId, setEditingScheduleItemId] = React.useState<string | null>(null);
   const [isScheduleFormOpen, setIsScheduleFormOpen] = React.useState(false);
   const [calendarStatus, setCalendarStatus] = React.useState<RaahCalendarStatus | null>(null);
   const [calendarEventForm, setCalendarEventForm] = React.useState<RaahGoogleCalendarEventInput>(emptyCalendarEventForm);
@@ -336,6 +341,7 @@ export default function AdminPastoralNotes() {
 
   const [legacyForm, setLegacyForm] = React.useState<PastoralNoteInput>(createEmptyPastoralNoteInput);
   const [selectedLegacyNoteId, setSelectedLegacyNoteId] = React.useState<string | null>(null);
+  const [editingLegacyNoteId, setEditingLegacyNoteId] = React.useState<string | null>(null);
   const [decryptedLegacyNote, setDecryptedLegacyNote] = React.useState<PastoralNote | null>(null);
   const [isLegacyFormOpen, setIsLegacyFormOpen] = React.useState(false);
 
@@ -640,12 +646,82 @@ export default function AdminPastoralNotes() {
   };
 
   const openLogForm = (member?: RaahMember) => {
+    setEditingLogId(null);
     setDecryptedLog(null);
     setLogForm(emptyLogForm(member));
     setRawAiMemo('');
     setAiSuggestion('');
     setIsLogFormOpen(true);
     setActiveTab('visitation');
+  };
+
+  const openLogFormForEdit = (log: RaahVisitationLog) => {
+    setEditingLogId(log.id);
+    setDecryptedLog(log);
+    setLogForm({
+      memberId: log.memberId || '',
+      memberName: log.memberName,
+      date: log.date,
+      logType: log.logType,
+      publicSummary: log.publicSummary || '',
+      innerNote: log.innerNote || '',
+      prayerTopics: log.prayerTopics || '',
+      nextSteps: log.nextSteps || '',
+      privateRemarks: log.privateRemarks || '',
+    });
+    setRawAiMemo('');
+    setAiSuggestion('');
+    setIsLogFormOpen(true);
+    setActiveTab('visitation');
+  };
+
+  const openScheduleFormForEdit = (item: RaahMinistryScheduleItem) => {
+    setEditingScheduleItemId(item.id);
+    setScheduleForm({
+      title: item.title,
+      date: item.date,
+      startsAt: item.startsAt || '',
+      endsAt: item.endsAt || '',
+      itemType: item.itemType,
+      memberId: item.memberId || '',
+      memberName: item.memberName || '',
+      memo: item.memo || '',
+    });
+    setIsScheduleFormOpen(true);
+  };
+
+  const openNewScheduleForm = () => {
+    setEditingScheduleItemId(null);
+    setScheduleForm(emptyScheduleForm());
+    setIsScheduleFormOpen(true);
+  };
+
+  const closeScheduleForm = () => {
+    setEditingScheduleItemId(null);
+    setScheduleForm(emptyScheduleForm());
+    setIsScheduleFormOpen(false);
+  };
+
+  const openLegacyFormForEdit = (note: PastoralNote) => {
+    setEditingLegacyNoteId(note.id);
+    setLegacyForm({
+      memberName: note.memberName,
+      date: note.date,
+      meetingType: note.meetingType,
+      currentSituation: note.currentSituation || '',
+      encouragement: note.encouragement || '',
+      prayerTopics: note.prayerTopics || '',
+      nextFollowUpDate: note.nextFollowUpDate || '',
+      remarks: note.remarks || '',
+    });
+    setIsLegacyFormOpen(true);
+    setActiveTab('legacy');
+  };
+
+  const openNewLegacyForm = () => {
+    setEditingLegacyNoteId(null);
+    setLegacyForm(createEmptyPastoralNoteInput());
+    setIsLegacyFormOpen(true);
   };
 
   const handleGenerateAiDraft = async () => {
@@ -722,14 +798,15 @@ export default function AdminPastoralNotes() {
 
     setIsSaving(true);
     try {
-      const created = await createRaahVisitationLog(logForm, user);
+      const created = editingLogId ? await updateRaahVisitationLog(editingLogId, logForm, user) : await createRaahVisitationLog(logForm, user);
       setIsLogFormOpen(false);
+      setEditingLogId(null);
       setSelectedLogId(created.id);
       setDecryptedLog(created);
       setLogForm(emptyLogForm());
       setRawAiMemo('');
       setAiSuggestion('');
-      toast.success('심방/상담 기록을 암호화해 저장했습니다.');
+      toast.success(editingLogId ? '심방/상담 기록을 수정했습니다.' : '심방/상담 기록을 암호화해 저장했습니다.');
       await refreshSupabase();
     } catch (error) {
       toast.error(getErrorMessage(error, '심방/상담 기록을 저장하지 못했습니다.'));
@@ -838,16 +915,15 @@ export default function AdminPastoralNotes() {
       const input = {
         ...scheduleForm,
         title: scheduleForm.title.trim(),
-        memberId: scheduleForm.memberId || selectedMember?.id || '',
-        memberName: scheduleForm.memberName || selectedMember?.name || '',
+        memberId: scheduleForm.memberId || (!editingScheduleItemId ? selectedMember?.id || '' : ''),
+        memberName: scheduleForm.memberName || (!editingScheduleItemId ? selectedMember?.name || '' : ''),
       };
-      const item = await createRaahMinistryScheduleItem(input, user);
-      setMinistryScheduleItems((prev) => [...prev, item]);
-      setScheduleForm(emptyScheduleForm());
-      setIsScheduleFormOpen(false);
-      toast.success('사역 일정을 추가했습니다.');
+      const item = editingScheduleItemId ? await updateRaahMinistryScheduleItem(editingScheduleItemId, input, user) : await createRaahMinistryScheduleItem(input, user);
+      setMinistryScheduleItems((prev) => (editingScheduleItemId ? prev.map((current) => (current.id === item.id ? item : current)) : [...prev, item]));
+      closeScheduleForm();
+      toast.success(editingScheduleItemId ? '사역 일정을 수정했습니다.' : '사역 일정을 추가했습니다.');
     } catch (error) {
-      toast.error(getErrorMessage(error, '사역 일정을 추가하지 못했습니다.'));
+      toast.error(getErrorMessage(error, '사역 일정을 저장하지 못했습니다.'));
     } finally {
       setIsSaving(false);
     }
@@ -882,13 +958,14 @@ export default function AdminPastoralNotes() {
         setSelectedLegacyNoteId(created.id);
         toast.success('기존 Firestore 호환 모드로 저장했습니다.');
       } else {
-        const created = await createRaahNote(legacyForm, user);
+        const created = editingLegacyNoteId ? await updateRaahNote(editingLegacyNoteId, legacyForm, user) : await createRaahNote(legacyForm, user);
         setSelectedLegacyNoteId(created.id);
         setDecryptedLegacyNote(created);
-        toast.success('기존 RAAH 기록을 Supabase에 암호화해 저장했습니다.');
+        toast.success(editingLegacyNoteId ? '기존 RAAH 기록을 수정했습니다.' : '기존 RAAH 기록을 Supabase에 암호화해 저장했습니다.');
         await loadLegacyNotes();
       }
       setIsLegacyFormOpen(false);
+      setEditingLegacyNoteId(null);
       setLegacyForm(createEmptyPastoralNoteInput());
     } catch (error) {
       toast.error(getErrorMessage(error, '기존 RAAH 기록을 저장하지 못했습니다.'));
@@ -1114,12 +1191,16 @@ export default function AdminPastoralNotes() {
                 attendanceDate={attendanceDate}
                 attendanceCount={attendanceCount}
                 communionCount={communionCount}
+                attendanceHistory={attendanceHistory}
                 pendingFollowUps={pendingFollowUps}
                 scheduleItems={ministryScheduleItems}
                 scheduleForm={scheduleForm}
                 setScheduleForm={setScheduleForm}
+                editingScheduleItemId={editingScheduleItemId}
                 isScheduleFormOpen={isScheduleFormOpen}
-                setIsScheduleFormOpen={setIsScheduleFormOpen}
+                onOpenNewSchedule={openNewScheduleForm}
+                onCloseScheduleForm={closeScheduleForm}
+                onEdit={openScheduleFormForEdit}
                 calendarStatus={calendarStatus}
                 isSaving={isSaving}
                 onOpenAttendance={() => setActiveTab('attendance')}
@@ -1173,6 +1254,8 @@ export default function AdminPastoralNotes() {
                 setIncludesCommunion={setAttendanceIncludesCommunion}
                 memo={attendanceMemo}
                 setMemo={setAttendanceMemo}
+                members={members}
+                attendanceHistory={attendanceHistory}
                 records={filteredAttendanceRecords}
                 allRecords={attendanceRecords}
                 setRecords={setAttendanceRecords}
@@ -1201,6 +1284,7 @@ export default function AdminPastoralNotes() {
                 members={members}
                 form={logForm}
                 setForm={setLogForm}
+                editingLogId={editingLogId}
                 rawAiMemo={rawAiMemo}
                 setRawAiMemo={setRawAiMemo}
                 aiSuggestion={aiSuggestion}
@@ -1215,8 +1299,10 @@ export default function AdminPastoralNotes() {
                 onSubmit={handleLogSubmit}
                 onCreateCalendarEvent={handleCreateCalendarEvent}
                 onOpenCalendarEvent={openCalendarEventForm}
+                onEdit={openLogFormForEdit}
                 onCloseForm={() => {
                   setIsLogFormOpen(false);
+                  setEditingLogId(null);
                   setRawAiMemo('');
                   setAiSuggestion('');
                 }}
@@ -1237,9 +1323,15 @@ export default function AdminPastoralNotes() {
                 isSaving={isSaving}
                 form={legacyForm}
                 setForm={setLegacyForm}
+                editing={Boolean(editingLegacyNoteId)}
                 onSubmit={handleLegacySubmit}
-                onCloseForm={() => setIsLegacyFormOpen(false)}
-                onNew={() => setIsLegacyFormOpen(true)}
+                onCloseForm={() => {
+                  setIsLegacyFormOpen(false);
+                  setEditingLegacyNoteId(null);
+                  setLegacyForm(createEmptyPastoralNoteInput());
+                }}
+                onNew={openNewLegacyForm}
+                onEdit={openLegacyFormForEdit}
               />
             )}
           </div>
@@ -1275,12 +1367,16 @@ function DashboardTab({
   attendanceDate,
   attendanceCount,
   communionCount,
+  attendanceHistory,
   pendingFollowUps,
   scheduleItems,
   scheduleForm,
   setScheduleForm,
+  editingScheduleItemId,
   isScheduleFormOpen,
-  setIsScheduleFormOpen,
+  onOpenNewSchedule,
+  onCloseScheduleForm,
+  onEdit,
   calendarStatus,
   isSaving,
   onOpenAttendance,
@@ -1299,12 +1395,16 @@ function DashboardTab({
   attendanceDate: string;
   attendanceCount: number;
   communionCount: number;
+  attendanceHistory: RaahAttendanceHistoryRecord[];
   pendingFollowUps: RaahVisitationLog[];
   scheduleItems: RaahMinistryScheduleItem[];
   scheduleForm: RaahMinistryScheduleItemInput;
   setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  editingScheduleItemId: string | null;
   isScheduleFormOpen: boolean;
-  setIsScheduleFormOpen: (value: boolean) => void;
+  onOpenNewSchedule: () => void;
+  onCloseScheduleForm: () => void;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
   calendarStatus: RaahCalendarStatus | null;
   isSaving: boolean;
   onOpenAttendance: () => void;
@@ -1320,6 +1420,10 @@ function DashboardTab({
   const absentCount = Math.max(activeMemberCount - attendanceCount, 0);
   const attendanceRate = percent(attendanceCount, activeMemberCount);
   const communionRate = percent(communionCount, attendanceCount);
+  const dashboardAttendanceFlow = React.useMemo(
+    () => buildRaahAttendanceFlow({ members, history: attendanceHistory, limit: 1 }),
+    [attendanceHistory, members]
+  );
   const dashboardSeason = getDashboardSeason();
   const attendanceTaskTitle = dashboardSeason === 'attendance' ? '주일 출석 체크' : dashboardSeason === 'follow-up' ? '출석 후속 확인' : '다가오는 주일 준비';
   const attendanceTaskCopy =
@@ -1347,6 +1451,7 @@ function DashboardTab({
           absentCount={absentCount}
           attendanceRate={attendanceRate}
           communionRate={communionRate}
+          flow={dashboardAttendanceFlow}
           onOpenAttendance={onOpenAttendance}
         />
 
@@ -1400,8 +1505,11 @@ function DashboardTab({
         items={scheduleItems}
         form={scheduleForm}
         setForm={setScheduleForm}
+        editingItemId={editingScheduleItemId}
         isOpen={isScheduleFormOpen}
-        setIsOpen={setIsScheduleFormOpen}
+        onOpenNew={onOpenNewSchedule}
+        onClose={onCloseScheduleForm}
+        onEdit={onEdit}
         calendarStatus={calendarStatus}
         isSaving={isSaving}
         onSubmit={onCreateScheduleItem}
@@ -1438,8 +1546,11 @@ function MinistrySchedulePanel({
   items,
   form,
   setForm,
+  editingItemId,
   isOpen,
-  setIsOpen,
+  onOpenNew,
+  onClose,
+  onEdit,
   calendarStatus,
   isSaving,
   onSubmit,
@@ -1450,8 +1561,11 @@ function MinistrySchedulePanel({
   items: RaahMinistryScheduleItem[];
   form: RaahMinistryScheduleItemInput;
   setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  editingItemId: string | null;
   isOpen: boolean;
-  setIsOpen: (value: boolean) => void;
+  onOpenNew: () => void;
+  onClose: () => void;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
   calendarStatus: RaahCalendarStatus | null;
   isSaving: boolean;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -1487,9 +1601,9 @@ function MinistrySchedulePanel({
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setIsOpen(!isOpen)} className={isOpen ? shell.button : shell.ghostButton}>
+        <button type="button" onClick={isOpen ? onClose : onOpenNew} className={isOpen ? shell.button : shell.ghostButton}>
           <Plus size={16} />
-          일정
+          {isOpen ? '닫기' : '일정'}
         </button>
       </div>
 
@@ -1540,15 +1654,15 @@ function MinistrySchedulePanel({
           </label>
           <TextInput label="메모" value={form.memo || ''} onChange={(value) => setForm((prev) => ({ ...prev, memo: value }))} placeholder="장소나 준비물" />
           <button type="submit" disabled={isSaving} className={shell.button + ' self-end'}>
-            저장
+            {editingItemId ? '수정' : '저장'}
           </button>
         </form>
       )}
 
       {viewMode === 'week' ? (
-        <WeekScheduleGrid days={weekDays} rangeLabel={weekRange} isSaving={isSaving} onComplete={onComplete} />
+        <WeekScheduleGrid days={weekDays} rangeLabel={weekRange} isSaving={isSaving} onComplete={onComplete} onEdit={onEdit} />
       ) : (
-        <MonthScheduleGrid days={monthDays} rangeLabel={monthRange} isSaving={isSaving} onComplete={onComplete} />
+        <MonthScheduleGrid days={monthDays} rangeLabel={monthRange} isSaving={isSaving} onComplete={onComplete} onEdit={onEdit} />
       )}
       {!hasOpenItems && <EmptyState>등록된 사역 일정이 없습니다.</EmptyState>}
     </div>
@@ -1560,11 +1674,13 @@ function WeekScheduleGrid({
   rangeLabel,
   isSaving,
   onComplete,
+  onEdit,
 }: {
   days: ReturnType<typeof getWeekCalendarDays>;
   rangeLabel: string;
   isSaving: boolean;
   onComplete: (itemId: string) => void;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
 }) {
   return (
     <div className="mt-5">
@@ -1595,7 +1711,7 @@ function WeekScheduleGrid({
                 <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 px-2 py-2 text-xs text-[#7a8b9a]">일정 없음</p>
               ) : (
                 day.items.map((item) => (
-                  <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-9 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
+                  <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-16 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
                     <div>
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold text-[#17202b]">{item.title}</p>
@@ -1604,6 +1720,10 @@ function WeekScheduleGrid({
                           {item.memberName ? ` · ${item.memberName}` : ''}
                         </p>
                       </div>
+                      <button type="button" disabled={isSaving} onClick={() => onEdit(item)} title="수정" aria-label={`${item.title} 수정`} className="absolute right-9 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                        <FileText size={12} strokeWidth={2.4} />
+                        수정
+                      </button>
                       <button type="button" disabled={isSaving} onClick={() => onComplete(item.id)} title="완료" aria-label={`${item.title} 완료`} className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
                         <CheckSquare size={12} strokeWidth={2.4} />
                         완료
@@ -1626,11 +1746,13 @@ function MonthScheduleGrid({
   rangeLabel,
   isSaving,
   onComplete,
+  onEdit,
 }: {
   days: ReturnType<typeof getMonthCalendarDays>;
   rangeLabel: string;
   isSaving: boolean;
   onComplete: (itemId: string) => void;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
 }) {
   return (
     <div className="mt-5">
@@ -1668,7 +1790,7 @@ function MonthScheduleGrid({
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {day.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-7 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
+                    <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-12 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
                       <div>
                         <div className="min-w-0">
                           <p className="truncate text-[11px] font-semibold text-[#17202b]">{item.title}</p>
@@ -1677,6 +1799,17 @@ function MonthScheduleGrid({
                             {item.memberName ? ` · ${item.memberName}` : ''}
                           </p>
                         </div>
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => onEdit(item)}
+                          title="수정"
+                          aria-label={`${item.title} 수정`}
+                          className="absolute right-7 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                        >
+                          <FileText size={11} strokeWidth={2.4} />
+                          수정
+                        </button>
                         <button
                           type="button"
                           disabled={isSaving}
@@ -1741,6 +1874,7 @@ function AttendanceSnapshot({
   absentCount,
   attendanceRate,
   communionRate,
+  flow,
   onOpenAttendance,
 }: {
   date: string;
@@ -1750,8 +1884,30 @@ function AttendanceSnapshot({
   absentCount: number;
   attendanceRate: number;
   communionRate: number;
+  flow: ReturnType<typeof buildRaahAttendanceFlow>;
   onOpenAttendance: () => void;
 }) {
+  const latestWeek = flow.weeks[0];
+  const eventSummaries = latestWeek?.events.map((event) => {
+    const index = flow.events.findIndex((flowEvent) => flowEvent.key === event.key);
+    const cells = index >= 0 ? flow.rows.map((row) => row.cells[index]).filter(Boolean) : [];
+    const recorded = cells.filter((cell) => cell.attended !== null);
+    const attended = cells.filter((cell) => cell.attended === true).length;
+    const absent = cells.filter((cell) => cell.attended === false).length;
+    return {
+      event,
+      attended,
+      absent,
+      recordedCount: recorded.length,
+      rate: percent(attended, recorded.length),
+    };
+  }) || [];
+  const latestEventIndex = flow.events.findIndex((event) => event.key === latestWeek?.events[0]?.key);
+  const recentAbsentees = latestEventIndex >= 0
+    ? flow.rows.filter((row) => row.cells[latestEventIndex]?.attended === false).slice(0, 4)
+    : [];
+  const contactTargets = flow.concernRows.slice(0, 4);
+
   return (
     <div className={shell.panel + ' p-4'}>
       <div className="flex items-start justify-between gap-3">
@@ -1774,6 +1930,50 @@ function AttendanceSnapshot({
         <MiniCount label="성찬" value={communionCount} />
         <MiniCount label="미출석" value={absentCount} />
       </div>
+
+      {eventSummaries.length > 0 && (
+        <div className="mt-4 grid gap-2">
+          {eventSummaries.map(({ event, attended, absent, recordedCount, rate }) => (
+            <button key={event.key} type="button" onClick={onOpenAttendance} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 text-left transition hover:border-[#2e6b5f] hover:bg-white">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#17202b]">{getAttendanceEventLabel(event)}</p>
+                  <p className="mt-1 text-xs text-[#607080]">{event.date.slice(5).replace('-', '.')} · 출석 {attended}명 · 결석 {absent}명</p>
+                </div>
+                <span className="text-sm font-semibold text-[#2e6b5f]">{recordedCount ? `${rate}%` : '-'}</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dbe3e8]">
+                <div className="h-full rounded-full bg-[#2e6b5f]" style={{ width: `${rate}%` }} />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <AttendancePeopleList title="최근 결석자" rows={recentAbsentees} empty="최근 결석 기록이 없습니다." />
+        <AttendancePeopleList title="연락 대상자" rows={contactTargets} empty="우선 연락 대상자가 없습니다." />
+      </div>
+    </div>
+  );
+}
+
+function AttendancePeopleList({ title, rows, empty }: { title: string; rows: ReturnType<typeof buildRaahAttendanceFlow>['rows']; empty: string }) {
+  return (
+    <div className={shell.mutedPanel + ' p-3'}>
+      <p className="text-xs font-semibold text-[#607080]">{title}</p>
+      {rows.length === 0 ? (
+        <p className="mt-2 text-xs text-[#7a8b9a]">{empty}</p>
+      ) : (
+        <div className="mt-2 space-y-1.5">
+          {rows.map((row) => (
+            <div key={row.memberId} className="flex items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs">
+              <span className="truncate font-semibold text-[#17202b]">{row.memberName}</span>
+              <span className="shrink-0 text-[#607080]">결석 {row.absenceCount}회</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2052,6 +2252,8 @@ function AttendanceTab({
   setIncludesCommunion,
   memo,
   setMemo,
+  members,
+  attendanceHistory,
   records,
   allRecords,
   setRecords,
@@ -2078,6 +2280,8 @@ function AttendanceTab({
   setIncludesCommunion: (value: boolean) => void;
   memo: string;
   setMemo: (value: string) => void;
+  members: RaahMember[];
+  attendanceHistory: RaahAttendanceHistoryRecord[];
   records: RaahAttendanceRecord[];
   allRecords: RaahAttendanceRecord[];
   setRecords: React.Dispatch<React.SetStateAction<RaahAttendanceRecord[]>>;
@@ -2092,9 +2296,23 @@ function AttendanceTab({
   onToggle: (memberId: string, field: 'attended' | 'communionParticipated') => void;
   onSave: () => void;
 }) {
+  const attendanceFlow = React.useMemo(
+    () => buildRaahAttendanceFlow({ members, history: attendanceHistory, limit: 6 }),
+    [attendanceHistory, members]
+  );
+
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(280px,360px),minmax(0,1fr)]">
-      <div className={shell.panel + ' p-4'}>
+    <section className="space-y-4">
+      <AttendanceFlowPanel
+        flow={attendanceFlow}
+        onSelectEvent={(event) => {
+          setDate(event.date);
+          onEventTypeChange(event.eventType);
+        }}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px),minmax(0,1fr)]">
+        <div className={shell.panel + ' p-4'}>
         <h2 className="text-lg font-semibold">출석 설정</h2>
         <div className="mt-4 space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -2136,7 +2354,7 @@ function AttendanceTab({
         </div>
       </div>
 
-      <div className={shell.panel + ' p-4'}>
+        <div className={shell.panel + ' p-4'}>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <h2 className="text-lg font-semibold">주일 출석 및 성찬 체크</h2>
@@ -2178,8 +2396,167 @@ function AttendanceTab({
           )}
         </div>
       </div>
+      </div>
     </section>
   );
+}
+
+function AttendanceFlowPanel({
+  flow,
+  onSelectEvent,
+}: {
+  flow: ReturnType<typeof buildRaahAttendanceFlow>;
+  onSelectEvent: (event: RaahAttendanceFlowEvent) => void;
+}) {
+  const visibleRows = flow.rows.slice(0, 12);
+  const currentAbsences = flow.rows.filter((row) => row.currentAbsent).length;
+  const repeatedAbsences = flow.rows.filter((row) => row.consecutiveAbsences >= 2 || row.absenceCount >= 2).length;
+  const steadyRows = flow.rows.filter((row) => row.recordedCount > 0 && row.absenceCount === 0).length;
+
+  return (
+    <div className={shell.panel + ' p-4'}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">출석 흐름</h2>
+          <p className="mt-1 text-sm text-[#607080]">최근 주간을 기준으로 주일 오전, 주일 오후, 청년부, 수요기도회를 한 번에 확인합니다.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 lg:min-w-[360px]">
+          <MiniCount label="최근 결석" value={currentAbsences} />
+          <MiniCount label="반복 결석" value={repeatedAbsences} />
+          <MiniCount label="꾸준 출석" value={steadyRows} />
+        </div>
+      </div>
+
+      {flow.events.length === 0 ? (
+        <div className="mt-4">
+          <EmptyState>아직 누적된 출석 기록이 없습니다.</EmptyState>
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr),280px]">
+            <div className="hidden overflow-x-auto rounded-xl border border-[#dbe3e8] lg:block">
+              <table className="min-w-[980px] w-full border-collapse bg-white text-sm">
+                <thead className="bg-[#f8fafb]">
+                  <tr>
+                    <th rowSpan={2} className="w-36 border-b border-r border-[#dbe3e8] px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">성도</th>
+                    {flow.weeks.map((week) => (
+                      <th key={week.key} colSpan={week.events.length} className="border-b border-r border-[#dbe3e8] px-3 py-2 text-center text-xs font-semibold text-[#28415b]">
+                        {formatWeekLabel(week.weekStartDate)}
+                      </th>
+                    ))}
+                    <th rowSpan={2} className="w-24 border-b border-[#dbe3e8] px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">최근</th>
+                  </tr>
+                  <tr>
+                    {flow.weeks.flatMap((week) =>
+                      week.events.map((event) => (
+                        <th key={event.key} className="border-b border-r border-[#e7edf1] px-2 py-2 text-center text-xs font-semibold text-[#607080]">
+                          <button type="button" onClick={() => onSelectEvent(event)} className="rounded-md px-2 py-1 transition hover:bg-[#eef7f3] hover:text-[#2e6b5f]">
+                            <span className="block">{getAttendanceEventLabel(event)}</span>
+                            <span className="mt-0.5 block font-normal">{event.date.slice(5).replace('-', '.')}</span>
+                          </button>
+                        </th>
+                      ))
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row) => (
+                    <tr key={row.memberId} className="border-t border-[#eef2f5]">
+                      <td className="border-r border-[#eef2f5] px-3 py-2 font-semibold text-[#17202b]">{row.memberName}</td>
+                      {row.cells.map((cell) => (
+                        <td key={cell.eventKey} className="border-r border-[#f0f3f5] px-2 py-2 text-center">
+                          <AttendanceStatusPill cell={cell} />
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-center text-xs font-semibold text-[#28415b]">
+                        {row.attendedCount}/{row.recordedCount || flow.events.length}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className={shell.mutedPanel + ' p-3'}>
+              <p className="text-sm font-semibold text-[#17202b]">먼저 볼 성도</p>
+              <div className="mt-3 space-y-2">
+                {flow.concernRows.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 p-3 text-sm text-[#607080]">반복 결석 흐름이 없습니다.</p>
+                ) : (
+                  flow.concernRows.map((row) => (
+                    <div key={row.memberId} className="rounded-lg border border-[#dbe3e8] bg-white p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-[#17202b]">{row.memberName}</p>
+                        <span className={row.consecutiveAbsences >= 2 ? 'text-xs font-semibold text-[#9a4b34]' : 'text-xs font-semibold text-[#607080]'}>
+                          {row.consecutiveAbsences >= 2 ? `${row.consecutiveAbsences}회 연속 결석` : `결석 ${row.absenceCount}회`}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex gap-1">
+                        {row.cells.map((cell) => (
+                          <span key={cell.eventKey} className={`h-2 flex-1 rounded-full ${cell.attended === true ? 'bg-[#2e6b5f]' : cell.attended === false ? 'bg-[#d08a6c]' : 'bg-[#dbe3e8]'}`} />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:hidden">
+            {visibleRows.map((row) => (
+              <div key={row.memberId} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold">{row.memberName}</p>
+                  <span className="text-xs font-semibold text-[#607080]">{row.attendedCount}/{row.recordedCount || flow.events.length}</span>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {flow.weeks.slice(0, 3).map((week) => (
+                    <div key={week.key} className="rounded-md border border-[#dbe3e8] bg-white p-2">
+                      <p className="text-xs font-semibold text-[#28415b]">{formatWeekLabel(week.weekStartDate)}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {week.events.map((event) => {
+                          const index = flow.events.findIndex((flowEvent) => flowEvent.key === event.key);
+                          return (
+                            <button key={event.key} type="button" onClick={() => onSelectEvent(event)} className="rounded-md border border-[#e3e9ee] p-2 text-left transition hover:border-[#2e6b5f] hover:bg-[#eef7f3]">
+                              <span className="block text-[11px] font-semibold text-[#607080]">{getAttendanceEventLabel(event)}</span>
+                              <span className="mt-1 flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-[#7a8b9a]">{event.date.slice(5).replace('-', '.')}</span>
+                                <AttendanceStatusPill cell={row.cells[index]} compact />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function getAttendanceEventLabel(event: RaahAttendanceFlowEvent) {
+  return ATTENDANCE_EVENT_OPTIONS.find((option) => option.type === event.eventType)?.label || event.serviceType || '기타';
+}
+
+function formatWeekLabel(weekStartDate: string) {
+  return `${weekStartDate.slice(5).replace('-', '.')} 주간`;
+}
+
+function AttendanceStatusPill({ cell, compact }: { cell?: RaahAttendanceFlowCell; compact?: boolean }) {
+  const base = compact ? 'min-w-10 px-2 py-1 text-[11px]' : 'min-w-12 px-2.5 py-1 text-xs';
+  if (!cell || cell.attended === null) {
+    return <span className={`inline-flex justify-center rounded-full border border-[#d5dee5] bg-[#f8fafb] font-semibold text-[#7a8b9a] ${base}`}>-</span>;
+  }
+  if (cell.attended) {
+    return <span className={`inline-flex justify-center rounded-full border border-[#cfddd8] bg-[#eef7f3] font-semibold text-[#2e6b5f] ${base}`}>{cell.communionParticipated ? '성찬' : '출석'}</span>;
+  }
+  return <span className={`inline-flex justify-center rounded-full border border-[#e4c7b8] bg-[#fff6ef] font-semibold text-[#9a4b34] ${base}`}>결석</span>;
 }
 
 function VisitationTab({
@@ -2193,6 +2570,7 @@ function VisitationTab({
   members,
   form,
   setForm,
+  editingLogId,
   rawAiMemo,
   setRawAiMemo,
   aiSuggestion,
@@ -2207,6 +2585,7 @@ function VisitationTab({
   onSubmit,
   onCreateCalendarEvent,
   onOpenCalendarEvent,
+  onEdit,
   onCloseForm,
   onNew,
   onMemberSelect,
@@ -2221,6 +2600,7 @@ function VisitationTab({
   members: RaahMember[];
   form: RaahVisitationLogInput;
   setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
+  editingLogId: string | null;
   rawAiMemo: string;
   setRawAiMemo: (value: string) => void;
   aiSuggestion: string;
@@ -2235,21 +2615,25 @@ function VisitationTab({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCreateCalendarEvent: (event: React.FormEvent<HTMLFormElement>) => void;
   onOpenCalendarEvent: (log: RaahVisitationLog) => void;
+  onEdit: (log: RaahVisitationLog) => void;
   onCloseForm: () => void;
   onNew: () => void;
   onMemberSelect: (memberId: string) => void;
 }) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
-      <div className={shell.panel + ' p-5'}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">심방/상담 기록</h2>
-          <button type="button" onClick={onNew} className={shell.button}>
+    <section className="grid gap-4 lg:grid-cols-[minmax(320px,440px),minmax(0,1fr)] xl:grid-cols-[minmax(360px,480px),minmax(0,1fr)]">
+      <div className={shell.panel + ' p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-9rem)] lg:overflow-hidden'}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">심방/상담 기록</h2>
+            <p className="mt-1 text-xs text-[#607080]">기록을 고르면 오른쪽에서 바로 확인합니다.</p>
+          </div>
+          <button type="button" onClick={onNew} className={shell.button + ' shrink-0'}>
             <Plus size={16} />
             새 기록
           </button>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-2 lg:max-h-[calc(100vh-15rem)] lg:overflow-y-auto lg:pr-1">
           {logs.length === 0 ? (
             <EmptyState>심방/상담 기록이 없습니다.</EmptyState>
           ) : (
@@ -2267,31 +2651,35 @@ function VisitationTab({
           )}
         </div>
       </div>
-      <LogPanel
-        isOpen={isFormOpen}
-        isSaving={isSaving}
-        members={members}
-        form={form}
-        setForm={setForm}
-        rawAiMemo={rawAiMemo}
-        setRawAiMemo={setRawAiMemo}
-        aiSuggestion={aiSuggestion}
-        isAiDrafting={isAiDrafting}
-        selectedLog={selectedLog}
-        isDetailLoading={isDetailLoading}
-        calendarStatus={calendarStatus}
-        calendarEventForm={calendarEventForm}
-        setCalendarEventForm={setCalendarEventForm}
-        isCalendarEventFormOpen={isCalendarEventFormOpen}
-        setIsCalendarEventFormOpen={setIsCalendarEventFormOpen}
-        onAiDraft={onAiDraft}
-        onSubmit={onSubmit}
-        onCreateCalendarEvent={onCreateCalendarEvent}
-        onOpenCalendarEvent={onOpenCalendarEvent}
-        onClose={onCloseForm}
-        onNew={onNew}
-        onMemberSelect={onMemberSelect}
-      />
+      <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
+        <LogPanel
+          isOpen={isFormOpen}
+          isSaving={isSaving}
+          members={members}
+          form={form}
+          setForm={setForm}
+          editingLogId={editingLogId}
+          rawAiMemo={rawAiMemo}
+          setRawAiMemo={setRawAiMemo}
+          aiSuggestion={aiSuggestion}
+          isAiDrafting={isAiDrafting}
+          selectedLog={selectedLog}
+          isDetailLoading={isDetailLoading}
+          calendarStatus={calendarStatus}
+          calendarEventForm={calendarEventForm}
+          setCalendarEventForm={setCalendarEventForm}
+          isCalendarEventFormOpen={isCalendarEventFormOpen}
+          setIsCalendarEventFormOpen={setIsCalendarEventFormOpen}
+          onAiDraft={onAiDraft}
+          onSubmit={onSubmit}
+          onCreateCalendarEvent={onCreateCalendarEvent}
+          onOpenCalendarEvent={onOpenCalendarEvent}
+          onEdit={onEdit}
+          onClose={onCloseForm}
+          onNew={onNew}
+          onMemberSelect={onMemberSelect}
+        />
+      </div>
     </section>
   );
 }
@@ -2307,9 +2695,11 @@ function LegacyTab({
   isSaving,
   form,
   setForm,
+  editing,
   onSubmit,
   onCloseForm,
   onNew,
+  onEdit,
 }: {
   notes: PastoralNote[];
   selectedNote: PastoralNote | null;
@@ -2321,9 +2711,11 @@ function LegacyTab({
   isSaving: boolean;
   form: PastoralNoteInput;
   setForm: React.Dispatch<React.SetStateAction<PastoralNoteInput>>;
+  editing: boolean;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCloseForm: () => void;
   onNew: () => void;
+  onEdit: (note: PastoralNote) => void;
 }) {
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
@@ -2363,7 +2755,7 @@ function LegacyTab({
           )}
         </div>
       </div>
-      <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} />
+      <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} editing={editing} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} onEdit={onEdit} />
     </section>
   );
 }
@@ -2445,7 +2837,7 @@ function BigToggle({ active, label, onClick, text, accent, disabled }: { active:
 
 function LogRow({ log, active, onClick }: { log: RaahVisitationLog; active: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-[#12345a] bg-[#12345a] text-white shadow-[0_10px_24px_rgba(18,52,90,0.18)]' : 'border-[#dbe3e8] bg-[#f8fafb] hover:border-[#b7c6d2] hover:bg-white'}`}>
+    <button type="button" onClick={onClick} className={`w-full rounded-lg border px-3 py-3 text-left transition ${active ? 'border-[#12345a] bg-[#12345a] text-white shadow-[0_10px_24px_rgba(18,52,90,0.18)]' : 'border-[#dbe3e8] bg-[#f8fafb] hover:border-[#b7c6d2] hover:bg-white'}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -2458,7 +2850,7 @@ function LogRow({ log, active, onClick }: { log: RaahVisitationLog; active: bool
             {formatDisplayDate(log.date)}
             <span className="rounded-full border px-2 py-0.5">{log.logType}</span>
           </div>
-          <p className={`mt-2 line-clamp-2 text-sm leading-6 ${active ? 'text-white/90' : 'text-[#28415b]'}`}>{log.publicSummary || '민감 본문은 상세 보기에서만 복호화됩니다.'}</p>
+          <p className={`mt-2 line-clamp-2 text-xs leading-5 ${active ? 'text-white/90' : 'text-[#28415b]'}`}>{log.publicSummary || '민감 본문은 상세 보기에서만 복호화됩니다.'}</p>
         </div>
       </div>
     </button>
@@ -2530,6 +2922,7 @@ function LogPanel({
   members,
   form,
   setForm,
+  editingLogId,
   rawAiMemo,
   setRawAiMemo,
   aiSuggestion,
@@ -2545,6 +2938,7 @@ function LogPanel({
   onSubmit,
   onCreateCalendarEvent,
   onOpenCalendarEvent,
+  onEdit,
   onClose,
   onNew,
   onMemberSelect,
@@ -2554,6 +2948,7 @@ function LogPanel({
   members: RaahMember[];
   form: RaahVisitationLogInput;
   setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
+  editingLogId: string | null;
   rawAiMemo: string;
   setRawAiMemo: (value: string) => void;
   aiSuggestion: string;
@@ -2569,6 +2964,7 @@ function LogPanel({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCreateCalendarEvent: (event: React.FormEvent<HTMLFormElement>) => void;
   onOpenCalendarEvent: (log: RaahVisitationLog) => void;
+  onEdit: (log: RaahVisitationLog) => void;
   onClose: () => void;
   onNew: () => void;
   onMemberSelect: (memberId: string) => void;
@@ -2576,7 +2972,7 @@ function LogPanel({
   return (
     <div className={shell.panel + ' p-5'}>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{isOpen ? '새 심방/상담 기록' : '기록 상세'}</h2>
+        <h2 className="text-lg font-semibold">{isOpen ? (editingLogId ? '심방/상담 기록 수정' : '새 심방/상담 기록') : '기록 상세'}</h2>
         {!isOpen && <button type="button" onClick={onNew} className="text-sm font-semibold text-[#2e6b5f]">새 기록</button>}
       </div>
       {isOpen ? (
@@ -2633,7 +3029,7 @@ function LogPanel({
           <TextArea label="다음 단계" value={form.nextSteps || ''} onChange={(value) => setForm((prev) => ({ ...prev, nextSteps: value }))} rows={3} locked />
           <TextArea label="비공개 메모" value={form.privateRemarks || ''} onChange={(value) => setForm((prev) => ({ ...prev, privateRemarks: value }))} rows={3} locked />
           <div className="flex gap-2">
-            <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : '암호화 저장'}</button>
+            <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : editingLogId ? '수정 저장' : '암호화 저장'}</button>
             <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
           </div>
         </form>
@@ -2647,6 +3043,10 @@ function LogPanel({
             </div>
             <h3 className="mt-4 text-2xl font-semibold">{selectedLog.memberName}</h3>
             <p className="mt-2 text-sm text-[#607080]">{selectedLog.publicSummary || '공개 요약 없음'}</p>
+            <button type="button" onClick={() => onEdit(selectedLog)} disabled={isSaving || isDetailLoading} className={shell.ghostButton + ' mt-4'}>
+              <FileText size={16} />
+              수정
+            </button>
           </div>
           <div className={shell.mutedPanel + ' p-4'}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2698,23 +3098,27 @@ function LogPanel({
 function LegacyPanel({
   isOpen,
   isSaving,
+  editing,
   form,
   setForm,
   selectedNote,
   onSubmit,
   onClose,
+  onEdit,
 }: {
   isOpen: boolean;
   isSaving: boolean;
+  editing: boolean;
   form: PastoralNoteInput;
   setForm: React.Dispatch<React.SetStateAction<PastoralNoteInput>>;
   selectedNote: PastoralNote | null;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
+  onEdit: (note: PastoralNote) => void;
 }) {
   return (
     <div className={shell.panel + ' p-5'}>
-      <h2 className="text-lg font-semibold">{isOpen ? '기존 RAAH 양식' : '기존 기록 상세'}</h2>
+      <h2 className="text-lg font-semibold">{isOpen ? (editing ? '기존 RAAH 기록 수정' : '기존 RAAH 양식') : '기존 기록 상세'}</h2>
       {isOpen ? (
         <form onSubmit={onSubmit} className="mt-4 space-y-4">
           <TextInput label="성도 이름" value={form.memberName} onChange={(value) => setForm((prev) => ({ ...prev, memberName: value }))} />
@@ -2730,8 +3134,9 @@ function LegacyPanel({
           <TextArea label="현재 상황" value={form.currentSituation} onChange={(value) => setForm((prev) => ({ ...prev, currentSituation: value }))} locked />
           <TextArea label="권면 내용" value={form.encouragement} onChange={(value) => setForm((prev) => ({ ...prev, encouragement: value }))} locked />
           <TextArea label="기도 제목" value={form.prayerTopics} onChange={(value) => setForm((prev) => ({ ...prev, prayerTopics: value }))} locked />
+          <TextArea label="비고" value={form.remarks || ''} onChange={(value) => setForm((prev) => ({ ...prev, remarks: value }))} rows={3} locked />
           <div className="flex gap-2">
-            <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : '저장'}</button>
+            <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : editing ? '수정 저장' : '저장'}</button>
             <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
           </div>
         </form>
@@ -2740,6 +3145,10 @@ function LegacyPanel({
           <div className={shell.mutedPanel + ' p-5'}>
             <p className="text-xs font-semibold text-[#607080]">{formatDisplayDate(selectedNote.date)} · {selectedNote.meetingType}</p>
             <h3 className="mt-3 text-2xl font-semibold">{selectedNote.memberName}</h3>
+            <button type="button" onClick={() => onEdit(selectedNote)} disabled={isSaving} className={shell.ghostButton + ' mt-4'}>
+              <FileText size={16} />
+              수정
+            </button>
           </div>
           <DetailBlock label="현재 상황" value={selectedNote.currentSituation} locked={selectedNote.isEncrypted} />
           <DetailBlock label="권면 내용" value={selectedNote.encouragement} locked={selectedNote.isEncrypted} />

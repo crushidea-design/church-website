@@ -14,8 +14,10 @@ import {
 import { db } from '../../lib/firebase';
 import {
   WORD_FRUITS_COLLECTION,
+  WORD_FRUIT_LEGACY_TOTALS_COLLECTION,
   WORD_FRUIT_GROUPS_COLLECTION,
   WORD_FRUIT_PROGRESS_COLLECTION,
+  LegacyWordFruitTotal,
   WordFruitCard,
   WordFruitGroup,
   WordFruitProgress,
@@ -33,6 +35,7 @@ export {
   progressDocId,
 } from './logic';
 import { fruitStageOf, progressDocId } from './logic';
+import { normalizeLegacyFruitTotalInput } from './logic';
 
 export function subscribeWeeklyWordFruit(
   weekId: string,
@@ -592,4 +595,45 @@ export async function fetchTeachers(): Promise<Array<{ uid: string; displayName:
       groupIds: Array.isArray(data.groupIds) ? data.groupIds : [],
     };
   });
+}
+
+export function subscribeLegacyFruitTotals(
+  cb: (items: LegacyWordFruitTotal[]) => void,
+  onError?: (err: unknown) => void,
+) {
+  const q = query(collection(db, WORD_FRUIT_LEGACY_TOTALS_COLLECTION), orderBy('childName'));
+  return onSnapshot(
+    q,
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LegacyWordFruitTotal, 'id'>) }))),
+    (err) => onError?.(err),
+  );
+}
+
+export async function saveLegacyFruitTotal(input: {
+  id?: string;
+  childName: string;
+  totalCount: number;
+  groupId?: string;
+  linkedUid?: string;
+  memo?: string;
+}): Promise<string> {
+  const normalized = normalizeLegacyFruitTotalInput(input);
+  if (!normalized) throw new Error('INVALID_CHILD_NAME');
+
+  const ref = input.id
+    ? doc(db, WORD_FRUIT_LEGACY_TOTALS_COLLECTION, input.id)
+    : doc(collection(db, WORD_FRUIT_LEGACY_TOTALS_COLLECTION));
+  const payload: Record<string, unknown> = {
+    childName: normalized.childName,
+    totalCount: normalized.totalCount,
+    groupId: input.groupId ?? '',
+    linkedUid: input.linkedUid ?? '',
+    memo: normalized.memo,
+    updatedAt: serverTimestamp(),
+  };
+  if (!input.id) {
+    payload.createdAt = serverTimestamp();
+  }
+  await setDoc(ref, payload, { merge: true });
+  return ref.id;
 }

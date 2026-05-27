@@ -5,6 +5,7 @@ import {
   getTodayKey,
   getWeekId,
   isCheckAllowedDay,
+  normalizeLegacyFruitTotalInput,
   progressDocId,
   summarizeProgress,
 } from './logic';
@@ -114,5 +115,24 @@ describe('summarizeProgress', () => {
 
   it('handles empty list', () => {
     expect(summarizeProgress([])).toEqual({ total: 0, completed: 0, growing: 0 });
+  });
+});
+
+describe('normalizeLegacyFruitTotalInput', () => {
+  it('trims child names and clamps totals to whole non-negative numbers', () => {
+    expect(normalizeLegacyFruitTotalInput({ childName: '  Grace  ', totalCount: 12.8, memo: '  photo  ' })).toEqual({
+      childName: 'Grace',
+      totalCount: 12,
+      memo: 'photo',
+    });
+    expect(normalizeLegacyFruitTotalInput({ childName: 'Grace', totalCount: -5 })).toEqual({
+      childName: 'Grace',
+      totalCount: 0,
+      memo: '',
+    });
+  });
+
+  it('marks blank child names as invalid', () => {
+    expect(normalizeLegacyFruitTotalInput({ childName: '   ', totalCount: 3 })).toBeNull();
   });
 });

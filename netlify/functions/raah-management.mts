@@ -632,7 +632,7 @@ const handleBootstrap = async (req: Request) => {
       'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encrypted_payload,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
     ),
     loadAttendanceEventsForDate(date),
-    supabaseFetch('raah_attendance_records?select=member_id,attended,communion_participated,raah_attendance_events!inner(date)'),
+    supabaseFetch('raah_attendance_records?select=member_id,attended,communion_participated,raah_attendance_events!inner(date,event_type,service_type)'),
     supabaseFetch('raah_follow_up_resolutions?select=id,source_type,source_id,candidate_key,member_id,member_name,memo,completed_by,completed_at,created_at,updated_at&order=completed_at.desc&limit=200'),
     supabaseFetch('raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&order=date.asc&order=starts_at.asc&limit=100'),
   ]);
@@ -658,7 +658,7 @@ const handleBootstrap = async (req: Request) => {
     member_id?: string;
     attended?: boolean;
     communion_participated?: boolean;
-    raah_attendance_events?: { date?: string };
+    raah_attendance_events?: { date?: string; event_type?: AttendanceEventType; service_type?: string };
   }>;
   const followUpResolutions = (await followUpsResult.supabaseResponse.json().catch(() => [])) as SupabaseFollowUpResolutionRow[];
   const ministryScheduleItems = (await scheduleResult.supabaseResponse.json().catch(() => [])) as SupabaseScheduleItemRow[];
@@ -667,6 +667,8 @@ const handleBootstrap = async (req: Request) => {
     .map((record) => ({
       memberId: record.member_id || '',
       date: record.raah_attendance_events?.date || '',
+      eventType: record.raah_attendance_events?.event_type || 'sunday_morning',
+      serviceType: record.raah_attendance_events?.service_type || '',
       attended: Boolean(record.attended),
       communionParticipated: Boolean(record.communion_participated),
     }))
@@ -838,6 +840,58 @@ const handleCreateLog = async (req: Request, user: RaahUser) => {
   return noStoreJson({ log: rowToLog(rows[0], true, config.secret) }, 201);
 };
 
+const handleUpdateLog = async (req: Request, logId: string) => {
+  const input = parseLogInput(await req.json().catch(() => null));
+  if (!input) return noStoreJson({ error: 'Invalid RAAH visitation log input.' }, 400);
+
+  const config = getSupabaseConfig();
+  if (!config) {
+    return noStoreJson(
+      {
+        error: 'RAAH Supabase environment variables are not configured.',
+        code: 'RAAH_SUPABASE_NOT_CONFIGURED',
+      },
+      503
+    );
+  }
+
+  const memberName = input.memberName.trim().replace(/\s+/g, ' ');
+  const encryptedPayload = encryptPayload(
+    {
+      innerNote: input.innerNote,
+      prayerTopics: input.prayerTopics,
+      nextSteps: input.nextSteps || '',
+      privateRemarks: input.privateRemarks || '',
+    },
+    config.secret
+  );
+
+  const result = await supabaseFetch(
+    `raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encrypted_payload,encryption_version,is_encrypted,created_by,created_at,updated_at&id=eq.${encodeURIComponent(logId)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        member_id: input.memberId || null,
+        member_name: memberName,
+        member_search_name: normalizeName(memberName),
+        date: input.date,
+        log_type: input.logType,
+        public_summary: input.publicSummary || null,
+        encrypted_payload: encryptedPayload,
+        encryption_version: ENCRYPTION_VERSION,
+        is_encrypted: true,
+      }),
+    }
+  );
+  if (result.response) return result.response;
+
+  const rows = (await result.supabaseResponse.json().catch(() => [])) as SupabaseLogRow[];
+  if (!result.supabaseResponse.ok) return noStoreJson({ error: 'Failed to update RAAH visitation log.' }, result.supabaseResponse.status);
+  if (!rows[0]) return noStoreJson({ error: 'RAAH visitation log not found.' }, 404);
+  return noStoreJson({ log: rowToLog(rows[0], true, config.secret) });
+};
+
 const handleGetAttendance = async (req: Request) => {
   const date = new URL(req.url).searchParams.get('date') || new Date().toISOString().slice(0, 10);
   if (!validDate(date)) return noStoreJson({ error: 'Invalid attendance date.' }, 400);
@@ -967,6 +1021,35 @@ const handleCreateScheduleItem = async (req: Request, user: RaahUser) => {
   return noStoreJson({ item: rowToScheduleItem(rows[0]) }, 201);
 };
 
+const handleUpdateScheduleItem = async (req: Request, itemId: string) => {
+  const input = parseScheduleItemInput(await req.json().catch(() => null));
+  if (!input) return noStoreJson({ error: 'Invalid RAAH schedule item input.' }, 400);
+
+  const result = await supabaseFetch(
+    `raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&id=eq.${encodeURIComponent(itemId)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        title: input.title,
+        date: input.date,
+        starts_at: input.startsAt || null,
+        ends_at: input.endsAt || null,
+        item_type: input.itemType,
+        member_id: input.memberId || null,
+        member_name: input.memberName || null,
+        memo: input.memo || null,
+      }),
+    }
+  );
+  if (result.response) return result.response;
+
+  const rows = (await result.supabaseResponse.json().catch(() => [])) as SupabaseScheduleItemRow[];
+  if (!result.supabaseResponse.ok) return noStoreJson({ error: 'Failed to update RAAH schedule item.' }, result.supabaseResponse.status);
+  if (!rows[0]) return noStoreJson({ error: 'RAAH schedule item not found.' }, 404);
+  return noStoreJson({ item: rowToScheduleItem(rows[0]) });
+};
+
 const handleCompleteScheduleItem = async (itemId: string, user: RaahUser) => {
   const result = await supabaseFetch(
     `raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&id=eq.${encodeURIComponent(itemId)}`,
@@ -1016,6 +1099,7 @@ export default async (req: Request, context: Context) => {
   if (route === 'attendance' && req.method === 'POST') return handleSaveAttendance(req, adminCheck.user);
   if (route === 'follow-ups' && req.method === 'POST' && pathname.includes('/resolve')) return handleResolveFollowUp(req, adminCheck.user);
   if (route === 'schedule' && req.method === 'POST' && !id && !pathname.includes('/complete')) return handleCreateScheduleItem(req, adminCheck.user);
+  if (route === 'schedule' && req.method === 'PATCH' && id) return handleUpdateScheduleItem(req, id);
   if (route === 'schedule' && req.method === 'POST' && id && pathname.includes('/complete')) return handleCompleteScheduleItem(id, adminCheck.user);
   if (route === 'members' && req.method === 'GET' && !id) return handleListMembers();
   if (route === 'members' && req.method === 'POST' && !id) return handleCreateMember(req, adminCheck.user);
@@ -1023,6 +1107,7 @@ export default async (req: Request, context: Context) => {
   if (route === 'visitation-logs' && req.method === 'GET' && !id) return handleListLogs();
   if (route === 'visitation-logs' && req.method === 'GET' && id) return handleLogDetail(id);
   if (route === 'visitation-logs' && req.method === 'POST' && !id) return handleCreateLog(req, adminCheck.user);
+  if (route === 'visitation-logs' && req.method === 'PATCH' && id) return handleUpdateLog(req, id);
 
   return noStoreJson({ error: 'Method not allowed' }, 405);
 };
