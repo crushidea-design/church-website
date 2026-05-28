@@ -53,7 +53,8 @@ describe('buildRaahAttendanceFlow', () => {
       memberId: 'park',
       attendedCount: 1,
       absenceCount: 2,
-      consecutiveAbsences: 1,
+      requiredAbsenceCount: 2,
+      consecutiveAbsences: 2,
       currentAbsent: true,
     });
     expect(result.concernRows.map((row) => row.memberName)).toEqual(['박다윗']);
@@ -79,5 +80,26 @@ describe('buildRaahAttendanceFlow', () => {
       '2026-05-27:wednesday_prayer',
     ]);
     expect(result.rows[0].cells.map((cell) => cell.attended)).toEqual([true, null, false, true]);
+  });
+
+  it('uses Sunday morning as the required attendance signal for concern rows', () => {
+    const result = buildRaahAttendanceFlow({
+      members: [member('kim', '김가나'), member('park', '박다윗')],
+      history: [
+        history('kim', '2026-05-24', true, 'sunday_morning'),
+        history('kim', '2026-05-24', false, 'sunday_afternoon'),
+        history('kim', '2026-05-24', false, 'young_adults'),
+        history('kim', '2026-05-27', false, 'wednesday_prayer'),
+        history('park', '2026-05-24', false, 'sunday_morning'),
+      ],
+      limit: 1,
+    });
+
+    expect(result.rows.find((row) => row.memberId === 'kim')).toMatchObject({
+      absenceCount: 3,
+      requiredAbsenceCount: 0,
+      currentAbsent: false,
+    });
+    expect(result.concernRows.map((row) => row.memberName)).toEqual(['박다윗']);
   });
 });

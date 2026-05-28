@@ -3,8 +3,11 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   CheckSquare,
   ClipboardList,
+  Copy,
   FileText,
   Lock,
   LogIn,
@@ -61,7 +64,7 @@ import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
 type StorageMode = 'loading' | 'supabase' | 'firestore';
-type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'visitation' | 'legacy';
+type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
 type ScheduleViewMode = 'week' | 'month';
 
 const LOG_TYPES = ['심방', '상담', '기도', '전화', '양육', '기타'];
@@ -81,11 +84,16 @@ const SCHEDULE_TYPES: Array<{ value: RaahMinistryScheduleItemInput['itemType']; 
   { value: 'other', label: '기타' },
 ];
 
+function getScheduleTypeLabel(value: RaahMinistryScheduleItemInput['itemType']) {
+  return SCHEDULE_TYPES.find((type) => type.value === value)?.label || '기타';
+}
+
 const TEXT = {
   tabs: {
     dashboard: '홈',
     members: '성도',
     attendance: '출석',
+    schedule: '사역일정',
     visitation: '기록',
     legacy: '이전',
   },
@@ -93,6 +101,7 @@ const TEXT = {
     dashboard: '성도, 기록, 구역 검색',
     members: '이름, 구역, 직분, 연락처 검색',
     attendance: '출석 체크할 성도 검색',
+    schedule: '일정 제목, 성도, 메모 검색',
     visitation: '성도, 기록 유형, 요약 검색',
     legacy: '기존 기록 성도 검색',
   },
@@ -157,14 +166,20 @@ function addDaysIso(dateIso: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function addMonthsIso(dateIso: string, monthsToAdd: number) {
+  const { year, month } = parseIsoDateParts(dateIso);
+  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
+  return date.toISOString().slice(0, 10);
+}
+
 function getWeekStartIso(dateIso: string) {
   const { year, month, day } = parseIsoDateParts(dateIso);
   const date = new Date(Date.UTC(year, month - 1, day));
   return addDaysIso(dateIso, -date.getUTCDay());
 }
 
-function getWeekCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[]) {
-  const weekStart = getWeekStartIso(todayIso);
+function getWeekCalendarDays(anchorIso: string, items: RaahMinistryScheduleItem[], todayIso = getTodayIso()) {
+  const weekStart = getWeekStartIso(anchorIso);
   const openItems = getOpenScheduleItems(items);
   return WEEKDAY_LABELS.map((label, index) => {
     const dateIso = addDaysIso(weekStart, index);
@@ -182,21 +197,21 @@ function getMonthStartIso(dateIso: string) {
   return new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 10);
 }
 
-function getMonthCalendarDays(todayIso: string, items: RaahMinistryScheduleItem[]) {
-  const monthStart = getMonthStartIso(todayIso);
+function getMonthCalendarDays(anchorIso: string, items: RaahMinistryScheduleItem[], todayIso = getTodayIso()) {
+  const monthStart = getMonthStartIso(anchorIso);
   const gridStart = getWeekStartIso(monthStart);
-  const currentMonth = parseIsoDateParts(todayIso).month;
+  const { year: currentYear, month: currentMonth } = parseIsoDateParts(anchorIso);
   const openItems = getOpenScheduleItems(items);
 
   return Array.from({ length: 42 }, (_, index) => {
     const dateIso = addDaysIso(gridStart, index);
-    const { month } = parseIsoDateParts(dateIso);
+    const { year, month } = parseIsoDateParts(dateIso);
     return {
       dateIso,
       label: WEEKDAY_LABELS[index % 7],
       items: openItems.filter((item) => item.date === dateIso),
       isToday: dateIso === todayIso,
-      isCurrentMonth: month === currentMonth,
+      isCurrentMonth: year === currentYear && month === currentMonth,
     };
   });
 }
@@ -214,6 +229,13 @@ function getOpenScheduleItems(items: RaahMinistryScheduleItem[]) {
 
 function getAttendanceOption(type: RaahAttendanceEventType) {
   return ATTENDANCE_EVENT_OPTIONS.find((option) => option.type === type) || ATTENDANCE_EVENT_OPTIONS[0];
+}
+
+function getDateForAttendanceEventType(dateIso: string, eventType: RaahAttendanceEventType) {
+  const weekStart = getWeekStartIso(dateIso);
+  if (eventType === 'wednesday_prayer') return addDaysIso(weekStart, 3);
+  if (eventType === 'other') return dateIso;
+  return weekStart;
 }
 
 const emptyScheduleForm = (): RaahMinistryScheduleItemInput => ({
@@ -335,6 +357,7 @@ export default function AdminPastoralNotes() {
   const [scheduleForm, setScheduleForm] = React.useState<RaahMinistryScheduleItemInput>(emptyScheduleForm);
   const [editingScheduleItemId, setEditingScheduleItemId] = React.useState<string | null>(null);
   const [isScheduleFormOpen, setIsScheduleFormOpen] = React.useState(false);
+  const [copiedScheduleItem, setCopiedScheduleItem] = React.useState<RaahMinistryScheduleItem | null>(null);
   const [calendarStatus, setCalendarStatus] = React.useState<RaahCalendarStatus | null>(null);
   const [calendarEventForm, setCalendarEventForm] = React.useState<RaahGoogleCalendarEventInput>(emptyCalendarEventForm);
   const [isCalendarEventFormOpen, setIsCalendarEventFormOpen] = React.useState(false);
@@ -536,6 +559,10 @@ export default function AdminPastoralNotes() {
       const text = [record.memberSearchName, record.memberName, record.note].join(' ').toLocaleLowerCase('ko-KR');
       return !normalizedSearch || text.includes(normalizedSearch);
     });
+  const filteredScheduleItems = ministryScheduleItems.filter((item) => {
+    const text = [item.title, item.memberName, item.memo, item.itemType, item.date].join(' ').toLocaleLowerCase('ko-KR');
+    return !normalizedSearch || text.includes(normalizedSearch);
+  });
   const filteredLegacyNotes = legacyNotes.filter((note) => !normalizedSearch || note.memberSearchName.includes(normalizedSearch));
   const selectedLog = selectedLogId ? (decryptedLog?.id === selectedLogId ? decryptedLog : logs.find((log) => log.id === selectedLogId) ?? null) : null;
   const selectedLegacyNote =
@@ -690,9 +717,22 @@ export default function AdminPastoralNotes() {
     setIsScheduleFormOpen(true);
   };
 
-  const openNewScheduleForm = () => {
+  const openNewScheduleForm = (dateIso?: string, template?: RaahMinistryScheduleItem | null) => {
     setEditingScheduleItemId(null);
-    setScheduleForm(emptyScheduleForm());
+    setScheduleForm(
+      template
+        ? {
+          title: template.title,
+          date: dateIso || template.date,
+          startsAt: template.startsAt || '',
+          endsAt: template.endsAt || '',
+          itemType: template.itemType,
+          memberId: template.memberId || '',
+          memberName: template.memberName || '',
+          memo: template.memo || '',
+        }
+        : { ...emptyScheduleForm(), date: dateIso || getTodayIso() }
+    );
     setIsScheduleFormOpen(true);
   };
 
@@ -830,10 +870,12 @@ export default function AdminPastoralNotes() {
     );
   };
 
-  const switchAttendanceEventType = (eventType: RaahAttendanceEventType) => {
+  const switchAttendanceEventType = (eventType: RaahAttendanceEventType, dateOverride?: string) => {
+    const nextDate = getDateForAttendanceEventType(dateOverride || attendanceDate, eventType);
     const nextAttendance = selectAttendanceEvent(attendanceEvents, eventType);
     const option = getAttendanceOption(eventType);
     setActiveAttendanceEventType(eventType);
+    setAttendanceDate(nextDate);
     setAttendance(nextAttendance);
     setAttendanceServiceType(nextAttendance?.serviceType || option.serviceType);
     setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? option.includesCommunion);
@@ -849,7 +891,7 @@ export default function AdminPastoralNotes() {
     }
 
     const input: RaahAttendanceInput = {
-      date: attendanceDate,
+      date: getDateForAttendanceEventType(attendanceDate, activeAttendanceEventType),
       eventType: activeAttendanceEventType,
       serviceType: attendanceServiceType.trim(),
       includesCommunion: attendanceIncludesCommunion,
@@ -1011,6 +1053,7 @@ export default function AdminPastoralNotes() {
     { id: 'dashboard', label: TEXT.tabs.dashboard, icon: <BarChart3 size={18} /> },
     { id: 'members', label: TEXT.tabs.members, icon: <Users size={18} /> },
     { id: 'attendance', label: TEXT.tabs.attendance, icon: <CheckSquare size={18} /> },
+    { id: 'schedule', label: TEXT.tabs.schedule, icon: <CalendarDays size={18} /> },
     { id: 'visitation', label: TEXT.tabs.visitation, icon: <ClipboardList size={18} /> },
     { id: 'legacy', label: TEXT.tabs.legacy, icon: <FileText size={18} /> },
   ];
@@ -1273,6 +1316,34 @@ export default function AdminPastoralNotes() {
               />
             )}
 
+            {activeTab === 'schedule' && (
+              <ScheduleTab
+                scheduleItems={filteredScheduleItems}
+                scheduleForm={scheduleForm}
+                setScheduleForm={setScheduleForm}
+                editingScheduleItemId={editingScheduleItemId}
+                isScheduleFormOpen={isScheduleFormOpen}
+                onOpenNewSchedule={openNewScheduleForm}
+                onCloseScheduleForm={closeScheduleForm}
+                onEdit={openScheduleFormForEdit}
+                calendarStatus={calendarStatus}
+                isSaving={isSaving}
+                onCreateScheduleItem={handleCreateScheduleItem}
+                onCompleteScheduleItem={handleCompleteScheduleItem}
+                onConnectCalendar={handleConnectCalendar}
+                onSyncCalendar={handleSyncCalendar}
+                copiedScheduleItem={copiedScheduleItem}
+                onCopySchedule={(item) => {
+                  setCopiedScheduleItem(item);
+                  toast.success('일정을 복사했습니다. 원하는 날짜를 눌러 붙여넣을 수 있습니다.');
+                }}
+                onSelectDate={(dateIso) => {
+                  openNewScheduleForm(dateIso, copiedScheduleItem);
+                  if (copiedScheduleItem) toast.success('복사한 일정 내용을 새 날짜에 붙여넣었습니다.');
+                }}
+              />
+            )}
+
             {activeTab === 'visitation' && (
               <VisitationTab
                 logs={filteredLogs}
@@ -1340,7 +1411,7 @@ export default function AdminPastoralNotes() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#dbe3e8] bg-white/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(21,38,57,0.08)] backdrop-blur lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-6 gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -1356,6 +1427,212 @@ export default function AdminPastoralNotes() {
           ))}
         </div>
       </nav>
+    </div>
+  );
+}
+
+function ScheduleTab({
+  scheduleItems,
+  scheduleForm,
+  setScheduleForm,
+  editingScheduleItemId,
+  isScheduleFormOpen,
+  onOpenNewSchedule,
+  onCloseScheduleForm,
+  onEdit,
+  calendarStatus,
+  isSaving,
+  onCreateScheduleItem,
+  onCompleteScheduleItem,
+  onConnectCalendar,
+  onSyncCalendar,
+  copiedScheduleItem,
+  onCopySchedule,
+  onSelectDate,
+}: {
+  scheduleItems: RaahMinistryScheduleItem[];
+  scheduleForm: RaahMinistryScheduleItemInput;
+  setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  editingScheduleItemId: string | null;
+  isScheduleFormOpen: boolean;
+  onOpenNewSchedule: () => void;
+  onCloseScheduleForm: () => void;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
+  calendarStatus: RaahCalendarStatus | null;
+  isSaving: boolean;
+  onCreateScheduleItem: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCompleteScheduleItem: (itemId: string) => void;
+  onConnectCalendar: () => void;
+  onSyncCalendar: () => void;
+  copiedScheduleItem: RaahMinistryScheduleItem | null;
+  onCopySchedule: (item: RaahMinistryScheduleItem) => void;
+  onSelectDate: (dateIso: string) => void;
+}) {
+  const todayIso = getTodayIso();
+  const openItems = getOpenScheduleItems(scheduleItems);
+  const overdueItems = openItems.filter((item) => item.date < todayIso);
+  const upcomingItems = openItems.filter((item) => item.date >= todayIso);
+  const doneItems = scheduleItems
+    .filter((item) => item.status === 'done')
+    .sort((a, b) => `${b.date} ${b.startsAt || ''}`.localeCompare(`${a.date} ${a.startsAt || ''}`));
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#dbe3e8] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#607080]">Ministry Schedule</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#17202b]">사역 일정</h2>
+          <p className="mt-1 text-sm text-[#607080]">심방, 상담, 회의, 준비할 일을 따로 모아 확인하고 등록합니다.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {!calendarStatus?.configured ? (
+            <button type="button" disabled className={shell.ghostButton + ' shrink-0 opacity-60'} title="Google Calendar OAuth 환경 변수가 필요합니다.">
+              <CalendarDays size={16} />
+              Google 설정 필요
+            </button>
+          ) : calendarStatus.connected ? (
+            <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
+              <CalendarDays size={16} />
+              Google 동기화
+            </button>
+          ) : (
+            <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
+              <CalendarDays size={16} />
+              Google 연결
+            </button>
+          )}
+          {copiedScheduleItem && <span className={shell.badge}>복사됨 · {copiedScheduleItem.title}</span>}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MiniCount label="미완료" value={openItems.length} />
+        <MiniCount label="지나간 일정" value={overdueItems.length} />
+        <MiniCount label="완료" value={doneItems.length} />
+      </div>
+
+      <MinistrySchedulePanel
+        items={scheduleItems}
+        form={scheduleForm}
+        setForm={setScheduleForm}
+        editingItemId={editingScheduleItemId}
+        isOpen={isScheduleFormOpen}
+        onOpenNew={onOpenNewSchedule}
+        onClose={onCloseScheduleForm}
+        onEdit={onEdit}
+        calendarStatus={calendarStatus}
+        isSaving={isSaving}
+        onSubmit={onCreateScheduleItem}
+        onComplete={onCompleteScheduleItem}
+        onConnectCalendar={onConnectCalendar}
+        onSyncCalendar={onSyncCalendar}
+        copiedItem={copiedScheduleItem}
+        onCopyItem={onCopySchedule}
+        onSelectDate={onSelectDate}
+      />
+
+      <ScheduleDetailList
+        overdueItems={overdueItems}
+        upcomingItems={upcomingItems}
+        doneItems={doneItems}
+        isSaving={isSaving}
+        onEdit={onEdit}
+        onCopy={onCopySchedule}
+        onComplete={onCompleteScheduleItem}
+      />
+    </div>
+  );
+}
+
+function ScheduleDetailList({
+  overdueItems,
+  upcomingItems,
+  doneItems,
+  isSaving,
+  onEdit,
+  onCopy,
+  onComplete,
+}: {
+  overdueItems: RaahMinistryScheduleItem[];
+  upcomingItems: RaahMinistryScheduleItem[];
+  doneItems: RaahMinistryScheduleItem[];
+  isSaving: boolean;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
+  onCopy: (item: RaahMinistryScheduleItem) => void;
+  onComplete: (itemId: string) => void;
+}) {
+  return (
+    <div className={shell.panel + ' p-5'}>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">전체 일정 목록</h2>
+          <p className="mt-1 text-sm text-[#607080]">달력에서 놓치기 쉬운 일정을 상태별로 다시 봅니다.</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+        <ScheduleListColumn title="지나간 미완료" items={overdueItems} empty="지나간 미완료 일정이 없습니다." isSaving={isSaving} onEdit={onEdit} onCopy={onCopy} onComplete={onComplete} />
+        <ScheduleListColumn title="예정" items={upcomingItems} empty="예정된 일정이 없습니다." isSaving={isSaving} onEdit={onEdit} onCopy={onCopy} onComplete={onComplete} />
+        <ScheduleListColumn title="완료" items={doneItems.slice(0, 8)} empty="완료된 일정이 없습니다." isSaving={isSaving} onEdit={onEdit} onCopy={onCopy} onComplete={onComplete} done />
+      </div>
+    </div>
+  );
+}
+
+function ScheduleListColumn({
+  title,
+  items,
+  empty,
+  isSaving,
+  onEdit,
+  onCopy,
+  onComplete,
+  done,
+}: {
+  title: string;
+  items: RaahMinistryScheduleItem[];
+  empty: string;
+  isSaving: boolean;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
+  onCopy: (item: RaahMinistryScheduleItem) => void;
+  onComplete: (itemId: string) => void;
+  done?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-semibold text-[#17202b]">{title}</p>
+      <div className="mt-2 space-y-2">
+        {items.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-[#dbe3e8] bg-[#f8fafb] p-3 text-sm text-[#607080]">{empty}</p>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#17202b]">{item.title}</p>
+                  <p className="mt-1 text-xs text-[#607080]">
+                    {formatDisplayDate(item.date)}
+                    {item.startsAt ? ` · ${item.startsAt}` : ''}
+                    {item.memberName ? ` · ${item.memberName}` : ''}
+                  </p>
+                </div>
+                <span className={shell.badge}>{getScheduleTypeLabel(item.itemType)}</span>
+              </div>
+              {item.memo && <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#607080]">{item.memo}</p>}
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button type="button" onClick={() => onEdit(item)} className={shell.ghostButton + ' min-h-9 px-2 text-xs'}>
+                  수정
+                </button>
+                <button type="button" onClick={() => onCopy(item)} className={shell.ghostButton + ' min-h-9 px-2 text-xs'}>
+                  복사
+                </button>
+                <button type="button" disabled={isSaving || done} onClick={() => onComplete(item.id)} className={shell.button + ' min-h-9 px-2 text-xs'}>
+                  {done ? '완료됨' : '완료'}
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -1625,7 +1902,7 @@ function buildDashboardTasks({
       kind: 'attendance_absence',
       label: '연락 대상',
       title: row.memberName,
-      description: row.consecutiveAbsences >= 2 ? `${row.consecutiveAbsences}회 연속 결석` : `최근 결석 ${row.absenceCount}회`,
+      description: row.consecutiveAbsences >= 2 ? `주일 오전 ${row.consecutiveAbsences}회 연속 결석` : `주일 오전 결석 ${row.requiredAbsenceCount}회`,
       memberId: row.memberId,
       event: latestEvent,
     });
@@ -1782,6 +2059,9 @@ function MinistrySchedulePanel({
   onComplete,
   onConnectCalendar,
   onSyncCalendar,
+  copiedItem,
+  onCopyItem,
+  onSelectDate,
 }: {
   items: RaahMinistryScheduleItem[];
   form: RaahMinistryScheduleItemInput;
@@ -1797,39 +2077,78 @@ function MinistrySchedulePanel({
   onComplete: (itemId: string) => void;
   onConnectCalendar: () => void;
   onSyncCalendar: () => void;
+  copiedItem?: RaahMinistryScheduleItem | null;
+  onCopyItem?: (item: RaahMinistryScheduleItem) => void;
+  onSelectDate?: (dateIso: string) => void;
 }) {
   const [viewMode, setViewMode] = React.useState<ScheduleViewMode>('week');
   const todayIso = getTodayIso();
-  const weekDays = getWeekCalendarDays(todayIso, items);
-  const monthDays = getMonthCalendarDays(todayIso, items);
+  const [anchorDate, setAnchorDate] = React.useState(todayIso);
+  const weekDays = getWeekCalendarDays(anchorDate, items, todayIso);
+  const monthDays = getMonthCalendarDays(anchorDate, items, todayIso);
   const weekRange = `${formatDisplayDate(weekDays[0]?.dateIso || todayIso)} - ${formatDisplayDate(weekDays[6]?.dateIso || todayIso)}`;
-  const monthRange = getMonthRangeLabel(todayIso);
+  const monthRange = getMonthRangeLabel(anchorDate);
   const hasOpenItems = items.some((item) => item.status === 'open');
+  const [selectedFormDate, setSelectedFormDate] = React.useState<string | null>(null);
+  const shiftCalendar = (direction: -1 | 1) => {
+    setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)));
+  };
+  const resetCalendar = () => setAnchorDate(todayIso);
+  const openFormForDate = (dateIso: string) => {
+    setSelectedFormDate(dateIso);
+    onSelectDate?.(dateIso);
+  };
+  const openFormForEdit = (item: RaahMinistryScheduleItem) => {
+    setSelectedFormDate(item.date);
+    onEdit(item);
+  };
+  const openHeaderForm = () => {
+    if (isOpen) {
+      setSelectedFormDate(null);
+      onClose();
+      return;
+    }
+    setSelectedFormDate(anchorDate);
+    onOpenNew();
+  };
   return (
     <div className={shell.panel + ' p-5'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">오늘/이번 주 사역 일정</h2>
-          <p className="mt-1 text-sm text-[#607080]">심방 일정과 사역 할 일을 먼저 RAAH 안에서 정리합니다.</p>
+          <h2 className="text-lg font-semibold">사역 일정판</h2>
+          <p className="mt-1 text-sm text-[#607080]">날짜를 누르면 그 날짜로 일정을 등록합니다.</p>
         </div>
-        <div className="flex rounded-lg border border-[#d5dee5] bg-white p-1">
-          {(['week', 'month'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${
-                viewMode === mode ? 'bg-[#12345a] text-white shadow-sm' : 'text-[#607080] hover:bg-[#f1f5f8] hover:text-[#17202b]'
-              }`}
-            >
-              {mode === 'week' ? '주간' : '월간'}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-[#d5dee5] bg-white p-1">
+            {(['week', 'month'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${
+                  viewMode === mode ? 'bg-[#12345a] text-white shadow-sm' : 'text-[#607080] hover:bg-[#f1f5f8] hover:text-[#17202b]'
+                }`}
+              >
+                {mode === 'week' ? '주간' : '월간'}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 rounded-lg border border-[#d5dee5] bg-white p-1">
+            <button type="button" onClick={() => shiftCalendar(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#28415b] transition hover:bg-[#eef7f3]" aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}>
+              <ChevronLeft size={16} />
             </button>
-          ))}
+            <button type="button" onClick={resetCalendar} className="min-h-9 rounded-md px-2 text-xs font-semibold text-[#607080] transition hover:bg-[#f1f5f8] hover:text-[#17202b]">
+              오늘
+            </button>
+            <button type="button" onClick={() => shiftCalendar(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#28415b] transition hover:bg-[#eef7f3]" aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <button type="button" onClick={openHeaderForm} className={isOpen ? shell.button : shell.ghostButton}>
+            <Plus size={16} />
+            {isOpen ? '닫기' : '일정'}
+          </button>
         </div>
-        <button type="button" onClick={isOpen ? onClose : onOpenNew} className={isOpen ? shell.button : shell.ghostButton}>
-          <Plus size={16} />
-          {isOpen ? '닫기' : '일정'}
-        </button>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1849,61 +2168,149 @@ function MinistrySchedulePanel({
                 : '심방 일정과 사역 할 일을 Google Calendar에서 함께 관리할 수 있습니다.'}
           </p>
         </div>
-        {calendarStatus?.configured ? (
-          calendarStatus.connected ? (
-            <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
-              동기화
-            </button>
-          ) : (
-            <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.button + ' shrink-0'}>
-              연결
-            </button>
-          )
-        ) : null}
+        {!calendarStatus?.configured ? (
+          <button type="button" disabled className={shell.ghostButton + ' shrink-0 opacity-60'} title="Google Calendar OAuth 환경 변수가 필요합니다.">
+            설정 필요
+          </button>
+        ) : calendarStatus.connected ? (
+          <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
+            동기화
+          </button>
+        ) : (
+          <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.button + ' shrink-0'}>
+            연결
+          </button>
+        )}
       </div>
 
-      {isOpen && (
-        <form onSubmit={onSubmit} className="mt-4 grid gap-3 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 lg:grid-cols-[minmax(160px,1fr),150px,110px,120px,minmax(160px,1fr),80px]">
-          <TextInput label="제목" value={form.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} placeholder="심방, 연락, 설교 준비" />
-          <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
-          <TextInput label="시간" type="time" value={form.startsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, startsAt: value }))} />
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">유형</span>
-            <select value={form.itemType} onChange={(event) => setForm((prev) => ({ ...prev, itemType: event.target.value as RaahMinistryScheduleItemInput['itemType'] }))} className={shell.input}>
-              {SCHEDULE_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <TextInput label="메모" value={form.memo || ''} onChange={(value) => setForm((prev) => ({ ...prev, memo: value }))} placeholder="장소나 준비물" />
-          <button type="submit" disabled={isSaving} className={shell.button + ' self-end'}>
-            {editingItemId ? '수정' : '저장'}
-          </button>
-        </form>
-      )}
-
       {viewMode === 'week' ? (
-        <WeekScheduleGrid days={weekDays} rangeLabel={weekRange} isSaving={isSaving} onComplete={onComplete} onEdit={onEdit} />
+        <WeekScheduleGrid
+          days={weekDays}
+          rangeLabel={weekRange}
+          form={form}
+          setForm={setForm}
+          formDate={isOpen ? selectedFormDate : null}
+          editingItemId={editingItemId}
+          isSaving={isSaving}
+          copiedItem={copiedItem}
+          onDateSelect={openFormForDate}
+          onCloseForm={() => {
+            setSelectedFormDate(null);
+            onClose();
+          }}
+          onSubmit={onSubmit}
+          onCopy={onCopyItem}
+          onComplete={onComplete}
+          onEdit={openFormForEdit}
+        />
       ) : (
-        <MonthScheduleGrid days={monthDays} rangeLabel={monthRange} isSaving={isSaving} onComplete={onComplete} onEdit={onEdit} />
+        <MonthScheduleGrid
+          days={monthDays}
+          rangeLabel={monthRange}
+          form={form}
+          setForm={setForm}
+          formDate={isOpen ? selectedFormDate : null}
+          editingItemId={editingItemId}
+          isSaving={isSaving}
+          copiedItem={copiedItem}
+          onDateSelect={openFormForDate}
+          onCloseForm={() => {
+            setSelectedFormDate(null);
+            onClose();
+          }}
+          onSubmit={onSubmit}
+          onCopy={onCopyItem}
+          onComplete={onComplete}
+          onEdit={openFormForEdit}
+        />
       )}
       {!hasOpenItems && <EmptyState>등록된 사역 일정이 없습니다.</EmptyState>}
     </div>
   );
 }
 
+function SchedulePopupForm({
+  form,
+  setForm,
+  editingItemId,
+  isSaving,
+  onSubmit,
+  onClose,
+}: {
+  form: RaahMinistryScheduleItemInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  editingItemId: string | null;
+  isSaving: boolean;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="absolute left-1/2 top-12 z-50 max-h-[72vh] w-[min(460px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[#cbd8df] bg-white p-4 text-left shadow-[0_22px_58px_rgba(21,38,57,0.22)]"
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">{form.date}</p>
+          <h4 className="mt-0.5 text-sm font-semibold text-[#17202b]">{editingItemId ? '일정 수정' : '일정 등록'}</h4>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-xs font-semibold text-[#607080] transition hover:bg-[#f1f5f8] hover:text-[#17202b]">
+          닫기
+        </button>
+      </div>
+      <div className="grid gap-2">
+        <TextInput label="제목" value={form.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} placeholder="심방, 연락, 설교 준비" />
+        <div className="grid grid-cols-[minmax(0,1fr),112px] gap-2">
+          <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
+          <TextInput label="시간" type="time" value={form.startsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, startsAt: value }))} />
+        </div>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">유형</span>
+          <select value={form.itemType} onChange={(event) => setForm((prev) => ({ ...prev, itemType: event.target.value as RaahMinistryScheduleItemInput['itemType'] }))} className={shell.input}>
+            {SCHEDULE_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <TextInput label="메모" value={form.memo || ''} onChange={(value) => setForm((prev) => ({ ...prev, memo: value }))} placeholder="장소나 준비물" />
+        <button type="submit" disabled={isSaving} className={shell.button + ' mt-1 w-full'}>
+          {editingItemId ? '수정 저장' : '일정 저장'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function WeekScheduleGrid({
   days,
   rangeLabel,
+  form,
+  setForm,
+  formDate,
+  editingItemId,
   isSaving,
+  copiedItem,
+  onDateSelect,
+  onCloseForm,
+  onSubmit,
+  onCopy,
   onComplete,
   onEdit,
 }: {
   days: ReturnType<typeof getWeekCalendarDays>;
   rangeLabel: string;
+  form: RaahMinistryScheduleItemInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  formDate: string | null;
+  editingItemId: string | null;
   isSaving: boolean;
+  copiedItem?: RaahMinistryScheduleItem | null;
+  onDateSelect?: (dateIso: string) => void;
+  onCloseForm: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCopy?: (item: RaahMinistryScheduleItem) => void;
   onComplete: (itemId: string) => void;
   onEdit: (item: RaahMinistryScheduleItem) => void;
 }) {
@@ -1914,29 +2321,44 @@ function WeekScheduleGrid({
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#607080]">Weekly Care Calendar</p>
           <h3 className="mt-1 text-base font-semibold text-[#17202b]">이번 주 사역 일정</h3>
         </div>
-        <p className="text-xs font-medium text-[#607080]">{rangeLabel}</p>
+        <p className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">{rangeLabel}</p>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-7">
         {days.map((day) => (
           <div
             key={day.dateIso}
-            className={`min-h-[150px] rounded-xl border p-3 transition ${
+            className={`relative min-h-[150px] overflow-visible rounded-xl border p-3 transition ${
               day.isToday ? 'border-[#2e6b5f] bg-[#eef7f3] shadow-[inset_0_0_0_1px_rgba(46,107,95,0.16)]' : 'border-[#dbe3e8] bg-[#f8fafb]'
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <div>
+              <button type="button" onClick={() => onDateSelect?.(day.dateIso)} className="rounded-md px-1 text-left transition hover:bg-white/70" title={copiedItem ? `${copiedItem.title} 붙여넣기` : '이 날짜에 일정 등록'}>
                 <p className={`text-sm font-semibold ${day.isToday ? 'text-[#245b51]' : 'text-[#17202b]'}`}>{day.label}</p>
                 <p className="mt-0.5 text-xs text-[#607080]">{day.dateIso.slice(5).replace('-', '.')}</p>
-              </div>
+              </button>
               {day.isToday && <span className="rounded-full bg-[#2e6b5f] px-2 py-0.5 text-[11px] font-semibold text-white">오늘</span>}
             </div>
+            {copiedItem && onDateSelect && (
+              <button type="button" onClick={() => onDateSelect(day.dateIso)} className="mt-2 w-full rounded-md border border-dashed border-[#8bcfb9] bg-white/70 px-2 py-1 text-[11px] font-semibold text-[#2e6b5f]">
+                복사한 일정 붙여넣기
+              </button>
+            )}
+            {formDate === day.dateIso && (
+              <SchedulePopupForm
+                form={form}
+                setForm={setForm}
+                editingItemId={editingItemId}
+                isSaving={isSaving}
+                onSubmit={onSubmit}
+                onClose={onCloseForm}
+              />
+            )}
             <div className="mt-3 space-y-2">
               {day.items.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 px-2 py-2 text-xs text-[#7a8b9a]">일정 없음</p>
               ) : (
                 day.items.map((item) => (
-                  <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-16 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
+                  <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-24 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
                     <div>
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold text-[#17202b]">{item.title}</p>
@@ -1945,6 +2367,12 @@ function WeekScheduleGrid({
                           {item.memberName ? ` · ${item.memberName}` : ''}
                         </p>
                       </div>
+                      {onCopy && (
+                        <button type="button" disabled={isSaving} onClick={() => onCopy(item)} title="복사" aria-label={`${item.title} 복사`} className="absolute right-16 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                          <Copy size={12} strokeWidth={2.4} />
+                          복사
+                        </button>
+                      )}
                       <button type="button" disabled={isSaving} onClick={() => onEdit(item)} title="수정" aria-label={`${item.title} 수정`} className="absolute right-9 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
                         <FileText size={12} strokeWidth={2.4} />
                         수정
@@ -1969,13 +2397,31 @@ function WeekScheduleGrid({
 function MonthScheduleGrid({
   days,
   rangeLabel,
+  form,
+  setForm,
+  formDate,
+  editingItemId,
   isSaving,
+  copiedItem,
+  onDateSelect,
+  onCloseForm,
+  onSubmit,
+  onCopy,
   onComplete,
   onEdit,
 }: {
   days: ReturnType<typeof getMonthCalendarDays>;
   rangeLabel: string;
+  form: RaahMinistryScheduleItemInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  formDate: string | null;
+  editingItemId: string | null;
   isSaving: boolean;
+  copiedItem?: RaahMinistryScheduleItem | null;
+  onDateSelect?: (dateIso: string) => void;
+  onCloseForm: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCopy?: (item: RaahMinistryScheduleItem) => void;
   onComplete: (itemId: string) => void;
   onEdit: (item: RaahMinistryScheduleItem) => void;
 }) {
@@ -1986,7 +2432,7 @@ function MonthScheduleGrid({
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#607080]">Monthly Care Calendar</p>
           <h3 className="mt-1 text-base font-semibold text-[#17202b]">이번 달 사역 일정</h3>
         </div>
-        <p className="text-xs font-medium text-[#607080]">{rangeLabel}</p>
+        <p className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">{rangeLabel}</p>
       </div>
       <div className="mt-3 overflow-x-auto pb-1">
         <div className="min-w-[760px]">
@@ -2001,7 +2447,7 @@ function MonthScheduleGrid({
             {days.map((day) => (
               <div
                 key={day.dateIso}
-                className={`min-h-[128px] rounded-xl border p-2 transition ${
+                className={`relative min-h-[128px] overflow-visible rounded-xl border p-2 transition ${
                   day.isToday
                     ? 'border-[#2e6b5f] bg-[#eef7f3] shadow-[inset_0_0_0_1px_rgba(46,107,95,0.16)]'
                     : day.isCurrentMonth
@@ -2010,12 +2456,29 @@ function MonthScheduleGrid({
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className={`text-xs font-semibold ${day.isToday ? 'text-[#245b51]' : 'text-[#17202b]'}`}>{Number(day.dateIso.slice(8, 10))}</p>
+                  <button type="button" onClick={() => onDateSelect?.(day.dateIso)} className={`rounded-md px-1 py-0.5 text-xs font-semibold transition hover:bg-white/70 ${day.isToday ? 'text-[#245b51]' : 'text-[#17202b]'}`} title={copiedItem ? `${copiedItem.title} 붙여넣기` : '이 날짜에 일정 등록'}>
+                    {Number(day.dateIso.slice(8, 10))}
+                  </button>
                   {day.isToday && <span className="rounded-full bg-[#2e6b5f] px-1.5 py-0.5 text-[10px] font-semibold text-white">오늘</span>}
                 </div>
+                {copiedItem && onDateSelect && (
+                  <button type="button" onClick={() => onDateSelect(day.dateIso)} className="mt-1 w-full rounded-md border border-dashed border-[#8bcfb9] bg-white/70 px-1.5 py-1 text-[10px] font-semibold text-[#2e6b5f]">
+                    붙여넣기
+                  </button>
+                )}
+                {formDate === day.dateIso && (
+                  <SchedulePopupForm
+                    form={form}
+                    setForm={setForm}
+                    editingItemId={editingItemId}
+                    isSaving={isSaving}
+                    onSubmit={onSubmit}
+                    onClose={onCloseForm}
+                  />
+                )}
                 <div className="mt-2 space-y-1.5">
                   {day.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-12 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
+                    <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-16 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
                       <div>
                         <div className="min-w-0">
                           <p className="truncate text-[11px] font-semibold text-[#17202b]">{item.title}</p>
@@ -2024,6 +2487,19 @@ function MonthScheduleGrid({
                             {item.memberName ? ` · ${item.memberName}` : ''}
                           </p>
                         </div>
+                        {onCopy && (
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => onCopy(item)}
+                            title="복사"
+                            aria-label={`${item.title} 복사`}
+                            className="absolute right-12 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                          >
+                            <Copy size={11} strokeWidth={2.4} />
+                            복사
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={isSaving}
@@ -2194,7 +2670,7 @@ function AttendancePeopleList({ title, rows, empty }: { title: string; rows: Ret
           {rows.map((row) => (
             <div key={row.memberId} className="flex items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs">
               <span className="truncate font-semibold text-[#17202b]">{row.memberName}</span>
-              <span className="shrink-0 text-[#607080]">결석 {row.absenceCount}회</span>
+              <span className="shrink-0 text-[#607080]">주일 오전 {row.requiredAbsenceCount}회</span>
             </div>
           ))}
         </div>
@@ -2496,7 +2972,7 @@ function AttendanceTab({
   attendance: RaahAttendanceEvent | null;
   attendanceEvents: RaahAttendanceEvent[];
   activeEventType: RaahAttendanceEventType;
-  onEventTypeChange: (eventType: RaahAttendanceEventType) => void;
+  onEventTypeChange: (eventType: RaahAttendanceEventType, dateOverride?: string) => void;
   date: string;
   setDate: (value: string) => void;
   serviceType: string;
@@ -2532,7 +3008,7 @@ function AttendanceTab({
         flow={attendanceFlow}
         onSelectEvent={(event) => {
           setDate(event.date);
-          onEventTypeChange(event.eventType);
+          onEventTypeChange(event.eventType, event.date);
         }}
       />
 
@@ -2635,15 +3111,15 @@ function AttendanceFlowPanel({
 }) {
   const visibleRows = flow.rows.slice(0, 12);
   const currentAbsences = flow.rows.filter((row) => row.currentAbsent).length;
-  const repeatedAbsences = flow.rows.filter((row) => row.consecutiveAbsences >= 2 || row.absenceCount >= 2).length;
-  const steadyRows = flow.rows.filter((row) => row.recordedCount > 0 && row.absenceCount === 0).length;
+  const repeatedAbsences = flow.rows.filter((row) => row.consecutiveAbsences >= 2 || row.requiredAbsenceCount >= 2).length;
+  const steadyRows = flow.rows.filter((row) => row.requiredRecordedCount > 0 && row.requiredAbsenceCount === 0).length;
 
   return (
     <div className={shell.panel + ' p-4'}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-lg font-semibold">출석 흐름</h2>
-          <p className="mt-1 text-sm text-[#607080]">최근 주간을 기준으로 주일 오전, 주일 오후, 청년부, 수요기도회를 한 번에 확인합니다.</p>
+          <p className="mt-1 text-sm text-[#607080]">주일 오전을 필수 출석 기준으로 보고, 다른 모임은 흐름 확인용으로 함께 봅니다.</p>
         </div>
         <div className="grid grid-cols-3 gap-2 lg:min-w-[360px]">
           <MiniCount label="최근 결석" value={currentAbsences} />
@@ -2658,7 +3134,7 @@ function AttendanceFlowPanel({
         </div>
       ) : (
         <>
-          <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr),280px]">
+          <div className="mt-4">
             <div className="hidden overflow-x-auto rounded-xl border border-[#dbe3e8] lg:block">
               <table className="min-w-[980px] w-full border-collapse bg-white text-sm">
                 <thead className="bg-[#f8fafb]">
@@ -2700,31 +3176,6 @@ function AttendanceFlowPanel({
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            <div className={shell.mutedPanel + ' p-3'}>
-              <p className="text-sm font-semibold text-[#17202b]">먼저 볼 성도</p>
-              <div className="mt-3 space-y-2">
-                {flow.concernRows.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 p-3 text-sm text-[#607080]">반복 결석 흐름이 없습니다.</p>
-                ) : (
-                  flow.concernRows.map((row) => (
-                    <div key={row.memberId} className="rounded-lg border border-[#dbe3e8] bg-white p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-[#17202b]">{row.memberName}</p>
-                        <span className={row.consecutiveAbsences >= 2 ? 'text-xs font-semibold text-[#9a4b34]' : 'text-xs font-semibold text-[#607080]'}>
-                          {row.consecutiveAbsences >= 2 ? `${row.consecutiveAbsences}회 연속 결석` : `결석 ${row.absenceCount}회`}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex gap-1">
-                        {row.cells.map((cell) => (
-                          <span key={cell.eventKey} className={`h-2 flex-1 rounded-full ${cell.attended === true ? 'bg-[#2e6b5f]' : cell.attended === false ? 'bg-[#d08a6c]' : 'bg-[#dbe3e8]'}`} />
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
           </div>
 
