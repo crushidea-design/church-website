@@ -38,6 +38,9 @@ export type RaahAttendanceFlowRow = {
   attendedCount: number;
   absenceCount: number;
   recordedCount: number;
+  requiredAttendedCount: number;
+  requiredAbsenceCount: number;
+  requiredRecordedCount: number;
   currentAbsent: boolean;
   consecutiveAbsences: number;
 };
@@ -155,9 +158,13 @@ export function buildRaahAttendanceFlow({
       const attendedCount = cells.filter((cell) => cell.attended === true).length;
       const absenceCount = cells.filter((cell) => cell.attended === false).length;
       const recordedCount = attendedCount + absenceCount;
-      const currentAbsent = cells[0]?.attended === false;
+      const requiredCells = cells.filter((cell, index) => events[index]?.eventType === 'sunday_morning');
+      const requiredAttendedCount = requiredCells.filter((cell) => cell.attended === true).length;
+      const requiredAbsenceCount = requiredCells.filter((cell) => cell.attended === false).length;
+      const requiredRecordedCount = requiredAttendedCount + requiredAbsenceCount;
+      const currentAbsent = requiredCells[0]?.attended === false;
       let consecutiveAbsences = 0;
-      for (const cell of cells) {
+      for (const cell of requiredCells) {
         if (cell.attended !== false) break;
         consecutiveAbsences += 1;
       }
@@ -170,13 +177,16 @@ export function buildRaahAttendanceFlow({
         attendedCount,
         absenceCount,
         recordedCount,
+        requiredAttendedCount,
+        requiredAbsenceCount,
+        requiredRecordedCount,
         currentAbsent,
         consecutiveAbsences,
       };
     })
     .sort((a, b) => {
       if (b.consecutiveAbsences !== a.consecutiveAbsences) return b.consecutiveAbsences - a.consecutiveAbsences;
-      if (b.absenceCount !== a.absenceCount) return b.absenceCount - a.absenceCount;
+      if (b.requiredAbsenceCount !== a.requiredAbsenceCount) return b.requiredAbsenceCount - a.requiredAbsenceCount;
       return a.memberName.localeCompare(b.memberName, 'ko-KR');
     });
 
@@ -184,6 +194,6 @@ export function buildRaahAttendanceFlow({
     events,
     weeks,
     rows,
-    concernRows: rows.filter((row) => row.consecutiveAbsences >= 2 || row.absenceCount >= 2 || row.currentAbsent).slice(0, 8),
+    concernRows: rows.filter((row) => row.consecutiveAbsences >= 2 || row.requiredAbsenceCount >= 2 || row.currentAbsent).slice(0, 8),
   };
 }
