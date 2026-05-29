@@ -137,6 +137,7 @@ export type RaahMinistryScheduleItem = {
   id: string;
   title: string;
   date: string;
+  endDate?: string;
   startsAt?: string;
   endsAt?: string;
   itemType: RaahMinistryScheduleItemType;
@@ -153,6 +154,7 @@ export type RaahMinistryScheduleItem = {
 export type RaahMinistryScheduleItemInput = {
   title: string;
   date: string;
+  endDate?: string;
   startsAt?: string;
   endsAt?: string;
   itemType: RaahMinistryScheduleItemType;
@@ -182,6 +184,7 @@ export type RaahCalendarStatus = {
 export type RaahGoogleCalendarEventInput = {
   title: string;
   date: string;
+  endDate?: string;
   startsAt: string;
   endsAt?: string;
   memberId?: string;

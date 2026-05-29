@@ -49,6 +49,7 @@ describe('RAAH Google Calendar helpers', () => {
     ).toEqual({
       title: '심방 - 김민교',
       date: '2026-05-13',
+      endDate: '2026-05-13',
       startsAt: '14:00',
       endsAt: '15:00',
       itemType: 'visitation',

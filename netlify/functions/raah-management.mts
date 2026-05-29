@@ -67,6 +67,7 @@ type FollowUpResolutionInput = {
 type ScheduleItemInput = {
   title: string;
   date: string;
+  endDate?: string;
   startsAt?: string;
   endsAt?: string;
   itemType: 'visitation' | 'counseling' | 'task' | 'meeting' | 'other';
@@ -153,6 +154,7 @@ type SupabaseScheduleItemRow = {
   id: string;
   title: string;
   date: string;
+  end_date?: string | null;
   starts_at?: string | null;
   ends_at?: string | null;
   item_type: 'visitation' | 'counseling' | 'task' | 'meeting' | 'other';
@@ -168,6 +170,7 @@ type SupabaseScheduleItemRow = {
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 const ENCRYPTION_VERSION = 1;
+const SCHEDULE_SELECT = 'id,title,date,end_date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at';
 
 const getEnv = (key: string) => {
   const netlifyValue = typeof Netlify !== 'undefined' ? Netlify.env.get(key) : undefined;
@@ -403,6 +406,7 @@ const parseScheduleItemInput = (raw: unknown): ScheduleItemInput | null => {
   const input: ScheduleItemInput = {
     title: cleanText(data.title),
     date: cleanText(data.date),
+    endDate: cleanText(data.endDate),
     startsAt: cleanText(data.startsAt),
     endsAt: cleanText(data.endsAt),
     itemType: ['visitation', 'counseling', 'task', 'meeting', 'other'].includes(itemType) ? (itemType as ScheduleItemInput['itemType']) : 'task',
@@ -411,7 +415,8 @@ const parseScheduleItemInput = (raw: unknown): ScheduleItemInput | null => {
     memo: cleanText(data.memo),
   };
 
-  if (!input.title || input.title.length > 120 || !validDate(input.date) || !input.date) return null;
+  if (!input.title || input.title.length > 120 || !validDate(input.date) || !input.date || !validDate(input.endDate)) return null;
+  if ((input.endDate || input.date) < input.date) return null;
   if ([input.startsAt, input.endsAt].some((value) => value && !/^\d{2}:\d{2}$/.test(value))) return null;
   if ((input.memberName || '').length > 100 || (input.memo || '').length > 1000) return null;
   return input;
@@ -503,6 +508,7 @@ const rowToScheduleItem = (row: SupabaseScheduleItemRow) => ({
   id: row.id,
   title: row.title,
   date: row.date,
+  endDate: row.end_date || row.date,
   startsAt: row.starts_at || '',
   endsAt: row.ends_at || '',
   itemType: row.item_type,
@@ -634,7 +640,7 @@ const handleBootstrap = async (req: Request) => {
     loadAttendanceEventsForDate(date),
     supabaseFetch('raah_attendance_records?select=member_id,attended,communion_participated,raah_attendance_events!inner(date,event_type,service_type)'),
     supabaseFetch('raah_follow_up_resolutions?select=id,source_type,source_id,candidate_key,member_id,member_name,memo,completed_by,completed_at,created_at,updated_at&order=completed_at.desc&limit=200'),
-    supabaseFetch('raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&order=date.asc&order=starts_at.asc&limit=100'),
+    supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&order=date.asc&order=starts_at.asc&limit=100`),
   ]);
 
   if ('response' in membersResult && membersResult.response) return membersResult.response;
@@ -994,13 +1000,14 @@ const handleCreateScheduleItem = async (req: Request, user: RaahUser) => {
   if (!input) return noStoreJson({ error: 'Invalid RAAH schedule item input.' }, 400);
 
   const result = await supabaseFetch(
-    'raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at',
+    `raah_ministry_schedule_items?select=${SCHEDULE_SELECT}`,
     {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({
         title: input.title,
         date: input.date,
+        end_date: input.endDate || input.date,
         starts_at: input.startsAt || null,
         ends_at: input.endsAt || null,
         item_type: input.itemType,
@@ -1026,13 +1033,14 @@ const handleUpdateScheduleItem = async (req: Request, itemId: string) => {
   if (!input) return noStoreJson({ error: 'Invalid RAAH schedule item input.' }, 400);
 
   const result = await supabaseFetch(
-    `raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&id=eq.${encodeURIComponent(itemId)}`,
+    `raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&id=eq.${encodeURIComponent(itemId)}`,
     {
       method: 'PATCH',
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({
         title: input.title,
         date: input.date,
+        end_date: input.endDate || input.date,
         starts_at: input.startsAt || null,
         ends_at: input.endsAt || null,
         item_type: input.itemType,
@@ -1052,7 +1060,7 @@ const handleUpdateScheduleItem = async (req: Request, itemId: string) => {
 
 const handleCompleteScheduleItem = async (itemId: string, user: RaahUser) => {
   const result = await supabaseFetch(
-    `raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&id=eq.${encodeURIComponent(itemId)}`,
+    `raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&id=eq.${encodeURIComponent(itemId)}`,
     {
       method: 'PATCH',
       headers: { Prefer: 'return=representation' },
@@ -1123,6 +1131,7 @@ export const config: Config = {
     '/api/raah/attendance',
     '/api/raah/follow-ups/resolve',
     '/api/raah/schedule',
+    '/api/raah/schedule/:id',
     '/api/raah/schedule/:id/complete',
   ],
 };

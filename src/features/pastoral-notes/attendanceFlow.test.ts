@@ -102,4 +102,39 @@ describe('buildRaahAttendanceFlow', () => {
     });
     expect(result.concernRows.map((row) => row.memberName)).toEqual(['박다윗']);
   });
+
+  it('preserves multiple other events recorded in the same week', () => {
+    const result = buildRaahAttendanceFlow({
+      members: [member('kim', 'student')],
+      history: [
+        history('kim', '2026-05-25', true, 'other'),
+        history('kim', '2026-05-28', false, 'other'),
+      ],
+      limit: 1,
+    });
+
+    expect(result.weeks[0].events.map((event) => event.key)).toEqual([
+      '2026-05-24:sunday_morning',
+      '2026-05-24:sunday_afternoon',
+      '2026-05-24:young_adults',
+      '2026-05-27:wednesday_prayer',
+      '2026-05-28:other',
+      '2026-05-25:other',
+    ]);
+    expect(result.rows[0].cells.map((cell) => cell.attended)).toEqual([null, null, null, null, false, true]);
+  });
+
+  it('uses the latest recorded absence when required Sunday attendance is unrecorded', () => {
+    const result = buildRaahAttendanceFlow({
+      members: [member('kim', 'student')],
+      history: [history('kim', '2026-05-27', false, 'wednesday_prayer')],
+      limit: 1,
+    });
+
+    expect(result.rows[0]).toMatchObject({
+      requiredRecordedCount: 0,
+      currentAbsent: true,
+      consecutiveAbsences: 1,
+    });
+  });
 });

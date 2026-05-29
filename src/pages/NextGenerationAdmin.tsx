@@ -227,13 +227,17 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     return () => unsub();
   }, []);
 
+  const attendanceWeekKeys = useMemo(() => getRecentSundayWeekKeys(4), []);
+  const currentAttendanceWeekKey = attendanceWeekKeys[0] ?? '';
+
   // Subscribe to attendance records for the class dashboard
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, ATTENDANCE_COLLECTION), (snap) => {
+    const q = query(collection(db, ATTENDANCE_COLLECTION), where('weekKey', 'in', attendanceWeekKeys.slice(0, 10)));
+    const unsub = onSnapshot(q, (snap) => {
       setClassAttendance(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceDoc)));
     }, () => setClassAttendance([]));
     return () => unsub();
-  }, []);
+  }, [attendanceWeekKeys]);
 
   // Subscribe to contacts
   useEffect(() => {
@@ -250,8 +254,6 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const unreadContacts = contacts.filter(c => !c.isRead).length;
   const unansweredQA = qaItems.filter(q => !q.isAnswered).length;
   const studentDepartment = NEXT_GENERATION_DEPARTMENTS[3];
-  const attendanceWeekKeys = useMemo(() => getRecentSundayWeekKeys(4), []);
-  const currentAttendanceWeekKey = attendanceWeekKeys[0] ?? '';
   const teacherGroupIds = !isNextGenerationPastor && nextMember?.groupIds?.length
     ? nextMember.groupIds
     : undefined;
@@ -310,9 +312,10 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
 
   const saveGroupAttendance = async (group: typeof classDashboard.groups[number]) => {
     if (!user || !currentAttendanceWeekKey) return;
+    const fullGroup = classDashboard.groups.find((item) => item.groupId === group.groupId) || group;
     setSavingAttendanceGroup(group.groupId);
     try {
-      await setAttendanceBatch(group.students.map((student) => ({
+      await setAttendanceBatch(fullGroup.students.map((student) => ({
         weekKey: currentAttendanceWeekKey,
         sundayDate: currentAttendanceWeekKey,
         studentUid: student.uid,
@@ -323,7 +326,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       })));
       setAttendanceDrafts((drafts) => {
         const next = { ...drafts };
-        group.students.forEach((student) => delete next[student.uid]);
+        fullGroup.students.forEach((student) => delete next[student.uid]);
         return next;
       });
       showToast('출석부를 저장했습니다.');

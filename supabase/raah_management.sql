@@ -104,6 +104,7 @@ create table if not exists public.raah_ministry_schedule_items (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   date date not null,
+  end_date date,
   starts_at text,
   ends_at text,
   item_type text not null default 'task' check (item_type in ('visitation', 'counseling', 'task', 'meeting', 'other')),
@@ -120,7 +121,10 @@ create table if not exists public.raah_ministry_schedule_items (
   updated_at timestamptz not null default now()
 );
 
+alter table public.raah_ministry_schedule_items add column if not exists end_date date;
+
 create index if not exists raah_ministry_schedule_items_date_idx on public.raah_ministry_schedule_items (date);
+create index if not exists raah_ministry_schedule_items_end_date_idx on public.raah_ministry_schedule_items (end_date);
 create index if not exists raah_ministry_schedule_items_status_idx on public.raah_ministry_schedule_items (status);
 create unique index if not exists raah_ministry_schedule_items_source_external_idx
   on public.raah_ministry_schedule_items (source, external_id)
