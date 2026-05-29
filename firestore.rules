@@ -662,6 +662,8 @@ service cloud.firestore {
         request.resource.data.checkCount is number &&
         request.resource.data.checkedDates is list &&
         request.resource.data.checkCount == request.resource.data.checkedDates.size() &&
+        request.resource.data.fruitStage == (request.resource.data.checkCount >= 3 ? 3 : request.resource.data.checkCount) &&
+        request.resource.data.completed == (request.resource.data.checkCount >= 3) &&
         request.resource.data.createdAt is timestamp &&
         request.resource.data.updatedAt is timestamp;
 
@@ -676,7 +678,9 @@ service cloud.firestore {
         request.resource.data.userId == resource.data.userId &&
         request.resource.data.checkedDates is list &&
         request.resource.data.checkCount is number &&
-        request.resource.data.checkCount == request.resource.data.checkedDates.size();
+        request.resource.data.checkCount == request.resource.data.checkedDates.size() &&
+        request.resource.data.fruitStage == (request.resource.data.checkCount >= 3 ? 3 : request.resource.data.checkCount) &&
+        request.resource.data.completed == (request.resource.data.checkCount >= 3);
       allow delete: if isNextGenerationPastor();
     }
     // ──────────────────────────────────────────────────────────────────
@@ -692,7 +696,7 @@ service cloud.firestore {
            ngMemberData().groupIds.size() == 0 ||
            resource.data.groupId in ngMemberData().groupIds))
       );
-      allow create, update: if (
+      allow create: if (
         isNextGenerationPastor() ||
         (isNextGenerationTeacher() &&
           'groupIds' in ngMemberData() &&
@@ -704,6 +708,22 @@ service cloud.firestore {
         request.resource.data.groupId is string &&
         request.resource.data.present is bool &&
         request.resource.data.checkedBy == request.auth.uid;
+      allow update: if (
+        isNextGenerationPastor() ||
+        (isNextGenerationTeacher() &&
+          'groupIds' in ngMemberData() &&
+          request.resource.data.groupId in ngMemberData().groupIds &&
+          resource.data.groupId in ngMemberData().groupIds)
+      ) &&
+        request.resource.data.keys().hasOnly(['weekKey','sundayDate','studentUid','studentName','groupId','present','note','checkedBy','checkedAt']) &&
+        request.resource.data.weekKey is string &&
+        request.resource.data.studentUid is string &&
+        request.resource.data.groupId is string &&
+        request.resource.data.present is bool &&
+        request.resource.data.checkedBy == request.auth.uid &&
+        request.resource.data.studentUid == resource.data.studentUid &&
+        request.resource.data.weekKey == resource.data.weekKey &&
+        request.resource.data.groupId == resource.data.groupId;
       allow delete: if isNextGenerationPastor();
     }
 
@@ -713,7 +733,13 @@ service cloud.firestore {
         isNextGenerationPastor() ||
         resource.data.parentUid == request.auth.uid
       );
-      allow create, update: if isAuthenticated() &&
+      allow create: if isAuthenticated() &&
+        request.resource.data.parentUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['weekKey','parentUid','completedAt','childUids','note']) &&
+        request.resource.data.weekKey is string &&
+        request.resource.data.childUids is list;
+      allow update: if isAuthenticated() &&
+        resource.data.parentUid == request.auth.uid &&
         request.resource.data.parentUid == request.auth.uid &&
         request.resource.data.keys().hasOnly(['weekKey','parentUid','completedAt','childUids','note']) &&
         request.resource.data.weekKey is string &&
