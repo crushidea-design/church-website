@@ -615,7 +615,8 @@ export default function AdminPastoralNotes() {
     try {
       const items = await syncRaahGoogleCalendar(user);
       setMinistryScheduleItems((prev) => {
-        const withoutSynced = prev.filter((item) => item.source !== 'google_calendar');
+        const incomingIds = new Set(items.map((item) => item.id));
+        const withoutSynced = prev.filter((item) => item.source !== 'google_calendar' && !incomingIds.has(item.id));
         return [...withoutSynced, ...items];
       });
       await loadCalendarStatus();
@@ -1436,6 +1437,7 @@ export default function AdminPastoralNotes() {
                 }}
                 onNew={openNewLegacyForm}
                 onEdit={openLegacyFormForEdit}
+                canEdit={storageMode === 'supabase'}
               />
             )}
           </div>
@@ -2123,6 +2125,11 @@ function MinistrySchedulePanel({
   const hasOpenItems = items.some((item) => item.status === 'open');
   const [selectedFormDate, setSelectedFormDate] = React.useState<string | null>(null);
   const lastWheelAtRef = React.useRef(0);
+  React.useEffect(() => {
+    if (!isOpen || !editingItemId || !form.date) return;
+    setSelectedFormDate(form.date);
+    setAnchorDate(form.date);
+  }, [editingItemId, form.date, isOpen]);
   const shiftCalendar = (direction: -1 | 1) => {
     setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)));
   };
@@ -2146,6 +2153,7 @@ function MinistrySchedulePanel({
   };
   const handleCalendarWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (Math.abs(event.deltaY) < 20) return;
+    if ((event.target as HTMLElement).closest('[data-schedule-popup="true"]')) return;
     const now = Date.now();
     if (now - lastWheelAtRef.current < 420) return;
     event.preventDefault();
@@ -2289,6 +2297,7 @@ function SchedulePopupForm({
 }) {
   return (
     <form
+      data-schedule-popup="true"
       onSubmit={onSubmit}
       className="fixed left-1/2 top-[max(6rem,12vh)] z-[80] max-h-[78vh] w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[#cbd8df] bg-white p-4 text-left shadow-[0_22px_58px_rgba(21,38,57,0.22)]"
     >
@@ -3423,6 +3432,7 @@ function LegacyTab({
   onCloseForm,
   onNew,
   onEdit,
+  canEdit,
 }: {
   notes: PastoralNote[];
   selectedNote: PastoralNote | null;
@@ -3439,6 +3449,7 @@ function LegacyTab({
   onCloseForm: () => void;
   onNew: () => void;
   onEdit: (note: PastoralNote) => void;
+  canEdit: boolean;
 }) {
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
@@ -3478,7 +3489,7 @@ function LegacyTab({
           )}
         </div>
       </div>
-      <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} editing={editing} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} onEdit={onEdit} />
+      <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} editing={editing} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} onEdit={onEdit} canEdit={canEdit} />
     </section>
   );
 }
@@ -3828,6 +3839,7 @@ function LegacyPanel({
   onSubmit,
   onClose,
   onEdit,
+  canEdit,
 }: {
   isOpen: boolean;
   isSaving: boolean;
@@ -3838,6 +3850,7 @@ function LegacyPanel({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
   onEdit: (note: PastoralNote) => void;
+  canEdit: boolean;
 }) {
   return (
     <div className={shell.panel + ' p-5'}>
@@ -3868,10 +3881,10 @@ function LegacyPanel({
           <div className={shell.mutedPanel + ' p-5'}>
             <p className="text-xs font-semibold text-[#607080]">{formatDisplayDate(selectedNote.date)} · {selectedNote.meetingType}</p>
             <h3 className="mt-3 text-2xl font-semibold">{selectedNote.memberName}</h3>
-            <button type="button" onClick={() => onEdit(selectedNote)} disabled={isSaving} className={shell.ghostButton + ' mt-4'}>
+            {canEdit && <button type="button" onClick={() => onEdit(selectedNote)} disabled={isSaving} className={shell.ghostButton + ' mt-4'}>
               <FileText size={16} />
               수정
-            </button>
+            </button>}
           </div>
           <DetailBlock label="현재 상황" value={selectedNote.currentSituation} locked={selectedNote.isEncrypted} />
           <DetailBlock label="권면 내용" value={selectedNote.encouragement} locked={selectedNote.isEncrypted} />

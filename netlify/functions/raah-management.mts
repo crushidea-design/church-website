@@ -1131,6 +1131,7 @@ export const config: Config = {
     '/api/raah/attendance',
     '/api/raah/follow-ups/resolve',
     '/api/raah/schedule',
+    '/api/raah/schedule/:id',
     '/api/raah/schedule/:id/complete',
   ],
 };

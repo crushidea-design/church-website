@@ -111,15 +111,13 @@ export function buildRaahAttendanceFlow({
     .slice(0, limit);
   const weeks = weekKeys.map((weekStartDate) => {
     const existingEvents = observedEvents.filter((event) => getAttendanceWeekStart(event.date) === weekStartDate);
-    const existingByType = new Map(existingEvents.map((event) => [event.eventType, event]));
-    const eventTypes = [
-      ...STANDARD_EVENT_TYPES,
-      ...existingEvents
-        .map((event) => event.eventType)
-        .filter((eventType) => !STANDARD_EVENT_TYPES.includes(eventType)),
-    ];
-    const events = eventTypes.map((eventType) => {
-      const existing = existingByType.get(eventType);
+    const existingStandardByType = new Map(
+      existingEvents
+        .filter((event) => STANDARD_EVENT_TYPES.includes(event.eventType))
+        .map((event) => [event.eventType, event])
+    );
+    const standardEvents = STANDARD_EVENT_TYPES.map((eventType) => {
+      const existing = existingStandardByType.get(eventType);
       if (existing) return existing;
       const date = addDays(weekStartDate, EVENT_DAY_OFFSET[eventType] || 0);
       return {
@@ -130,6 +128,8 @@ export function buildRaahAttendanceFlow({
         recorded: false,
       };
     });
+    const extraEvents = existingEvents.filter((event) => !STANDARD_EVENT_TYPES.includes(event.eventType));
+    const events = [...standardEvents, ...extraEvents];
     return {
       key: weekStartDate,
       weekStartDate,
@@ -162,9 +162,12 @@ export function buildRaahAttendanceFlow({
       const requiredAttendedCount = requiredCells.filter((cell) => cell.attended === true).length;
       const requiredAbsenceCount = requiredCells.filter((cell) => cell.attended === false).length;
       const requiredRecordedCount = requiredAttendedCount + requiredAbsenceCount;
-      const currentAbsent = requiredCells[0]?.attended === false;
+      const recordedRequiredCells = requiredCells.filter((cell) => cell.attended !== null);
+      const recordedCells = cells.filter((cell) => cell.attended !== null);
+      const absenceSignalCells = recordedRequiredCells.length > 0 ? recordedRequiredCells : recordedCells;
+      const currentAbsent = absenceSignalCells[0]?.attended === false;
       let consecutiveAbsences = 0;
-      for (const cell of requiredCells) {
+      for (const cell of absenceSignalCells) {
         if (cell.attended !== false) break;
         consecutiveAbsences += 1;
       }

@@ -297,7 +297,13 @@ export function TeacherRoleCards() {
         seeded[student.uid] = presentByStudent.get(student.uid) ?? false;
       });
     });
-    setAttendanceDrafts(seeded);
+    setAttendanceDrafts((prev) => {
+      const next = { ...seeded };
+      Object.keys(prev).forEach((studentUid) => {
+        if (studentUid in seeded) next[studentUid] = prev[studentUid];
+      });
+      return next;
+    });
   }, [attendance, groupIds.join('|'), studentsByVisibleGroup]);
 
   const saveAttendanceGroup = async (gid: string, students: TeacherStudent[]) => {

@@ -335,12 +335,12 @@ const googleEventToScheduleRow = (event: GoogleEvent, overrides: Partial<Schedul
     starts_at: start.startsAt || null,
     ends_at: end.startsAt || null,
     item_type: inferItemType(title),
-    member_id: overrides.member_id || null,
-    member_name: overrides.member_name || null,
     status: 'open',
     source: 'google_calendar',
     external_id: event.id,
     memo: event.description || null,
+    ...(overrides.member_id !== undefined ? { member_id: overrides.member_id || null } : {}),
+    ...(overrides.member_name !== undefined ? { member_name: overrides.member_name || null } : {}),
   };
 };
 
@@ -350,7 +350,7 @@ const parseEventInput = (raw: unknown): CalendarEventInput | null => {
   const input: CalendarEventInput = {
     title: cleanText(data.title),
     date: cleanText(data.date),
-    endDate: cleanText(data.endDate),
+    endDate: cleanText(data.endDate) || cleanText(data.date),
     startsAt: cleanText(data.startsAt),
     endsAt: cleanText(data.endsAt),
     memberId: cleanText(data.memberId),
@@ -522,23 +522,30 @@ const handleSync = async () => {
     if (updatedRows[0]) exportedItems.push(rowToScheduleItem(updatedRows[0]));
   }
 
-  const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(access.connection.calendar_id)}/events`);
-  url.searchParams.set('singleEvents', 'true');
-  url.searchParams.set('orderBy', 'startTime');
-  url.searchParams.set('timeMin', timeMin);
-  url.searchParams.set('timeMax', timeMax);
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${access.accessToken}` } });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) return noStoreJson({ error: typeof data.error?.message === 'string' ? data.error.message : 'Failed to sync Google Calendar events.' }, response.status);
-
   const items = [];
-  const googleEvents = (Array.isArray(data.items) ? data.items : []) as GoogleEvent[];
+  const googleEvents: GoogleEvent[] = [];
+  let pageToken = '';
+  do {
+    const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(access.connection.calendar_id)}/events`);
+    url.searchParams.set('singleEvents', 'true');
+    url.searchParams.set('orderBy', 'startTime');
+    url.searchParams.set('timeMin', timeMin);
+    url.searchParams.set('timeMax', timeMax);
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${access.accessToken}` } });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return noStoreJson({ error: typeof data.error?.message === 'string' ? data.error.message : 'Failed to sync Google Calendar events.' }, response.status);
+    googleEvents.push(...((Array.isArray(data.items) ? data.items : []) as GoogleEvent[]));
+    pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
+  } while (pageToken);
+
   for (const event of googleEvents) {
     const upsert = await upsertScheduleItem(googleEventToScheduleRow(event));
     if ('response' in upsert) return upsert.response;
     if (upsert.item) items.push(upsert.item);
   }
-  return noStoreJson({ items: [...exportedItems, ...items], exportedItems, calendarEventCount: googleEvents.length, exportedCount: exportedItems.length, timeMin, timeMax });
+  const byId = new Map([...exportedItems, ...items].map((item) => [item.id, item]));
+  return noStoreJson({ items: [...byId.values()], exportedItems, calendarEventCount: googleEvents.length, exportedCount: exportedItems.length, timeMin, timeMax });
 };
 
 const handleCreateEvent = async (req: Request) => {
