@@ -28,6 +28,7 @@ type ScheduleItemRow = {
   id: string;
   title: string;
   date: string;
+  end_date?: string | null;
   starts_at?: string | null;
   ends_at?: string | null;
   item_type: 'visitation' | 'counseling' | 'task' | 'meeting' | 'other';
@@ -50,6 +51,7 @@ type GoogleEvent = {
 type CalendarEventInput = {
   title: string;
   date: string;
+  endDate?: string;
   startsAt: string;
   endsAt?: string;
   memberId?: string;
@@ -62,6 +64,7 @@ const ADMIN_EMAIL = 'crushidea@gmail.com';
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const TIME_ZONE = 'Asia/Seoul';
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const SCHEDULE_SELECT = 'id,title,date,end_date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at';
 
 const getEnv = (key: string) => {
   const netlifyValue = typeof Netlify !== 'undefined' ? Netlify.env.get(key) : undefined;
@@ -245,6 +248,7 @@ const rowToScheduleItem = (row: ScheduleItemRow) => ({
   id: row.id,
   title: row.title,
   date: row.date,
+  endDate: row.end_date || row.date,
   startsAt: row.starts_at || '',
   endsAt: row.ends_at || '',
   itemType: row.item_type,
@@ -280,14 +284,28 @@ const addOneHour = (time: string) => {
   return `${String((Number(hour) + 1) % 24).padStart(2, '0')}:${String(Number(minute)).padStart(2, '0')}`;
 };
 
+const addDaysIso = (dateIso: string, days: number) => {
+  const [year, month, day] = dateIso.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+};
+
 const buildGoogleEventPayload = (input: CalendarEventInput) => {
+  const endDate = input.endDate || input.date;
+  if (!input.startsAt && !input.endsAt && endDate !== input.date) {
+    return {
+      summary: input.title,
+      description: input.memo || '',
+      start: { date: input.date },
+      end: { date: addDaysIso(endDate, 1) },
+    };
+  }
   const startsAt = input.startsAt || '09:00';
   const endsAt = input.endsAt || addOneHour(startsAt);
   return {
     summary: input.title,
     description: input.memo || '',
     start: { dateTime: `${input.date}T${startsAt}:00`, timeZone: TIME_ZONE },
-    end: { dateTime: `${input.date}T${endsAt}:00`, timeZone: TIME_ZONE },
+    end: { dateTime: `${endDate}T${endsAt}:00`, timeZone: TIME_ZONE },
   };
 };
 
@@ -308,10 +326,12 @@ const inferItemType = (title: string): ScheduleItemRow['item_type'] => {
 const googleEventToScheduleRow = (event: GoogleEvent, overrides: Partial<ScheduleItemRow> = {}) => {
   const start = normalizeGoogleTime(event.start);
   const end = normalizeGoogleTime(event.end);
+  const endDate = event.end?.date ? addDaysIso(event.end.date, -1) : end.date || start.date;
   const title = event.summary || 'Google Calendar 일정';
   return {
     title,
     date: start.date,
+    end_date: endDate < start.date ? start.date : endDate,
     starts_at: start.startsAt || null,
     ends_at: end.startsAt || null,
     item_type: inferItemType(title),
@@ -330,6 +350,7 @@ const parseEventInput = (raw: unknown): CalendarEventInput | null => {
   const input: CalendarEventInput = {
     title: cleanText(data.title),
     date: cleanText(data.date),
+    endDate: cleanText(data.endDate),
     startsAt: cleanText(data.startsAt),
     endsAt: cleanText(data.endsAt),
     memberId: cleanText(data.memberId),
@@ -337,7 +358,8 @@ const parseEventInput = (raw: unknown): CalendarEventInput | null => {
     memo: cleanText(data.memo),
     sourceLogId: cleanText(data.sourceLogId),
   };
-  if (!input.title || input.title.length > 120 || !validDate(input.date) || !validTime(input.startsAt) || !validTime(input.endsAt)) return null;
+  if (!input.title || input.title.length > 120 || !validDate(input.date) || !validDate(input.endDate) || !validTime(input.startsAt) || !validTime(input.endsAt)) return null;
+  if ((input.endDate || input.date) < input.date) return null;
   if ((input.memberName || '').length > 100 || (input.memo || '').length > 1000) return null;
   return input;
 };
@@ -353,6 +375,17 @@ const getKoreanWeekWindow = () => {
   return {
     timeMin: new Date(weekStartUtc).toISOString(),
     timeMax: new Date(weekEndUtc).toISOString(),
+  };
+};
+
+const getCalendarSyncWindow = () => {
+  const nowKst = new Date(Date.now() + KST_OFFSET_MS);
+  const year = nowKst.getUTCFullYear();
+  const month = nowKst.getUTCMonth();
+  const date = nowKst.getUTCDate();
+  return {
+    timeMin: new Date(Date.UTC(year, month - 3, date, 0, 0, 0, 0) - KST_OFFSET_MS).toISOString(),
+    timeMax: new Date(Date.UTC(year + 1, month, date, 23, 59, 59, 999) - KST_OFFSET_MS).toISOString(),
   };
 };
 
@@ -410,7 +443,7 @@ const upsertScheduleItem = async (row: Record<string, unknown>) => {
 
   const result = existingId
     ? await supabaseFetch(
-        `raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at&id=eq.${encodeURIComponent(existingId)}`,
+        `raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&id=eq.${encodeURIComponent(existingId)}`,
         {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
@@ -418,7 +451,7 @@ const upsertScheduleItem = async (row: Record<string, unknown>) => {
         }
       )
     : await supabaseFetch(
-        'raah_ministry_schedule_items?select=id,title,date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at',
+        `raah_ministry_schedule_items?select=${SCHEDULE_SELECT}`,
         {
           method: 'POST',
           headers: { Prefer: 'return=representation' },
@@ -451,7 +484,44 @@ const getCalendarAccess = async () => {
 const handleSync = async () => {
   const access = await getCalendarAccess();
   if ('response' in access) return access.response;
-  const { timeMin, timeMax } = getKoreanWeekWindow();
+  const { timeMin, timeMax } = getCalendarSyncWindow();
+  const exportedItems = [];
+  const manualResult = await supabaseFetch(
+    `raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&source=eq.manual&external_id=is.null&status=eq.open&date=gte.${encodeURIComponent(timeMin.slice(0, 10))}&date=lte.${encodeURIComponent(timeMax.slice(0, 10))}&limit=100`
+  );
+  if (manualResult.response) return manualResult.response;
+  const manualRows = (await manualResult.supabaseResponse.json().catch(() => [])) as ScheduleItemRow[];
+  if (!manualResult.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH schedules for Google Calendar export.' }, manualResult.supabaseResponse.status);
+  for (const row of manualRows) {
+    const createResponse = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(access.connection.calendar_id)}/events`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        buildGoogleEventPayload({
+          title: row.title,
+          date: row.date,
+          endDate: row.end_date || row.date,
+          startsAt: row.starts_at || '',
+          endsAt: row.ends_at || '',
+          memo: row.memo || '',
+        })
+      ),
+    });
+    const createdEvent = (await createResponse.json().catch(() => ({}))) as GoogleEvent & { error?: { message?: string } };
+    if (!createResponse.ok || !createdEvent.id) {
+      return noStoreJson({ error: createdEvent.error?.message || 'Failed to export RAAH schedule to Google Calendar.' }, createResponse.status || 500);
+    }
+    const update = await supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&id=eq.${encodeURIComponent(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ source: 'google_calendar', external_id: createdEvent.id }),
+    });
+    if (update.response) return update.response;
+    const updatedRows = (await update.supabaseResponse.json().catch(() => [])) as ScheduleItemRow[];
+    if (!update.supabaseResponse.ok) return noStoreJson({ error: 'Failed to mark exported RAAH schedule.' }, update.supabaseResponse.status);
+    if (updatedRows[0]) exportedItems.push(rowToScheduleItem(updatedRows[0]));
+  }
+
   const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(access.connection.calendar_id)}/events`);
   url.searchParams.set('singleEvents', 'true');
   url.searchParams.set('orderBy', 'startTime');
@@ -468,7 +538,7 @@ const handleSync = async () => {
     if ('response' in upsert) return upsert.response;
     if (upsert.item) items.push(upsert.item);
   }
-  return noStoreJson({ items, calendarEventCount: googleEvents.length, timeMin, timeMax });
+  return noStoreJson({ items: [...exportedItems, ...items], exportedItems, calendarEventCount: googleEvents.length, exportedCount: exportedItems.length, timeMin, timeMax });
 };
 
 const handleCreateEvent = async (req: Request) => {

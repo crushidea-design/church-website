@@ -88,6 +88,11 @@ function getScheduleTypeLabel(value: RaahMinistryScheduleItemInput['itemType']) 
   return SCHEDULE_TYPES.find((type) => type.value === value)?.label || '기타';
 }
 
+function getScheduleMemberLabel(item: Pick<RaahMinistryScheduleItem, 'itemType' | 'memberName'>) {
+  if (item.itemType !== 'visitation' && item.itemType !== 'counseling') return '';
+  return item.memberName || '';
+}
+
 const TEXT = {
   tabs: {
     dashboard: '홈',
@@ -166,6 +171,13 @@ function addDaysIso(dateIso: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function getDateSpanDays(startIso: string, endIso?: string) {
+  if (!endIso || endIso < startIso) return 0;
+  const start = parseIsoDateParts(startIso);
+  const end = parseIsoDateParts(endIso);
+  return Math.round((Date.UTC(end.year, end.month - 1, end.day) - Date.UTC(start.year, start.month - 1, start.day)) / 86400000);
+}
+
 function addMonthsIso(dateIso: string, monthsToAdd: number) {
   const { year, month } = parseIsoDateParts(dateIso);
   const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
@@ -186,7 +198,7 @@ function getWeekCalendarDays(anchorIso: string, items: RaahMinistryScheduleItem[
     return {
       dateIso,
       label,
-      items: openItems.filter((item) => item.date === dateIso),
+      items: openItems.filter((item) => isScheduleItemOnDate(item, dateIso)),
       isToday: dateIso === todayIso,
     };
   });
@@ -209,11 +221,21 @@ function getMonthCalendarDays(anchorIso: string, items: RaahMinistryScheduleItem
     return {
       dateIso,
       label: WEEKDAY_LABELS[index % 7],
-      items: openItems.filter((item) => item.date === dateIso),
+      items: openItems.filter((item) => isScheduleItemOnDate(item, dateIso)),
       isToday: dateIso === todayIso,
       isCurrentMonth: year === currentYear && month === currentMonth,
     };
   });
+}
+
+function isScheduleItemOnDate(item: RaahMinistryScheduleItem, dateIso: string) {
+  const endDate = item.endDate || item.date;
+  return item.date <= dateIso && dateIso <= endDate;
+}
+
+function formatScheduleDateRange(item: Pick<RaahMinistryScheduleItem, 'date' | 'endDate'>) {
+  if (!item.endDate || item.endDate === item.date) return formatDisplayDate(item.date);
+  return `${formatDisplayDate(item.date)} - ${formatDisplayDate(item.endDate)}`;
 }
 
 function getMonthRangeLabel(dateIso: string) {
@@ -241,6 +263,7 @@ function getDateForAttendanceEventType(dateIso: string, eventType: RaahAttendanc
 const emptyScheduleForm = (): RaahMinistryScheduleItemInput => ({
   title: '',
   date: getTodayIso(),
+  endDate: getTodayIso(),
   startsAt: '',
   endsAt: '',
   itemType: 'task',
@@ -560,7 +583,7 @@ export default function AdminPastoralNotes() {
       return !normalizedSearch || text.includes(normalizedSearch);
     });
   const filteredScheduleItems = ministryScheduleItems.filter((item) => {
-    const text = [item.title, item.memberName, item.memo, item.itemType, item.date].join(' ').toLocaleLowerCase('ko-KR');
+    const text = [item.title, getScheduleMemberLabel(item), item.memo, item.itemType, item.date, item.endDate].join(' ').toLocaleLowerCase('ko-KR');
     return !normalizedSearch || text.includes(normalizedSearch);
   });
   const filteredLegacyNotes = legacyNotes.filter((note) => !normalizedSearch || note.memberSearchName.includes(normalizedSearch));
@@ -707,6 +730,7 @@ export default function AdminPastoralNotes() {
     setScheduleForm({
       title: item.title,
       date: item.date,
+      endDate: item.endDate || item.date,
       startsAt: item.startsAt || '',
       endsAt: item.endsAt || '',
       itemType: item.itemType,
@@ -719,19 +743,22 @@ export default function AdminPastoralNotes() {
 
   const openNewScheduleForm = (dateIso?: string, template?: RaahMinistryScheduleItem | null) => {
     setEditingScheduleItemId(null);
+    const baseDate = dateIso || template?.date || getTodayIso();
+    const templateSpanDays = template ? getDateSpanDays(template.date, template.endDate) : 0;
     setScheduleForm(
       template
         ? {
           title: template.title,
-          date: dateIso || template.date,
+          date: baseDate,
+          endDate: addDaysIso(baseDate, templateSpanDays),
           startsAt: template.startsAt || '',
           endsAt: template.endsAt || '',
           itemType: template.itemType,
-          memberId: template.memberId || '',
-          memberName: template.memberName || '',
+          memberId: '',
+          memberName: '',
           memo: template.memo || '',
         }
-        : { ...emptyScheduleForm(), date: dateIso || getTodayIso() }
+        : { ...emptyScheduleForm(), date: baseDate, endDate: baseDate }
     );
     setIsScheduleFormOpen(true);
   };
@@ -954,11 +981,16 @@ export default function AdminPastoralNotes() {
     }
     setIsSaving(true);
     try {
+      if ((scheduleForm.endDate || scheduleForm.date) < scheduleForm.date) {
+        toast.error('종료일은 시작일보다 빠를 수 없습니다.');
+        return;
+      }
       const input = {
         ...scheduleForm,
         title: scheduleForm.title.trim(),
-        memberId: scheduleForm.memberId || (!editingScheduleItemId ? selectedMember?.id || '' : ''),
-        memberName: scheduleForm.memberName || (!editingScheduleItemId ? selectedMember?.name || '' : ''),
+        endDate: scheduleForm.endDate || scheduleForm.date,
+        memberId: scheduleForm.memberId || '',
+        memberName: scheduleForm.memberName || '',
       };
       const item = editingScheduleItemId ? await updateRaahMinistryScheduleItem(editingScheduleItemId, input, user) : await createRaahMinistryScheduleItem(input, user);
       setMinistryScheduleItems((prev) => (editingScheduleItemId ? prev.map((current) => (current.id === item.id ? item : current)) : [...prev, item]));
@@ -1455,7 +1487,7 @@ function ScheduleTab({
   setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   editingScheduleItemId: string | null;
   isScheduleFormOpen: boolean;
-  onOpenNewSchedule: () => void;
+  onOpenNewSchedule: (dateIso?: string) => void;
   onCloseScheduleForm: () => void;
   onEdit: (item: RaahMinistryScheduleItem) => void;
   calendarStatus: RaahCalendarStatus | null;
@@ -1610,9 +1642,9 @@ function ScheduleListColumn({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#17202b]">{item.title}</p>
                   <p className="mt-1 text-xs text-[#607080]">
-                    {formatDisplayDate(item.date)}
+                    {formatScheduleDateRange(item)}
                     {item.startsAt ? ` · ${item.startsAt}` : ''}
-                    {item.memberName ? ` · ${item.memberName}` : ''}
+                    {getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}
                   </p>
                 </div>
                 <span className={shell.badge}>{getScheduleTypeLabel(item.itemType)}</span>
@@ -1681,7 +1713,7 @@ function DashboardTab({
   setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   editingScheduleItemId: string | null;
   isScheduleFormOpen: boolean;
-  onOpenNewSchedule: () => void;
+  onOpenNewSchedule: (dateIso?: string) => void;
   onCloseScheduleForm: () => void;
   onEdit: (item: RaahMinistryScheduleItem) => void;
   calendarStatus: RaahCalendarStatus | null;
@@ -1929,7 +1961,7 @@ function buildDashboardTasks({
         kind: 'schedule',
         label: '다가오는 일정',
         title: item.title,
-        description: `${formatDisplayDate(item.date)}${item.startsAt ? ` · ${item.startsAt}` : ''}${item.memberName ? ` · ${item.memberName}` : ''}`,
+        description: `${formatScheduleDateRange(item)}${item.startsAt ? ` · ${item.startsAt}` : ''}${getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}`,
         item,
       });
     });
@@ -2068,7 +2100,7 @@ function MinistrySchedulePanel({
   setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   editingItemId: string | null;
   isOpen: boolean;
-  onOpenNew: () => void;
+  onOpenNew: (dateIso?: string) => void;
   onClose: () => void;
   onEdit: (item: RaahMinistryScheduleItem) => void;
   calendarStatus: RaahCalendarStatus | null;
@@ -2090,6 +2122,7 @@ function MinistrySchedulePanel({
   const monthRange = getMonthRangeLabel(anchorDate);
   const hasOpenItems = items.some((item) => item.status === 'open');
   const [selectedFormDate, setSelectedFormDate] = React.useState<string | null>(null);
+  const lastWheelAtRef = React.useRef(0);
   const shiftCalendar = (direction: -1 | 1) => {
     setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)));
   };
@@ -2109,7 +2142,15 @@ function MinistrySchedulePanel({
       return;
     }
     setSelectedFormDate(anchorDate);
-    onOpenNew();
+    onOpenNew(anchorDate);
+  };
+  const handleCalendarWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (Math.abs(event.deltaY) < 20) return;
+    const now = Date.now();
+    if (now - lastWheelAtRef.current < 420) return;
+    event.preventDefault();
+    lastWheelAtRef.current = now;
+    shiftCalendar(event.deltaY > 0 ? 1 : -1);
   };
   return (
     <div className={shell.panel + ' p-5'}>
@@ -2183,47 +2224,49 @@ function MinistrySchedulePanel({
         )}
       </div>
 
-      {viewMode === 'week' ? (
-        <WeekScheduleGrid
-          days={weekDays}
-          rangeLabel={weekRange}
-          form={form}
-          setForm={setForm}
-          formDate={isOpen ? selectedFormDate : null}
-          editingItemId={editingItemId}
-          isSaving={isSaving}
-          copiedItem={copiedItem}
-          onDateSelect={openFormForDate}
-          onCloseForm={() => {
-            setSelectedFormDate(null);
-            onClose();
-          }}
-          onSubmit={onSubmit}
-          onCopy={onCopyItem}
-          onComplete={onComplete}
-          onEdit={openFormForEdit}
-        />
-      ) : (
-        <MonthScheduleGrid
-          days={monthDays}
-          rangeLabel={monthRange}
-          form={form}
-          setForm={setForm}
-          formDate={isOpen ? selectedFormDate : null}
-          editingItemId={editingItemId}
-          isSaving={isSaving}
-          copiedItem={copiedItem}
-          onDateSelect={openFormForDate}
-          onCloseForm={() => {
-            setSelectedFormDate(null);
-            onClose();
-          }}
-          onSubmit={onSubmit}
-          onCopy={onCopyItem}
-          onComplete={onComplete}
-          onEdit={openFormForEdit}
-        />
-      )}
+      <div onWheel={handleCalendarWheel}>
+        {viewMode === 'week' ? (
+          <WeekScheduleGrid
+            days={weekDays}
+            rangeLabel={weekRange}
+            form={form}
+            setForm={setForm}
+            formDate={isOpen ? selectedFormDate : null}
+            editingItemId={editingItemId}
+            isSaving={isSaving}
+            copiedItem={copiedItem}
+            onDateSelect={openFormForDate}
+            onCloseForm={() => {
+              setSelectedFormDate(null);
+              onClose();
+            }}
+            onSubmit={onSubmit}
+            onCopy={onCopyItem}
+            onComplete={onComplete}
+            onEdit={openFormForEdit}
+          />
+        ) : (
+          <MonthScheduleGrid
+            days={monthDays}
+            rangeLabel={monthRange}
+            form={form}
+            setForm={setForm}
+            formDate={isOpen ? selectedFormDate : null}
+            editingItemId={editingItemId}
+            isSaving={isSaving}
+            copiedItem={copiedItem}
+            onDateSelect={openFormForDate}
+            onCloseForm={() => {
+              setSelectedFormDate(null);
+              onClose();
+            }}
+            onSubmit={onSubmit}
+            onCopy={onCopyItem}
+            onComplete={onComplete}
+            onEdit={openFormForEdit}
+          />
+        )}
+      </div>
       {!hasOpenItems && <EmptyState>등록된 사역 일정이 없습니다.</EmptyState>}
     </div>
   );
@@ -2247,7 +2290,7 @@ function SchedulePopupForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="absolute left-1/2 top-12 z-50 max-h-[72vh] w-[min(460px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[#cbd8df] bg-white p-4 text-left shadow-[0_22px_58px_rgba(21,38,57,0.22)]"
+      className="fixed left-1/2 top-[max(6rem,12vh)] z-[80] max-h-[78vh] w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[#cbd8df] bg-white p-4 text-left shadow-[0_22px_58px_rgba(21,38,57,0.22)]"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
@@ -2263,6 +2306,10 @@ function SchedulePopupForm({
         <div className="grid grid-cols-[minmax(0,1fr),112px] gap-2">
           <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
           <TextInput label="시간" type="time" value={form.startsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, startsAt: value }))} />
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <TextInput label="종료일" type="date" value={form.endDate || form.date} onChange={(value) => setForm((prev) => ({ ...prev, endDate: value || prev.date }))} />
+          <TextInput label="종료 시간" type="time" value={form.endsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, endsAt: value }))} />
         </div>
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">유형</span>
@@ -2364,7 +2411,7 @@ function WeekScheduleGrid({
                         <p className="truncate text-xs font-semibold text-[#17202b]">{item.title}</p>
                         <p className="mt-1 text-[11px] text-[#607080]">
                           {item.startsAt || '시간 미정'}
-                          {item.memberName ? ` · ${item.memberName}` : ''}
+                          {getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}
                         </p>
                       </div>
                       {onCopy && (
@@ -2484,7 +2531,7 @@ function MonthScheduleGrid({
                           <p className="truncate text-[11px] font-semibold text-[#17202b]">{item.title}</p>
                           <p className="mt-0.5 truncate text-[10px] text-[#607080]">
                             {item.startsAt || '시간 미정'}
-                            {item.memberName ? ` · ${item.memberName}` : ''}
+                            {getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}
                           </p>
                         </div>
                         {onCopy && (
@@ -2550,9 +2597,9 @@ function ScheduleColumn({ title, items, isSaving, onComplete }: { title: string;
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{item.title}</p>
                 <p className="mt-1 text-xs text-[#607080]">
-                  {formatDisplayDate(item.date)}
+                  {formatScheduleDateRange(item)}
                   {item.startsAt ? ` · ${item.startsAt}` : ''}
-                  {item.memberName ? ` · ${item.memberName}` : ''}
+                  {getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}
                 </p>
                 {item.memo && <p className="mt-1 line-clamp-2 text-xs text-[#607080]">{item.memo}</p>}
               </div>

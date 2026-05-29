@@ -15,9 +15,16 @@ describe('RAAH dashboard schedule form wiring', () => {
     expect(source).toContain('onCopySchedule={(item) => {');
     expect(source).toContain('Google 동기화');
     expect(source).toContain('Google 설정 필요');
-    expect(source).toContain('w-[min(460px,calc(100vw-3rem))]');
+    expect(source).toContain('fixed left-1/2 top-[max(6rem,12vh)]');
+    expect(source).toContain('w-[min(520px,calc(100vw-2rem))]');
+    expect(source).toContain('onOpenNew(anchorDate)');
+    expect(source).toContain('onWheel={handleCalendarWheel}');
+    expect(source).toContain('endDate: scheduleForm.endDate || scheduleForm.date');
     expect(source).not.toContain('className="mt-4 grid gap-3 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 lg:grid-cols-[minmax(160px,1fr),150px,110px,120px,minmax(160px,1fr),80px]"');
     expect(source).toContain("setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)))");
+    expect(source).toContain("memberId: scheduleForm.memberId || ''");
+    expect(source).toContain("memberName: scheduleForm.memberName || ''");
+    expect(source).not.toContain("selectedMember?.name || ''");
   });
 
   it('saves dashboard schedule items through the RAAH schedule API, not Google Calendar events', () => {
@@ -44,9 +51,23 @@ describe('RAAH dashboard schedule form wiring', () => {
     expect(source).toContain('onEdit={openScheduleFormForEdit}');
     expect(submitHandler).toContain('editingScheduleItemId ? await updateRaahMinistryScheduleItem(editingScheduleItemId, input, user)');
     expect(managementApi).toContain('export async function updateRaahMinistryScheduleItem');
+    expect(managementApi).toContain('endDate?: string;');
     expect(managementApi).toContain("method: 'PATCH'");
     expect(server).toContain('const handleUpdateScheduleItem = async');
+    expect(server).toContain('end_date: input.endDate || input.date');
     expect(server).toContain("if (route === 'schedule' && req.method === 'PATCH' && id) return handleUpdateScheduleItem(req, id);");
+  });
+
+  it('syncs Google Calendar over a wider schedule window and exports unsynced RAAH items', () => {
+    const calendarServer = readFileSync(new URL('../../netlify/functions/raah-calendar.mts', import.meta.url), 'utf8');
+    const calendarClient = readFileSync(new URL('../features/pastoral-notes/raahCalendar.ts', import.meta.url), 'utf8');
+
+    expect(calendarServer).toContain('const getCalendarSyncWindow = () =>');
+    expect(calendarServer).toContain('source=eq.manual&external_id=is.null&status=eq.open');
+    expect(calendarServer).toContain("body: JSON.stringify({ source: 'google_calendar', external_id: createdEvent.id })");
+    expect(calendarServer).toContain('end_date: endDate < start.date ? start.date : endDate');
+    expect(calendarClient).toContain('endDate?: string;');
+    expect(calendarClient).toContain('endDate: endDate < start.date ? start.date : endDate');
   });
 });
 
