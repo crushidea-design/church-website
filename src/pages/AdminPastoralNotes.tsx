@@ -60,38 +60,47 @@ import { buildRaahAttendanceFlow, RaahAttendanceFlowCell, RaahAttendanceFlowEven
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PASTORAL_MEETING_TYPES, PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
 import { createEmptyPastoralNoteInput, formatDisplayDate, normalizeMemberName, sortNotesByDate } from '../features/pastoral-notes/utils';
+import {
+  ATTENDANCE_EVENT_OPTIONS,
+  LOG_TYPES,
+  SCHEDULE_TYPES,
+  WEEKDAY_LABELS,
+  addDaysIso,
+  addMonthsIso,
+  emptyCalendarEventForm,
+  emptyLogForm,
+  emptyMemberForm,
+  emptyScheduleForm,
+  emptySummary,
+  formatScheduleDateRange,
+  getAttendanceOption,
+  getCalendarDisplayName,
+  getDashboardSeason,
+  getDateForAttendanceEventType,
+  getDateSpanDays,
+  getErrorMessage,
+  getKoreanDateIso,
+  getLatestSunday,
+  getMonthCalendarDays,
+  getMonthRangeLabel,
+  getMonthStartIso,
+  getOpenScheduleItems,
+  getScheduleMemberLabel,
+  getScheduleTypeLabel,
+  getTodayIso,
+  getWeekCalendarDays,
+  getWeekStartIso,
+  isRaahSubdomain,
+  isScheduleItemOnDate,
+  parseIsoDateParts,
+  percent,
+} from '../features/pastoral-notes/adminHelpers';
 import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
 type StorageMode = 'loading' | 'supabase' | 'firestore';
 type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
 type ScheduleViewMode = 'week' | 'month';
-
-const LOG_TYPES = ['심방', '상담', '기도', '전화', '양육', '기타'];
-const ATTENDANCE_EVENT_OPTIONS: Array<{ type: RaahAttendanceEventType; label: string; serviceType: string; includesCommunion: boolean }> = [
-  { type: 'sunday_morning', label: '주일 오전', serviceType: '주일 오전예배', includesCommunion: true },
-  { type: 'sunday_afternoon', label: '주일 오후', serviceType: '주일 오후예배', includesCommunion: false },
-  { type: 'young_adults', label: '청년부', serviceType: '청년부 모임', includesCommunion: false },
-  { type: 'wednesday_prayer', label: '수요', serviceType: '수요기도회', includesCommunion: false },
-  { type: 'other', label: '기타', serviceType: '기타 모임', includesCommunion: false },
-];
-
-const SCHEDULE_TYPES: Array<{ value: RaahMinistryScheduleItemInput['itemType']; label: string }> = [
-  { value: 'visitation', label: '심방' },
-  { value: 'counseling', label: '상담' },
-  { value: 'task', label: '할 일' },
-  { value: 'meeting', label: '회의' },
-  { value: 'other', label: '기타' },
-];
-
-function getScheduleTypeLabel(value: RaahMinistryScheduleItemInput['itemType']) {
-  return SCHEDULE_TYPES.find((type) => type.value === value)?.label || '기타';
-}
-
-function getScheduleMemberLabel(item: Pick<RaahMinistryScheduleItem, 'itemType' | 'memberName'>) {
-  if (item.itemType !== 'visitation' && item.itemType !== 'counseling') return '';
-  return item.memberName || '';
-}
 
 const TEXT = {
   tabs: {
@@ -112,202 +121,6 @@ const TEXT = {
   },
 };
 
-const emptySummary: RaahDashboardSummary = {
-  memberCount: 0,
-  activeMemberCount: 0,
-  logCount: 0,
-  encryptedLogCount: 0,
-  thisWeekLogCount: 0,
-  thisWeekAttendanceCount: 0,
-  thisWeekCommunionCount: 0,
-};
-
-const emptyMemberForm: RaahMemberInput = {
-  name: '',
-  birthDate: '',
-  phone: '',
-  address: '',
-  position: '',
-  district: '',
-  registeredAt: new Date().toISOString().slice(0, 10),
-  status: 'active',
-  publicNote: '',
-};
-
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-function getKoreanDateIso(date = new Date()) {
-  return new Date(date.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
-}
-
-function getLatestSunday() {
-  const todayKst = new Date(Date.now() + KST_OFFSET_MS);
-  const sundayKst = new Date(Date.UTC(todayKst.getUTCFullYear(), todayKst.getUTCMonth(), todayKst.getUTCDate() - todayKst.getUTCDay()));
-  return sundayKst.toISOString().slice(0, 10);
-}
-
-function getTodayIso() {
-  return getKoreanDateIso();
-}
-
-function getCalendarDisplayName(status: RaahCalendarStatus | null) {
-  const summary = status?.calendarSummary?.trim();
-  if (summary && !summary.includes('@group.calendar.google.com')) {
-    return summary;
-  }
-  return '라아 캘린더';
-}
-
-const WEEKDAY_LABELS = ['주일', '월', '화', '수', '목', '금', '토'];
-
-function parseIsoDateParts(dateIso: string) {
-  const [year, month, day] = dateIso.split('-').map(Number);
-  return { year, month, day };
-}
-
-function addDaysIso(dateIso: string, days: number) {
-  const { year, month, day } = parseIsoDateParts(dateIso);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return date.toISOString().slice(0, 10);
-}
-
-function getDateSpanDays(startIso: string, endIso?: string) {
-  if (!endIso || endIso < startIso) return 0;
-  const start = parseIsoDateParts(startIso);
-  const end = parseIsoDateParts(endIso);
-  return Math.round((Date.UTC(end.year, end.month - 1, end.day) - Date.UTC(start.year, start.month - 1, start.day)) / 86400000);
-}
-
-function addMonthsIso(dateIso: string, monthsToAdd: number) {
-  const { year, month } = parseIsoDateParts(dateIso);
-  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
-  return date.toISOString().slice(0, 10);
-}
-
-function getWeekStartIso(dateIso: string) {
-  const { year, month, day } = parseIsoDateParts(dateIso);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return addDaysIso(dateIso, -date.getUTCDay());
-}
-
-function getWeekCalendarDays(anchorIso: string, items: RaahMinistryScheduleItem[], todayIso = getTodayIso()) {
-  const weekStart = getWeekStartIso(anchorIso);
-  const openItems = getOpenScheduleItems(items);
-  return WEEKDAY_LABELS.map((label, index) => {
-    const dateIso = addDaysIso(weekStart, index);
-    return {
-      dateIso,
-      label,
-      items: openItems.filter((item) => isScheduleItemOnDate(item, dateIso)),
-      isToday: dateIso === todayIso,
-    };
-  });
-}
-
-function getMonthStartIso(dateIso: string) {
-  const { year, month } = parseIsoDateParts(dateIso);
-  return new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 10);
-}
-
-function getMonthCalendarDays(anchorIso: string, items: RaahMinistryScheduleItem[], todayIso = getTodayIso()) {
-  const monthStart = getMonthStartIso(anchorIso);
-  const gridStart = getWeekStartIso(monthStart);
-  const { year: currentYear, month: currentMonth } = parseIsoDateParts(anchorIso);
-  const openItems = getOpenScheduleItems(items);
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const dateIso = addDaysIso(gridStart, index);
-    const { year, month } = parseIsoDateParts(dateIso);
-    return {
-      dateIso,
-      label: WEEKDAY_LABELS[index % 7],
-      items: openItems.filter((item) => isScheduleItemOnDate(item, dateIso)),
-      isToday: dateIso === todayIso,
-      isCurrentMonth: year === currentYear && month === currentMonth,
-    };
-  });
-}
-
-function isScheduleItemOnDate(item: RaahMinistryScheduleItem, dateIso: string) {
-  const endDate = item.endDate || item.date;
-  return item.date <= dateIso && dateIso <= endDate;
-}
-
-function formatScheduleDateRange(item: Pick<RaahMinistryScheduleItem, 'date' | 'endDate'>) {
-  if (!item.endDate || item.endDate === item.date) return formatDisplayDate(item.date);
-  return `${formatDisplayDate(item.date)} - ${formatDisplayDate(item.endDate)}`;
-}
-
-function getMonthRangeLabel(dateIso: string) {
-  const { year, month } = parseIsoDateParts(dateIso);
-  return `${year}.${String(month).padStart(2, '0')}`;
-}
-
-function getOpenScheduleItems(items: RaahMinistryScheduleItem[]) {
-  return items
-    .filter((item) => item.status === 'open')
-    .sort((a, b) => `${a.date} ${a.startsAt || ''}`.localeCompare(`${b.date} ${b.startsAt || ''}`));
-}
-
-function getAttendanceOption(type: RaahAttendanceEventType) {
-  return ATTENDANCE_EVENT_OPTIONS.find((option) => option.type === type) || ATTENDANCE_EVENT_OPTIONS[0];
-}
-
-function getDateForAttendanceEventType(dateIso: string, eventType: RaahAttendanceEventType) {
-  const weekStart = getWeekStartIso(dateIso);
-  if (eventType === 'wednesday_prayer') return addDaysIso(weekStart, 3);
-  if (eventType === 'other') return dateIso;
-  return weekStart;
-}
-
-const emptyScheduleForm = (): RaahMinistryScheduleItemInput => ({
-  title: '',
-  date: getTodayIso(),
-  endDate: getTodayIso(),
-  startsAt: '',
-  endsAt: '',
-  itemType: 'task',
-  memberId: '',
-  memberName: '',
-  memo: '',
-});
-
-const emptyCalendarEventForm = (): RaahGoogleCalendarEventInput => ({
-  title: '',
-  date: getTodayIso(),
-  startsAt: '14:00',
-  endsAt: '15:00',
-  memberId: '',
-  memberName: '',
-  memo: '',
-  sourceLogId: '',
-});
-
-function getDashboardSeason() {
-  const today = new Date();
-  const day = today.getDay();
-  if (day <= 2) return 'attendance' as const;
-  if (day <= 5) return 'follow-up' as const;
-  return 'prepare' as const;
-}
-
-function percent(value: number, total: number) {
-  if (total <= 0) return 0;
-  return Math.min(100, Math.round((value / total) * 100));
-}
-
-const emptyLogForm = (member?: RaahMember): RaahVisitationLogInput => ({
-  memberId: member?.id || '',
-  memberName: member?.name || '',
-  date: new Date().toISOString().slice(0, 10),
-  logType: LOG_TYPES[0],
-  publicSummary: '',
-  innerNote: '',
-  prayerTopics: '',
-  nextSteps: '',
-  privateRemarks: '',
-});
-
 const shell = {
   page: 'min-h-screen bg-[#f3f6f8] text-[#17202b]',
   panel: 'rounded-xl border border-[#dbe3e8] bg-white shadow-[0_12px_28px_rgba(21,38,57,0.06)]',
@@ -320,17 +133,6 @@ const shell = {
     'inline-flex items-center justify-center gap-2 rounded-lg border border-[#d5dee5] bg-white px-4 py-2.5 text-sm font-semibold text-[#28415b] transition hover:border-[#b7c6d2] hover:bg-[#f7faf9]',
   badge: 'inline-flex items-center gap-1.5 rounded-full border border-[#cfddd8] bg-[#eef7f3] px-2.5 py-1 text-xs font-semibold text-[#2e6b5f]',
 };
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (!error || typeof error !== 'object') return fallback;
-  const typed = error as { message?: string; code?: string };
-  return typed.message || typed.code || fallback;
-}
-
-function isRaahSubdomain() {
-  if (typeof window === 'undefined') return false;
-  return window.location.hostname === 'raah.builttogether.church';
-}
 
 export default function AdminPastoralNotes() {
   const { role, user, loading: authLoading } = useAuth();
