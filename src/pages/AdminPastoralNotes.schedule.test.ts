@@ -3,27 +3,32 @@ import { readFileSync } from 'node:fs';
 
 describe('RAAH dashboard schedule form wiring', () => {
   it('exposes ministry schedule as its own RAAH tab', () => {
-    const source = readFileSync(new URL('./AdminPastoralNotes.tsx', import.meta.url), 'utf8');
+    const page = readFileSync(new URL('./AdminPastoralNotes.tsx', import.meta.url), 'utf8');
+    const schedule = readFileSync(
+      new URL('../features/pastoral-notes/AdminScheduleComponents.tsx', import.meta.url),
+      'utf8'
+    );
+    const source = `${page}\n${schedule}`;
 
-    expect(source).toContain("type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy'");
-    expect(source).toContain("schedule: '사역일정'");
-    expect(source).toContain("{ id: 'schedule', label: TEXT.tabs.schedule");
-    expect(source).toContain("activeTab === 'schedule'");
-    expect(source).toContain('<ScheduleTab');
+    expect(page).toContain("type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy'");
+    expect(page).toContain("schedule: '사역일정'");
+    expect(page).toContain("{ id: 'schedule', label: TEXT.tabs.schedule");
+    expect(page).toContain("activeTab === 'schedule'");
+    expect(page).toContain('<ScheduleTab');
     expect(source).toContain('전체 일정 목록');
-    expect(source).toContain('onSelectDate={(dateIso) => {');
-    expect(source).toContain('onCopySchedule={(item) => {');
+    expect(page).toContain('onSelectDate={(dateIso) => {');
+    expect(page).toContain('onCopySchedule={(item) => {');
     expect(source).toContain('Google 동기화');
     expect(source).toContain('Google 설정 필요');
     expect(source).toContain('fixed left-1/2 top-[max(6rem,12vh)]');
     expect(source).toContain('w-[min(520px,calc(100vw-2rem))]');
     expect(source).toContain('onOpenNew(anchorDate)');
     expect(source).toContain('onWheel={handleCalendarWheel}');
-    expect(source).toContain('endDate: scheduleForm.endDate || scheduleForm.date');
+    expect(page).toContain('endDate: scheduleForm.endDate || scheduleForm.date');
     expect(source).not.toContain('className="mt-4 grid gap-3 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 lg:grid-cols-[minmax(160px,1fr),150px,110px,120px,minmax(160px,1fr),80px]"');
     expect(source).toContain("setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)))");
-    expect(source).toContain("memberId: scheduleForm.memberId || ''");
-    expect(source).toContain("memberName: scheduleForm.memberName || ''");
+    expect(page).toContain("memberId: scheduleForm.memberId || ''");
+    expect(page).toContain("memberName: scheduleForm.memberName || ''");
     expect(source).not.toContain("selectedMember?.name || ''");
   });
 
