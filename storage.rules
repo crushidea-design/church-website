@@ -1,19 +1,45 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /pdfs/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // Allowed document MIME types for post attachments.
+    // Mirrors client-side validation in src/lib/attachments.ts.
+    function isAllowedDocType() {
+      return request.resource != null &&
+        request.resource.contentType in [
+          'application/pdf',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        ];
     }
 
+    // 20MB cap matches MAX_MATERIAL_FILE_SIZE (src/lib/attachments.ts).
+    function isWithinDocSizeLimit() {
+      return request.resource != null && request.resource.size < 20 * 1024 * 1024;
+    }
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Post attachment uploads from CreatePost / EditPost / uploadMaterialFiles.
+    // Reads stay public because download URLs are tokenized and shared on posts.
+    match /pdfs/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isAuthed() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow delete: if isAuthed();
+    }
+
+    // Legacy paths kept for older attachments stored under these prefixes.
     match /materials/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create, update: if isAuthed() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow delete: if isAuthed();
     }
-    
+
     match /sermons/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create, update: if isAuthed() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow delete: if isAuthed();
     }
   }
 }
