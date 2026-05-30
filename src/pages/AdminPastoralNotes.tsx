@@ -95,6 +95,16 @@ import {
   parseIsoDateParts,
   percent,
 } from '../features/pastoral-notes/adminHelpers';
+import { shell } from '../features/pastoral-notes/adminShell';
+import {
+  BigToggle,
+  DetailBlock,
+  EmptyState,
+  FocusCard,
+  MiniCount,
+  TextArea,
+  TextInput,
+} from '../features/pastoral-notes/AdminPrimitives';
 import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
@@ -119,19 +129,6 @@ const TEXT = {
     visitation: '성도, 기록 유형, 요약 검색',
     legacy: '기존 기록 성도 검색',
   },
-};
-
-const shell = {
-  page: 'min-h-screen bg-[#f3f6f8] text-[#17202b]',
-  panel: 'rounded-xl border border-[#dbe3e8] bg-white shadow-[0_12px_28px_rgba(21,38,57,0.06)]',
-  mutedPanel: 'rounded-xl border border-[#dbe3e8] bg-[#f7faf9]',
-  input:
-    'w-full rounded-lg border border-[#d5dee5] bg-white px-3 py-2.5 text-sm text-[#17202b] outline-none transition placeholder:text-[#8a97a3] focus:border-[#2e6b5f] focus:ring-2 focus:ring-[#2e6b5f]/15',
-  button:
-    'inline-flex items-center justify-center gap-2 rounded-lg bg-[#12345a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0c2745] disabled:cursor-not-allowed disabled:opacity-60',
-  ghostButton:
-    'inline-flex items-center justify-center gap-2 rounded-lg border border-[#d5dee5] bg-white px-4 py-2.5 text-sm font-semibold text-[#28415b] transition hover:border-[#b7c6d2] hover:bg-[#f7faf9]',
-  badge: 'inline-flex items-center gap-1.5 rounded-full border border-[#cfddd8] bg-[#eef7f3] px-2.5 py-1 text-xs font-semibold text-[#2e6b5f]',
 };
 
 export default function AdminPastoralNotes() {
@@ -3293,81 +3290,6 @@ function LegacyTab({
       </div>
       <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} editing={editing} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} onEdit={onEdit} canEdit={canEdit} />
     </section>
-  );
-}
-
-function FocusCard({ label, value, helper, icon }: { label: string; value: number; helper?: string; icon: React.ReactNode }) {
-  return (
-    <div className={shell.panel + ' p-4'}>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">{label}</p>
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef7f3] text-[#2e6b5f]">{icon}</span>
-      </div>
-      <p className="mt-3 text-2xl font-semibold text-[#17202b] sm:text-3xl">{value}</p>
-      {helper && <p className="mt-1 text-xs text-[#607080]">{helper}</p>}
-    </div>
-  );
-}
-
-function MiniCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className={shell.mutedPanel + ' p-3'}>
-      <p className="text-xs font-semibold text-[#607080]">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-[#17202b]">{value}</p>
-    </div>
-  );
-}
-
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-xl border border-dashed border-[#ccd7df] bg-[#f8fafb] p-8 text-center text-sm text-[#607080]">{children}</p>;
-}
-
-function TextInput({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={shell.input} />
-    </label>
-  );
-}
-
-function TextArea({ label, value, onChange, rows = 4, locked }: { label: string; value: string; onChange: (value: string) => void; rows?: number; locked?: boolean }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">
-        {locked && <Lock size={13} />}
-        {label}
-      </span>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={rows} className={`${shell.input} leading-6`} />
-    </label>
-  );
-}
-
-function DetailBlock({ label, value, locked }: { label: string; value?: string; locked?: boolean }) {
-  return (
-    <div className={shell.mutedPanel + ' p-4'}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#607080]">
-        {locked && <Lock size={13} />}
-        {label}
-      </div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#28415b]">{value?.trim() ? value : '-'}</p>
-    </div>
-  );
-}
-
-function BigToggle({ active, label, onClick, text, accent, disabled }: { active: boolean; label: string; onClick: () => void; text: string; accent?: boolean; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`min-h-9 rounded-lg border px-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
-        active ? (accent ? 'border-[#2e6b5f] bg-[#eef7f3] text-[#245b51]' : 'border-[#12345a] bg-[#12345a] text-white') : 'border-[#d5dee5] bg-white text-[#2e6b5f] hover:bg-[#f7faf9]'
-      }`}
-      aria-label={label}
-    >
-      {text}
-    </button>
   );
 }
 
