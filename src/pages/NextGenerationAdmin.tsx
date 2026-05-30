@@ -24,92 +24,22 @@ import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationServ
 import BibleReadingChart from './BibleReadingChart';
 import WordFruitSettings from '../features/word-fruit/WordFruitSettings';
 
-type QADepartment = 'elementary' | 'young-adults';
-
-interface QAItem {
-  id: string;
-  title: string;
-  content: string;
-  authorId: string;
-  authorName: string;
-  department?: QADepartment;
-  isPrivate?: boolean;
-  createdAt: Timestamp;
-  isAnswered: boolean;
-  answer?: string;
-  answeredAt?: Timestamp;
-  answeredBy?: string;
-}
-
-const QA_DEPARTMENT_LABEL: Record<QADepartment, string> = {
-  elementary: '유초등부',
-  'young-adults': '청년부',
-};
-
-const QA_DEPARTMENT_BADGE: Record<QADepartment, string> = {
-  elementary: 'bg-amber-100 text-amber-800 border-amber-200',
-  'young-adults': 'bg-sky-100 text-sky-800 border-sky-200',
-};
-
-interface ContactItem {
-  id: string;
-  name: string;
-  email: string;
-  message: string;
-  createdAt: Timestamp;
-  isRead: boolean;
-}
-
-type AdminTab = 'members' | 'classes' | 'bibleReading' | 'qa' | 'contacts' | 'notifications' | 'migration' | 'wordFruit';
-
-interface MigrationRow {
-  postId: string;
-  title: string;
-  status: 'pending' | 'done' | 'skipped' | 'error';
-  error?: string;
-}
-
-interface ClassReadingDoc {
-  uid: string;
-  completedBooks?: string[];
-  updatedAt?: Timestamp;
-}
-
-const NEXT_NOTIFICATION_TARGETS = [
-  { value: '/next', label: '다음세대 홈' },
-  { value: '/next/elementary', label: '초등부 자료' },
-  { value: '/next/young-adults', label: '청년부 자료' },
-  { value: '/next/contact', label: '문의하기' },
-];
-
-const NOTIFICATION_DEPARTMENT_OPTIONS: Department[] = [...NEXT_GENERATION_DEPARTMENTS];
-
-const DEPT_COLORS: Record<Department, string> = {
-  '청년': 'bg-blue-100 text-blue-700',
-  '교사': 'bg-green-100 text-green-700',
-  '학부모': 'bg-purple-100 text-purple-700',
-  '학생': 'bg-amber-100 text-amber-800',
-};
-
-function StatusRow({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span className={`flex items-center gap-1 ${ok ? 'text-green-600' : 'text-red-600'}`}>
-      {ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />} {label}
-    </span>
-  );
-}
-
-function formatDate(ts: Timestamp | undefined): string {
-  if (!ts) return '-';
-  const d = ts.toDate();
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatActivityDate(millis: number): string {
-  if (!millis) return '-';
-  const d = new Date(millis);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
+import {
+  AdminTab,
+  ClassReadingDoc,
+  ContactItem,
+  DEPT_COLORS,
+  MigrationRow,
+  NEXT_NOTIFICATION_TARGETS,
+  NOTIFICATION_DEPARTMENT_OPTIONS,
+  QADepartment,
+  QAItem,
+  QA_DEPARTMENT_BADGE,
+  QA_DEPARTMENT_LABEL,
+  StatusRow,
+  formatActivityDate,
+  formatAdminDate as formatDate,
+} from '../features/next-generation/adminHelpers';
 
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
