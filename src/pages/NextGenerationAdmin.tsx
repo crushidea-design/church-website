@@ -45,6 +45,7 @@ import AdminContactsTab from '../features/next-generation/AdminContactsTab';
 import AdminQATab from '../features/next-generation/AdminQATab';
 import AdminClassesTab from '../features/next-generation/AdminClassesTab';
 import AdminMembersTab from '../features/next-generation/AdminMembersTab';
+import { AdminAnswerModal, AdminRejectModal } from '../features/next-generation/AdminModals';
 
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -828,68 +829,23 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         </div>
       )}
 
-      {/* Reject Modal */}
-      {rejectTargetId && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-gray-900 mb-3">가입 신청 반려</h3>
-            <p className="text-sm text-gray-600 mb-3">반려 사유를 입력해 주세요. 신청자에게 전달됩니다.</p>
-            <textarea
-              value={rejectReason}
-              onChange={e => setRejectReason(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none mb-4"
-              placeholder="반려 사유 (선택)"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setRejectTargetId(null); setRejectReason(''); }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-              >
-                취소
-              </button>
-              <button
-                onClick={rejectMember}
-                disabled={submitting}
-                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
-              >
-                반려
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminRejectModal
+        open={!!rejectTargetId}
+        reason={rejectReason}
+        submitting={submitting}
+        onReasonChange={setRejectReason}
+        onCancel={() => { setRejectTargetId(null); setRejectReason(''); }}
+        onConfirm={rejectMember}
+      />
 
-      {/* Answer Modal */}
-      {answerTargetId && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="font-bold text-gray-900 mb-3">Q&A 답변</h3>
-            <textarea
-              value={answerText}
-              onChange={e => setAnswerText(e.target.value)}
-              rows={5}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none mb-4"
-              placeholder="답변을 입력해 주세요"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setAnswerTargetId(null); setAnswerText(''); }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-              >
-                취소
-              </button>
-              <button
-                onClick={answerQA}
-                disabled={submitting || !answerText.trim()}
-                className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
-              >
-                답변 등록
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminAnswerModal
+        open={!!answerTargetId}
+        answer={answerText}
+        submitting={submitting}
+        onAnswerChange={setAnswerText}
+        onCancel={() => { setAnswerTargetId(null); setAnswerText(''); }}
+        onConfirm={answerQA}
+      />
     </div>
   );
 }
