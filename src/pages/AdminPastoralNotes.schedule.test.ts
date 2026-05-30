@@ -101,13 +101,18 @@ describe('RAAH record editing wiring', () => {
 
 describe('RAAH attendance date wiring', () => {
   it('keeps Wednesday prayer attendance on the Wednesday date for the selected week', () => {
-    const source = readFileSync(new URL('./AdminPastoralNotes.tsx', import.meta.url), 'utf8');
+    const page = readFileSync(new URL('./AdminPastoralNotes.tsx', import.meta.url), 'utf8');
     const helpers = readFileSync(new URL('../features/pastoral-notes/adminHelpers.ts', import.meta.url), 'utf8');
+    const attendance = readFileSync(
+      new URL('../features/pastoral-notes/AdminAttendanceComponents.tsx', import.meta.url),
+      'utf8'
+    );
+    const source = `${page}\n${attendance}`;
 
     expect(helpers).toContain("if (eventType === 'wednesday_prayer') return addDaysIso(weekStart, 3);");
-    expect(source).toContain('const nextDate = getDateForAttendanceEventType(dateOverride || attendanceDate, eventType);');
-    expect(source).toContain('setAttendanceDate(nextDate);');
-    expect(source).toContain('date: getDateForAttendanceEventType(attendanceDate, activeAttendanceEventType),');
+    expect(page).toContain('const nextDate = getDateForAttendanceEventType(dateOverride || attendanceDate, eventType);');
+    expect(page).toContain('setAttendanceDate(nextDate);');
+    expect(page).toContain('date: getDateForAttendanceEventType(attendanceDate, activeAttendanceEventType),');
     expect(source).toContain('onEventTypeChange(event.eventType, event.date);');
   });
 });
