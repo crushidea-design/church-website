@@ -35,44 +35,16 @@ import {
 } from '../lib/nextGenerationCms';
 import { Loader2, Settings, Save, Trash2, Plus, ArchiveRestore, Archive, ExternalLink, Wrench } from 'lucide-react';
 
-type AdminTab = 'departments' | 'resourceTabs' | 'intro' | 'materials' | 'tools';
-
-const isProtectedDepartmentSlug = (slug: string) =>
-  (PROTECTED_NEXT_GEN_DEPARTMENT_SLUGS as readonly string[]).includes(slug);
-const isProtectedTabSlug = (slug: string) =>
-  (PROTECTED_NEXT_GEN_TAB_SLUGS as readonly string[]).includes(slug);
-
-const ELEMENTARY_TAB_HINT_SLUGS = ['elementary_script', 'elementary_workbook', 'elementary_guide', 'family_column', 'elementary_weekly', 'summer_bible_school'];
-const YOUNG_ADULT_TAB_HINT_SLUGS = ['pilgrim_lecture', 'podcast_review', 'retreat_materials'];
-
-interface NextGenerationPostSummary {
-  id: string;
-  title: string;
-  subCategory?: string;
-  nextGenerationDepartmentSlug?: string;
-  nextGenerationTabSlug?: string;
-  nextGenerationWeekKey?: string;
-  nextGenerationTopicId?: string;
-  authorName?: string;
-  isArchived?: boolean;
-  createdAt?: any;
-}
-
-const formatPostDate = (value: any) => {
-  const date = value?.toDate?.() || (typeof value === 'string' ? new Date(value) : null);
-  if (!date || Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString('ko-KR');
-};
-
-const ICON_OPTIONS: NextGenerationIconName[] = [
-  'CalendarDays',
-  'FileText',
-  'BookMarked',
-  'ClipboardList',
-  'HeartHandshake',
-  'Sparkles',
-  'Users',
-];
+import {
+  CmsAdminTab as AdminTab,
+  ELEMENTARY_TAB_HINT_SLUGS,
+  ICON_OPTIONS,
+  NextGenerationPostSummary,
+  YOUNG_ADULT_TAB_HINT_SLUGS,
+  formatPostDate,
+  isProtectedDepartmentSlug,
+  isProtectedTabSlug,
+} from '../features/next-generation/cmsAdminHelpers';
 
 function AdminNextGenerationCmsInner() {
   const navigate = useNavigate();
