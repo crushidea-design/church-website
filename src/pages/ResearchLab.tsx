@@ -112,7 +112,7 @@ export default function ResearchLab() {
       }
 
       const snapshot = await getDocs(q);
-      let docs = snapshot.docs.slice(0, pageSize);
+      const docs = snapshot.docs.slice(0, pageSize);
 
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = docs[docs.length - 1] || null;

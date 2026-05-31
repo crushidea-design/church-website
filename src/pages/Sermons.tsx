@@ -93,7 +93,7 @@ export default function Sermons() {
   const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
     const orderDir = sortOrderDirection;
 
-    let baseConstraints: any[] = [where('category', '==', 'sermon')];
+    const baseConstraints: any[] = [where('category', '==', 'sermon')];
 
     if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
       baseConstraints.push(where('subCategory', '==', tab));

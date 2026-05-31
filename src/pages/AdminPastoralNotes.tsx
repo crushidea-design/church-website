@@ -3,20 +3,15 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   CheckSquare,
   ClipboardList,
-  Copy,
   FileText,
   Lock,
   LogIn,
   LogOut,
   Plus,
   Search,
-  Sparkles,
   ShieldCheck,
-  UserRound,
   Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -56,17 +51,12 @@ import {
   updateRaahVisitationLog,
 } from '../features/pastoral-notes/managementApi';
 import { buildAttendanceRecordsForEvent, filterResolvedFollowUps, selectAttendanceEvent } from '../features/pastoral-notes/raahWorkflow';
-import { buildRaahAttendanceFlow, RaahAttendanceFlowCell, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
+import { buildRaahAttendanceFlow, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
-import { PASTORAL_MEETING_TYPES, PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
+import { PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
 import { createEmptyPastoralNoteInput, formatDisplayDate, normalizeMemberName, sortNotesByDate } from '../features/pastoral-notes/utils';
 import {
-  ATTENDANCE_EVENT_OPTIONS,
-  LOG_TYPES,
-  SCHEDULE_TYPES,
-  WEEKDAY_LABELS,
   addDaysIso,
-  addMonthsIso,
   emptyCalendarEventForm,
   emptyLogForm,
   emptyMemberForm,
@@ -74,50 +64,32 @@ import {
   emptySummary,
   formatScheduleDateRange,
   getAttendanceOption,
-  getCalendarDisplayName,
   getDashboardSeason,
   getDateForAttendanceEventType,
   getDateSpanDays,
   getErrorMessage,
-  getKoreanDateIso,
   getLatestSunday,
-  getMonthCalendarDays,
-  getMonthRangeLabel,
-  getMonthStartIso,
   getOpenScheduleItems,
   getScheduleMemberLabel,
-  getScheduleTypeLabel,
   getTodayIso,
-  getWeekCalendarDays,
-  getWeekStartIso,
   isRaahSubdomain,
-  isScheduleItemOnDate,
-  parseIsoDateParts,
   percent,
 } from '../features/pastoral-notes/adminHelpers';
 import { shell } from '../features/pastoral-notes/adminShell';
 import {
-  BigToggle,
-  DetailBlock,
   EmptyState,
   FocusCard,
-  MiniCount,
-  TextArea,
-  TextInput,
 } from '../features/pastoral-notes/AdminPrimitives';
 import {
   MinistrySchedulePanel,
-  ScheduleColumn,
   ScheduleTab,
 } from '../features/pastoral-notes/AdminScheduleComponents';
 import {
   AttendanceSnapshot,
   AttendanceTab,
-  StatusMetric,
   getAttendanceEventLabel,
 } from '../features/pastoral-notes/AdminAttendanceComponents';
 import {
-  CompactLog,
   LogRow,
   VisitationTab,
 } from '../features/pastoral-notes/AdminVisitationComponents';

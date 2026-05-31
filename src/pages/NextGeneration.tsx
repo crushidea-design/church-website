@@ -1,91 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
-import {
-  ArrowDown01,
-  ArrowLeft,
-  ArrowUp10,
-  Bell,
-  BookMarked,
-  CalendarDays,
-  CheckCircle,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Download,
-  Edit3,
-  FileText,
-  HeartHandshake,
-  Loader2,
-  Lock,
-  LogIn,
-  LogOut,
-  Mail,
-  MessageSquare,
-  Plus,
-  Settings,
-  Sparkles,
-  Users,
-  X,
-} from 'lucide-react';
-import { motion } from 'motion/react';
-import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
-import { useAuth } from '../lib/auth';
-import { isRestrictedDepartment, NextGenerationAuthProvider, NEXT_GENERATION_DEPARTMENTS, STUDENT_ACCESSIBLE_TAB_SLUGS, useNextGenerationAuth } from '../lib/nextGenerationAuth';
-import NextGenerationLoginModal from './NextGenerationLoginModal';
-import NextGenerationAdmin from './NextGenerationAdmin';
+import React, { useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
+import { FileText } from 'lucide-react';
+import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import NextGenerationContact from './NextGenerationContact';
 import NextGenerationQA from './NextGenerationQA';
-import BibleReadingChart from './BibleReadingChart';
 import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
 import { Apple, BookOpen, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
-import { TeacherRoleCards } from '../features/word-fruit/MyPageRoleCards';
-import ParentOnboardingModal from '../features/word-fruit/ParentOnboardingModal';
-import { shouldShowParentOnboarding } from '../features/word-fruit/parentOnboarding';
-import { fruitWeekIdFromSundayKey } from '../features/word-fruit/api';
-import { formatDate } from '../lib/utils';
 import {
-  formatShortDate,
-  getContentPreview,
-  getCurrentSundayKey,
-  getNextGenerationPostBackPath,
-  getPostPrimarySortTime,
-  getPostWeekKey,
-  getPostYouTubeVideoId,
-  getResourceDepartmentPath,
-  getResourceLabel,
-  getResourceTab,
-  getYouTubeVideoId,
   NEXT_GENERATION_PATH,
 } from '../lib/nextGenerationResources';
-import { generateSortOrder } from '../lib/sortUtils';
-import {
-  getNextGenerationTopicLabel,
-  inferNextGenerationTopicId,
-  NEXT_GENERATION_TOPIC_OPTIONS,
-  NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
-  supportsNextGenerationTopic,
-} from '../lib/nextGenerationTopics';
-import PdfCanvasViewer from '../components/PdfCanvasViewer';
+import { supportsNextGenerationTopic } from '../lib/nextGenerationTopics';
 import EditPost from './EditPost';
 import {
-  formatFileSize,
-  getFirstPdfAttachment,
-  getMaterialAttachmentLabel,
-  getPostAttachments,
-  MATERIAL_FILE_ACCEPT,
-  MaterialAttachment,
-  serializeMaterialAttachments,
-  uploadMaterialFiles,
-  validateMaterialFiles,
-} from '../lib/attachments';
-import {
   NextGenerationCmsProvider,
-  NextGenerationDepartment,
-  NextGenerationIntroSection,
-  NextGenerationResourceTab,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
 import { initializeNextGenerationBadgeSync, setNextGenerationBadgeCount } from '../services/appBadgeService';
@@ -94,33 +23,21 @@ import {
   onMessageListener,
   requestNotificationPermission,
 } from '../services/notificationService';
-import {
-  markNextGenerationTutorialSeen,
-  shouldAutoOpenNextGenerationTutorial,
-} from '../lib/nextGenerationTutorial';
-import NextGenerationTutorialModal from '../features/next-generation/NextGenerationTutorialModal';
 import NextGenerationCreatePost from '../features/next-generation/NextGenerationCreatePost';
 import NextGenerationPostDetail from '../features/next-generation/NextGenerationPostDetail';
 import ResourceLibraryPage from '../features/next-generation/ResourceLibraryPage';
 import IntroPage from '../features/next-generation/IntroPage';
 import NextGenerationHeader from '../features/next-generation/NextGenerationHeader';
-import NextGenerationMyPage, { YoungAdultsPage } from '../features/next-generation/NextGenerationMyPage';
+import NextGenerationMyPage from '../features/next-generation/NextGenerationMyPage';
 import {
   DepartmentCardItem,
-  NextGenerationPost,
   ResourceTabItem,
   allResourceTabs,
   elementaryImage,
-  elementaryResourceTabs,
-  elementaryWeeklyResourceTabs,
-  getRejectedNoticeVersion,
   iconMap,
-  introImage,
   isElementaryWeeklyResource,
   sectionTabs,
   youngAdultResourceTabs,
-  youngAdultsImage,
-  youngAdultsIntroImage,
 } from '../features/next-generation/sharedConstants';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';

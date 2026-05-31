@@ -17,15 +17,11 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import AdminLayout from '../components/AdminLayout';
 import {
-  NEXT_GEN_BADGE_CLASS_OPTIONS,
-  NEXT_GEN_HERO_CLASS_OPTIONS,
   NextGenerationCmsProvider,
   NextGenerationDepartment,
   NextGenerationIconName,
   NextGenerationIntroSection,
   NextGenerationResourceTab,
-  PROTECTED_NEXT_GEN_DEPARTMENT_SLUGS,
-  PROTECTED_NEXT_GEN_TAB_SLUGS,
   normalizeCmsSlug,
   seedNextGenerationCmsIfEmpty,
   upsertNextGenerationDepartment,
@@ -33,15 +29,13 @@ import {
   upsertNextGenerationTab,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
-import { Loader2, Settings, Save, Trash2, Plus, ArchiveRestore, Archive, ExternalLink, Wrench } from 'lucide-react';
+import { Loader2, Settings } from 'lucide-react';
 
 import {
   CmsAdminTab as AdminTab,
   ELEMENTARY_TAB_HINT_SLUGS,
-  ICON_OPTIONS,
   NextGenerationPostSummary,
   YOUNG_ADULT_TAB_HINT_SLUGS,
-  formatPostDate,
   isProtectedDepartmentSlug,
   isProtectedTabSlug,
 } from '../features/next-generation/cmsAdminHelpers';

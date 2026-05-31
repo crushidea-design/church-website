@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { Lock, Loader2, Sparkles, BookOpen, AlertCircle, Settings, History } from 'lucide-react';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
-  addTodayCheckByLeader,
   checkInToday,
   fruitStageOf,
   getTodayKey,
@@ -16,14 +15,9 @@ import {
   subscribeProgressForUsers,
   subscribePublishedFruits,
   subscribeWeeklyWordFruit,
-  upsertProgressByLeader,
 } from './api';
-import { onSnapshot, query, collection, where } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
 import { GUIDE_MESSAGE_DEFAULT, TOP_MESSAGE_DEFAULT, WeeklyWordFruit, WordFruitProgress } from './types';
-import WordFruitTree, { stageMessage } from './WordFruitTree';
 import WordFruitAdmin from './WordFruitAdmin';
-import { mergeTeacherStudentsWithProgress, TeacherStudent } from './teacherRoster';
 import { TeacherView } from './WordFruitTeacherView';
 import ParentView from './WordFruitParentView';
 import {

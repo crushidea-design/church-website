@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   collection, query, where, onSnapshot, doc, updateDoc,
-  deleteDoc, addDoc, serverTimestamp, orderBy, Timestamp, deleteField,
+  deleteDoc, addDoc, serverTimestamp, orderBy, deleteField,
   getDocs, getDoc, setDoc, arrayUnion, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -15,11 +15,7 @@ import {
   getRecentSundayWeekKeys,
   setAttendanceBatch,
 } from '../features/word-fruit/attendanceApi';
-import {
-  Users, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp,
-  Bell, MessageSquare, Mail, Clock, Search, ShieldCheck, RefreshCw,
-  AlertTriangle, CheckCircle2, BookOpen,
-} from 'lucide-react';
+import { Users, BookOpen } from 'lucide-react';
 import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
 import BibleReadingChart from './BibleReadingChart';
 import WordFruitSettings from '../features/word-fruit/WordFruitSettings';
@@ -28,17 +24,9 @@ import {
   AdminTab,
   ClassReadingDoc,
   ContactItem,
-  DEPT_COLORS,
   MigrationRow,
-  NEXT_NOTIFICATION_TARGETS,
-  NOTIFICATION_DEPARTMENT_OPTIONS,
   QADepartment,
   QAItem,
-  QA_DEPARTMENT_BADGE,
-  QA_DEPARTMENT_LABEL,
-  StatusRow,
-  formatActivityDate,
-  formatAdminDate as formatDate,
 } from '../features/next-generation/adminHelpers';
 import AdminMigrationTab from '../features/next-generation/AdminMigrationTab';
 import AdminContactsTab from '../features/next-generation/AdminContactsTab';
