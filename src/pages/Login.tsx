@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { auth, db, signInWithGoogle } from '../lib/firebase';
 import { getInAppBrowserLoginMessage, isInAppBrowser } from '../lib/inAppBrowser';
 import { Mail, Lock, LogIn, UserPlus, User, KeyRound } from 'lucide-react';

@@ -25,10 +25,8 @@ import {
 } from '../../lib/nextGenerationAuth';
 import {
   NEXT_GENERATION_PATH,
-  formatShortDate,
   getContentPreview,
   getCurrentSundayKey,
-  getPostPrimarySortTime,
   getPostWeekKey,
   getResourceDepartmentPath,
   getResourceLabel,
@@ -82,7 +80,7 @@ export default function ResourceLibraryPage({
   guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
-  const { hasAccess: ngAccess, user: ngUser, member } = useNextGenerationAuth();
+  const { user: ngUser, member } = useNextGenerationAuth();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.

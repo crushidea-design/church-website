@@ -65,7 +65,7 @@ const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
 };
 
 export default function Sermons() {
-  const { user, role, loading: authLoading } = useAuth();
+  const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   
