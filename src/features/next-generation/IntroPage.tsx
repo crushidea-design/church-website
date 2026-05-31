@@ -434,6 +434,7 @@ export default function IntroPage({
         </div>
       )}
 
+      {/* eslint-disable-next-line no-constant-binary-expression */}
       {false && cmsIntroSections.length > 0 && (
         <section className="bg-white py-14">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

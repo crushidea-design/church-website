@@ -60,7 +60,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   }
   
   // Throw a JSON string that the ErrorBoundary can parse
-  let errorString = '';
+  let errorString: string;
   try {
     errorString = JSON.stringify(errInfo);
   } catch (e) {

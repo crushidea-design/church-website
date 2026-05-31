@@ -1,4 +1,5 @@
-// @ts-ignore
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore -- bible-in-one-year has no type declarations
 import ReadingPlan from 'bible-in-one-year';
 import { getDayOfYear } from 'date-fns';
 

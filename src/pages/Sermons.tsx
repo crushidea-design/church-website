@@ -402,6 +402,7 @@ export default function Sermons() {
             </button>
           )}
           {/* Fallback for legacy tabs if they don't exist in categories */}
+          {/* eslint-disable-next-line no-constant-binary-expression */}
           {false && !sermonCategories.find(c => c.id === 'past_sermons') && Object.values(sermons).some(cat => cat?.data?.some(v => v.subCategory === 'past_sermons')) && (
             <button
               onClick={() => {
