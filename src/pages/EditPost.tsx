@@ -103,7 +103,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
 
           // Handle long content reassembly for editing
           if (data.isLongContent) {
-            console.log('Long content detected in edit. Fetching chunks...');
+            console.info('Long content detected in edit. Fetching chunks...');
             try {
               const chunksQuery = query(
                 collection(db, 'post_contents'),
@@ -113,7 +113,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
               const chunksSnap = await getDocs(chunksQuery);
               if (!chunksSnap.empty) {
                 fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
-                console.log('Long content reassembled for editing.');
+                console.info('Long content reassembled for editing.');
               }
             } catch (e) {
               console.error('Error reassembling long content for editing:', e);
@@ -281,14 +281,14 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         }
 
         if (pdfFile) {
-          console.log('--- PDF PROCESSING (UPDATE) ---');
-          console.log('File:', { name: pdfFile.name, size: pdfFile.size });
+          console.info('--- PDF PROCESSING (UPDATE) ---');
+          console.info('File:', { name: pdfFile.name, size: pdfFile.size });
 
           if (pdfFile.size > 2 * 1024 * 1024) {
             throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
           }
 
-          console.log('Uploading PDF to Storage...');
+          console.info('Uploading PDF to Storage...');
           setUploadProgress(20);
           
           const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
@@ -298,7 +298,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           pdfUrl = await getDownloadURL(fileRef);
           pdfName = pdfFile.name;
           setUploadProgress(80);
-          console.log('PDF upload complete. URL:', pdfUrl);
+          console.info('PDF upload complete. URL:', pdfUrl);
         }
       }
 
@@ -317,7 +317,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
       // Handle long content for Datastore mode
       const isLongContent = new TextEncoder().encode(content).length > 1400;
       if (isLongContent) {
-        console.log('Content is long in edit, splitting into chunks...');
+        console.info('Content is long in edit, splitting into chunks...');
         updateData.content = content.substring(0, 400); // Snippet
         updateData.isLongContent = true;
         updateData.fullContentLength = content.length;
@@ -394,7 +394,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         }
       }
 
-      console.log('Updating document in Firestore...', updateData);
+      console.info('Updating document in Firestore...', updateData);
       
       const runUpdate = async (payload: any) => {
         const updatePromise = updateDoc(postRef, payload);
@@ -419,7 +419,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         delete fallbackUpdateData.nextGenerationTopicId;
         await runUpdate(fallbackUpdateData);
       }
-      console.log('Post updated successfully');
+      console.info('Post updated successfully');
 
       // Persist restricted download metadata to the member-only subcollection.
       if (isNextGeneration) {
@@ -452,7 +452,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         const oldChunksSnap = await getDocs(oldChunksQuery);
         await Promise.all(oldChunksSnap.docs.map(d => deleteDoc(d.ref)));
 
-        console.log('Uploading new full content chunks...');
+        console.info('Uploading new full content chunks...');
         const FULL_CHUNK_SIZE = 10000;
         const chunks = [];
         for (let i = 0; i < content.length; i += FULL_CHUNK_SIZE) {
@@ -467,7 +467,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
             createdAt: serverTimestamp()
           });
         }
-        console.log('Full content chunks updated.');
+        console.info('Full content chunks updated.');
       } else {
         // If not long anymore, delete any existing chunks
         const oldChunksQuery = query(collection(db, 'post_contents'), where('postId', '==', id));
@@ -500,7 +500,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
               [type]: postSummary,
               updatedAt: serverTimestamp()
             });
-            console.log('Latest posts summary updated (edited post was the latest).');
+            console.info('Latest posts summary updated (edited post was the latest).');
           }
         }
       } catch (summaryErr) {

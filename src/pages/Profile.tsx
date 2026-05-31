@@ -60,7 +60,7 @@ export default function Profile() {
           setNotificationStatus(currentPermission);
           if (currentPermission === 'default') {
             // User dismissed the prompt without granting or denying
-            console.log('Notification permission prompt dismissed.');
+            console.info('Notification permission prompt dismissed.');
           } else if (currentPermission === 'denied') {
             alert('알림 권한이 거부되었습니다.');
           } else if (currentPermission === 'granted') {
