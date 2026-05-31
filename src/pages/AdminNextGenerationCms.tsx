@@ -47,6 +47,7 @@ import {
 } from '../features/next-generation/cmsAdminHelpers';
 import CmsToolsTab from '../features/next-generation/CmsToolsTab';
 import CmsIntroTab from '../features/next-generation/CmsIntroTab';
+import CmsMaterialsTab from '../features/next-generation/CmsMaterialsTab';
 
 function AdminNextGenerationCmsInner() {
   const navigate = useNavigate();
@@ -1012,161 +1013,31 @@ function AdminNextGenerationCmsInner() {
         )}
 
         {activeTab === 'materials' && (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-wood-200 bg-white p-5 space-y-3">
-              <h3 className="text-lg font-bold text-wood-900">자료 필터/일괄 이동</h3>
-              <div className="grid gap-3 md:grid-cols-5">
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="제목 검색" className="rounded-lg border border-wood-300 px-3 py-2" />
-                <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} className="rounded-lg border border-wood-300 px-3 py-2">
-                  <option value="">전체 부서</option>
-                  {departments.map((department) => (
-                    <option key={department.slug} value={department.slug}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-                <select value={filterTab} onChange={(e) => setFilterTab(e.target.value)} className="rounded-lg border border-wood-300 px-3 py-2">
-                  <option value="">전체 탭</option>
-                  {departments.map((department) => (
-                    <optgroup key={department.slug} label={department.name}>
-                      {(tabsByDepartmentSlug[department.slug] || []).map((tab) => (
-                        <option key={tab.slug} value={tab.slug}>
-                          {tab.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                <select value={archivedFilter} onChange={(e) => setArchivedFilter(e.target.value as 'all' | 'active' | 'archived')} className="rounded-lg border border-wood-300 px-3 py-2">
-                  <option value="all">전체 상태</option>
-                  <option value="active">노출</option>
-                  <option value="archived">휴지통</option>
-                </select>
-                <div className="text-sm text-wood-600 flex items-center">
-                  총 {filteredMaterials.length}건 · 선택 {selectedPostIds.length}건
-                </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <select value={moveDepartmentSlug} onChange={(e) => setMoveDepartmentSlug(e.target.value)} className="rounded-lg border border-wood-300 px-3 py-2">
-                  {departments.map((department) => (
-                    <option key={department.slug} value={department.slug}>
-                      이동 부서: {department.name}
-                    </option>
-                  ))}
-                </select>
-                <select value={moveTabSlug} onChange={(e) => setMoveTabSlug(e.target.value)} className="rounded-lg border border-wood-300 px-3 py-2">
-                  {targetMoveTabs.map((tab) => (
-                    <option key={tab.slug} value={tab.slug}>
-                      이동 탭: {tab.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={selectedPostIds.length === 0 || !moveTabSlug}
-                  onClick={moveSelectedPosts}
-                  className="inline-flex items-center justify-center rounded-lg bg-wood-900 px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-                >
-                  <Save size={14} className="mr-1" />
-                  선택 자료 이동
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-wood-200 bg-white p-5">
-              {materialsLoading ? (
-                <div className="py-10 text-center text-wood-500">
-                  <Loader2 className="mx-auto h-7 w-7 animate-spin" />
-                </div>
-              ) : filteredMaterials.length === 0 ? (
-                <p className="py-6 text-center text-sm text-wood-500">조건에 해당하는 자료가 없습니다.</p>
-              ) : (
-                <div className="space-y-2">
-                  {filteredMaterials.map((post) => {
-                    const tabSlug = post.nextGenerationTabSlug || post.subCategory || '';
-                    const departmentSlug = post.nextGenerationDepartmentSlug || '';
-                    const inlineTabs = tabsByDepartmentSlug[departmentSlug] || tabs;
-                    const checked = selectedPostIds.includes(post.id);
-                    return (
-                      <div key={post.id} className="rounded-xl border border-wood-100 p-3">
-                        <div className="flex flex-col gap-2">
-                          <label className="inline-flex items-start gap-2 text-sm font-bold text-wood-900">
-                            <input
-                              type="checkbox"
-                              className="mt-1"
-                              checked={checked}
-                              onChange={(e) => {
-                                setSelectedPostIds((current) =>
-                                  e.target.checked ? [...current, post.id] : current.filter((id) => id !== post.id)
-                                );
-                              }}
-                            />
-                            <span>{post.title || '(제목 없음)'}</span>
-                          </label>
-                          <p className="text-xs text-wood-500">
-                            {post.authorName || '익명'} · {formatPostDate(post.createdAt)}
-                            {post.nextGenerationWeekKey ? ` · 주차 ${post.nextGenerationWeekKey}` : ''}
-                            {post.nextGenerationTopicId ? ` · 주제 ${post.nextGenerationTopicId}` : ''}
-                            {' · '}
-                            {post.isArchived ? '휴지통' : '노출'}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <select
-                              value={departmentSlug}
-                              onChange={(e) => {
-                                const nextDept = e.target.value;
-                                const firstTab = (tabsByDepartmentSlug[nextDept] || [])[0];
-                                if (firstTab) {
-                                  setMaterialPlacement(post, nextDept, firstTab.slug);
-                                } else if (nextDept) {
-                                  setMaterialPlacement(post, nextDept, tabSlug);
-                                }
-                              }}
-                              className="rounded-lg border border-wood-300 px-2 py-1"
-                            >
-                              <option value="">(부서 미지정)</option>
-                              {departments.map((department) => (
-                                <option key={department.slug} value={department.slug}>{department.name}</option>
-                              ))}
-                            </select>
-                            <select
-                              value={tabSlug}
-                              onChange={(e) => setMaterialPlacement(post, departmentSlug || departments[0]?.slug || '', e.target.value)}
-                              className="rounded-lg border border-wood-300 px-2 py-1"
-                            >
-                              <option value="">(탭 미지정)</option>
-                              {inlineTabs.map((tab) => (
-                                <option key={tab.slug} value={tab.slug}>{tab.name}</option>
-                              ))}
-                            </select>
-                            {post.isArchived ? (
-                              <button
-                                type="button"
-                                onClick={() => archivePost(post.id, false)}
-                                className="inline-flex items-center rounded-lg border border-emerald-200 px-3 py-1 font-bold text-emerald-700"
-                              >
-                                <ArchiveRestore size={12} className="mr-1" />
-                                복구
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => archivePost(post.id, true)}
-                                className="inline-flex items-center rounded-lg border border-amber-200 px-3 py-1 font-bold text-amber-700"
-                              >
-                                <Archive size={12} className="mr-1" />
-                                휴지통
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <CmsMaterialsTab
+            departments={departments}
+            tabs={tabs}
+            tabsByDepartmentSlug={tabsByDepartmentSlug}
+            filteredMaterials={filteredMaterials}
+            materialsLoading={materialsLoading}
+            selectedPostIds={selectedPostIds}
+            search={search}
+            filterDepartment={filterDepartment}
+            filterTab={filterTab}
+            archivedFilter={archivedFilter}
+            moveDepartmentSlug={moveDepartmentSlug}
+            moveTabSlug={moveTabSlug}
+            targetMoveTabs={targetMoveTabs}
+            onSearchChange={setSearch}
+            onFilterDepartment={setFilterDepartment}
+            onFilterTab={setFilterTab}
+            onArchivedFilter={setArchivedFilter}
+            onMoveDepartmentSlug={setMoveDepartmentSlug}
+            onMoveTabSlug={setMoveTabSlug}
+            onMoveSelected={moveSelectedPosts}
+            onSetSelectedPostIds={setSelectedPostIds}
+            onSetMaterialPlacement={setMaterialPlacement}
+            onArchivePost={archivePost}
+          />
         )}
 
         {activeTab === 'tools' && (
