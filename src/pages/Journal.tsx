@@ -9,7 +9,7 @@ import { Book, Plus, MessageSquare, ChevronDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export default function Journal() {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const { journal, setCollection, appendCollection } = useStore();
   
   const [loading, setLoading] = useState(!journal.fetched);

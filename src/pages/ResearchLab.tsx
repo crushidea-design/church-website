@@ -19,7 +19,7 @@ interface ResearchCategory {
 }
 
 export default function ResearchLab() {
-  const { user, role, loading: authLoading } = useAuth();
+  const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const { research, researchCategories, setCategoryCollection, setCategories } = useStore();
@@ -112,7 +112,7 @@ export default function ResearchLab() {
       }
 
       const snapshot = await getDocs(q);
-      let docs = snapshot.docs.slice(0, pageSize);
+      const docs = snapshot.docs.slice(0, pageSize);
 
       const data = docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
       const lastDoc = docs[docs.length - 1] || null;
@@ -124,10 +124,6 @@ export default function ResearchLab() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRefresh = async () => {
-    window.location.reload();
   };
 
   const sortedPosts = React.useMemo(() => currentResearch.data, [currentResearch.data]);

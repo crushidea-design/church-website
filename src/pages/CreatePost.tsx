@@ -148,7 +148,7 @@ export default function CreatePost() {
     setSubmitting(true);
     setError(null);
     setUploadProgress(0);
-    console.log('Starting post creation...', { type, title, contentLen: content.length, online: navigator.onLine });
+    console.info('Starting post creation...', { type, title, contentLen: content.length, online: navigator.onLine });
 
     if (!navigator.onLine) {
       setError('인터넷 연결이 끊어져 있습니다. 네트워크 상태를 확인해 주세요.');
@@ -184,14 +184,14 @@ export default function CreatePost() {
       let pdfName = '';
       
       if (pdfFile) {
-        console.log('--- PDF PROCESSING ---');
-        console.log('File:', { name: pdfFile.name, size: pdfFile.size });
+        console.info('--- PDF PROCESSING ---');
+        console.info('File:', { name: pdfFile.name, size: pdfFile.size });
 
         if (pdfFile.size > 2 * 1024 * 1024) {
           throw new Error('파일 크기는 2MB를 초과할 수 없습니다.');
         }
 
-        console.log('Uploading PDF to Storage...');
+        console.info('Uploading PDF to Storage...');
         setUploadProgress(20);
         
         const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
@@ -201,7 +201,7 @@ export default function CreatePost() {
         pdfUrl = await getDownloadURL(fileRef);
         pdfName = pdfFile.name;
         setUploadProgress(80);
-        console.log('PDF upload complete. URL:', pdfUrl);
+        console.info('PDF upload complete. URL:', pdfUrl);
       }
 
       const postData: any = {
@@ -250,14 +250,14 @@ export default function CreatePost() {
         }
       }
 
-      console.log('Adding document to Firestore...', postData);
+      console.info('Adding document to Firestore...', postData);
       
       // Handle long content for Datastore mode (1500 byte limit for indexed fields)
       // If content is long, we'll store it in chunks or a separate non-indexed field if possible.
       // Since we can't easily set indexed:false in Web SDK, we'll use the "long content" pattern.
       const isLongContent = new TextEncoder().encode(content).length > 1400;
       if (isLongContent) {
-        console.log('Content is long, splitting into chunks for Datastore compatibility...');
+        console.info('Content is long, splitting into chunks for Datastore compatibility...');
         postData.content = content.substring(0, 400); // Store a snippet in the main field
         postData.isLongContent = true;
         postData.fullContentLength = content.length;
@@ -269,13 +269,13 @@ export default function CreatePost() {
         setTimeout(() => reject(new Error('게시글 등록 시간이 초과되었습니다. 네트워크 상태를 확인해 주세요.')), 30000)
       );
 
-      console.log('Awaiting addDoc...');
+      console.info('Awaiting addDoc...');
       const docRef = (await Promise.race([addDocPromise, firestoreTimeoutPromise])) as any;
-      console.log('Post created successfully with ID:', docRef.id);
+      console.info('Post created successfully with ID:', docRef.id);
 
       // If content was long, store the full content in a subcollection or separate doc
       if (isLongContent) {
-        console.log('Uploading full content in chunks...');
+        console.info('Uploading full content in chunks...');
         const FULL_CHUNK_SIZE = 10000; // 10KB per chunk is safe
         const chunks = [];
         for (let i = 0; i < content.length; i += FULL_CHUNK_SIZE) {
@@ -290,7 +290,7 @@ export default function CreatePost() {
             createdAt: serverTimestamp()
           });
         }
-        console.log('Full content chunks uploaded.');
+        console.info('Full content chunks uploaded.');
       }
 
       // Invalidate cache for the created category and home page
@@ -324,13 +324,13 @@ export default function CreatePost() {
           [type]: postSummary,
           updatedAt: serverTimestamp()
         }, { merge: true });
-        console.log('Latest posts summary updated.');
+        console.info('Latest posts summary updated.');
       } catch (summaryErr) {
         console.error('Error updating latest posts summary:', summaryErr);
         // Don't fail the whole post creation if summary update fails
       }
       
-      console.log('Navigating to post detail...');
+      console.info('Navigating to post detail...');
       navigate(isNextGeneration ? `/next/post/${docRef.id}` : `/post/${docRef.id}`);
     } catch (err: any) {
       console.error('Error in handleSubmit:', err);

@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Users, Heart, Edit2, Check, X as CloseIcon, Calendar, ChevronRight, Bell } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, getDoc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { ArrowRight, Edit2, Check, X as CloseIcon, Calendar } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
-import { requestNotificationPermission } from '../services/notificationService';
 import { useStore } from '../store/useStore';
 import SiteCmsSections from '../components/SiteCmsSections';
 

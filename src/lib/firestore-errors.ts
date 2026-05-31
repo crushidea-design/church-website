@@ -60,7 +60,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   }
   
   // Throw a JSON string that the ErrorBoundary can parse
-  let errorString = '';
+  let errorString: string;
   try {
     errorString = JSON.stringify(errInfo);
   } catch (e) {
@@ -79,7 +79,7 @@ export async function testFirestoreConnection(db: Firestore) {
     // Attempt to fetch a publicly readable document to test connectivity
     // 'settings/church_info' is allowed read: if true;
     await getDoc(doc(db, 'settings', 'church_info'));
-    console.log('Firestore connection verified');
+    console.info('Firestore connection verified');
     
     // Clear quota flag if it was set
     if (localStorage.getItem('firestore_quota_exceeded')) {
@@ -96,7 +96,7 @@ export async function testFirestoreConnection(db: Firestore) {
     } else {
       // If it's any other error (like permission denied or not found), 
       // it still means the server is reachable and NOT over quota.
-      console.log('Firestore responded with non-quota error:', errorMessage);
+      console.info('Firestore responded with non-quota error:', errorMessage);
       if (localStorage.getItem('firestore_quota_exceeded')) {
         localStorage.removeItem('firestore_quota_exceeded');
       }

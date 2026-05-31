@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit, Timestamp } from 'firebase/firestore';
-import { Heart, Lock, Edit2, Trash2, X as CloseIcon, Bell } from 'lucide-react';
+import { Heart, Lock, Edit2, Trash2, Bell } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/firebase';
 
 interface PrayerRequest {
@@ -18,7 +18,6 @@ interface PrayerRequest {
   createdAt: any;
 }
 
-const CANDLE_IMAGE = "https://lh3.googleusercontent.com/d/1yzsm7fX2PrakJfFQt0tzEuwmaHYvQ6lq";
 const BACKGROUND_IMAGE = "https://lh3.googleusercontent.com/d/1opPxflZvaSvu30ags7dlFhnp76A-yD72";
 
 export default function PrayerRoom() {

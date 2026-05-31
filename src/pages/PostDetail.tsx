@@ -63,7 +63,7 @@ export default function PostDetail() {
         
         // Handle long content reassembly
         if (postData.isLongContent) {
-          console.log('Long content detected. Fetching chunks...');
+          console.info('Long content detected. Fetching chunks...');
           try {
             const chunksQuery = query(
               collection(db, 'post_contents'),
@@ -74,7 +74,7 @@ export default function PostDetail() {
             if (!chunksSnap.empty) {
               const fullContent = chunksSnap.docs.map(doc => doc.data().content).join('');
               postData.content = fullContent;
-              console.log('Long content reassembled successfully.');
+              console.info('Long content reassembled successfully.');
             }
           } catch (e) {
             console.error('Error reassembling long content:', e);
@@ -112,7 +112,7 @@ export default function PostDetail() {
         }
 
         if (postData.pdfUrl) {
-          console.log('PDF Data detected (URL):', postData.pdfUrl);
+          console.info('PDF Data detected (URL):', postData.pdfUrl);
         }
 
         if (postData.category === 'today_word') {
@@ -293,7 +293,7 @@ export default function PostDetail() {
           try {
             const fileRef = ref(storage, attachment.storagePath || attachment.url);
             await deleteObject(fileRef);
-            console.log('Attachment deleted from storage');
+            console.info('Attachment deleted from storage');
           } catch (error) {
             console.error('Error deleting attachment from storage:', error);
           }
@@ -319,7 +319,7 @@ export default function PostDetail() {
           
           // If the deleted post was the one in the summary, find the new latest
           if (summaryData[category]?.id === id) {
-            console.log('Deleted post was in summary, finding new latest for:', category);
+            console.info('Deleted post was in summary, finding new latest for:', category);
             const q = query(
               collection(db, 'posts'),
               where('category', '==', category),

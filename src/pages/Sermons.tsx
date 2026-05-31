@@ -65,7 +65,7 @@ const sortSermons = (posts: SermonPost[], direction: 'asc' | 'desc') => {
 };
 
 export default function Sermons() {
-  const { user, role, loading: authLoading } = useAuth();
+  const { role, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   
@@ -93,7 +93,7 @@ export default function Sermons() {
   const fetchSermonsPage = async (tab: string, page: number, categories: SermonCategory[]) => {
     const orderDir = sortOrderDirection;
 
-    let baseConstraints: any[] = [where('category', '==', 'sermon')];
+    const baseConstraints: any[] = [where('category', '==', 'sermon')];
 
     if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
       baseConstraints.push(where('subCategory', '==', tab));
@@ -402,6 +402,7 @@ export default function Sermons() {
             </button>
           )}
           {/* Fallback for legacy tabs if they don't exist in categories */}
+          {/* eslint-disable-next-line no-constant-binary-expression */}
           {false && !sermonCategories.find(c => c.id === 'past_sermons') && Object.values(sermons).some(cat => cat?.data?.some(v => v.subCategory === 'past_sermons')) && (
             <button
               onClick={() => {

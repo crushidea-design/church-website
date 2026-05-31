@@ -8,7 +8,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/firebase-messaging-sw.js')
       .then(registration => {
-        console.log('Firebase Messaging SW registered with scope:', registration.scope);
+        console.info('Firebase Messaging SW registered with scope:', registration.scope);
       })
       .catch(err => {
         console.error('Firebase Messaging SW registration failed:', err);

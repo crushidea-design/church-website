@@ -22,7 +22,7 @@ export const requestNotificationPermission = async (
     topic?: string;
   }
 ) => {
-  console.log('requestNotificationPermission called for user:', userId);
+  console.info('requestNotificationPermission called for user:', userId);
 
   if (typeof window === 'undefined') return null;
 
@@ -43,7 +43,7 @@ export const requestNotificationPermission = async (
     }
 
     const permission = await Notification.requestPermission();
-    console.log('Notification permission status:', permission);
+    console.info('Notification permission status:', permission);
 
     if (permission === 'granted') {
       const { getToken, isSupported } = await import('firebase/messaging');
@@ -63,7 +63,7 @@ export const requestNotificationPermission = async (
       let swRegistration = null;
       try {
         swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('Service Worker registered for FCM:', swRegistration.scope);
+        console.info('Service Worker registered for FCM:', swRegistration.scope);
       } catch (swError) {
         console.error('Service Worker registration failed:', swError);
       }
@@ -74,7 +74,7 @@ export const requestNotificationPermission = async (
       });
 
       if (token) {
-        console.log('FCM Token generated:', token.substring(0, 10) + '...');
+        console.info('FCM Token generated:', token.substring(0, 10) + '...');
 
         const tokenRecentlySynced = cachedToken === token && Date.now() - lastSyncedAt < TOKEN_SYNC_TTL_MS;
         if (!tokenRecentlySynced) {
@@ -84,11 +84,11 @@ export const requestNotificationPermission = async (
             token,
             updatedAt: serverTimestamp()
           }, { merge: true });
-          console.log('Token synced to Firestore');
+          console.info('Token synced to Firestore');
           localStorage.setItem(`fcm_synced_${userId}`, token);
           localStorage.setItem(`fcm_synced_at_${userId}`, String(Date.now()));
         } else {
-          console.log('Token already synced to Firestore recently');
+          console.info('Token already synced to Firestore recently');
         }
 
         const topicRecentlySynced = topicCacheKey
@@ -127,13 +127,13 @@ export const requestNotificationPermission = async (
             }
 
             subscribedToTopic = true;
-            console.log(`Subscribed to ${topic} topic`);
+            console.info(`Subscribed to ${topic} topic`);
           } catch (subError) {
             console.error('Failed to subscribe to topic:', subError);
           }
         } else if (topic && topicCacheKey && topicRecentlySynced) {
           subscribedToTopic = true;
-          console.log(`Topic already synced recently for ${topic}`);
+          console.info(`Topic already synced recently for ${topic}`);
         }
 
         if (subscribedToTopic && topicCacheKey) {

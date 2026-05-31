@@ -13,6 +13,23 @@ export default defineConfig(() => {
           main: path.resolve(__dirname, 'index.html'),
           next: path.resolve(__dirname, 'next.html'),
         },
+        output: {
+          // Split heavy vendors into their own chunks so the initial main
+          // bundle stays small and updates to app code don't bust the cache
+          // for unchanged libraries. Lazy-loaded routes still get their own
+          // chunks via React.lazy().
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('/firebase/') || id.includes('@firebase/')) return 'firebase';
+            if (id.includes('/react-router')) return 'react-router';
+            if (id.includes('/react-dom/') || id.match(/\/react\/[^/]+$/)) return 'react';
+            if (id.includes('/motion/') || id.includes('framer-motion')) return 'motion';
+            if (id.includes('/lucide-react/')) return 'icons';
+            if (id.includes('/sonner/')) return 'sonner';
+            if (id.includes('/pdfjs-dist/')) return 'pdf';
+            return undefined;
+          },
+        },
       },
     },
     optimizeDeps: {

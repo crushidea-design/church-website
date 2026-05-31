@@ -52,7 +52,7 @@ export const getFirebaseMessaging = async () => {
 
       messaging = messagingModule.getMessaging(app);
       (window as any).firebase_messaging = messaging;
-      console.log('Firebase Messaging initialized');
+      console.info('Firebase Messaging initialized');
       return messaging;
     }).catch(err => {
       console.warn('Failed to initialize Firebase Messaging:', err);

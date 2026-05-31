@@ -1,11 +1,10 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { Users, Shield, User as UserIcon, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { UserRole } from '../types';
 import AdminLayout from '../components/AdminLayout';
@@ -18,7 +17,7 @@ const roleLabel = (value: string) => {
 };
 
 export default function AdminUsers() {
-  const { user, role, loading: authLoading } = useAuth();
+  const { role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
