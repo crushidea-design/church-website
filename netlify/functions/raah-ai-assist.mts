@@ -20,7 +20,8 @@ type RaahAiDraft = {
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 const MODEL = 'gemini-2.5-flash';
-const MAX_MEMO_LENGTH = 12000;
+const MAX_MEMO_LENGTH = 30000;
+const MAX_OUTPUT_TOKENS = 8192;
 
 const getEnv = (key: string) => {
   const netlifyValue = typeof Netlify !== 'undefined' ? Netlify.env.get(key) : undefined;
@@ -155,7 +156,7 @@ const callGemini = async (input: NonNullable<Awaited<ReturnType<typeof parseInpu
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 2048,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'object',
@@ -179,16 +180,25 @@ const callGemini = async (input: NonNullable<Awaited<ReturnType<typeof parseInpu
     return noStoreJson({ error: 'AI draft generation failed.' }, response.status);
   }
 
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const candidate = data?.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text;
   if (typeof text !== 'string') {
-    return noStoreJson({ error: 'AI response was empty.' }, 502);
+    console.error('RAAH Gemini response was empty:', {
+      finishReason: candidate?.finishReason,
+      promptFeedback: data?.promptFeedback,
+    });
+    return noStoreJson({ error: 'AI response was empty. Please shorten the memo slightly or try again.' }, 502);
   }
 
   try {
     return noStoreJson({ draft: safeDraft(JSON.parse(text)), model: MODEL });
   } catch (error) {
-    console.error('RAAH Gemini JSON parse failed:', error);
-    return noStoreJson({ error: 'AI response could not be parsed.' }, 502);
+    console.error('RAAH Gemini JSON parse failed:', {
+      error,
+      finishReason: candidate?.finishReason,
+      textLength: text.length,
+    });
+    return noStoreJson({ error: 'AI response could not be parsed. Please try again with a slightly shorter memo.' }, 502);
   }
 };
 
