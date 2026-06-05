@@ -23,7 +23,7 @@ describe('RAAH dashboard schedule form wiring', () => {
     expect(source).toContain('fixed left-1/2 top-[max(6rem,12vh)]');
     expect(source).toContain('w-[min(520px,calc(100vw-2rem))]');
     expect(source).toContain('onOpenNew(anchorDate)');
-    expect(source).toContain('onWheel={handleCalendarWheel}');
+    expect(source).not.toContain('onWheel={handleCalendarWheel}');
     expect(page).toContain('endDate: scheduleForm.endDate || scheduleForm.date');
     expect(source).not.toContain('className="mt-4 grid gap-3 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 lg:grid-cols-[minmax(160px,1fr),150px,110px,120px,minmax(160px,1fr),80px]"');
     expect(source).toContain("setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)))");
@@ -96,6 +96,17 @@ describe('RAAH record editing wiring', () => {
     expect(notesServer).toContain("if (req.method === 'PATCH' && noteId) return handleUpdate(req, noteId);");
     expect(managementServer).toContain('const handleUpdateLog = async');
     expect(managementServer).toContain("if (route === 'visitation-logs' && req.method === 'PATCH' && id) return handleUpdateLog(req, id);");
+  });
+});
+
+describe('RAAH AI draft wiring', () => {
+  it('allows long visitation memos enough output room to finish structured drafts', () => {
+    const aiServer = readFileSync(new URL('../../netlify/functions/raah-ai-assist.mts', import.meta.url), 'utf8');
+
+    expect(aiServer).toContain('const MAX_MEMO_LENGTH = 30000;');
+    expect(aiServer).toContain('const MAX_OUTPUT_TOKENS = 8192;');
+    expect(aiServer).toContain('maxOutputTokens: MAX_OUTPUT_TOKENS');
+    expect(aiServer).toContain('finishReason: candidate?.finishReason');
   });
 });
 

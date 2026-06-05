@@ -289,7 +289,6 @@ export function MinistrySchedulePanel({
   const monthRange = getMonthRangeLabel(anchorDate);
   const hasOpenItems = items.some((item) => item.status === 'open');
   const [selectedFormDate, setSelectedFormDate] = React.useState<string | null>(null);
-  const lastWheelAtRef = React.useRef(0);
   React.useEffect(() => {
     if (!isOpen || !editingItemId || !form.date) return;
     setSelectedFormDate(form.date);
@@ -316,15 +315,39 @@ export function MinistrySchedulePanel({
     setSelectedFormDate(anchorDate);
     onOpenNew(anchorDate);
   };
-  const handleCalendarWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(event.deltaY) < 20) return;
-    if ((event.target as HTMLElement).closest('[data-schedule-popup="true"]')) return;
-    const now = Date.now();
-    if (now - lastWheelAtRef.current < 420) return;
-    event.preventDefault();
-    lastWheelAtRef.current = now;
-    shiftCalendar(event.deltaY > 0 ? 1 : -1);
-  };
+  const calendarControls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex rounded-lg border border-[#d5dee5] bg-white p-1">
+        {(['week', 'month'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setViewMode(mode)}
+            className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${
+              viewMode === mode ? 'bg-[#12345a] text-white shadow-sm' : 'text-[#607080] hover:bg-[#f1f5f8] hover:text-[#17202b]'
+            }`}
+          >
+            {mode === 'week' ? '주간' : '월간'}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1 rounded-lg border border-[#d5dee5] bg-white p-1">
+        <button type="button" onClick={() => shiftCalendar(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#28415b] transition hover:bg-[#eef7f3]" aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}>
+          <ChevronLeft size={16} />
+        </button>
+        <button type="button" onClick={resetCalendar} className="min-h-9 rounded-md px-2 text-xs font-semibold text-[#607080] transition hover:bg-[#f1f5f8] hover:text-[#17202b]">
+          오늘
+        </button>
+        <button type="button" onClick={() => shiftCalendar(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#28415b] transition hover:bg-[#eef7f3]" aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}>
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      <button type="button" onClick={openHeaderForm} className={isOpen ? shell.button : shell.ghostButton}>
+        <Plus size={16} />
+        {isOpen ? '닫기' : '일정'}
+      </button>
+    </div>
+  );
   return (
     <div className={shell.panel + ' p-5'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -332,76 +355,47 @@ export function MinistrySchedulePanel({
           <h2 className="text-lg font-semibold">사역 일정판</h2>
           <p className="mt-1 text-sm text-[#607080]">날짜를 누르면 그 날짜로 일정을 등록합니다.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border border-[#d5dee5] bg-white p-1">
-            {(['week', 'month'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setViewMode(mode)}
-                className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${
-                  viewMode === mode ? 'bg-[#12345a] text-white shadow-sm' : 'text-[#607080] hover:bg-[#f1f5f8] hover:text-[#17202b]'
-                }`}
-              >
-                {mode === 'week' ? '주간' : '월간'}
+        <div className="w-full rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 sm:w-auto sm:min-w-[320px] sm:max-w-[520px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={shell.badge + ' text-[11px]'}>
+                  <CalendarDays size={12} />
+                  Google Calendar
+                </span>
+                {calendarStatus?.connected && <span className="text-[11px] font-semibold text-[#2e6b5f]">연결됨</span>}
+              </div>
+              <p className="mt-1 truncate text-xs leading-5 text-[#607080]">
+                {!calendarStatus?.configured
+                  ? 'OAuth 환경 변수를 설정하면 RAAH 전용 캘린더를 연결할 수 있습니다.'
+                  : calendarStatus.connected
+                    ? `${getCalendarDisplayName(calendarStatus)}에서 오늘/이번 주 사역 일정을 읽어옵니다.`
+                    : '심방 일정과 사역 할 일을 Google Calendar에서 함께 관리할 수 있습니다.'}
+              </p>
+            </div>
+            {!calendarStatus?.configured ? (
+              <button type="button" disabled className={shell.ghostButton + ' shrink-0 px-3 py-1.5 text-xs opacity-60'} title="Google Calendar OAuth 환경 변수가 필요합니다.">
+                설정 필요
               </button>
-            ))}
+            ) : calendarStatus.connected ? (
+              <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0 px-3 py-1.5 text-xs'}>
+                동기화
+              </button>
+            ) : (
+              <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.button + ' shrink-0 px-3 py-1.5 text-xs'}>
+                연결
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-1 rounded-lg border border-[#d5dee5] bg-white p-1">
-            <button type="button" onClick={() => shiftCalendar(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#28415b] transition hover:bg-[#eef7f3]" aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}>
-              <ChevronLeft size={16} />
-            </button>
-            <button type="button" onClick={resetCalendar} className="min-h-9 rounded-md px-2 text-xs font-semibold text-[#607080] transition hover:bg-[#f1f5f8] hover:text-[#17202b]">
-              오늘
-            </button>
-            <button type="button" onClick={() => shiftCalendar(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#28415b] transition hover:bg-[#eef7f3]" aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}>
-              <ChevronRight size={16} />
-            </button>
-          </div>
-          <button type="button" onClick={openHeaderForm} className={isOpen ? shell.button : shell.ghostButton}>
-            <Plus size={16} />
-            {isOpen ? '닫기' : '일정'}
-          </button>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={shell.badge}>
-              <CalendarDays size={13} />
-              Google Calendar
-            </span>
-            {calendarStatus?.connected && <span className="text-xs font-semibold text-[#2e6b5f]">연결됨</span>}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-[#607080]">
-            {!calendarStatus?.configured
-              ? 'OAuth 환경 변수를 설정하면 RAAH 전용 캘린더를 연결할 수 있습니다.'
-              : calendarStatus.connected
-                ? `${getCalendarDisplayName(calendarStatus)}에서 오늘/이번 주 사역 일정을 읽어옵니다.`
-                : '심방 일정과 사역 할 일을 Google Calendar에서 함께 관리할 수 있습니다.'}
-          </p>
-        </div>
-        {!calendarStatus?.configured ? (
-          <button type="button" disabled className={shell.ghostButton + ' shrink-0 opacity-60'} title="Google Calendar OAuth 환경 변수가 필요합니다.">
-            설정 필요
-          </button>
-        ) : calendarStatus.connected ? (
-          <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
-            동기화
-          </button>
-        ) : (
-          <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.button + ' shrink-0'}>
-            연결
-          </button>
-        )}
-      </div>
-
-      <div onWheel={handleCalendarWheel}>
+      <div>
         {viewMode === 'week' ? (
           <WeekScheduleGrid
             days={weekDays}
             rangeLabel={weekRange}
+            controls={calendarControls}
             form={form}
             setForm={setForm}
             formDate={isOpen ? selectedFormDate : null}
@@ -422,6 +416,7 @@ export function MinistrySchedulePanel({
           <MonthScheduleGrid
             days={monthDays}
             rangeLabel={monthRange}
+            controls={calendarControls}
             form={form}
             setForm={setForm}
             formDate={isOpen ? selectedFormDate : null}
@@ -507,6 +502,7 @@ export function SchedulePopupForm({
 export function WeekScheduleGrid({
   days,
   rangeLabel,
+  controls,
   form,
   setForm,
   formDate,
@@ -522,6 +518,7 @@ export function WeekScheduleGrid({
 }: {
   days: ReturnType<typeof getWeekCalendarDays>;
   rangeLabel: string;
+  controls: React.ReactNode;
   form: RaahMinistryScheduleItemInput;
   setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   formDate: string | null;
@@ -537,12 +534,15 @@ export function WeekScheduleGrid({
 }) {
   return (
     <div className="mt-5">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#607080]">Weekly Care Calendar</p>
           <h3 className="mt-1 text-base font-semibold text-[#17202b]">이번 주 사역 일정</h3>
         </div>
-        <p className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">{rangeLabel}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <p className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">{rangeLabel}</p>
+          {controls}
+        </div>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-7">
         {days.map((day) => (
@@ -618,6 +618,7 @@ export function WeekScheduleGrid({
 export function MonthScheduleGrid({
   days,
   rangeLabel,
+  controls,
   form,
   setForm,
   formDate,
@@ -633,6 +634,7 @@ export function MonthScheduleGrid({
 }: {
   days: ReturnType<typeof getMonthCalendarDays>;
   rangeLabel: string;
+  controls: React.ReactNode;
   form: RaahMinistryScheduleItemInput;
   setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   formDate: string | null;
@@ -648,12 +650,15 @@ export function MonthScheduleGrid({
 }) {
   return (
     <div className="mt-5">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#607080]">Monthly Care Calendar</p>
           <h3 className="mt-1 text-base font-semibold text-[#17202b]">이번 달 사역 일정</h3>
         </div>
-        <p className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">{rangeLabel}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <p className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">{rangeLabel}</p>
+          {controls}
+        </div>
       </div>
       <div className="mt-3 overflow-x-auto pb-1">
         <div className="min-w-[760px]">
