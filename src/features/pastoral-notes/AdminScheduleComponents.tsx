@@ -579,29 +579,31 @@ export function WeekScheduleGrid({
                 <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 px-2 py-2 text-xs text-[#7a8b9a]">일정 없음</p>
               ) : (
                 day.items.map((item) => (
-                  <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-24 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
+                  <div key={item.id} className="group relative rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
                     <div>
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-[#17202b]">{item.title}</p>
-                        <p className="mt-1 text-[11px] text-[#607080]">
+                        <p className="line-clamp-2 text-xs font-semibold leading-4 text-[#17202b]">{item.title}</p>
+                        <p className="mt-1 text-[11px] leading-4 text-[#607080]">
                           {item.startsAt || '시간 미정'}
                           {getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}
                         </p>
                       </div>
+                      <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-white/95 p-0.5 opacity-35 shadow-sm transition group-hover:opacity-100 group-focus-within:opacity-100">
                       {onCopy && (
-                        <button type="button" disabled={isSaving} onClick={() => onCopy(item)} title="복사" aria-label={`${item.title} 복사`} className="absolute right-16 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
-                          <Copy size={12} strokeWidth={2.4} />
+                        <button type="button" disabled={isSaving} onClick={() => onCopy(item)} title="복사" aria-label={`${item.title} 복사`} className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                          <Copy size={11} strokeWidth={2.4} />
                           복사
                         </button>
                       )}
-                      <button type="button" disabled={isSaving} onClick={() => onEdit(item)} title="수정" aria-label={`${item.title} 수정`} className="absolute right-9 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
-                        <FileText size={12} strokeWidth={2.4} />
+                      <button type="button" disabled={isSaving} onClick={() => onEdit(item)} title="수정" aria-label={`${item.title} 수정`} className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                        <FileText size={11} strokeWidth={2.4} />
                         수정
                       </button>
-                      <button type="button" disabled={isSaving} onClick={() => onComplete(item.id)} title="완료" aria-label={`${item.title} 완료`} className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
-                        <CheckSquare size={12} strokeWidth={2.4} />
+                      <button type="button" disabled={isSaving} onClick={() => onComplete(item.id)} title="완료" aria-label={`${item.title} 완료`} className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50">
+                        <CheckSquare size={11} strokeWidth={2.4} />
                         완료
                       </button>
+                      </div>
                     </div>
                     {item.memo && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#607080]">{item.memo}</p>}
                   </div>
@@ -704,15 +706,16 @@ export function MonthScheduleGrid({
                 )}
                 <div className="mt-2 space-y-1.5">
                   {day.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="relative rounded-lg border border-[#dbe3e8] bg-white p-2 pr-16 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
+                    <div key={item.id} className="group relative rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
                       <div>
                         <div className="min-w-0">
-                          <p className="truncate text-[11px] font-semibold text-[#17202b]">{item.title}</p>
-                          <p className="mt-0.5 truncate text-[10px] text-[#607080]">
+                          <p className="line-clamp-2 text-[11px] font-semibold leading-4 text-[#17202b]">{item.title}</p>
+                          <p className="mt-0.5 truncate text-[10px] leading-4 text-[#607080]">
                             {item.startsAt || '시간 미정'}
                             {getScheduleMemberLabel(item) ? ` · ${getScheduleMemberLabel(item)}` : ''}
                           </p>
                         </div>
+                        <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-white/95 p-0.5 opacity-30 shadow-sm transition group-hover:opacity-100 group-focus-within:opacity-100">
                         {onCopy && (
                           <button
                             type="button"
@@ -720,9 +723,9 @@ export function MonthScheduleGrid({
                             onClick={() => onCopy(item)}
                             title="복사"
                             aria-label={`${item.title} 복사`}
-                            className="absolute right-12 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
                           >
-                            <Copy size={11} strokeWidth={2.4} />
+                            <Copy size={9} strokeWidth={2.4} />
                             복사
                           </button>
                         )}
@@ -732,9 +735,9 @@ export function MonthScheduleGrid({
                           onClick={() => onEdit(item)}
                           title="수정"
                           aria-label={`${item.title} 수정`}
-                          className="absolute right-7 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
                         >
-                          <FileText size={11} strokeWidth={2.4} />
+                          <FileText size={9} strokeWidth={2.4} />
                           수정
                         </button>
                         <button
@@ -743,11 +746,12 @@ export function MonthScheduleGrid({
                           onClick={() => onComplete(item.id)}
                           title="완료"
                           aria-label={`${item.title} 완료`}
-                          className="absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#d5dee5] text-[0px] text-[#2e6b5f] transition hover:bg-[#eef7f3] disabled:opacity-50"
                         >
-                          <CheckSquare size={11} strokeWidth={2.4} />
+                          <CheckSquare size={9} strokeWidth={2.4} />
                           완료
                         </button>
+                        </div>
                       </div>
                     </div>
                   ))}
