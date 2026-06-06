@@ -77,6 +77,7 @@ export function VisitationTab({
   onNew: () => void;
   onMemberSelect: (memberId: string) => void;
 }) {
+  const showInlineNewForm = isFormOpen && !editingLogId;
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(320px,440px),minmax(0,1fr)] xl:grid-cols-[minmax(360px,480px),minmax(0,1fr)]">
       <div className={shell.panel + ' p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-9rem)] lg:overflow-hidden'}>
@@ -90,27 +91,47 @@ export function VisitationTab({
             새 기록
           </button>
         </div>
-        <div className="mt-4 space-y-2 lg:max-h-[calc(100vh-15rem)] lg:overflow-y-auto lg:pr-1">
-          {logs.length === 0 ? (
-            <EmptyState>심방/상담 기록이 없습니다.</EmptyState>
-          ) : (
-            logs.map((log) => (
-              <LogRow
-                key={log.id}
-                log={log}
-                active={selectedLogId === log.id}
-                onClick={() => {
-                  setSelectedLogId(log.id);
-                  clearDecrypted();
-                }}
-              />
-            ))
-          )}
-        </div>
+        {showInlineNewForm ? (
+          <div className="mt-4 max-h-[calc(100vh-15rem)] overflow-y-auto pr-1">
+            <LogFormContent
+              isSaving={isSaving}
+              members={members}
+              form={form}
+              setForm={setForm}
+              editingLogId={editingLogId}
+              rawAiMemo={rawAiMemo}
+              setRawAiMemo={setRawAiMemo}
+              aiSuggestion={aiSuggestion}
+              isAiDrafting={isAiDrafting}
+              onAiDraft={onAiDraft}
+              onSubmit={onSubmit}
+              onClose={onCloseForm}
+              onMemberSelect={onMemberSelect}
+            />
+          </div>
+        ) : (
+          <div className="mt-4 space-y-2 lg:max-h-[calc(100vh-15rem)] lg:overflow-y-auto lg:pr-1">
+            {logs.length === 0 ? (
+              <EmptyState>심방/상담 기록이 없습니다.</EmptyState>
+            ) : (
+              logs.map((log) => (
+                <LogRow
+                  key={log.id}
+                  log={log}
+                  active={selectedLogId === log.id}
+                  onClick={() => {
+                    setSelectedLogId(log.id);
+                    clearDecrypted();
+                  }}
+                />
+              ))
+            )}
+          </div>
+        )}
       </div>
       <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
         <LogPanel
-          isOpen={isFormOpen}
+          isOpen={isFormOpen && Boolean(editingLogId)}
           isSaving={isSaving}
           members={members}
           form={form}
@@ -175,6 +196,95 @@ export function CompactLog({ log }: { log: RaahVisitationLog }) {
   );
 }
 
+function LogFormContent({
+  isSaving,
+  members,
+  form,
+  setForm,
+  editingLogId,
+  rawAiMemo,
+  setRawAiMemo,
+  aiSuggestion,
+  isAiDrafting,
+  onAiDraft,
+  onSubmit,
+  onClose,
+  onMemberSelect,
+}: {
+  isSaving: boolean;
+  members: RaahMember[];
+  form: RaahVisitationLogInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
+  editingLogId: string | null;
+  rawAiMemo: string;
+  setRawAiMemo: (value: string) => void;
+  aiSuggestion: string;
+  isAiDrafting: boolean;
+  onAiDraft: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onClose: () => void;
+  onMemberSelect: (memberId: string) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className={shell.mutedPanel + ' px-4 py-3 text-sm leading-6 text-[#28415b]'}>
+        <span className={shell.badge}><Lock size={12} />보안 저장</span>
+        <p className="mt-2">민감 본문은 서버에서 암호화해 저장합니다.</p>
+      </div>
+      <div className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#17202b]">긴 메모 AI 정리</p>
+            <p className="mt-1 text-xs leading-5 text-[#607080]">상담 후 남긴 긴 메모를 붙여넣으면 아래 기록 칸으로 나눠 초안을 만듭니다.</p>
+          </div>
+          <button type="button" onClick={onAiDraft} disabled={isAiDrafting || rawAiMemo.trim().length < 10} className={shell.button + ' shrink-0'}>
+            <Sparkles size={16} />
+            {isAiDrafting ? '정리 중...' : 'AI로 정리'}
+          </button>
+        </div>
+        <textarea
+          value={rawAiMemo}
+          onChange={(event) => setRawAiMemo(event.target.value)}
+          rows={5}
+          className={`${shell.input} mt-3 leading-6`}
+          placeholder="정리되지 않은 긴 메모를 여기에 붙여넣으세요. AI 결과는 바로 저장되지 않고, 아래 칸에 초안으로만 채워집니다."
+        />
+        {aiSuggestion && (
+          <div className="mt-3 rounded-md border border-[#d5dee5] bg-[#ffffff] p-3 text-sm leading-6 text-[#28415b]">
+            <span className={shell.badge}><Sparkles size={12} />AI 후속 제안</span>
+            <p className="mt-2 whitespace-pre-wrap">{aiSuggestion}</p>
+          </div>
+        )}
+      </div>
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">성도 선택</span>
+        <select value={form.memberId || ''} onChange={(event) => onMemberSelect(event.target.value)} className={shell.input}>
+          <option value="">직접 입력</option>
+          {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+        </select>
+      </label>
+      <TextInput label="성도 이름" value={form.memberName} onChange={(value) => setForm((prev) => ({ ...prev, memberName: value, memberId: '' }))} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">유형</span>
+          <select value={form.logType} onChange={(event) => setForm((prev) => ({ ...prev, logType: event.target.value }))} className={shell.input}>
+            {LOG_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </label>
+      </div>
+      <TextArea label="공개 요약" value={form.publicSummary || ''} onChange={(value) => setForm((prev) => ({ ...prev, publicSummary: value }))} rows={3} />
+      <TextArea label="내밀한 목양 기록" value={form.innerNote} onChange={(value) => setForm((prev) => ({ ...prev, innerNote: value }))} rows={5} locked />
+      <TextArea label="기도 제목" value={form.prayerTopics} onChange={(value) => setForm((prev) => ({ ...prev, prayerTopics: value }))} rows={4} locked />
+      <TextArea label="다음 단계" value={form.nextSteps || ''} onChange={(value) => setForm((prev) => ({ ...prev, nextSteps: value }))} rows={3} locked />
+      <TextArea label="비공개 메모" value={form.privateRemarks || ''} onChange={(value) => setForm((prev) => ({ ...prev, privateRemarks: value }))} rows={3} locked />
+      <div className="flex gap-2">
+        <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : editingLogId ? '수정 저장' : '암호화 저장'}</button>
+        <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
+      </div>
+    </form>
+  );
+}
 
 export function LogPanel({
   isOpen,
@@ -236,63 +346,23 @@ export function LogPanel({
         {!isOpen && <button type="button" onClick={onNew} className="text-sm font-semibold text-[#2e6b5f]">새 기록</button>}
       </div>
       {isOpen ? (
-        <form onSubmit={onSubmit} className="mt-4 space-y-4">
-          <div className={shell.mutedPanel + ' px-4 py-3 text-sm leading-6 text-[#28415b]'}>
-            <span className={shell.badge}><Lock size={12} />보안 저장</span>
-            <p className="mt-2">민감 본문은 서버에서 암호화해 저장합니다.</p>
-          </div>
-          <div className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-[#17202b]">긴 메모 AI 정리</p>
-                <p className="mt-1 text-xs leading-5 text-[#607080]">상담 후 남긴 긴 메모를 붙여넣으면 아래 기록 칸으로 나눠 초안을 만듭니다.</p>
-              </div>
-              <button type="button" onClick={onAiDraft} disabled={isAiDrafting || rawAiMemo.trim().length < 10} className={shell.button + ' shrink-0'}>
-                <Sparkles size={16} />
-                {isAiDrafting ? '정리 중...' : 'AI로 정리'}
-              </button>
-            </div>
-            <textarea
-              value={rawAiMemo}
-              onChange={(event) => setRawAiMemo(event.target.value)}
-              rows={5}
-              className={`${shell.input} mt-3 leading-6`}
-              placeholder="정리되지 않은 긴 메모를 여기에 붙여넣으세요. AI 결과는 바로 저장되지 않고, 아래 칸에 초안으로만 채워집니다."
-            />
-            {aiSuggestion && (
-              <div className="mt-3 rounded-md border border-[#d5dee5] bg-[#ffffff] p-3 text-sm leading-6 text-[#28415b]">
-                <span className={shell.badge}><Sparkles size={12} />AI 후속 제안</span>
-                <p className="mt-2 whitespace-pre-wrap">{aiSuggestion}</p>
-              </div>
-            )}
-          </div>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">성도 선택</span>
-            <select value={form.memberId || ''} onChange={(event) => onMemberSelect(event.target.value)} className={shell.input}>
-              <option value="">직접 입력</option>
-              {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-            </select>
-          </label>
-          <TextInput label="성도 이름" value={form.memberName} onChange={(value) => setForm((prev) => ({ ...prev, memberName: value, memberId: '' }))} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">유형</span>
-              <select value={form.logType} onChange={(event) => setForm((prev) => ({ ...prev, logType: event.target.value }))} className={shell.input}>
-                {LOG_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-              </select>
-            </label>
-          </div>
-          <TextArea label="공개 요약" value={form.publicSummary || ''} onChange={(value) => setForm((prev) => ({ ...prev, publicSummary: value }))} rows={3} />
-          <TextArea label="내밀한 목양 기록" value={form.innerNote} onChange={(value) => setForm((prev) => ({ ...prev, innerNote: value }))} rows={5} locked />
-          <TextArea label="기도 제목" value={form.prayerTopics} onChange={(value) => setForm((prev) => ({ ...prev, prayerTopics: value }))} rows={4} locked />
-          <TextArea label="다음 단계" value={form.nextSteps || ''} onChange={(value) => setForm((prev) => ({ ...prev, nextSteps: value }))} rows={3} locked />
-          <TextArea label="비공개 메모" value={form.privateRemarks || ''} onChange={(value) => setForm((prev) => ({ ...prev, privateRemarks: value }))} rows={3} locked />
-          <div className="flex gap-2">
-            <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : editingLogId ? '수정 저장' : '암호화 저장'}</button>
-            <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
-          </div>
-        </form>
+        <div className="mt-4">
+          <LogFormContent
+            isSaving={isSaving}
+            members={members}
+            form={form}
+            setForm={setForm}
+            editingLogId={editingLogId}
+            rawAiMemo={rawAiMemo}
+            setRawAiMemo={setRawAiMemo}
+            aiSuggestion={aiSuggestion}
+            isAiDrafting={isAiDrafting}
+            onAiDraft={onAiDraft}
+            onSubmit={onSubmit}
+            onClose={onClose}
+            onMemberSelect={onMemberSelect}
+          />
+        </div>
       ) : selectedLog ? (
         <div className="mt-4 space-y-4">
           <div className={shell.mutedPanel + ' p-5'}>
@@ -354,4 +424,3 @@ export function LogPanel({
     </div>
   );
 }
-

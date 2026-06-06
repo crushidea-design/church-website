@@ -44,7 +44,7 @@ export function MembersTab({
   selectedMemberAttendanceHistory: RaahAttendanceHistoryRecord[];
   attendanceDate: string;
   hasAttendanceEvent: boolean;
-  onSelectMember: (id: string) => void;
+  onSelectMember: (id: string | null) => void;
   onEditMember: (member?: RaahMember) => void;
   onNewMember: () => void;
   onNewLog: (member: RaahMember) => void;
@@ -56,8 +56,23 @@ export function MembersTab({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCloseForm: () => void;
 }) {
+  const toggleMember = (member: RaahMember) => {
+    onSelectMember(selectedMember?.id === member.id ? null : member.id);
+  };
+  const renderMemberHub = (member: RaahMember) => (
+    <MemberHub
+      member={member}
+      logs={selectedMemberLogs}
+      attendance={selectedMemberAttendance}
+      attendanceHistory={selectedMemberAttendanceHistory}
+      attendanceDate={attendanceDate}
+      hasAttendanceEvent={hasAttendanceEvent}
+      onEdit={() => onEditMember(member)}
+      onNewLog={() => onNewLog(member)}
+    />
+  );
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(640px,1.25fr),minmax(420px,0.75fr)]">
+    <section>
       <div className={shell.panel + ' p-4'}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">성도 명부</h2>
@@ -66,32 +81,38 @@ export function MembersTab({
             등록
           </button>
         </div>
+        {isFormOpen && <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} />}
         <div className="mt-4 lg:hidden">
           {members.length === 0 ? (
             <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState>
           ) : (
-            members.map((member) => (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => onSelectMember(member.id)}
-                className={`mb-2 w-full rounded-lg border px-4 py-3 text-left transition last:mb-0 ${
-                  selectedMember?.id === member.id ? 'border-[#12345a] bg-[#12345a] text-white' : 'border-[#dbe3e8] bg-[#ffffff] hover:bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{member.name}</p>
-                    <p className={`mt-1 text-xs ${selectedMember?.id === member.id ? 'text-white/70' : 'text-[#607080]'}`}>
-                    {[member.position, member.district, member.phone].filter(Boolean).join(' · ') || '기본 정보 미입력'}
-                    </p>
-                  </div>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selectedMember?.id === member.id ? 'border-white/20 text-white/70' : 'border-[#dbe3e8] bg-[#ffffff] text-[#28415b]'}`}>
-                    {member.status === 'active' ? '활성' : '비활성'}
-                  </span>
+            members.map((member) => {
+              const isSelected = selectedMember?.id === member.id;
+              return (
+                <div key={member.id} className="mb-2 last:mb-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleMember(member)}
+                    className={`w-full rounded-lg border px-4 py-3 text-left transition ${
+                      isSelected ? 'border-[#12345a] bg-[#12345a] text-white' : 'border-[#dbe3e8] bg-[#ffffff] hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{member.name}</p>
+                        <p className={`mt-1 text-xs ${isSelected ? 'text-white/70' : 'text-[#607080]'}`}>
+                        {[member.position, member.district, member.phone].filter(Boolean).join(' · ') || '기본 정보 미입력'}
+                        </p>
+                      </div>
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${isSelected ? 'border-white/20 text-white/70' : 'border-[#dbe3e8] bg-[#ffffff] text-[#28415b]'}`}>
+                        {member.status === 'active' ? '활성' : '비활성'}
+                      </span>
+                    </div>
+                  </button>
+                  {isSelected && <div className="mt-2">{renderMemberHub(member)}</div>}
                 </div>
-              </button>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -112,22 +133,30 @@ export function MembersTab({
                 {members.map((member) => {
                   const isSelected = selectedMember?.id === member.id;
                   return (
-                    <tr
-                      key={member.id}
-                      onClick={() => onSelectMember(member.id)}
-                      className={`cursor-pointer border-t border-[#e6edf2] transition ${isSelected ? 'bg-[#12345a] text-white' : 'hover:bg-[#f8fafb]'}`}
-                    >
-                      <td className="truncate px-3 py-2.5 font-semibold">{member.name}</td>
-                      <td className={`truncate px-3 py-2.5 ${isSelected ? 'text-white/80' : 'text-[#28415b]'}`}>
-                        {[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}
-                      </td>
-                      <td className={`truncate px-3 py-2.5 ${isSelected ? 'text-white/70' : 'text-[#607080]'}`}>{member.phone || '-'}</td>
-                      <td className="px-3 py-2.5 text-right">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${isSelected ? 'border-white/20 text-white/70' : 'border-[#dbe3e8] bg-[#ffffff] text-[#28415b]'}`}>
-                          {member.status === 'active' ? '활성' : '비활성'}
-                        </span>
-                      </td>
-                    </tr>
+                    <React.Fragment key={member.id}>
+                      <tr
+                        onClick={() => toggleMember(member)}
+                        className={`cursor-pointer border-t border-[#e6edf2] transition ${isSelected ? 'bg-[#12345a] text-white' : 'hover:bg-[#f8fafb]'}`}
+                      >
+                        <td className="truncate px-3 py-2.5 font-semibold">{member.name}</td>
+                        <td className={`truncate px-3 py-2.5 ${isSelected ? 'text-white/80' : 'text-[#28415b]'}`}>
+                          {[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}
+                        </td>
+                        <td className={`truncate px-3 py-2.5 ${isSelected ? 'text-white/70' : 'text-[#607080]'}`}>{member.phone || '-'}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${isSelected ? 'border-white/20 text-white/70' : 'border-[#dbe3e8] bg-[#ffffff] text-[#28415b]'}`}>
+                            {member.status === 'active' ? '활성' : '비활성'}
+                          </span>
+                        </td>
+                      </tr>
+                      {isSelected && (
+                        <tr className="border-t border-[#e6edf2] bg-[#f8fafb]">
+                          <td colSpan={4} className="p-3">
+                            {renderMemberHub(member)}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -136,26 +165,6 @@ export function MembersTab({
         </div>
       </div>
 
-      <div className="space-y-4">
-        {isFormOpen ? (
-          <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} />
-        ) : selectedMember ? (
-          <MemberHub
-            member={selectedMember}
-            logs={selectedMemberLogs}
-            attendance={selectedMemberAttendance}
-            attendanceHistory={selectedMemberAttendanceHistory}
-            attendanceDate={attendanceDate}
-            hasAttendanceEvent={hasAttendanceEvent}
-            onEdit={() => onEditMember(selectedMember)}
-            onNewLog={() => onNewLog(selectedMember)}
-          />
-        ) : (
-          <div className={shell.panel + ' p-5'}>
-            <EmptyState>성도를 선택하거나 새로 등록해 주세요.</EmptyState>
-          </div>
-        )}
-      </div>
     </section>
   );
 }
@@ -264,7 +273,7 @@ export function MemberForm({
   onClose: () => void;
 }) {
   return (
-    <div className={shell.panel + ' p-5'}>
+    <div className="mt-4 rounded-xl border border-[#dbe3e8] bg-[#f8fafb] p-4">
       <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
         <TextInput label="이름" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
@@ -294,4 +303,3 @@ export function MemberForm({
     </div>
   );
 }
-

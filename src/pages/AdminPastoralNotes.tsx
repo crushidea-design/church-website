@@ -64,7 +64,6 @@ import {
   emptySummary,
   formatScheduleDateRange,
   getAttendanceOption,
-  getDashboardSeason,
   getDateForAttendanceEventType,
   getDateSpanDays,
   getErrorMessage,
@@ -81,11 +80,9 @@ import {
   FocusCard,
 } from '../features/pastoral-notes/AdminPrimitives';
 import {
-  MinistrySchedulePanel,
   ScheduleTab,
 } from '../features/pastoral-notes/AdminScheduleComponents';
 import {
-  AttendanceSnapshot,
   AttendanceTab,
   getAttendanceEventLabel,
 } from '../features/pastoral-notes/AdminAttendanceComponents';
@@ -205,7 +202,7 @@ export default function AdminPastoralNotes() {
     setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? attendanceOption.includesCommunion);
     setAttendanceMemo(nextAttendance?.memo || '');
     setAttendanceRecords(buildAttendanceRecordsForEvent(nextMembers, nextAttendance));
-    setSelectedMemberId((currentId) => (currentId && nextMembers.some((member) => member.id === currentId) ? currentId : nextMembers[0]?.id ?? null));
+    setSelectedMemberId((currentId) => (currentId && nextMembers.some((member) => member.id === currentId) ? currentId : null));
     setSelectedLogId((currentId) => (currentId && nextLogs.some((log) => log.id === currentId) ? currentId : null));
   }, [activeAttendanceEventType, attendanceDate, user]);
 
@@ -1066,7 +1063,6 @@ export default function AdminPastoralNotes() {
                 onOpenNewSchedule={openNewScheduleForm}
                 onCloseScheduleForm={closeScheduleForm}
                 onEdit={openScheduleFormForEdit}
-                calendarStatus={calendarStatus}
                 isSaving={isSaving}
                 onOpenAttendance={() => setActiveTab('attendance')}
                 onOpenLog={(logId) => {
@@ -1078,8 +1074,6 @@ export default function AdminPastoralNotes() {
                 onNewLogForMember={(member) => openLogForm(member)}
                 onCreateScheduleItem={handleCreateScheduleItem}
                 onCompleteScheduleItem={handleCompleteScheduleItem}
-                onConnectCalendar={handleConnectCalendar}
-                onSyncCalendar={handleSyncCalendar}
               />
             )}
 
@@ -1273,7 +1267,6 @@ function DashboardTab({
   onOpenNewSchedule,
   onCloseScheduleForm,
   onEdit,
-  calendarStatus,
   isSaving,
   onOpenAttendance,
   onOpenLog,
@@ -1282,8 +1275,6 @@ function DashboardTab({
   onNewLogForMember,
   onCreateScheduleItem,
   onCompleteScheduleItem,
-  onConnectCalendar,
-  onSyncCalendar,
 }: {
   isLoading: boolean;
   summary: RaahDashboardSummary;
@@ -1302,7 +1293,6 @@ function DashboardTab({
   onOpenNewSchedule: (dateIso?: string) => void;
   onCloseScheduleForm: () => void;
   onEdit: (item: RaahMinistryScheduleItem) => void;
-  calendarStatus: RaahCalendarStatus | null;
   isSaving: boolean;
   onOpenAttendance: () => void;
   onOpenLog: (logId: string) => void;
@@ -1311,13 +1301,10 @@ function DashboardTab({
   onNewLogForMember: (member: RaahMember) => void;
   onCreateScheduleItem: (event: React.FormEvent<HTMLFormElement>) => void;
   onCompleteScheduleItem: (itemId: string) => void;
-  onConnectCalendar: () => void;
-  onSyncCalendar: () => void;
 }) {
   const activeMemberCount = summary.activeMemberCount || members.filter((member) => member.status === 'active').length;
   const absentCount = Math.max(activeMemberCount - attendanceCount, 0);
   const attendanceRate = percent(attendanceCount, activeMemberCount);
-  const communionRate = percent(communionCount, attendanceCount);
   const dashboardAttendanceFlow = React.useMemo(
     () => buildRaahAttendanceFlow({ members, history: attendanceHistory, limit: 1 }),
     [attendanceHistory, members]
@@ -1331,16 +1318,8 @@ function DashboardTab({
     }),
     [dashboardAttendanceFlow, members, pendingFollowUps, scheduleItems]
   );
-  const dashboardSeason = getDashboardSeason();
-  const taskBoardCopy =
-    dashboardSeason === 'attendance'
-      ? '출석 정리와 후속 연락을 한 화면에서 처리합니다.'
-      : dashboardSeason === 'follow-up'
-        ? '결석자와 남은 다음 단계를 먼저 확인합니다.'
-        : '다가오는 일정과 미체크 예배를 먼저 점검합니다.';
-
   return (
-    <section className="space-y-5">
+    <section className="space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
         <FocusCard label="활성 성도" value={activeMemberCount} icon={<Users size={20} />} />
         <FocusCard label="주일 출석" value={attendanceCount} helper={`성찬 ${communionCount} · 미출석 ${absentCount}`} icon={<CheckSquare size={20} />} />
@@ -1348,83 +1327,280 @@ function DashboardTab({
         <FocusCard label="암호화 기록" value={summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length} icon={<Lock size={20} />} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AttendanceSnapshot
+      <div className={shell.panel + ' p-3'}>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button type="button" onClick={onNewLog} className={shell.button + ' justify-center'}>
+            <Plus size={16} />
+            새 심방 기록
+          </button>
+          <button type="button" onClick={onOpenAttendance} className={shell.ghostButton + ' justify-center'}>
+            <CheckSquare size={16} />
+            출석 체크
+          </button>
+          <button type="button" onClick={() => onOpenNewSchedule()} className={shell.ghostButton + ' justify-center'}>
+            <CalendarDays size={16} />
+            일정 등록
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-4">
+        <DashboardAttendanceMini
           date={attendanceDate}
           activeMemberCount={activeMemberCount}
           attendanceCount={attendanceCount}
           communionCount={communionCount}
           absentCount={absentCount}
           attendanceRate={attendanceRate}
-          communionRate={communionRate}
-          flow={dashboardAttendanceFlow}
           onOpenAttendance={onOpenAttendance}
         />
+        <DashboardTasksMini
+          tasks={todayTasks.slice(0, 3)}
+          members={members}
+          isSaving={isSaving}
+          onOpenAttendance={onOpenAttendance}
+          onOpenLog={onOpenLog}
+          onResolveFollowUp={onResolveFollowUp}
+          onNewLogForMember={onNewLogForMember}
+          onEditSchedule={onEdit}
+          onCompleteSchedule={onCompleteScheduleItem}
+        />
+        <DashboardRecentLogsMini isLoading={isLoading} logs={logs.slice(0, 3)} onOpenLog={onOpenLog} />
+        <DashboardScheduleMini
+          items={scheduleItems}
+          form={scheduleForm}
+          setForm={setScheduleForm}
+          editingItemId={editingScheduleItemId}
+          isOpen={isScheduleFormOpen}
+          isSaving={isSaving}
+          onOpenNew={onOpenNewSchedule}
+          onClose={onCloseScheduleForm}
+          onSubmit={onCreateScheduleItem}
+          onEdit={onEdit}
+          onComplete={onCompleteScheduleItem}
+        />
+      </div>
+    </section>
+  );
+}
 
-        <div className={shell.panel + ' p-4'}>
-          <h2 className="text-lg font-semibold">최근 심방/상담</h2>
-          <div className="mt-4 space-y-2">
-            {isLoading ? <EmptyState>RAAH 데이터를 불러오는 중입니다.</EmptyState> : logs.length === 0 ? <EmptyState>아직 심방/상담 기록이 없습니다.</EmptyState> : logs.slice(0, 5).map((log) => <LogRow key={log.id} log={log} active={false} onClick={() => onOpenLog(log.id)} />)}
-          </div>
+function DashboardAttendanceMini({
+  date,
+  activeMemberCount,
+  attendanceCount,
+  communionCount,
+  absentCount,
+  attendanceRate,
+  onOpenAttendance,
+}: {
+  date: string;
+  activeMemberCount: number;
+  attendanceCount: number;
+  communionCount: number;
+  absentCount: number;
+  attendanceRate: number;
+  onOpenAttendance: () => void;
+}) {
+  return (
+    <div className={shell.panel + ' p-4'}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold">출석</h2>
+          <p className="mt-1 text-xs text-[#607080]">{formatDisplayDate(date)}</p>
+        </div>
+        <button type="button" onClick={onOpenAttendance} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+          체크
+        </button>
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-3xl font-semibold tracking-tight text-[#17202b]">{attendanceRate}%</p>
+          <p className="mt-1 text-xs text-[#607080]">출석 {attendanceCount}/{activeMemberCount}</p>
+        </div>
+        <div className="text-right text-xs leading-5 text-[#607080]">
+          <p>성찬 {communionCount}</p>
+          <p>미출석 {absentCount}</p>
         </div>
       </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dbe3e8]">
+        <div className="h-full rounded-full bg-[#2e6b5f]" style={{ width: `${attendanceRate}%` }} />
+      </div>
+    </div>
+  );
+}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className={shell.panel + ' p-5'}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">오늘 할 일</h2>
-              <p className="mt-1 text-sm text-[#607080]">{taskBoardCopy}</p>
-            </div>
-            <button type="button" onClick={onNewLog} className={shell.button}>
-              <Plus size={16} />
-              기록
+function DashboardTasksMini({
+  tasks,
+  members,
+  isSaving,
+  onOpenAttendance,
+  onOpenLog,
+  onResolveFollowUp,
+  onNewLogForMember,
+  onEditSchedule,
+  onCompleteSchedule,
+}: {
+  tasks: DashboardTask[];
+  members: RaahMember[];
+  isSaving: boolean;
+  onOpenAttendance: () => void;
+  onOpenLog: (logId: string) => void;
+  onResolveFollowUp: (log: RaahVisitationLog) => void;
+  onNewLogForMember: (member: RaahMember) => void;
+  onEditSchedule: (item: RaahMinistryScheduleItem) => void;
+  onCompleteSchedule: (itemId: string) => void;
+}) {
+  return (
+    <div className={shell.panel + ' p-4'}>
+      <h2 className="text-base font-semibold">오늘 할 일</h2>
+      <TodayTaskList
+        tasks={tasks}
+        members={members}
+        isSaving={isSaving}
+        onOpenAttendance={onOpenAttendance}
+        onOpenLog={onOpenLog}
+        onResolveFollowUp={onResolveFollowUp}
+        onNewLogForMember={onNewLogForMember}
+        onEditSchedule={onEditSchedule}
+        onCompleteSchedule={onCompleteSchedule}
+      />
+    </div>
+  );
+}
+
+function DashboardRecentLogsMini({
+  isLoading,
+  logs,
+  onOpenLog,
+}: {
+  isLoading: boolean;
+  logs: RaahVisitationLog[];
+  onOpenLog: (logId: string) => void;
+}) {
+  return (
+    <div className={shell.panel + ' p-4'}>
+      <h2 className="text-base font-semibold">최근 기록</h2>
+      <div className="mt-3 space-y-2">
+        {isLoading ? (
+          <EmptyState>불러오는 중입니다.</EmptyState>
+        ) : logs.length === 0 ? (
+          <EmptyState>아직 기록이 없습니다.</EmptyState>
+        ) : (
+          logs.map((log) => (
+            <button key={log.id} type="button" onClick={() => onOpenLog(log.id)} className="w-full rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3 text-left transition hover:bg-white">
+              <p className="truncate text-sm font-semibold text-[#17202b]">{log.memberName}</p>
+              <p className="mt-1 text-xs text-[#607080]">{formatDisplayDate(log.date)} · {log.logType}</p>
+              <p className="mt-1 line-clamp-1 text-xs text-[#28415b]">{log.publicSummary || '공개 요약 없음'}</p>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DashboardScheduleMini({
+  items,
+  form,
+  setForm,
+  editingItemId,
+  isOpen,
+  isSaving,
+  onOpenNew,
+  onClose,
+  onSubmit,
+  onEdit,
+  onComplete,
+}: {
+  items: RaahMinistryScheduleItem[];
+  form: RaahMinistryScheduleItemInput;
+  setForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  editingItemId: string | null;
+  isOpen: boolean;
+  isSaving: boolean;
+  onOpenNew: (dateIso?: string) => void;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onEdit: (item: RaahMinistryScheduleItem) => void;
+  onComplete: (itemId: string) => void;
+}) {
+  const openItems = getOpenScheduleItems(items).slice(0, 3);
+  return (
+    <div className={shell.panel + ' p-4'}>
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-base font-semibold">사역 일정</h2>
+        <button type="button" onClick={() => onOpenNew()} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+          <Plus size={14} />
+          일정
+        </button>
+      </div>
+      {isOpen && (
+        <form onSubmit={onSubmit} className="mt-3 space-y-2 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
+          <input
+            value={form.title}
+            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+            className={shell.input}
+            placeholder="일정 제목"
+          />
+          <div className="grid grid-cols-[minmax(0,1fr),96px] gap-2">
+            <input
+              type="date"
+              value={form.date}
+              onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value, endDate: event.target.value }))}
+              className={shell.input}
+            />
+            <input
+              type="time"
+              value={form.startsAt || ''}
+              onChange={(event) => setForm((prev) => ({ ...prev, startsAt: event.target.value }))}
+              className={shell.input}
+            />
+          </div>
+          <textarea
+            value={form.memo || ''}
+            onChange={(event) => setForm((prev) => ({ ...prev, memo: event.target.value }))}
+            className={shell.input}
+            rows={2}
+            placeholder="메모"
+          />
+          <div className="flex gap-2">
+            <button type="submit" disabled={isSaving} className={shell.button + ' flex-1 justify-center'}>
+              {editingItemId ? '수정 저장' : '저장'}
+            </button>
+            <button type="button" onClick={onClose} className={shell.ghostButton}>
+              닫기
             </button>
           </div>
-          <TodayTaskList
-            tasks={todayTasks}
-            members={members}
-            isSaving={isSaving}
-            onOpenAttendance={onOpenAttendance}
-            onOpenLog={onOpenLog}
-            onResolveFollowUp={onResolveFollowUp}
-            onNewLogForMember={onNewLogForMember}
-            onEditSchedule={onEdit}
-            onCompleteSchedule={onCompleteScheduleItem}
-          />
-        </div>
-
-        <div className={shell.panel + ' p-5'}>
-          <h2 className="text-lg font-semibold">후속 확인 후보</h2>
-          <div className="mt-4 space-y-2">
-            {isLoading ? (
-              <EmptyState>후속 확인 목록을 불러오는 중입니다.</EmptyState>
-            ) : pendingFollowUps.length === 0 ? (
-              <EmptyState>후속 확인이 필요한 기록이 아직 없습니다.</EmptyState>
-            ) : (
-              pendingFollowUps.map((log) => <FollowUpRow key={log.id} log={log} disabled={isSaving} onOpenLog={onOpenLog} onResolve={onResolveFollowUp} />)
-            )}
-          </div>
-        </div>
+        </form>
+      )}
+      <div className="mt-3 space-y-2">
+        {openItems.length === 0 ? (
+          <EmptyState>다가오는 일정이 없습니다.</EmptyState>
+        ) : (
+          openItems.map((item) => (
+            <div key={item.id} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#17202b]">{item.title}</p>
+                  <p className="mt-1 text-xs text-[#607080]">
+                    {formatScheduleDateRange(item)}
+                    {item.startsAt ? ` · ${item.startsAt}` : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button type="button" onClick={() => onEdit(item)} className="rounded-md border border-[#d5dee5] px-2 py-1 text-xs font-semibold text-[#28415b]">
+                    수정
+                  </button>
+                  <button type="button" disabled={isSaving} onClick={() => onComplete(item.id)} className="rounded-md border border-[#d5dee5] px-2 py-1 text-xs font-semibold text-[#2e6b5f] disabled:opacity-50">
+                    완료
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
-
-      <MinistrySchedulePanel
-        items={scheduleItems}
-        form={scheduleForm}
-        setForm={setScheduleForm}
-        editingItemId={editingScheduleItemId}
-        isOpen={isScheduleFormOpen}
-        onOpenNew={onOpenNewSchedule}
-        onClose={onCloseScheduleForm}
-        onEdit={onEdit}
-        calendarStatus={calendarStatus}
-        isSaving={isSaving}
-        onSubmit={onCreateScheduleItem}
-        onComplete={onCompleteScheduleItem}
-        onConnectCalendar={onConnectCalendar}
-        onSyncCalendar={onSyncCalendar}
-      />
-    </section>
+    </div>
   );
 }
 
@@ -1640,27 +1816,3 @@ function TodayTaskList({
     </div>
   );
 }
-
-function FollowUpRow({
-  log,
-  disabled,
-  onOpenLog,
-  onResolve,
-}: {
-  log: RaahVisitationLog;
-  disabled: boolean;
-  onOpenLog: (logId: string) => void;
-  onResolve: (log: RaahVisitationLog) => void;
-}) {
-  return (
-    <div className="grid gap-2 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-2 md:grid-cols-[minmax(0,1fr),96px]">
-      <LogRow log={log} active={false} onClick={() => onOpenLog(log.id)} />
-      <button type="button" disabled={disabled} onClick={() => onResolve(log)} className={shell.ghostButton + ' min-h-10 md:h-full'}>
-        완료
-      </button>
-    </div>
-  );
-}
-
-
-
