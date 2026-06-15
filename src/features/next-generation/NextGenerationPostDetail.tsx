@@ -28,6 +28,7 @@ import {
   formatFileSize,
   getMaterialAttachmentLabel,
   getPostAttachments,
+  getInlinePreviewAttachments,
 } from '../../lib/attachments';
 import PdfCanvasViewer from '../../components/PdfCanvasViewer';
 import { formatDate } from '../../lib/utils';
@@ -177,6 +178,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     }
   );
   const attachments = getPostAttachments(post);
+  const inlinePreviewAttachments = getInlinePreviewAttachments(attachments);
   const youtubeVideoId = getPostYouTubeVideoId(post);
   const useCompactHymnPlayer = isFamilyWorshipPost(post);
 
@@ -333,18 +335,32 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
                       </div>
                     </div>
 
-                    {attachment.type === 'pdf' && (
-                      <div className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-white">
-                        <PdfCanvasViewer
-                          url={attachment.url}
-                          onDownload={
-                            ngAccess
-                              ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
-                              : () =>
-                                  setAccessNotice(downloadBlockedNotice)
-                          }
-                        />
-                      </div>
+                    {inlinePreviewAttachments.some((preview) => preview.url === attachment.url) && (
+                      attachment.type === 'pdf' ? (
+                        <div className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-white">
+                          <PdfCanvasViewer
+                            url={attachment.url}
+                            onDownload={
+                              ngAccess
+                                ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
+                                : () =>
+                                    setAccessNotice(downloadBlockedNotice)
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <figure className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-slate-50">
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="max-h-[80vh] w-full object-contain"
+                            loading="lazy"
+                          />
+                          <figcaption className="border-t border-sky-100 bg-white px-3 py-2 text-xs font-bold text-slate-500">
+                            {attachment.name}
+                          </figcaption>
+                        </figure>
+                      )
                     )}
                   </div>
                 ))}

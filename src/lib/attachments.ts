@@ -180,6 +180,10 @@ export const getFirstPdfAttachment = (attachments: MaterialAttachment[]) => {
   return attachments.find((attachment) => attachment.type === 'pdf');
 };
 
+export const getInlinePreviewAttachments = (attachments: MaterialAttachment[]) => {
+  return attachments.filter((attachment) => attachment.type === 'pdf' || attachment.type === 'image');
+};
+
 export const serializeMaterialAttachments = (attachments: MaterialAttachment[]) => {
   return `${MATERIAL_ATTACHMENTS_PREFIX}${JSON.stringify(attachments)}`;
 };

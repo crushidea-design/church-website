@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getFirstPdfAttachment,
+  getInlinePreviewAttachments,
   getMaterialAttachmentLabel,
   getMaterialAttachmentType,
   getPostAttachments,
@@ -53,5 +54,18 @@ describe('material attachment compatibility', () => {
     expect(getMaterialAttachmentType('class-photo.jpg', 'image/jpeg')).toBe('image');
     expect(getMaterialAttachmentType('announcement.png', 'image/png')).toBe('image');
     expect(getMaterialAttachmentLabel({ type: 'image' })).toBe('IMG');
+  });
+
+  it('selects pdf and image attachments for inline previews', () => {
+    const attachments = [
+      { name: 'guide.pdf', url: '/guide.pdf', type: 'pdf' as const },
+      { name: 'score.png', url: '/score.png', type: 'image' as const },
+      { name: 'slides.pptx', url: '/slides.pptx', type: 'presentation' as const },
+    ];
+
+    expect(getInlinePreviewAttachments(attachments).map((attachment) => attachment.name)).toEqual([
+      'guide.pdf',
+      'score.png',
+    ]);
   });
 });
