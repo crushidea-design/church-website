@@ -1,13 +1,15 @@
 import { getYouTubeId } from './utils';
 
 export const NEXT_GENERATION_PATH = '/next';
+export const FAMILY_WORSHIP_RESOURCE_ID = 'family_worship';
+
+export const getFamilyWorshipResourcePath = () =>
+  `${NEXT_GENERATION_PATH}/elementary?resource=${FAMILY_WORSHIP_RESOURCE_ID}`;
 
 export interface NextGenerationResourcePost {
   content?: string;
   createdAt?: unknown;
   nextGenerationWeekKey?: string;
-  nextGenerationTabSlug?: string;
-  subCategory?: string;
   videoUrl?: string;
   youtubeUrl?: string;
 }
@@ -33,10 +35,6 @@ export const getYouTubeVideoId = (url: string): string | null => {
 export const getPostYouTubeVideoId = (post: Pick<NextGenerationResourcePost, 'youtubeUrl' | 'videoUrl' | 'content'>) => {
   const directUrl = post.youtubeUrl || post.videoUrl || '';
   return getYouTubeVideoId(directUrl) || getYouTubeId(post.content || '');
-};
-
-export const isFamilyWorshipPost = (post: Pick<NextGenerationResourcePost, 'nextGenerationTabSlug' | 'subCategory'>) => {
-  return (post.nextGenerationTabSlug || post.subCategory) === 'family_worship';
 };
 
 export const getCreatedAtTime = (value: unknown) => {

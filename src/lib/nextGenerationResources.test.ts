@@ -3,6 +3,7 @@ import {
   formatShortDate,
   getContentPreview,
   getCurrentSundayKey,
+  getFamilyWorshipResourcePath,
   getPostPrimarySortTime,
   getPostWeekKey,
   getNextGenerationPostBackPath,
@@ -10,7 +11,6 @@ import {
   getResourceLabel,
   getResourceTab,
   getSundayDate,
-  isFamilyWorshipPost,
   toLocalDateKey,
 } from './nextGenerationResources';
 
@@ -87,9 +87,7 @@ describe('next generation resource helpers', () => {
     expect(getCurrentSundayKey()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it('identifies family worship posts for compact hymn playback', () => {
-    expect(isFamilyWorshipPost({ nextGenerationTabSlug: 'family_worship' })).toBe(true);
-    expect(isFamilyWorshipPost({ subCategory: 'family_worship' })).toBe(true);
-    expect(isFamilyWorshipPost({ subCategory: 'elementary_script' })).toBe(false);
+  it('links directly to the family worship resource tab', () => {
+    expect(getFamilyWorshipResourcePath()).toBe('/next/elementary?resource=family_worship');
   });
 });
