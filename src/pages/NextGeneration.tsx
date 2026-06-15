@@ -32,10 +32,10 @@ import NextGenerationMyPage from '../features/next-generation/NextGenerationMyPa
 import {
   DepartmentCardItem,
   ResourceTabItem,
-  allResourceTabs,
   elementaryImage,
   iconMap,
   isElementaryWeeklyResource,
+  mergeTabsWithRequiredDefaults,
   sectionTabs,
   youngAdultResourceTabs,
 } from '../features/next-generation/sharedConstants';
@@ -201,7 +201,7 @@ function NextGenerationInner() {
   );
   const mappedTabs: ResourceTabItem[] = useMemo(
     () =>
-      (cmsTabs.length > 0 ? cmsTabs : (allResourceTabs as any))
+      mergeTabsWithRequiredDefaults(cmsTabs as any)
         .filter((tab: any) => tab.isVisible !== false)
         .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
         .map((tab: any) => ({

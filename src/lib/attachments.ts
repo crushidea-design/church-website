@@ -1,6 +1,6 @@
 import { FirebaseStorage, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
-export type MaterialAttachmentType = 'pdf' | 'presentation';
+export type MaterialAttachmentType = 'pdf' | 'presentation' | 'image';
 
 export interface MaterialAttachment {
   name: string;
@@ -12,17 +12,19 @@ export interface MaterialAttachment {
 }
 
 export const MATERIAL_FILE_ACCEPT =
-  '.pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  '.pdf,.ppt,.pptx,.jpg,.jpeg,.png,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/jpeg,image/png';
 
 export const MAX_MATERIAL_FILE_COUNT = 10;
 export const MAX_MATERIAL_FILE_SIZE = 20 * 1024 * 1024;
 const MATERIAL_ATTACHMENTS_PREFIX = 'material-attachments:';
 
-const allowedExtensions = new Set(['pdf', 'ppt', 'pptx']);
+const allowedExtensions = new Set(['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png']);
 const allowedContentTypes = new Set([
   'application/pdf',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'image/jpeg',
+  'image/png',
 ]);
 
 const getExtension = (name = '') => {
@@ -42,6 +44,10 @@ export const formatFileSize = (size?: number) => {
 
 export const getMaterialAttachmentType = (name?: string, contentType?: string): MaterialAttachmentType => {
   const extension = getExtension(name);
+  if (extension === 'jpg' || extension === 'jpeg' || extension === 'png' || contentType?.startsWith('image/')) {
+    return 'image';
+  }
+
   if (extension === 'ppt' || extension === 'pptx' || contentType?.includes('presentation')) {
     return 'presentation';
   }
@@ -50,7 +56,9 @@ export const getMaterialAttachmentType = (name?: string, contentType?: string): 
 };
 
 export const getMaterialAttachmentLabel = (attachment: Pick<MaterialAttachment, 'type'>) => {
-  return attachment.type === 'presentation' ? 'PPT' : 'PDF';
+  if (attachment.type === 'presentation') return 'PPT';
+  if (attachment.type === 'image') return 'IMG';
+  return 'PDF';
 };
 
 export const validateMaterialFiles = (files: File[], existingCount = 0) => {
@@ -66,7 +74,7 @@ export const validateMaterialFiles = (files: File[], existingCount = 0) => {
   });
 
   if (invalidFile) {
-    return 'PDF, PPT, PPTX 파일만 업로드 가능합니다.';
+    return 'PDF, PPT, PPTX, JPG, PNG 파일만 업로드 가능합니다.';
   }
 
   const oversizedFile = files.find((file) => file.size > MAX_MATERIAL_FILE_SIZE);
@@ -119,9 +127,11 @@ export const getPostAttachments = (post: any): MaterialAttachment[] => {
       .map((attachment: any) => ({
         name: attachment.name,
         url: attachment.url,
-        type: attachment.type === 'presentation' || attachment.type === 'ppt'
-          ? 'presentation'
-          : getMaterialAttachmentType(attachment.name, attachment.contentType),
+        type: attachment.type === 'image'
+          ? 'image'
+          : attachment.type === 'presentation' || attachment.type === 'ppt'
+            ? 'presentation'
+            : getMaterialAttachmentType(attachment.name, attachment.contentType),
         contentType: attachment.contentType,
         size: attachment.size,
         storagePath: attachment.storagePath,
@@ -137,9 +147,11 @@ export const getPostAttachments = (post: any): MaterialAttachment[] => {
           .map((attachment: any) => ({
             name: attachment.name,
             url: attachment.url,
-            type: attachment.type === 'presentation' || attachment.type === 'ppt'
-              ? 'presentation'
-              : getMaterialAttachmentType(attachment.name, attachment.contentType),
+            type: attachment.type === 'image'
+              ? 'image'
+              : attachment.type === 'presentation' || attachment.type === 'ppt'
+                ? 'presentation'
+                : getMaterialAttachmentType(attachment.name, attachment.contentType),
             contentType: attachment.contentType,
             size: attachment.size,
             storagePath: attachment.storagePath,

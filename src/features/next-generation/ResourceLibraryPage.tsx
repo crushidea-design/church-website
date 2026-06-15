@@ -40,6 +40,7 @@ import {
 } from '../../lib/nextGenerationTopics';
 import { getPostAttachments } from '../../lib/attachments';
 import { fruitWeekIdFromSundayKey } from '../word-fruit/api';
+import FamilyWorshipSharePanel from '../word-fruit/FamilyWorshipSharePanel';
 import { formatDate } from '../../lib/utils';
 import { NextGenerationPost, ResourceTabItem } from './sharedConstants';
 
@@ -113,6 +114,7 @@ export default function ResourceLibraryPage({
     departmentSlug,
   };
   const isWeeklyTab = !!activeTab.isWeeklyGroup;
+  const isFamilyWorshipTab = activeTab.id === 'family_worship';
   const usesTopicFolders = !isWeeklyTab && (!!activeTab.useTopic || supportsNextGenerationTopic(activeTab.id));
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
@@ -582,9 +584,12 @@ export default function ResourceLibraryPage({
               </div>
             );
           })()}
+
+          {!loading && isFamilyWorshipTab && (
+            <FamilyWorshipSharePanel weekKey={currentWeekKey} />
+          )}
         </div>
       </section>
     </div>
   );
 }
-

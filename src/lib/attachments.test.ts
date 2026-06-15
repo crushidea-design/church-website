@@ -44,4 +44,14 @@ describe('material attachment compatibility', () => {
     expect(getMaterialAttachmentType('slides.pptx')).toBe('presentation');
     expect(getMaterialAttachmentLabel({ type: 'presentation' })).toBe('PPT');
   });
+
+  it('accepts jpg and png images as material attachments', () => {
+    const jpg = new File(['photo'], 'class-photo.jpg', { type: 'image/jpeg' });
+    const png = new File(['poster'], 'announcement.png', { type: 'image/png' });
+
+    expect(validateMaterialFiles([jpg, png])).toBeNull();
+    expect(getMaterialAttachmentType('class-photo.jpg', 'image/jpeg')).toBe('image');
+    expect(getMaterialAttachmentType('announcement.png', 'image/png')).toBe('image');
+    expect(getMaterialAttachmentLabel({ type: 'image' })).toBe('IMG');
+  });
 });

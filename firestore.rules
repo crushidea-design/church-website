@@ -731,19 +731,31 @@ service cloud.firestore {
     match /next_generation_family_worship_logs/{logId} {
       allow read: if isAuthenticated() && (
         isNextGenerationPastor() ||
-        resource.data.parentUid == request.auth.uid
+        isNextGenerationTeacher() ||
+        resource.data.parentUid == request.auth.uid ||
+        (isNextGenerationAccess() && resource.data.isPublic == true)
       );
       allow create: if isAuthenticated() &&
         request.resource.data.parentUid == request.auth.uid &&
-        request.resource.data.keys().hasOnly(['weekKey','parentUid','completedAt','childUids','note']) &&
+        request.resource.data.keys().hasOnly(['weekKey','parentUid','parentName','completedAt','childUids','childNames','note','isPublic','photoUrl','photoPath','photoName','photoContentType','photoSize']) &&
         request.resource.data.weekKey is string &&
-        request.resource.data.childUids is list;
+        request.resource.data.childUids is list &&
+        (!('childNames' in request.resource.data) || request.resource.data.childNames is list) &&
+        (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool) &&
+        (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 600)) &&
+        (!('photoUrl' in request.resource.data) || request.resource.data.photoUrl is string) &&
+        (!('photoPath' in request.resource.data) || request.resource.data.photoPath is string);
       allow update: if isAuthenticated() &&
         resource.data.parentUid == request.auth.uid &&
         request.resource.data.parentUid == request.auth.uid &&
-        request.resource.data.keys().hasOnly(['weekKey','parentUid','completedAt','childUids','note']) &&
+        request.resource.data.keys().hasOnly(['weekKey','parentUid','parentName','completedAt','childUids','childNames','note','isPublic','photoUrl','photoPath','photoName','photoContentType','photoSize']) &&
         request.resource.data.weekKey is string &&
-        request.resource.data.childUids is list;
+        request.resource.data.childUids is list &&
+        (!('childNames' in request.resource.data) || request.resource.data.childNames is list) &&
+        (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool) &&
+        (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 600)) &&
+        (!('photoUrl' in request.resource.data) || request.resource.data.photoUrl is string) &&
+        (!('photoPath' in request.resource.data) || request.resource.data.photoPath is string);
       allow delete: if isNextGenerationPastor() ||
         (isAuthenticated() && resource.data.parentUid == request.auth.uid);
     }
