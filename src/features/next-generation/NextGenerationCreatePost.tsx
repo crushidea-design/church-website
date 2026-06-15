@@ -35,6 +35,7 @@ import {
   allResourceTabs,
   iconMap,
   isElementaryWeeklyResource,
+  supportsNextGenerationYoutubeUrl,
   youngAdultResourceTabs,
 } from './sharedConstants';
 
@@ -91,6 +92,7 @@ export default function NextGenerationCreatePost() {
   const selectedTab = mergedTabs.find((tab) => tab.id === selectedResourceId);
   const usesWeekKey = isWeeklyCreate || !!selectedTab?.useWeekKey;
   const usesTopic = !!selectedTab?.useTopic;
+  const supportsYoutubeUrl = supportsNextGenerationYoutubeUrl(selectedResourceId);
   const weeklyMaterialFileCount = Object.values(weeklyMaterialFiles).reduce((total, files) => total + files.length, 0);
 
   useEffect(() => {
@@ -325,7 +327,7 @@ export default function NextGenerationCreatePost() {
         postData.nextGenerationTopicId = selectedTopicId;
       }
 
-      if (youtubeUrl.trim()) {
+      if (supportsYoutubeUrl && youtubeUrl.trim()) {
         postData.youtubeUrl = youtubeUrl.trim();
       }
 
@@ -580,7 +582,7 @@ export default function NextGenerationCreatePost() {
               />
             </div>
 
-            {selectedResourceId === 'podcast_review' && (
+            {supportsYoutubeUrl && (
               <div>
                 <label htmlFor="next-generation-youtube-url" className="mb-2 block text-sm font-black text-emerald-950">
                   유튜브 링크

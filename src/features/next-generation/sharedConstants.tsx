@@ -95,6 +95,7 @@ export const youngAdultResourceTabs = [
 
 export const allResourceTabs = [...elementaryResourceTabs, ...youngAdultResourceTabs];
 const requiredDefaultResourceTabIds = new Set(['family_worship']);
+const youtubeUrlResourceTabIds = new Set(['podcast_review', 'family_worship']);
 
 export const mergeTabsWithRequiredDefaults = (tabs: any[]) => {
   if (tabs.length === 0) return allResourceTabs as any[];
@@ -113,6 +114,10 @@ export const elementaryWeeklyResourceTabs = elementaryResourceTabs.filter((tab) 
 
 export const isElementaryWeeklyResource = (id?: string) => {
   return !!id && elementaryWeeklyResourceIds.includes(id);
+};
+
+export const supportsNextGenerationYoutubeUrl = (id?: string) => {
+  return !!id && youtubeUrlResourceTabIds.has(id);
 };
 
 export const sectionTabs = [
