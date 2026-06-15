@@ -1,6 +1,10 @@
 import { getYouTubeId } from './utils';
 
 export const NEXT_GENERATION_PATH = '/next';
+export const FAMILY_WORSHIP_RESOURCE_ID = 'family_worship';
+
+export const getFamilyWorshipResourcePath = () =>
+  `${NEXT_GENERATION_PATH}/elementary?resource=${FAMILY_WORSHIP_RESOURCE_ID}`;
 
 export interface NextGenerationResourcePost {
   content?: string;

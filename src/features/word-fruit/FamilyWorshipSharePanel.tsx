@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { CheckCircle2, ImagePlus, Loader2, Trash2, Upload, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, ImagePlus, Loader2, Trash2, Upload, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { db } from '../../lib/firebase';
+import { getFamilyWorshipResourcePath } from '../../lib/nextGenerationResources';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
   FamilyWorshipLog,
@@ -192,6 +194,12 @@ export default function FamilyWorshipSharePanel({ weekKey, className = 'mt-10 gr
             <h3 className="mt-1 text-2xl font-black tracking-normal text-emerald-950">이번 주 가정예배 드렸어요</h3>
             <p className="mt-2 text-sm leading-6 text-slate-600">{weekKey} 기준으로 저장됩니다.</p>
           </div>
+          <Link
+            to={getFamilyWorshipResourcePath()}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-black text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+          >
+            <BookOpen size={14} /> 가정예배 자료실
+          </Link>
           {myLog && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-black text-emerald-700">
               <CheckCircle2 size={14} /> 기록됨

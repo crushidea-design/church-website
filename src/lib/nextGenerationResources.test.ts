@@ -3,6 +3,7 @@ import {
   formatShortDate,
   getContentPreview,
   getCurrentSundayKey,
+  getFamilyWorshipResourcePath,
   getPostPrimarySortTime,
   getPostWeekKey,
   getNextGenerationPostBackPath,
@@ -86,4 +87,7 @@ describe('next generation resource helpers', () => {
     expect(getCurrentSundayKey()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it('links directly to the family worship resource tab', () => {
+    expect(getFamilyWorshipResourcePath()).toBe('/next/elementary?resource=family_worship');
+  });
 });
