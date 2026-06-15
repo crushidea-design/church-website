@@ -17,6 +17,7 @@ import {
   getNextGenerationPostBackPath,
   getPostYouTubeVideoId,
   getResourceLabel,
+  isFamilyWorshipPost,
 } from '../../lib/nextGenerationResources';
 import {
   getNextGenerationTopicLabel,
@@ -176,6 +177,8 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     }
   );
   const attachments = getPostAttachments(post);
+  const youtubeVideoId = getPostYouTubeVideoId(post);
+  const useCompactHymnPlayer = isFamilyWorshipPost(post);
 
   return (
     <main className="bg-sky-50 py-10">
@@ -221,18 +224,45 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
           <p className="mt-3 text-sm font-bold text-slate-500">{post.authorName}</p>
 
           <>
-          {getPostYouTubeVideoId(post) && (
-            <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
-              <div className="relative aspect-video">
-                <iframe
-                  src={`https://www.youtube.com/embed/${getPostYouTubeVideoId(post)}`}
-                  title={post.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="absolute inset-0 h-full w-full"
-                />
+          {youtubeVideoId && (
+            useCompactHymnPlayer ? (
+              <div className="mt-8 rounded-lg border border-amber-100 bg-amber-50/70 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-amber-700">시편찬송 재생</p>
+                    <p className="mt-1 text-sm font-bold text-emerald-950">교안을 보며 함께 찬송할 수 있습니다.</p>
+                  </div>
+                  <a
+                    href={`https://www.youtube.com/watch?v=${youtubeVideoId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold text-emerald-700 underline-offset-4 hover:underline"
+                  >
+                    유튜브에서 열기
+                  </a>
+                </div>
+                <div className="mt-3 overflow-hidden rounded-lg border border-amber-200 bg-black">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}?controls=1&modestbranding=1&rel=0`}
+                    title={`${post.title} 찬송 재생`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    className="h-24 w-full"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-8 overflow-hidden rounded-lg border border-sky-100">
+                <div className="relative aspect-video">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                    title={post.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute inset-0 h-full w-full"
+                  />
+                </div>
+              </div>
+            )
           )}
 
           <div className="mt-8 whitespace-pre-wrap text-base leading-8 text-slate-800">
