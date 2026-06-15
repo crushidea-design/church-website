@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canDeleteFamilyWorshipLog,
   getFamilyWorshipFamilyLabel,
   validateFamilyWorshipPhoto,
 } from './familyWorshipApi';
@@ -18,8 +19,17 @@ describe('family worship sharing helpers', () => {
   });
 
   it('shows public family labels without exposing full parent names', () => {
+    expect(getFamilyWorshipFamilyLabel('관리자', ['이종이'])).toBe('이종이 가정');
     expect(getFamilyWorshipFamilyLabel('홍길동')).toBe('홍 가정');
     expect(getFamilyWorshipFamilyLabel('Grace Kim')).toBe('G 가정');
     expect(getFamilyWorshipFamilyLabel('')).toBe('한 가정');
+  });
+
+  it('allows owners and moderators to delete family worship logs', () => {
+    const log = { id: 'log-1', parentUid: 'parent-1', weekKey: '2026-06-14', childUids: [] };
+
+    expect(canDeleteFamilyWorshipLog(log, 'parent-1', false)).toBe(true);
+    expect(canDeleteFamilyWorshipLog(log, 'teacher-1', true)).toBe(true);
+    expect(canDeleteFamilyWorshipLog(log, 'other-1', false)).toBe(false);
   });
 });

@@ -6,9 +6,11 @@ import NextGenerationContact from './NextGenerationContact';
 import NextGenerationQA from './NextGenerationQA';
 import NextGenerationTodayWord from './NextGenerationTodayWord';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
-import { Apple, BookOpen, HelpCircle } from 'lucide-react';
+import { Apple, BookOpen, HeartHandshake, HelpCircle } from 'lucide-react';
 import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
+import FamilyWorshipSharePanel from '../features/word-fruit/FamilyWorshipSharePanel';
 import {
+  getCurrentSundayKey,
   NEXT_GENERATION_PATH,
 } from '../lib/nextGenerationResources';
 import { supportsNextGenerationTopic } from '../lib/nextGenerationTopics';
@@ -219,6 +221,7 @@ function NextGenerationInner() {
     [cmsTabs]
   );
   const pathParts = location.pathname.split('/').filter(Boolean);
+  const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
   const currentSection = pathParts[1];
   const postId = currentSection === 'post' ? pathParts[2] : null;
   const editId = currentSection === 'edit' ? pathParts[2] : null;
@@ -236,7 +239,9 @@ function NextGenerationInner() {
     content = <NextGenerationCreatePost />;
   } else if (currentDepartment) {
     const departmentTabs = mappedTabs.filter((tab) => tab.departmentSlug === currentDepartment.slug);
-    const weeklyResourceIds = departmentTabs.filter((tab) => tab.useWeekKey && !tab.isWeeklyGroup).map((tab) => tab.id);
+    const weeklyResourceIds = departmentTabs
+      .filter((tab) => tab.useWeekKey && !tab.isWeeklyGroup && tab.id !== 'family_worship')
+      .map((tab) => tab.id);
     const guestTabId = departmentTabs.find((tab) => tab.isGuestOpen)?.id;
     content = (
       <ResourceLibraryPage
@@ -297,6 +302,14 @@ function NextGenerationInner() {
                 summary: '작은 순종으로 열매가 익어가요',
                 tourTarget: 'word-fruit',
                 content: <WordFruitPanel />,
+              },
+              {
+                id: 'family-worship',
+                icon: <HeartHandshake size={18} />,
+                label: '이번주 가정예배',
+                summary: '가정예배 기록과 나눔을 남겨요',
+                tourTarget: 'family-worship',
+                content: <FamilyWorshipSharePanel weekKey={currentSundayKey} className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]" />,
               },
             ];
             return (

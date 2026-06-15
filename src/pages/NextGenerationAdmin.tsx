@@ -282,6 +282,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
         if (parent) {
           batch.update(doc(db, 'next_generation_members', parent.uid), {
             childIds: arrayUnion(uid),
+            childNames: arrayUnion(target.displayName),
           });
         }
       }

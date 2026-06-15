@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ImagePlus, Loader2, Upload, X } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { CheckCircle2, ImagePlus, Loader2, Trash2, Upload, X } from 'lucide-react';
+import { db } from '../../lib/firebase';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
   FamilyWorshipLog,
+  canDeleteFamilyWorshipLog,
+  deleteFamilyWorshipLog,
   getFamilyWorshipFamilyLabel,
   setFamilyWorshipLog,
+  subscribeMyFamilyWorshipLogs,
   subscribeFamilyWorshipStats,
   subscribePublicFamilyWorshipLogs,
   uploadFamilyWorshipPhoto,
@@ -13,6 +18,7 @@ import {
 
 interface FamilyWorshipSharePanelProps {
   weekKey: string;
+  className?: string;
 }
 
 const formatCompletedAt = (value: any) => {
@@ -22,15 +28,18 @@ const formatCompletedAt = (value: any) => {
   return '';
 };
 
-export default function FamilyWorshipSharePanel({ weekKey }: FamilyWorshipSharePanelProps) {
+export default function FamilyWorshipSharePanel({ weekKey, className = 'mt-10 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]' }: FamilyWorshipSharePanelProps) {
   const { user, member, hasAccess, isPastor } = useNextGenerationAuth();
   const [logs, setLogs] = useState<FamilyWorshipLog[]>([]);
+  const [myLogs, setMyLogs] = useState<FamilyWorshipLog[]>([]);
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [isPublic, setIsPublic] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [linkedChildNames, setLinkedChildNames] = useState<string[]>([]);
 
   const childIds = member?.childIds ?? [];
   const proxyChildren = member?.proxyChildren ?? [];
@@ -39,11 +48,20 @@ export default function FamilyWorshipSharePanel({ weekKey }: FamilyWorshipShareP
     [childIds.join('|'), proxyChildren.map((child) => child.id).join('|')],
   );
   const childNames = useMemo(
-    () => proxyChildren.map((child) => child.name).filter(Boolean),
-    [proxyChildren.map((child) => child.name).join('|')],
+    () => [...(member?.childNames ?? []), ...linkedChildNames, ...proxyChildren.map((child) => child.name)].filter(Boolean),
+    [member?.childNames?.join('|'), linkedChildNames.join('|'), proxyChildren.map((child) => child.name).join('|')],
   );
-  const myLog = user ? logs.find((log) => log.parentUid === user.uid) : undefined;
   const canReviewAllLogs = isPastor || (member?.groupIds?.length ?? 0) > 0;
+  const visibleLogs = useMemo(() => {
+    const byId = new Map<string, FamilyWorshipLog>();
+    [...logs, ...myLogs.filter((log) => log.weekKey === weekKey)].forEach((log) => byId.set(log.id, log));
+    return Array.from(byId.values()).sort((a, b) => {
+      const aMillis = typeof a.completedAt?.toMillis === 'function' ? a.completedAt.toMillis() : 0;
+      const bMillis = typeof b.completedAt?.toMillis === 'function' ? b.completedAt.toMillis() : 0;
+      return bMillis - aMillis;
+    });
+  }, [logs, myLogs, weekKey]);
+  const myLog = user ? visibleLogs.find((log) => log.parentUid === user.uid) : undefined;
 
   useEffect(() => {
     if (!weekKey) return;
@@ -57,6 +75,45 @@ export default function FamilyWorshipSharePanel({ weekKey }: FamilyWorshipShareP
       setLogs([]);
     });
   }, [weekKey, canReviewAllLogs]);
+
+  useEffect(() => {
+    if (!user) {
+      setMyLogs([]);
+      return;
+    }
+
+    return subscribeMyFamilyWorshipLogs(user.uid, setMyLogs, () => {
+      setMyLogs([]);
+    });
+  }, [user?.uid]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (childIds.length === 0) {
+      setLinkedChildNames([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    Promise.all(
+      childIds.map(async (childUid) => {
+        const childSnap = await getDoc(doc(db, 'next_generation_members', childUid));
+        const data = childSnap.data() as { displayName?: string } | undefined;
+        return data?.displayName?.trim() || '';
+      }),
+    )
+      .then((names) => {
+        if (!cancelled) setLinkedChildNames(names.filter(Boolean));
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedChildNames([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [childIds.join('|')]);
 
   const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextPhoto = event.target.files?.[0] || null;
@@ -108,8 +165,26 @@ export default function FamilyWorshipSharePanel({ weekKey }: FamilyWorshipShareP
     }
   };
 
+  const handleDelete = async (log: FamilyWorshipLog) => {
+    if (!user || !canDeleteFamilyWorshipLog(log, user.uid, isPastor)) return;
+    if (!window.confirm('가정예배 기록을 삭제하시겠습니까?')) return;
+
+    setDeletingId(log.id);
+    setError('');
+    setMessage('');
+
+    try {
+      await deleteFamilyWorshipLog(log);
+      setMessage('가정예배 기록을 삭제했습니다.');
+    } catch (err: any) {
+      setError(err?.message || '가정예배 기록을 삭제하지 못했습니다.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
-    <div className="mt-10 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+    <div className={className}>
       <section className="rounded-xl border border-amber-100 bg-amber-50/60 p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -190,23 +265,36 @@ export default function FamilyWorshipSharePanel({ weekKey }: FamilyWorshipShareP
         <h3 className="mt-1 text-2xl font-black tracking-normal text-emerald-950">
           {canReviewAllLogs ? '이번 주 가정예배 기록' : '함께 드린 가정들'}
         </h3>
-        {logs.length === 0 ? (
+        {visibleLogs.length === 0 ? (
           <p className="mt-5 rounded-lg border border-dashed border-sky-100 bg-sky-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
             아직 공개된 가정예배 나눔이 없습니다.
           </p>
         ) : (
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {logs.map((log) => (
+            {visibleLogs.map((log) => (
               <article key={log.id} className="overflow-hidden rounded-lg border border-sky-100 bg-sky-50/50">
                 {log.photoUrl && (
                   <img src={log.photoUrl} alt="가정예배 인증샷" className="aspect-[4/3] w-full object-cover" />
                 )}
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-black text-emerald-950">{getFamilyWorshipFamilyLabel(log.parentName)}</p>
-                    <span className="text-xs font-bold text-slate-500">
-                      {log.isPublic ? '공개' : '비공개'} {formatCompletedAt(log.completedAt)}
-                    </span>
+                    <p className="text-sm font-black text-emerald-950">{getFamilyWorshipFamilyLabel(log.parentName, log.childNames)}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500">
+                        {log.isPublic ? '공개' : '비공개'} {formatCompletedAt(log.completedAt)}
+                      </span>
+                      {canDeleteFamilyWorshipLog(log, user?.uid, isPastor) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(log)}
+                          disabled={deletingId === log.id}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          title="가정예배 기록 삭제"
+                        >
+                          {deletingId === log.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {log.note && <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">{log.note}</p>}
                 </div>

@@ -65,7 +65,12 @@ export default function NextGenerationCreatePost() {
   const activeTab = getResourceTab(searchParams.get('resource') || undefined, mergedTabs);
   const requestedTopic = searchParams.get('topic');
   const isWeeklyCreate = !!activeTab.isWeeklyGroup;
-  const weeklyTabsInDepartment = mergedTabs.filter((tab) => tab.departmentSlug === activeTab.departmentSlug && tab.useWeekKey && !tab.isWeeklyGroup);
+  const weeklyTabsInDepartment = mergedTabs.filter((tab) =>
+    tab.departmentSlug === activeTab.departmentSlug &&
+    tab.useWeekKey &&
+    !tab.isWeeklyGroup &&
+    tab.id !== 'family_worship'
+  );
   const [selectedResourceId, setSelectedResourceId] = useState(
     isWeeklyCreate ? (weeklyTabsInDepartment[0]?.id || activeTab.id) : activeTab.id
   );

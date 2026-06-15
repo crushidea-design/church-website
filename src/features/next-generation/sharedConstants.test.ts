@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mergeTabsWithRequiredDefaults, supportsNextGenerationYoutubeUrl } from './sharedConstants';
+import {
+  elementaryWeeklyResourceIds,
+  isElementaryWeeklyResource,
+  mergeTabsWithRequiredDefaults,
+  supportsNextGenerationYoutubeUrl,
+} from './sharedConstants';
 
 describe('next generation resource tabs', () => {
   it('keeps required new default tabs when CMS tabs already exist', () => {
@@ -15,5 +20,10 @@ describe('next generation resource tabs', () => {
     expect(supportsNextGenerationYoutubeUrl('family_worship')).toBe(true);
     expect(supportsNextGenerationYoutubeUrl('podcast_review')).toBe(true);
     expect(supportsNextGenerationYoutubeUrl('family_column')).toBe(false);
+  });
+
+  it('keeps family worship guides dated without showing them in weekly lecture materials', () => {
+    expect(elementaryWeeklyResourceIds).not.toContain('family_worship');
+    expect(isElementaryWeeklyResource('family_worship')).toBe(true);
   });
 });

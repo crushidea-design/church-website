@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -8,7 +9,7 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 
 export const FAMILY_WORSHIP_COLLECTION = 'next_generation_family_worship_logs';
@@ -39,11 +40,22 @@ const getSafeStorageName = (name: string) => {
   return name.replace(/[\\/#?[\]@]/g, '_');
 };
 
-export function getFamilyWorshipFamilyLabel(parentName?: string) {
+export function getFamilyWorshipFamilyLabel(parentName?: string, childNames: string[] = []) {
+  const childName = childNames.map((name) => name.trim()).find(Boolean);
+  if (childName) return `${childName} 가정`;
+
   const trimmed = parentName?.trim();
   if (!trimmed) return '한 가정';
 
   return `${trimmed[0]} 가정`;
+}
+
+export function canDeleteFamilyWorshipLog(
+  log: Pick<FamilyWorshipLog, 'parentUid'> | undefined,
+  currentUid: string | undefined,
+  canModerate: boolean,
+) {
+  return !!log && (canModerate || (!!currentUid && log.parentUid === currentUid));
 }
 
 export function validateFamilyWorshipPhoto(file: File | null | undefined) {
@@ -151,6 +163,18 @@ export function subscribeFamilyWorshipStats(
     (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<FamilyWorshipLog, 'id'>) }))),
     (err) => onError?.(err),
   );
+}
+
+export async function deleteFamilyWorshipLog(log: FamilyWorshipLog) {
+  if (log.photoPath) {
+    try {
+      await deleteObject(ref(storage, log.photoPath));
+    } catch (err) {
+      console.warn('Failed to delete family worship photo. Deleting log only.', err);
+    }
+  }
+
+  await deleteDoc(doc(db, FAMILY_WORSHIP_COLLECTION, log.id));
 }
 
 export function subscribePublicFamilyWorshipLogs(

@@ -24,8 +24,8 @@ export const elementaryWeeklyResourceIds = [
   'elementary_workbook',
   'elementary_guide',
   'family_column',
-  'family_worship',
 ];
+const elementaryWeekKeyResourceIds = [...elementaryWeeklyResourceIds, 'family_worship'];
 
 export const elementaryResourceTabs = [
   {
@@ -113,7 +113,7 @@ export const elementaryWeeklyResourceTabs = elementaryResourceTabs.filter((tab) 
 );
 
 export const isElementaryWeeklyResource = (id?: string) => {
-  return !!id && elementaryWeeklyResourceIds.includes(id);
+  return !!id && elementaryWeekKeyResourceIds.includes(id);
 };
 
 export const supportsNextGenerationYoutubeUrl = (id?: string) => {
