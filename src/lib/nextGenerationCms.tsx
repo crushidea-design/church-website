@@ -349,6 +349,32 @@ export const seedNextGenerationCmsIfEmpty = async () => {
   return true;
 };
 
+export const getMissingDefaultNextGenerationTabs = (existingTabs: Pick<NextGenerationResourceTab, 'slug'>[]) => {
+  const existingSlugs = new Set(existingTabs.map((tab) => tab.slug));
+  return DEFAULT_NEXT_GENERATION_TABS.filter((tab) => !existingSlugs.has(tab.slug));
+};
+
+export const syncMissingDefaultNextGenerationTabs = async () => {
+  const snapshot = await getDocs(collection(db, 'next_generation_resource_tabs'));
+  const existingTabs = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as NextGenerationResourceTab));
+  const missingTabs = getMissingDefaultNextGenerationTabs(existingTabs);
+
+  if (missingTabs.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  const now = serverTimestamp();
+  missingTabs.forEach((tab) => {
+    batch.set(doc(db, 'next_generation_resource_tabs', tab.slug), {
+      ...tab,
+      updatedAt: now,
+      createdAt: now,
+    });
+  });
+
+  await batch.commit();
+  return missingTabs.length;
+};
+
 interface NextGenerationCmsContextType {
   loading: boolean;
   departments: NextGenerationDepartment[];
