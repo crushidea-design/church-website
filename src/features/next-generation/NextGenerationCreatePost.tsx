@@ -35,6 +35,7 @@ import {
   allResourceTabs,
   iconMap,
   isElementaryWeeklyResource,
+  supportsNextGenerationYoutubeUrl,
   youngAdultResourceTabs,
 } from './sharedConstants';
 
@@ -64,7 +65,12 @@ export default function NextGenerationCreatePost() {
   const activeTab = getResourceTab(searchParams.get('resource') || undefined, mergedTabs);
   const requestedTopic = searchParams.get('topic');
   const isWeeklyCreate = !!activeTab.isWeeklyGroup;
-  const weeklyTabsInDepartment = mergedTabs.filter((tab) => tab.departmentSlug === activeTab.departmentSlug && tab.useWeekKey && !tab.isWeeklyGroup);
+  const weeklyTabsInDepartment = mergedTabs.filter((tab) =>
+    tab.departmentSlug === activeTab.departmentSlug &&
+    tab.useWeekKey &&
+    !tab.isWeeklyGroup &&
+    tab.id !== 'family_worship'
+  );
   const [selectedResourceId, setSelectedResourceId] = useState(
     isWeeklyCreate ? (weeklyTabsInDepartment[0]?.id || activeTab.id) : activeTab.id
   );
@@ -91,6 +97,7 @@ export default function NextGenerationCreatePost() {
   const selectedTab = mergedTabs.find((tab) => tab.id === selectedResourceId);
   const usesWeekKey = isWeeklyCreate || !!selectedTab?.useWeekKey;
   const usesTopic = !!selectedTab?.useTopic;
+  const supportsYoutubeUrl = supportsNextGenerationYoutubeUrl(selectedResourceId);
   const weeklyMaterialFileCount = Object.values(weeklyMaterialFiles).reduce((total, files) => total + files.length, 0);
 
   useEffect(() => {
@@ -325,7 +332,7 @@ export default function NextGenerationCreatePost() {
         postData.nextGenerationTopicId = selectedTopicId;
       }
 
-      if (youtubeUrl.trim()) {
+      if (supportsYoutubeUrl && youtubeUrl.trim()) {
         postData.youtubeUrl = youtubeUrl.trim();
       }
 
@@ -580,7 +587,7 @@ export default function NextGenerationCreatePost() {
               />
             </div>
 
-            {selectedResourceId === 'podcast_review' && (
+            {supportsYoutubeUrl && (
               <div>
                 <label htmlFor="next-generation-youtube-url" className="mb-2 block text-sm font-black text-emerald-950">
                   유튜브 링크

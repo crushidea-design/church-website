@@ -520,6 +520,7 @@ interface ParentRow {
   displayName: string;
   email: string;
   childIds: string[];
+  childNames?: string[];
 }
 
 function ParentLinkManager() {
@@ -552,6 +553,7 @@ function ParentLinkManager() {
             displayName: data.displayName ?? '이름 없음',
             email: data.email ?? '',
             childIds: Array.isArray(data.childIds) ? data.childIds : [],
+            childNames: Array.isArray(data.childNames) ? data.childNames : [],
           };
         }));
       } finally {
@@ -577,14 +579,16 @@ function ParentLinkManager() {
 
   const handleSave = async (parent: ParentRow) => {
     const next = drafts[parent.uid] ?? parent.childIds;
+    const childNames = next.map((id) => studentsByUid.get(id)).filter(Boolean);
     setSavingUid(parent.uid);
     setMsg(null);
     try {
       await updateDoc(doc(db, 'next_generation_members', parent.uid), {
         childIds: next,
+        childNames,
       });
       setParents((list) =>
-        list.map((p) => (p.uid === parent.uid ? { ...p, childIds: next } : p)),
+        list.map((p) => (p.uid === parent.uid ? { ...p, childIds: next, childNames } : p)),
       );
       setDrafts((d) => {
         const copy = { ...d };

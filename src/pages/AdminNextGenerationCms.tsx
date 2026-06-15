@@ -24,6 +24,7 @@ import {
   NextGenerationResourceTab,
   normalizeCmsSlug,
   seedNextGenerationCmsIfEmpty,
+  syncMissingDefaultNextGenerationTabs,
   upsertNextGenerationDepartment,
   upsertNextGenerationIntroSection,
   upsertNextGenerationTab,
@@ -111,6 +112,10 @@ function AdminNextGenerationCmsInner() {
     const run = async () => {
       if (role !== 'admin') return;
       await seedNextGenerationCmsIfEmpty();
+      const syncedCount = await syncMissingDefaultNextGenerationTabs();
+      if (syncedCount > 0) {
+        showDone(`기본 자료실 탭 ${syncedCount}개를 CMS에 추가했습니다.`);
+      }
     };
     run();
   }, [role]);

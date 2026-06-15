@@ -25,6 +25,7 @@ export const elementaryWeeklyResourceIds = [
   'elementary_guide',
   'family_column',
 ];
+const elementaryWeekKeyResourceIds = [...elementaryWeeklyResourceIds, 'family_worship'];
 
 export const elementaryResourceTabs = [
   {
@@ -58,6 +59,12 @@ export const elementaryResourceTabs = [
     icon: HeartHandshake,
   },
   {
+    id: 'family_worship',
+    name: '가정예배',
+    description: '매주 가정에서 함께 드리는 가정예배 교안과 가정들의 나눔을 확인합니다.',
+    icon: HeartHandshake,
+  },
+  {
     id: 'summer_bible_school',
     name: '여름성경학교',
     description: '여름성경학교 준비와 진행 자료를 함께 모읍니다.',
@@ -87,12 +94,30 @@ export const youngAdultResourceTabs = [
 ];
 
 export const allResourceTabs = [...elementaryResourceTabs, ...youngAdultResourceTabs];
+const requiredDefaultResourceTabIds = new Set(['family_worship']);
+const youtubeUrlResourceTabIds = new Set(['podcast_review', 'family_worship']);
+
+export const mergeTabsWithRequiredDefaults = (tabs: any[]) => {
+  if (tabs.length === 0) return allResourceTabs as any[];
+
+  const existingIds = new Set(tabs.map((tab: any) => tab.slug || tab.id));
+  const requiredMissingTabs = allResourceTabs.filter((tab: any) =>
+    requiredDefaultResourceTabIds.has(tab.id) && !existingIds.has(tab.id)
+  );
+
+  return [...tabs, ...requiredMissingTabs];
+};
+
 export const elementaryWeeklyResourceTabs = elementaryResourceTabs.filter((tab) =>
   elementaryWeeklyResourceIds.includes(tab.id)
 );
 
 export const isElementaryWeeklyResource = (id?: string) => {
-  return !!id && elementaryWeeklyResourceIds.includes(id);
+  return !!id && elementaryWeekKeyResourceIds.includes(id);
+};
+
+export const supportsNextGenerationYoutubeUrl = (id?: string) => {
+  return !!id && youtubeUrlResourceTabIds.has(id);
 };
 
 export const sectionTabs = [
