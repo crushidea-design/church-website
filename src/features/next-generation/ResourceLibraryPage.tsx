@@ -99,6 +99,7 @@ export default function ResourceLibraryPage({
   // Always show all tabs so guests can see what's behind login; non-free tabs are rendered as locked
   const visibleTabs = allowedTabs;
   const requestedTopic = searchParams.get('topic');
+  const isFromDemo = searchParams.get('fromDemo') === '1';
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -288,6 +289,22 @@ export default function ResourceLibraryPage({
 
       <section className="bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          {isFromDemo && (
+            <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-emerald-900">실제 공과 화면을 시연 중입니다</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">
+                  공과를 눌러 확인한 뒤 다시 시연 코스로 돌아갈 수 있습니다.
+                </p>
+              </div>
+              <Link
+                to={`${NEXT_GENERATION_PATH}/demo`}
+                className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700"
+              >
+                시연 코스로 돌아가기
+              </Link>
+            </div>
+          )}
           <div className="relative mb-8">
             <div
               className="flex gap-1.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2"

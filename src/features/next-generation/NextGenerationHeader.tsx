@@ -88,6 +88,12 @@ export default function NextGenerationHeader() {
   }, [needsSignUp]);
 
   useEffect(() => {
+    const openLogin = () => setShowLoginModal(true);
+    window.addEventListener('next-generation-open-login', openLogin);
+    return () => window.removeEventListener('next-generation-open-login', openLogin);
+  }, []);
+
+  useEffect(() => {
     if (needsSignUp || isRejected) {
       return;
     }

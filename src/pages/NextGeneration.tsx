@@ -31,6 +31,7 @@ import ResourceLibraryPage from '../features/next-generation/ResourceLibraryPage
 import IntroPage from '../features/next-generation/IntroPage';
 import NextGenerationHeader from '../features/next-generation/NextGenerationHeader';
 import NextGenerationMyPage from '../features/next-generation/NextGenerationMyPage';
+import NextGenerationDemoPage from '../features/next-generation/NextGenerationDemoPage';
 import {
   DepartmentCardItem,
   ResourceTabItem,
@@ -233,6 +234,8 @@ function NextGenerationInner() {
     content = <NextGenerationPostDetail id={postId} />;
   } else if (editId) {
     content = <EditPost postId={editId} nextGenerationMode />;
+  } else if (currentSection === 'demo') {
+    content = <NextGenerationDemoPage />;
   } else if (currentSection === 'me') {
     content = <NextGenerationMyPage />;
   } else if (currentSection === 'create') {
