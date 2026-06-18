@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEMO_BIBLE_READING_COMPLETED_BOOK_INDEXES,
   DEMO_CURRICULUM_PATH,
+  DEMO_REAL_PAGE_LINKS,
   NEXT_GENERATION_DEMO_STEPS,
   getDemoPageUrl,
   getLocalOnlyDemoStepIds,
@@ -33,5 +35,19 @@ describe('next generation demo content', () => {
 
   it('builds the demo URL from the current origin when available', () => {
     expect(getDemoPageUrl('https://builttogether.church')).toBe('https://builttogether.church/next/demo');
+  });
+
+  it('uses a small fixed set of real bible chart book positions for the demo', () => {
+    expect(DEMO_BIBLE_READING_COMPLETED_BOOK_INDEXES).toEqual([0, 1, 17, 18, 35, 36, 48, 49, 64, 65]);
+  });
+
+  it('provides real-page links for every demo feature after sign-up', () => {
+    expect(DEMO_REAL_PAGE_LINKS).toEqual({
+      bibleReading: '/next/me',
+      curriculum: '/next/elementary?resource=elementary_workbook&fromDemo=1',
+      wordFruit: '/next/elementary?highlight=word-fruit',
+      qa: '/next/elementary?highlight=qa',
+      familyWorship: '/next/elementary?resource=family_worship&fromDemo=1',
+    });
   });
 });

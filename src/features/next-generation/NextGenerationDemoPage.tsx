@@ -14,18 +14,16 @@ import {
 } from 'lucide-react';
 import WordFruitTree, { FruitStage } from '../word-fruit/WordFruitTree';
 import {
-  DEMO_CURRICULUM_FROM_DEMO_PATH,
+  BIBLE_BOOK_SPOTS,
+  CHART_VIEWBOX,
+} from '../../lib/bibleReadingLayout';
+import {
+  DEMO_BIBLE_READING_COMPLETED_BOOK_INDEXES,
+  DEMO_REAL_PAGE_LINKS,
   NEXT_GENERATION_DEMO_STEPS,
   NextGenerationDemoStepId,
   getDemoPageUrl,
 } from './demoContent';
-
-const highlightedBooks = [
-  { label: '창세기', x: '10%', y: '12%', w: '7%', h: '14%', color: 'bg-amber-300/70' },
-  { label: '시편', x: '28%', y: '33%', w: '10%', h: '10%', color: 'bg-amber-300/70' },
-  { label: '마가복음', x: '44%', y: '56%', w: '24%', h: '5%', color: 'bg-rose-300/70' },
-  { label: '요한복음', x: '43%', y: '65%', w: '24%', h: '5%', color: 'bg-rose-300/70' },
-];
 
 const wordFruitMessages = [
   '아직 작은 열매예요. 말씀을 듣고 마음에 심어 보아요.',
@@ -62,6 +60,10 @@ export default function NextGenerationDemoPage() {
   const [familyLogged, setFamilyLogged] = useState(false);
   const demoUrl = useMemo(
     () => getDemoPageUrl(typeof window === 'undefined' ? undefined : window.location.origin),
+    [],
+  );
+  const demoCompletedBookIndexes = useMemo(
+    () => new Set(DEMO_BIBLE_READING_COMPLETED_BOOK_INDEXES),
     [],
   );
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=12&data=${encodeURIComponent(demoUrl)}`;
@@ -182,17 +184,66 @@ export default function NextGenerationDemoPage() {
           )}
 
           {activeStep === 'bible-reading' && (
-            <div className="grid gap-7 lg:grid-cols-[330px_1fr] lg:items-center">
-              <div className="relative mx-auto w-full max-w-xs overflow-hidden rounded-2xl border border-amber-100 bg-amber-50 shadow-sm" style={{ aspectRatio: '2265 / 2806' }}>
-                <img src="/bible-reading-chart.png" alt="성경 읽기 기록표 책장" className="absolute inset-0 h-full w-full" />
-                {highlightedBooks.map((book) => (
-                  <div
-                    key={book.label}
-                    className={`absolute rounded-md ${book.color} ring-2 ring-white/70`}
-                    style={{ left: book.x, top: book.y, width: book.w, height: book.h }}
-                    title={book.label}
-                  />
-                ))}
+            <div className="grid gap-8 xl:grid-cols-[480px_1fr] xl:items-center">
+              <div
+                className="relative mx-auto w-full max-w-md overflow-hidden rounded-xl border border-amber-100 bg-amber-50 shadow-sm"
+                style={{ aspectRatio: '2265 / 2806' }}
+              >
+                <img
+                  src="/bible-reading-chart.png"
+                  alt="성경 읽기 기록표 책장"
+                  className="absolute inset-0 block h-full w-full select-none"
+                  draggable={false}
+                  onError={(event) => {
+                    const img = event.currentTarget;
+                    if (!img.dataset.fallback) {
+                      img.dataset.fallback = '1';
+                      img.src = '/bible-reading-chart.svg';
+                    }
+                  }}
+                />
+                <svg
+                  viewBox={CHART_VIEWBOX}
+                  preserveAspectRatio="none"
+                  className="absolute inset-0 h-full w-full"
+                  aria-label="성경 읽기 기록표 데모 색칠 영역"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  {BIBLE_BOOK_SPOTS.map((spot, index) => {
+                    const completed = demoCompletedBookIndexes.has(index);
+                    const fill = completed
+                      ? spot.testament === 'old'
+                        ? 'rgba(251, 191, 36, 0.55)'
+                        : 'rgba(251, 113, 133, 0.55)'
+                      : 'rgba(255, 255, 255, 0.001)';
+                    const commonProps = {
+                      fill,
+                      stroke: 'transparent',
+                      strokeWidth: 5,
+                      vectorEffect: 'non-scaling-stroke' as const,
+                      className: 'transition-colors',
+                    };
+
+                    return spot.shape.type === 'path' ? (
+                      <path key={spot.name} d={spot.shape.d} {...commonProps}>
+                        <title>{spot.name}</title>
+                      </path>
+                    ) : (
+                      <rect
+                        key={spot.name}
+                        x={spot.shape.x}
+                        y={spot.shape.y}
+                        width={spot.shape.width}
+                        height={spot.shape.height}
+                        transform={spot.shape.transform}
+                        rx={14}
+                        {...commonProps}
+                      >
+                        <title>{spot.name}</title>
+                      </rect>
+                    );
+                  })}
+                </svg>
               </div>
               <div className="space-y-4">
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
@@ -213,6 +264,13 @@ export default function NextGenerationDemoPage() {
                     따로 연락하고 싶거나 읽은 내용을 알리고 싶으면 앱 안의 문의하기에 글을 남겨도 좋아요.
                   </p>
                 </div>
+                <Link
+                  to={DEMO_REAL_PAGE_LINKS.bibleReading}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-4 text-lg font-black text-white shadow-sm transition hover:bg-emerald-700 sm:w-auto"
+                >
+                  <BookOpen size={22} />
+                  실제 내 페이지에서 보기
+                </Link>
               </div>
             </div>
           )}
@@ -225,7 +283,7 @@ export default function NextGenerationDemoPage() {
                   유초등부 게시판의 공과 탭으로 이동해서 실제 등록된 공과를 누르고, 상세 화면에서 자료를 확인합니다.
                 </p>
                 <Link
-                  to={DEMO_CURRICULUM_FROM_DEMO_PATH}
+                  to={DEMO_REAL_PAGE_LINKS.curriculum}
                   className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-4 text-lg font-black text-white shadow-sm transition hover:bg-emerald-700"
                 >
                   <BookOpen size={22} />
@@ -269,6 +327,13 @@ export default function NextGenerationDemoPage() {
                   >
                     다시 보여주기
                   </button>
+                  <Link
+                    to={DEMO_REAL_PAGE_LINKS.wordFruit}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-4 text-lg font-black text-white shadow-sm transition hover:bg-emerald-700"
+                  >
+                    <Apple size={22} />
+                    실제 말씀열매 열기
+                  </Link>
                 </div>
               </div>
             </div>
@@ -289,6 +354,13 @@ export default function NextGenerationDemoPage() {
                   <MessageSquare size={22} />
                   질문 카드 남기기
                 </button>
+                <Link
+                  to={DEMO_REAL_PAGE_LINKS.qa}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-4 text-lg font-black text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <HelpCircle size={22} />
+                  실제 질문있습니다 열기
+                </Link>
               </div>
               <div className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
                 {questionSent ? (
@@ -324,6 +396,13 @@ export default function NextGenerationDemoPage() {
                   <Camera size={22} />
                   기록과 인증샷 남기기
                 </button>
+                <Link
+                  to={DEMO_REAL_PAGE_LINKS.familyWorship}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-5 py-4 text-lg font-black text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                >
+                  <Home size={22} />
+                  실제 가정예배 탭 열기
+                </Link>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 {['가정예배 자료 보기', '우리 가족 나눔 기록하기', '인증샷 올리기'].map((item) => (
