@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { ArrowLeft, Download, Edit3, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Edit3, ExternalLink, FileText, Loader2 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../lib/auth';
 import {
@@ -230,10 +230,21 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
                 <iframe
                   src={`https://www.youtube.com/embed/${youtubeVideoId}`}
                   title={post.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                   className="absolute inset-0 h-full w-full"
                 />
+              </div>
+              <div className="flex justify-end bg-white px-4 py-3">
+                <a
+                  href={`https://www.youtube.com/watch?v=${youtubeVideoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm font-bold text-emerald-800 transition hover:text-emerald-950"
+                >
+                  <ExternalLink className="mr-1.5 h-4 w-4" />
+                  YouTube 앱에서 보기
+                </a>
               </div>
             </div>
           )}
