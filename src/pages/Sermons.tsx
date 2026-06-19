@@ -9,8 +9,7 @@ import { generateSortOrder } from '../lib/sortUtils';
 import { PlayCircle, Plus, Video, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import ArchiveIntroSection from '../components/ArchiveIntroSection';
-
-const ALL_SERMONS_TAB = 'all';
+import { UNCATEGORIZED_SERMON_TAB, getInitialSermonTab } from './sermonTabs';
 
 interface SermonCategory {
   id: string;
@@ -97,7 +96,7 @@ export default function Sermons() {
 
     if (tab === 'past_sermons' || tab === 'pilgrims_progress') {
       baseConstraints.push(where('subCategory', '==', tab));
-    } else if (tab !== ALL_SERMONS_TAB && tab !== 'uncategorized') {
+    } else if (tab !== UNCATEGORIZED_SERMON_TAB) {
       baseConstraints.push(where('sermonCategoryId', '==', tab));
     }
 
@@ -109,7 +108,7 @@ export default function Sermons() {
     const snapshot = await getDocs(sermonsQuery);
     let docs = snapshot.docs;
 
-    if (tab === 'uncategorized') {
+    if (tab === UNCATEGORIZED_SERMON_TAB) {
       docs = docs.filter(doc => isUncategorizedSermon({ id: doc.id, ...(doc.data() as object) } as SermonPost, categories));
     }
 
@@ -139,12 +138,8 @@ export default function Sermons() {
         const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SermonCategory[];
         setCategories('sermonCategories', cats);
 
-        // Set Active Tab
-        let tab = ALL_SERMONS_TAB;
         const visibleCats = cats.filter(category => !isHiddenLegacyCategory(category));
-        if (tabParam && (tabParam === ALL_SERMONS_TAB || visibleCats.some(c => c.id === tabParam) || tabParam === 'pilgrims_progress' || tabParam === 'uncategorized')) {
-          tab = tabParam;
-        }
+        const tab = getInitialSermonTab(tabParam, visibleCats);
 
         if (activeTab !== tab) {
           setActiveTab(tab);
@@ -184,7 +179,7 @@ export default function Sermons() {
     setError(null);
 
     try {
-      await fetchSermonsPage(activeTab || ALL_SERMONS_TAB, page, sermonCategories);
+      await fetchSermonsPage(activeTab || getInitialSermonTab(tabParam, visibleSermonCategories), page, sermonCategories);
       setCurrentPage(page);
     } catch (error: any) {
       console.error('Error changing page:', error);
@@ -203,7 +198,7 @@ export default function Sermons() {
     setError(null);
     try {
       setPageLastDocs({});
-      await fetchSermonsPage(activeTab || ALL_SERMONS_TAB, 1, sermonCategories);
+      await fetchSermonsPage(activeTab || getInitialSermonTab(tabParam, visibleSermonCategories), 1, sermonCategories);
       setCurrentPage(1);
     } catch (error: any) {
       console.error('Error refreshing data:', error);
@@ -279,7 +274,7 @@ export default function Sermons() {
   const sortedVideos = React.useMemo(() => {
     const videos = currentSermons.data as SermonPost[];
 
-    if (activeTab === 'uncategorized') {
+    if (activeTab === UNCATEGORIZED_SERMON_TAB) {
       const uncategorizedVideos = videos.filter(video => {
         const hasValidCategory = visibleSermonCategories.some(c => c.id === video.sermonCategoryId);
         const isLegacy = video.subCategory === 'past_sermons' || video.subCategory === 'pilgrims_progress';
@@ -346,7 +341,7 @@ export default function Sermons() {
           description="유튜브에 업로드된 설교와 성경 공부 영상을 확인하세요."
           action={canWrite ? (
             <Link
-              to={`/create-post?type=sermon${activeTab && activeTab !== ALL_SERMONS_TAB ? `&categoryId=${activeTab}` : ''}`}
+              to={`/create-post?type=sermon${activeTab && activeTab !== UNCATEGORIZED_SERMON_TAB ? `&categoryId=${activeTab}` : ''}`}
               className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-md hover:bg-wood-800 transition shadow-sm"
             >
               <Plus size={20} className="mr-2" />
@@ -357,19 +352,6 @@ export default function Sermons() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-          <button
-            onClick={() => {
-              setActiveTab(ALL_SERMONS_TAB);
-              setSearchParams({ tab: ALL_SERMONS_TAB });
-            }}
-            className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-              activeTab === ALL_SERMONS_TAB
-                ? 'bg-wood-900 text-white shadow-sm'
-                : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
-            }`}
-          >
-            전체
-          </button>
           {visibleSermonCategories.map((tab) => (
             <button
               key={tab.id}
@@ -389,11 +371,11 @@ export default function Sermons() {
           {hasUncategorized && (
             <button
               onClick={() => {
-                setActiveTab('uncategorized');
-                setSearchParams({ tab: 'uncategorized' });
+                setActiveTab(UNCATEGORIZED_SERMON_TAB);
+                setSearchParams({ tab: UNCATEGORIZED_SERMON_TAB });
               }}
               className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                activeTab === 'uncategorized'
+                activeTab === UNCATEGORIZED_SERMON_TAB
                   ? 'bg-amber-600 text-white shadow-sm'
                   : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
               }`}

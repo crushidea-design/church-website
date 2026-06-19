@@ -273,13 +273,15 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
       <div className="relative flex-1 bg-white md:min-h-[500px] flex flex-col">
         <div
           ref={viewerRef}
-          className="flex-1 overflow-auto p-0 flex justify-start md:justify-center"
+          className="flex-1 overflow-auto p-0"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
         >
-          <canvas ref={canvasRef} className="h-auto max-w-none md:max-w-full" />
+          <div className="inline-block min-w-full text-center">
+            <canvas ref={canvasRef} className="h-auto max-w-none align-top" />
+          </div>
         </div>
 
         {/* Left Navigation Overlay */}
