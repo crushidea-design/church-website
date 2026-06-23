@@ -19,13 +19,22 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
       setStudents([]);
       return;
     }
-    const q = query(
+    let memberStudents: TeacherStudent[] = [];
+    let proxyStudents: TeacherStudent[] = [];
+    const sync = () => {
+      setStudents([...memberStudents, ...proxyStudents].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko')));
+    };
+    const memberQuery = query(
       collection(db, 'next_generation_members'),
       where('role', '==', 'member'),
       where('department', '==', '학생'),
     );
-    return onSnapshot(
-      q,
+    const childQuery = query(
+      collection(db, 'next_generation_children'),
+      where('groupId', 'in', teacherGroupIds.slice(0, 10)),
+    );
+    const unsubscribeMembers = onSnapshot(
+      memberQuery,
       (snap) => {
         const items: TeacherStudent[] = [];
         snap.docs.forEach((d) => {
@@ -39,11 +48,33 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
             });
           }
         });
-        items.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
-        setStudents(items);
+        memberStudents = items;
+        sync();
       },
       () => setStudents([]),
     );
+    const unsubscribeChildren = onSnapshot(
+      childQuery,
+      (snap) => {
+        proxyStudents = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            uid: d.id,
+            displayName: data.displayName ?? '이름 없음',
+            groupId: data.groupId ?? '',
+          };
+        }).filter((student) => teacherGroupIds.includes(student.groupId));
+        sync();
+      },
+      () => {
+        proxyStudents = [];
+        sync();
+      },
+    );
+    return () => {
+      unsubscribeMembers();
+      unsubscribeChildren();
+    };
   }, [teacherGroupIds.join('|')]);
   return students;
 }
@@ -313,4 +344,3 @@ function TeacherStudentRow({
     </div>
   );
 }
-

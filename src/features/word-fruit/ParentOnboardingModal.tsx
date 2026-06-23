@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Loader2, Plus, Trash2, Copy, Check } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
+import { buildProxyChildRecords } from '../next-generation/proxyChildren';
 
 interface DraftChild {
   tempId: string;
   name: string;
   grade: string;
+  groupId: string;
   usesPhone: 'yes' | 'no' | null;
 }
 
 function makeDraft(): DraftChild {
-  return { tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: '', grade: '', usesPhone: null };
+  return { tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: '', grade: '', groupId: '', usesPhone: null };
 }
 
 export default function ParentOnboardingModal() {
@@ -58,21 +60,31 @@ export default function ParentOnboardingModal() {
     setSaving(true);
     setError('');
     try {
-      const proxyChildren = drafts
-        .filter((d) => d.usesPhone === 'no')
-        .map((d, idx) => ({
-          id: `proxy:${user.uid}:${Date.now()}-${idx}`,
-          name: d.name.trim(),
-          grade: d.grade.trim() || undefined,
-          usesPhone: false as const,
-        }));
-      const cleaned = proxyChildren.map(({ grade, ...rest }) =>
-        grade ? { ...rest, grade } : rest,
-      );
-      await updateDoc(doc(db, 'next_generation_members', user.uid), {
-        parentOnboardingCompleted: true,
-        proxyChildren: cleaned,
+      const records = buildProxyChildRecords({
+        parentUid: user.uid,
+        parentName: member.displayName,
+        now: Date.now(),
+        children: drafts.map((draft) => ({
+          name: draft.name,
+          grade: draft.grade,
+          groupId: draft.groupId,
+          usesPhone: draft.usesPhone,
+        })),
       });
+      const batch = writeBatch(db);
+
+      records.childDocs.forEach((childDoc) => {
+        batch.set(doc(db, 'next_generation_children', childDoc.id), {
+          ...childDoc.data,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+      batch.update(doc(db, 'next_generation_members', user.uid), {
+        parentOnboardingCompleted: true,
+        proxyChildren: records.memberSummaries,
+      });
+      await batch.commit();
     } catch (e: any) {
       setError(e?.message || '저장 중 오류가 발생했습니다.');
     } finally {
@@ -124,7 +136,7 @@ export default function ParentOnboardingModal() {
                     </button>
                   )}
                 </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
                   <input
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     placeholder="이름"
@@ -136,6 +148,12 @@ export default function ParentOnboardingModal() {
                     placeholder="학년 (예: 초3)"
                     value={d.grade}
                     onChange={(e) => updateDraft(idx, { grade: e.target.value })}
+                  />
+                  <input
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="반/그룹"
+                    value={d.groupId}
+                    onChange={(e) => updateDraft(idx, { groupId: e.target.value })}
                   />
                 </div>
               </div>

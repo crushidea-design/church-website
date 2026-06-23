@@ -22,7 +22,7 @@ import {
   DEMO_REAL_PAGE_LINKS,
   NEXT_GENERATION_DEMO_STEPS,
   NextGenerationDemoStepId,
-  getDemoPageUrl,
+  getNextGenerationHomeUrl,
 } from './demoContent';
 
 const wordFruitMessages = [
@@ -58,15 +58,15 @@ export default function NextGenerationDemoPage() {
   const [fruitStage, setFruitStage] = useState<FruitStage>(0);
   const [questionSent, setQuestionSent] = useState(false);
   const [familyLogged, setFamilyLogged] = useState(false);
-  const demoUrl = useMemo(
-    () => getDemoPageUrl(typeof window === 'undefined' ? undefined : window.location.origin),
+  const signUpUrl = useMemo(
+    () => getNextGenerationHomeUrl('https://builttogether.church'),
     [],
   );
   const demoCompletedBookIndexes = useMemo(
     () => new Set(DEMO_BIBLE_READING_COMPLETED_BOOK_INDEXES),
     [],
   );
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=12&data=${encodeURIComponent(demoUrl)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=12&data=${encodeURIComponent(signUpUrl)}`;
   const activeIndex = NEXT_GENERATION_DEMO_STEPS.findIndex((step) => step.id === activeStep);
 
   return (
@@ -151,7 +151,7 @@ export default function NextGenerationDemoPage() {
                 </div>
                 <img src={qrUrl} alt="다음세대 시연 페이지 QR 코드" className="mx-auto h-64 w-64 rounded-xl bg-white p-3 shadow-sm" />
                 <p className="mt-4 break-all rounded-lg bg-white px-3 py-2 text-sm font-black text-emerald-900">
-                  {demoUrl}
+                  {signUpUrl}
                 </p>
               </div>
               <div>

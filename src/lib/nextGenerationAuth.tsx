@@ -21,12 +21,19 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { auth, db, googleProvider, signInWithGoogle as firebaseSignInWithGoogle } from './firebase';
+import { buildMemberRoleFields } from './nextGenerationRoles';
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
 export type MemberRole = 'pending' | 'member' | 'rejected';
 export const NEXT_GENERATION_DEPARTMENTS = ['청년', '교사', '학부모', '학생'] as const;
 export type Department = typeof NEXT_GENERATION_DEPARTMENTS[number];
+export interface NextGenerationRoleProfiles {
+  teacher?: { groupIds: string[] };
+  parent?: { childIds: string[] };
+  youngAdult?: { enabled: boolean };
+  student?: { groupId?: string };
+}
 
 /** Department members that can only access the workbook (공과) tab. */
 export const RESTRICTED_DEPARTMENTS: Department[] = ['학생'];
@@ -43,6 +50,9 @@ export interface NextGenerationMember {
   displayName: string;
   role: MemberRole;
   department: Department;
+  departments?: Department[];
+  primaryDepartment?: Department;
+  roleProfiles?: NextGenerationRoleProfiles;
   church: string;
   intro: string;
   provider: 'email' | 'google';
@@ -80,6 +90,7 @@ export interface NextGenerationNotification {
 export interface SignUpData {
   displayName: string;
   department: Department;
+  departments?: Department[];
   church: string;
   intro: string;
   /** Only set when department === '학생' — used to auto-link the parent on approval. */
@@ -242,18 +253,19 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
     try {
       await updateProfile(credential.user, { displayName: data.displayName });
       const memberRef = doc(db, 'next_generation_members', credential.user.uid);
+      const roleFields = buildMemberRoleFields(data.departments || [data.department]);
       const payload: Record<string, unknown> = {
         uid: credential.user.uid,
         email: data.email,
         displayName: data.displayName,
         role: 'pending',
-        department: data.department,
+        ...roleFields,
         church: data.church,
         intro: data.intro,
         provider: 'email',
         createdAt: serverTimestamp(),
       };
-      if (data.department === '학생' && data.parentEmail && data.parentEmail.trim()) {
+      if (roleFields.departments.includes('학생') && data.parentEmail && data.parentEmail.trim()) {
         payload.parentEmail = data.parentEmail.trim().toLowerCase();
       }
       await setDoc(memberRef, payload);
@@ -281,18 +293,19 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
   const completeGoogleSignUp = useCallback(async (data: SignUpData) => {
     if (!user) throw new Error('로그인 상태가 아닙니다.');
     const memberRef = doc(db, 'next_generation_members', user.uid);
+    const roleFields = buildMemberRoleFields(data.departments || [data.department]);
     const payload: Record<string, unknown> = {
       uid: user.uid,
       email: user.email,
       displayName: data.displayName,
       role: 'pending',
-      department: data.department,
+      ...roleFields,
       church: data.church,
       intro: data.intro,
       provider: 'google',
       createdAt: serverTimestamp(),
     };
-    if (data.department === '학생' && data.parentEmail && data.parentEmail.trim()) {
+    if (roleFields.departments.includes('학생') && data.parentEmail && data.parentEmail.trim()) {
       payload.parentEmail = data.parentEmail.trim().toLowerCase();
     }
     await setDoc(memberRef, payload);

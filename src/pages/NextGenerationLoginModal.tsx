@@ -58,21 +58,29 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
   const [signupPassword, setSignupPassword] = useState('');
   const [signupPassword2, setSignupPassword2] = useState('');
   const [signupName, setSignupName] = useState('');
-  const [signupDept, setSignupDept] = useState<Department>('청년');
   const [signupChurch, setSignupChurch] = useState('');
   const [signupIntro, setSignupIntro] = useState('');
   const [signupParentEmail, setSignupParentEmail] = useState('');
+  const [signupDepartments, setSignupDepartments] = useState<Department[]>(['청년']);
 
   // Complete Google signup form
   const [googleName, setGoogleName] = useState('');
-  const [googleDept, setGoogleDept] = useState<Department>('청년');
   const [googleChurch, setGoogleChurch] = useState('');
   const [googleIntro, setGoogleIntro] = useState('');
+  const [googleParentEmail, setGoogleParentEmail] = useState('');
+  const [googleDepartments, setGoogleDepartments] = useState<Department[]>(['청년']);
 
   // Forgot password
   const [resetEmail, setResetEmail] = useState('');
   const inAppBrowserMessage = getInAppBrowserLoginMessage();
   const shouldBlockGoogleLogin = isInAppBrowser();
+
+  const toggleDepartment = (departments: Department[], department: Department) => {
+    if (departments.includes(department)) {
+      return departments.length === 1 ? departments : departments.filter((item) => item !== department);
+    }
+    return [...departments, department];
+  };
 
   const handleError = (err: any) => {
     const code = err?.code || '';
@@ -159,10 +167,11 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
         email: signupEmail.trim(),
         password: signupPassword,
         displayName: signupName.trim(),
-        department: signupDept,
+        department: signupDepartments[0] || '청년',
+        departments: signupDepartments,
         church: signupChurch.trim(),
         intro: signupIntro.trim(),
-        ...(signupDept === '학생' && signupParentEmail.trim()
+        ...(signupDepartments.includes('학생') && signupParentEmail.trim()
           ? { parentEmail: signupParentEmail.trim() }
           : {}),
       };
@@ -190,9 +199,13 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
     try {
       const data: SignUpData = {
         displayName: googleName.trim(),
-        department: googleDept,
+        department: googleDepartments[0] || '청년',
+        departments: googleDepartments,
         church: googleChurch.trim(),
         intro: googleIntro.trim(),
+        ...(googleDepartments.includes('학생') && googleParentEmail.trim()
+          ? { parentEmail: googleParentEmail.trim() }
+          : {}),
       };
       await completeGoogleSignUp(data);
       setView('pending');
@@ -422,20 +435,21 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">소속 <span className="text-red-500">*</span></label>
-                  <div className="flex gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">역할 <span className="text-red-500">*</span></label>
+                  <p className="mb-2 text-xs text-gray-500">해당되는 역할을 모두 선택해 주세요.</p>
+                  <div className="grid grid-cols-2 gap-2">
                     {DEPARTMENTS.map(dept => (
                       <button
                         key={dept}
                         type="button"
-                        onClick={() => setSignupDept(dept)}
-                        className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                          signupDept === dept
+                        onClick={() => setSignupDepartments((departments) => toggleDepartment(departments, dept))}
+                        className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                          signupDepartments.includes(dept)
                             ? 'bg-amber-500 border-amber-500 text-white'
                             : 'border-gray-300 text-gray-600 hover:border-amber-300'
                         }`}
                       >
-                        {dept}
+                        {signupDepartments.includes(dept) ? '✓ ' : ''}{dept}
                       </button>
                     ))}
                   </div>
@@ -451,7 +465,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                     placeholder="예: 한우리교회"
                   />
                 </div>
-                {signupDept === '학생' && (
+                {signupDepartments.includes('학생') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">학부모 이메일 <span className="text-gray-400 text-xs">(권장)</span></label>
                     <input
@@ -534,24 +548,40 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">소속 <span className="text-red-500">*</span></label>
-                <div className="flex gap-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">역할 <span className="text-red-500">*</span></label>
+                <p className="mb-2 text-xs text-gray-500">해당되는 역할을 모두 선택해 주세요.</p>
+                <div className="grid grid-cols-2 gap-2">
                   {DEPARTMENTS.map(dept => (
                     <button
                       key={dept}
                       type="button"
-                      onClick={() => setGoogleDept(dept)}
-                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        googleDept === dept
+                      onClick={() => setGoogleDepartments((departments) => toggleDepartment(departments, dept))}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        googleDepartments.includes(dept)
                           ? 'bg-amber-500 border-amber-500 text-white'
                           : 'border-gray-300 text-gray-600 hover:border-amber-300'
                       }`}
                     >
-                      {dept}
+                      {googleDepartments.includes(dept) ? '✓ ' : ''}{dept}
                     </button>
                   ))}
                 </div>
               </div>
+              {googleDepartments.includes('학생') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">학부모 이메일 <span className="text-gray-400 text-xs">(권장)</span></label>
+                  <input
+                    type="email"
+                    value={googleParentEmail}
+                    onChange={e => setGoogleParentEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+                    placeholder="부모님이 가입하신 이메일 (선택)"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    부모님 계정이 이미 가입되어 있으면 승인 시 자동으로 연결됩니다.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">소속 교회 <span className="text-red-500">*</span></label>
                 <input

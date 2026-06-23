@@ -1,7 +1,8 @@
 import { NextGenerationMember } from '../../lib/nextGenerationAuth';
+import { hasDepartment } from '../../lib/nextGenerationRoles';
 
 export function shouldShowParentOnboarding(member: NextGenerationMember | null, hasAccess: boolean) {
-  if (!hasAccess || member?.department !== '학부모') {
+  if (!hasAccess || !hasDepartment(member, '학부모')) {
     return false;
   }
 

@@ -20,6 +20,14 @@ describe('shouldShowParentOnboarding', () => {
     expect(shouldShowParentOnboarding(parent(), true)).toBe(true);
   });
 
+  it('shows for a teacher who also has the parent role', () => {
+    expect(shouldShowParentOnboarding(parent({
+      department: '교사',
+      departments: ['교사', '학부모'],
+      primaryDepartment: '교사',
+    }), true)).toBe(true);
+  });
+
   it('does not show after the parent completed onboarding', () => {
     expect(shouldShowParentOnboarding(parent({ parentOnboardingCompleted: true }), true)).toBe(false);
   });
