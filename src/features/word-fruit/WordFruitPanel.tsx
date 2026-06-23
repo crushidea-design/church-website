@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Lock, Loader2, Sparkles, BookOpen, AlertCircle, Settings, History } from 'lucide-react';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
+import { hasDepartment } from '../../lib/nextGenerationRoles';
 import {
   checkInToday,
   fruitStageOf,
@@ -57,8 +58,8 @@ export default function WordFruitPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const isParent = member?.department === '학부모';
-  const isTeacher = member?.department === '교사' && member?.role === 'member';
+  const isParent = hasDepartment(member, '학부모');
+  const isTeacher = hasDepartment(member, '교사') && member?.role === 'member';
   const childIds = useMemo(() => member?.childIds ?? [], [member?.childIds]);
   const proxyChildren = useMemo(() => member?.proxyChildren ?? [], [member?.proxyChildren]);
   const combinedChildUserIds = useMemo(
@@ -99,12 +100,12 @@ export default function WordFruitPanel() {
   // Pull every progress doc owned by the current user so we can show a
   // monthly recap on the student tree. Only meaningful for student accounts.
   useEffect(() => {
-    if (!user || member?.department !== '학생') {
+    if (!user || !hasDepartment(member, '학생')) {
       setMyAllProgress([]);
       return;
     }
     return subscribeProgressForUser(user.uid, setMyAllProgress);
-  }, [user, member?.department]);
+  }, [user, member]);
 
   useEffect(() => {
     if (isPastor) {
@@ -120,7 +121,7 @@ export default function WordFruitPanel() {
     return;
   }, [selectedWeekId, isPastor, isTeacher, teacherIsScoped, teacherGroupIds]);
 
-  const isStudent = member?.department === '학생';
+  const isStudent = hasDepartment(member, '학생');
   const todayKey = getTodayKey();
   const isAllowedDay = isCheckAllowedDay();
   const canCheckToday = isCurrentWeek && isAllowedDay;
@@ -273,6 +274,13 @@ export default function WordFruitPanel() {
                 onCheck={handleCheckClick}
                 myAllProgress={myAllProgress}
               />
+            ) : isTeacher ? (
+              <TeacherView
+                weekId={selectedWeekId}
+                allProgress={allProgress}
+                teacherGroupIds={teacherGroupIds}
+                canEdit={isCurrentWeek}
+              />
             ) : isParent ? (
               <ParentView
                 fruit={fruit}
@@ -280,13 +288,6 @@ export default function WordFruitPanel() {
                 childProgresses={childProgresses}
                 childIds={childIds}
                 proxyChildren={member?.proxyChildren ?? []}
-                canEdit={isCurrentWeek}
-              />
-            ) : isTeacher ? (
-              <TeacherView
-                weekId={selectedWeekId}
-                allProgress={allProgress}
-                teacherGroupIds={teacherGroupIds}
                 canEdit={isCurrentWeek}
               />
             ) : isPastor ? (
@@ -330,4 +331,3 @@ export default function WordFruitPanel() {
     </div>
   );
 }
-

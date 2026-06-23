@@ -1,7 +1,7 @@
 // My page (profile, notifications, bible reading) + YoungAdultsPage
 // wrapper extracted from NextGeneration.tsx.
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Bell,
@@ -23,11 +23,16 @@ import {
   NEXT_GENERATION_PATH,
   formatShortDate,
 } from '../../lib/nextGenerationResources';
+import {
+  getMemberDepartments,
+  getPrimaryDepartment,
+  hasDepartment,
+} from '../../lib/nextGenerationRoles';
 import BibleReadingChart from '../../pages/BibleReadingChart';
 import NextGenerationHighlightBand from '../../components/NextGenerationHighlightBand';
 import NextGenerationQA from '../../pages/NextGenerationQA';
 import NextGenerationTodayWord from '../../pages/NextGenerationTodayWord';
-import { TeacherRoleCards } from '../word-fruit/MyPageRoleCards';
+import { ParentRoleCards, TeacherRoleCards } from '../word-fruit/MyPageRoleCards';
 import ResourceLibraryPage from './ResourceLibraryPage';
 import { youngAdultResourceTabs, youngAdultsImage } from './sharedConstants';
 
@@ -50,6 +55,7 @@ interface MyReadingItem {
 }
 
 export default function NextGenerationMyPage() {
+  const [searchParams] = useSearchParams();
   const {
     user,
     member,
@@ -63,11 +69,35 @@ export default function NextGenerationMyPage() {
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [readings, setReadings] = useState<MyReadingItem[]>([]);
   const [readingsLoading, setReadingsLoading] = useState(false);
+  const isFromDemo = searchParams.get('fromDemo') === '1';
+  const demoReturnBanner = isFromDemo ? (
+    <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-black text-emerald-900">실제 말씀기록표 화면을 시연 중입니다</p>
+          <p className="mt-1 text-sm font-bold text-slate-600">
+            내 페이지에서 말씀기록표를 확인한 뒤 다시 시연 코스로 돌아갈 수 있습니다.
+          </p>
+        </div>
+        <Link
+          to={`${NEXT_GENERATION_PATH}/demo`}
+          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700"
+        >
+          시연 코스로 돌아가기
+        </Link>
+      </div>
+    </div>
+  ) : null;
 
-  const roleLabel = member?.department || (isPastor ? '관리자' : '다음세대');
-  const isStudentRole = member?.department === NEXT_GENERATION_DEPARTMENTS[3];
-  const isTeacherRole = member?.department === NEXT_GENERATION_DEPARTMENTS[1];
-  const isYoungAdultRole = member?.department === NEXT_GENERATION_DEPARTMENTS[0];
+  const memberDepartments = getMemberDepartments(member);
+  const primaryDepartment = getPrimaryDepartment(member);
+  const roleLabel = memberDepartments.length > 1
+    ? `${primaryDepartment} · ${memberDepartments.filter((department) => department !== primaryDepartment).join(', ')}`
+    : member?.department || (isPastor ? '관리자' : '다음세대');
+  const isStudentRole = hasDepartment(member, NEXT_GENERATION_DEPARTMENTS[3]);
+  const isTeacherRole = hasDepartment(member, NEXT_GENERATION_DEPARTMENTS[1]);
+  const isParentRole = hasDepartment(member, NEXT_GENERATION_DEPARTMENTS[2]);
+  const isYoungAdultRole = hasDepartment(member, NEXT_GENERATION_DEPARTMENTS[0]);
 
   useEffect(() => {
     if (!user || !hasAccess) {
@@ -133,6 +163,7 @@ export default function NextGenerationMyPage() {
   if (!user || !hasAccess) {
     return (
       <section className="bg-white py-16">
+        {demoReturnBanner}
         <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
           <Lock className="mx-auto mb-4 h-10 w-10 text-amber-500" />
           <h1 className="text-3xl font-black tracking-normal text-emerald-950">내 역할 페이지</h1>
@@ -169,6 +200,8 @@ export default function NextGenerationMyPage() {
           </div>
         </div>
       </section>
+
+      {demoReturnBanner}
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1.25fr_0.75fr] lg:px-8">
         <div className="space-y-6">
@@ -273,6 +306,8 @@ export default function NextGenerationMyPage() {
         </div>
 
         <aside className="space-y-6">
+          {isParentRole && <ParentRoleCards />}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">

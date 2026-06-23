@@ -7,6 +7,7 @@ import {
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS, useNextGenerationAuth } from '../lib/nextGenerationAuth';
+import { hasDepartment } from '../lib/nextGenerationRoles';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import { buildNextGenerationClassDashboard } from '../lib/nextGenerationClassDashboard';
 import {
@@ -40,6 +41,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const { member: nextMember, isPastor: isNextGenerationPastor } = useNextGenerationAuth();
   const [tab, setTab] = useState<AdminTab>('members');
   const [members, setMembers] = useState<NextGenerationMember[]>([]);
+  const [proxyChildMembers, setProxyChildMembers] = useState<NextGenerationMember[]>([]);
   const [qaItems, setQaItems] = useState<QAItem[]>([]);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [classReadings, setClassReadings] = useState<ClassReadingDoc[]>([]);
@@ -181,8 +183,61 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const teacherGroupIds = !isNextGenerationPastor && nextMember?.groupIds?.length
     ? nextMember.groupIds
     : undefined;
+  useEffect(() => {
+    if (isNextGenerationPastor) {
+      const q = query(collection(db, 'next_generation_children'), orderBy('displayName', 'asc'));
+      return onSnapshot(q, (snap) => {
+        setProxyChildMembers(snap.docs.map((childDoc) => {
+          const data = childDoc.data() as any;
+          return {
+            uid: childDoc.id,
+            email: '',
+            displayName: data.displayName ?? '이름 없음',
+            role: 'member',
+            department: studentDepartment,
+            church: '',
+            intro: '',
+            provider: 'google',
+            createdAt: data.createdAt,
+            groupId: data.groupId ?? '',
+          } as NextGenerationMember;
+        }));
+      }, () => setProxyChildMembers([]));
+    }
+
+    if (!teacherGroupIds || teacherGroupIds.length === 0) {
+      setProxyChildMembers([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'next_generation_children'),
+      where('groupId', 'in', teacherGroupIds.slice(0, 10)),
+    );
+    return onSnapshot(q, (snap) => {
+      setProxyChildMembers(snap.docs.map((childDoc) => {
+        const data = childDoc.data() as any;
+        return {
+          uid: childDoc.id,
+          email: '',
+          displayName: data.displayName ?? '이름 없음',
+          role: 'member',
+          department: studentDepartment,
+          church: '',
+          intro: '',
+          provider: 'google',
+          createdAt: data.createdAt,
+          groupId: data.groupId ?? '',
+        } as NextGenerationMember;
+      }));
+    }, () => setProxyChildMembers([]));
+  }, [isNextGenerationPastor, studentDepartment, teacherGroupIds?.join('|')]);
+  const classDashboardMembers = useMemo(
+    () => [...members, ...proxyChildMembers],
+    [members, proxyChildMembers],
+  );
   const classDashboard = useMemo(() => buildNextGenerationClassDashboard({
-    members,
+    members: classDashboardMembers,
     readings: classReadings,
     qaItems,
     attendanceItems: classAttendance,
@@ -190,7 +245,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     recentWeekKeys: attendanceWeekKeys,
     studentDepartment,
     visibleGroupIds: teacherGroupIds,
-  }), [attendanceWeekKeys, classAttendance, classReadings, currentAttendanceWeekKey, members, qaItems, studentDepartment, teacherGroupIds]);
+  }), [attendanceWeekKeys, classAttendance, classReadings, currentAttendanceWeekKey, classDashboardMembers, qaItems, studentDepartment, teacherGroupIds]);
   const visibleClassGroups = classDashboard.groups.filter((group) =>
     classGroupFilter === 'all' ? true : group.groupId === classGroupFilter
   );
@@ -210,7 +265,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const notificationAudienceCount =
     notificationAudience === 'all'
       ? approvedMembers.length
-      : approvedMembers.filter((member) => notificationAudience.includes(member.department)).length;
+      : approvedMembers.filter((member) => notificationAudience.some((department) => hasDepartment(member, department))).length;
 
   const toggleAudienceDepartment = (dept: Department) => {
     setNotificationAudience((prev) => {
@@ -274,10 +329,10 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       });
 
       // Auto-link student → parent via parentEmail
-      if (target?.department === '학생' && (target as any).parentEmail) {
+      if (target && hasDepartment(target, '학생') && (target as any).parentEmail) {
         const parentEmail = String((target as any).parentEmail).trim().toLowerCase();
         const parent = members.find(
-          (m) => m.department === '학부모' && m.role === 'member' && m.email?.toLowerCase() === parentEmail,
+          (m) => hasDepartment(m, '학부모') && m.role === 'member' && m.email?.toLowerCase() === parentEmail,
         );
         if (parent) {
           batch.update(doc(db, 'next_generation_members', parent.uid), {
@@ -475,7 +530,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       notificationAudience === 'all'
         ? []
         : approvedMembers
-            .filter((member) => notificationAudience.includes(member.department))
+            .filter((member) => notificationAudience.some((department) => hasDepartment(member, department)))
             .map((member) => member.uid);
 
     if (!trimmedTitle || !trimmedBody) {
@@ -504,7 +559,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       const targetMembers =
         notificationAudience === 'all'
           ? approvedMembers
-          : approvedMembers.filter((m) => notificationAudience.includes(m.department));
+          : approvedMembers.filter((member) => notificationAudience.some((department) => hasDepartment(member, department)));
 
       const response = await fetch('/api/notifications/send', {
         method: 'POST',

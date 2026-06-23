@@ -244,13 +244,29 @@ export function TeacherRoleCards() {
 
   useEffect(() => {
     if (groupIds.length === 0) return;
-    const q = query(
+    let memberGrouped: Record<string, TeacherStudent[]> = {};
+    let proxyGrouped: Record<string, TeacherStudent[]> = {};
+    const sync = () => {
+      const next: Record<string, TeacherStudent[]> = {};
+      groupIds.forEach((groupId) => {
+        next[groupId] = [
+          ...(memberGrouped[groupId] ?? []),
+          ...(proxyGrouped[groupId] ?? []),
+        ].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
+      });
+      setStudentsByGroup(next);
+    };
+    const memberQuery = query(
       collection(db, 'next_generation_members'),
       where('role', '==', 'member'),
       where('department', '==', '학생'),
     );
-    return onSnapshot(
-      q,
+    const childQuery = query(
+      collection(db, 'next_generation_children'),
+      where('groupId', 'in', groupIds.slice(0, 10)),
+    );
+    const unsubscribeMembers = onSnapshot(
+      memberQuery,
       (snap) => {
         const grouped: Record<string, TeacherStudent[]> = {};
         snap.docs.forEach((d) => {
@@ -260,10 +276,34 @@ export function TeacherRoleCards() {
           if (!grouped[gid]) grouped[gid] = [];
           grouped[gid].push({ uid: data.uid ?? d.id, displayName: data.displayName ?? '이름 없음', groupId: gid });
         });
-        setStudentsByGroup(grouped);
+        memberGrouped = grouped;
+        sync();
       },
       () => setStudentsByGroup({}),
     );
+    const unsubscribeChildren = onSnapshot(
+      childQuery,
+      (snap) => {
+        const grouped: Record<string, TeacherStudent[]> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data() as any;
+          const gid = data.groupId ?? '';
+          if (!groupIds.includes(gid)) return;
+          if (!grouped[gid]) grouped[gid] = [];
+          grouped[gid].push({ uid: d.id, displayName: data.displayName ?? '이름 없음', groupId: gid });
+        });
+        proxyGrouped = grouped;
+        sync();
+      },
+      () => {
+        proxyGrouped = {};
+        sync();
+      },
+    );
+    return () => {
+      unsubscribeMembers();
+      unsubscribeChildren();
+    };
   }, [groupIds.join('|')]);
 
   useEffect(() => {

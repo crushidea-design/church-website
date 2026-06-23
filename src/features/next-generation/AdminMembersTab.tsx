@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Department, NextGenerationMember } from '../../lib/nextGenerationAuth';
+import { getMemberDepartments, getPrimaryDepartment } from '../../lib/nextGenerationRoles';
 import {
   AdminTab,
   DEPT_COLORS,
@@ -58,6 +59,8 @@ function MemberRow({
   onDelete: (uid: string) => void;
 }) {
   const isExpanded = expandedId === m.uid;
+  const primaryDepartment = getPrimaryDepartment(m);
+  const departments = getMemberDepartments(m);
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden mb-2">
       <button
@@ -67,9 +70,17 @@ function MemberRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-gray-900 text-sm">{m.displayName}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${DEPT_COLORS[m.department]}`}>
-              {m.department}
-            </span>
+            {departments.map((department) => (
+              <span
+                key={department}
+                className={`text-xs px-2 py-0.5 rounded-full font-medium ${DEPT_COLORS[department]} ${
+                  department === primaryDepartment ? 'ring-2 ring-offset-1 ring-amber-300' : ''
+                }`}
+                title={department === primaryDepartment ? '대표 역할' : undefined}
+              >
+                {department}
+              </span>
+            ))}
             {m.role === 'pending' && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">대기중</span>
             )}
