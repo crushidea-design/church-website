@@ -64,4 +64,12 @@ describe('next generation role helpers', () => {
       },
     });
   });
+
+  it('uses an admin-selected primary role when it is one of the member roles', () => {
+    expect(buildMemberRoleFields(['교사', '학부모'], '학부모')).toMatchObject({
+      department: '학부모',
+      departments: ['교사', '학부모'],
+      primaryDepartment: '학부모',
+    });
+  });
 });

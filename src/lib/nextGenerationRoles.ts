@@ -44,7 +44,7 @@ export function getPrimaryDepartment(
   return getDefaultPrimaryDepartment(departments);
 }
 
-export function buildMemberRoleFields(departments: Department[]) {
+export function buildMemberRoleFields(departments: Department[], preferredPrimaryDepartment?: Department) {
   const normalized = departments.reduce<Department[]>((list, department) => {
     if (VALID_DEPARTMENTS.has(department) && !list.includes(department)) {
       list.push(department);
@@ -52,7 +52,10 @@ export function buildMemberRoleFields(departments: Department[]) {
     return list;
   }, []);
   const safeDepartments: Department[] = normalized.length > 0 ? normalized : ['청년'];
-  const primaryDepartment = getDefaultPrimaryDepartment(safeDepartments);
+  const primaryDepartment =
+    preferredPrimaryDepartment && safeDepartments.includes(preferredPrimaryDepartment)
+      ? preferredPrimaryDepartment
+      : getDefaultPrimaryDepartment(safeDepartments);
   const roleProfiles: NextGenerationRoleProfiles = {};
 
   if (safeDepartments.includes('교사')) {

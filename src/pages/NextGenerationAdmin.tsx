@@ -7,7 +7,7 @@ import {
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { NextGenerationMember, Department, NEXT_GENERATION_DEPARTMENTS, useNextGenerationAuth } from '../lib/nextGenerationAuth';
-import { hasDepartment } from '../lib/nextGenerationRoles';
+import { buildMemberRoleFields, hasDepartment } from '../lib/nextGenerationRoles';
 import { getPostAttachments, serializeMaterialAttachments } from '../lib/attachments';
 import { buildNextGenerationClassDashboard } from '../lib/nextGenerationClassDashboard';
 import {
@@ -364,6 +364,23 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       showToast('✓ 승인되었습니다.');
     } catch {
       showToast('오류가 발생했습니다.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateMemberRoles = async (
+    member: NextGenerationMember,
+    departments: Department[],
+    primaryDepartment: Department,
+  ) => {
+    const roleFields = buildMemberRoleFields(departments, primaryDepartment);
+    setSubmitting(true);
+    try {
+      await updateDoc(doc(db, 'next_generation_members', member.uid), roleFields);
+      showToast('역할을 저장했습니다.');
+    } catch {
+      showToast('역할 저장 중 오류가 발생했습니다.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -762,6 +779,7 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
               onApproveMember={approveMember}
               onOpenReject={(uid) => { setRejectTargetId(uid); setRejectReason(''); }}
               onToggleAdmin={toggleNextGenerationAdmin}
+              onUpdateMemberRoles={updateMemberRoles}
               onDeleteMember={deleteMember}
             />
           )}
