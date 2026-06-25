@@ -305,6 +305,14 @@
       ]
     },
     {
+      "collectionGroup": "next_generation_members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "departments", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "role", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "next_generation_word_fruit_progress",
       "queryScope": "COLLECTION",
       "fields": [
