@@ -82,6 +82,23 @@ describe('buildNextGenerationClassDashboard', () => {
     expect(dashboard.groups[0].groupId).toBe('class-2');
   });
 
+  it('includes multi-role students whose legacy department is not student', () => {
+    const dashboard = buildNextGenerationClassDashboard({
+      members: [
+        {
+          ...baseStudent('student-parent', 'class-1'),
+          department: 'parent',
+          departments: ['parent', 'student'],
+        },
+      ],
+      readings: [],
+      qaItems: [],
+      studentDepartment: 'student',
+    });
+
+    expect(dashboard.students.map((student) => student.uid)).toEqual(['student-parent']);
+  });
+
   it('adds current week and recent attendance summaries', () => {
     const dashboard = buildNextGenerationClassDashboard({
       members: [

@@ -61,14 +61,14 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
   const [signupChurch, setSignupChurch] = useState('');
   const [signupIntro, setSignupIntro] = useState('');
   const [signupParentEmail, setSignupParentEmail] = useState('');
-  const [signupDepartments, setSignupDepartments] = useState<Department[]>(['청년']);
+  const [signupDepartments, setSignupDepartments] = useState<Department[]>([]);
 
   // Complete Google signup form
   const [googleName, setGoogleName] = useState('');
   const [googleChurch, setGoogleChurch] = useState('');
   const [googleIntro, setGoogleIntro] = useState('');
   const [googleParentEmail, setGoogleParentEmail] = useState('');
-  const [googleDepartments, setGoogleDepartments] = useState<Department[]>(['청년']);
+  const [googleDepartments, setGoogleDepartments] = useState<Department[]>([]);
 
   // Forgot password
   const [resetEmail, setResetEmail] = useState('');
@@ -77,7 +77,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
 
   const toggleDepartment = (departments: Department[], department: Department) => {
     if (departments.includes(department)) {
-      return departments.length === 1 ? departments : departments.filter((item) => item !== department);
+      return departments.filter((item) => item !== department);
     }
     return [...departments, department];
   };
@@ -161,13 +161,18 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
       setError('소속 교회를 입력해 주세요.');
       return;
     }
+    if (signupDepartments.length === 0) {
+      setError('해당하는 역할을 하나 이상 선택해 주세요.');
+      return;
+    }
+    const signupPrimaryDepartment = signupDepartments[0] as Department;
     setSubmitting(true);
     try {
       const data: EmailSignUpData = {
         email: signupEmail.trim(),
         password: signupPassword,
         displayName: signupName.trim(),
-        department: signupDepartments[0] || '청년',
+        department: signupPrimaryDepartment,
         departments: signupDepartments,
         church: signupChurch.trim(),
         intro: signupIntro.trim(),
@@ -195,11 +200,16 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
       setError('소속 교회를 입력해 주세요.');
       return;
     }
+    if (googleDepartments.length === 0) {
+      setError('해당하는 역할을 하나 이상 선택해 주세요.');
+      return;
+    }
+    const googlePrimaryDepartment = googleDepartments[0] as Department;
     setSubmitting(true);
     try {
       const data: SignUpData = {
         displayName: googleName.trim(),
-        department: googleDepartments[0] || '청년',
+        department: googlePrimaryDepartment,
         departments: googleDepartments,
         church: googleChurch.trim(),
         intro: googleIntro.trim(),

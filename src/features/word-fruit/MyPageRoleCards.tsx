@@ -244,42 +244,68 @@ export function TeacherRoleCards() {
 
   useEffect(() => {
     if (groupIds.length === 0) return;
-    let memberGrouped: Record<string, TeacherStudent[]> = {};
+    let legacyMemberGrouped: Record<string, TeacherStudent[]> = {};
+    let multiRoleMemberGrouped: Record<string, TeacherStudent[]> = {};
     let proxyGrouped: Record<string, TeacherStudent[]> = {};
     const sync = () => {
       const next: Record<string, TeacherStudent[]> = {};
       groupIds.forEach((groupId) => {
-        next[groupId] = [
-          ...(memberGrouped[groupId] ?? []),
+        const byUid = new Map<string, TeacherStudent>();
+        [
+          ...(legacyMemberGrouped[groupId] ?? []),
+          ...(multiRoleMemberGrouped[groupId] ?? []),
           ...(proxyGrouped[groupId] ?? []),
-        ].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
+        ].forEach((student) => byUid.set(student.uid, student));
+        next[groupId] = Array.from(byUid.values()).sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
       });
       setStudentsByGroup(next);
     };
-    const memberQuery = query(
+    const legacyMemberQuery = query(
       collection(db, 'next_generation_members'),
       where('role', '==', 'member'),
       where('department', '==', '학생'),
+    );
+    const multiRoleMemberQuery = query(
+      collection(db, 'next_generation_members'),
+      where('role', '==', 'member'),
+      where('departments', 'array-contains', '학생'),
     );
     const childQuery = query(
       collection(db, 'next_generation_children'),
       where('groupId', 'in', groupIds.slice(0, 10)),
     );
-    const unsubscribeMembers = onSnapshot(
-      memberQuery,
+    const mapMemberGroups = (snap: any) => {
+      const grouped: Record<string, TeacherStudent[]> = {};
+      snap.docs.forEach((d: any) => {
+        const data = d.data() as any;
+        const gid = data.groupId ?? '';
+        if (!groupIds.includes(gid)) return;
+        if (!grouped[gid]) grouped[gid] = [];
+        grouped[gid].push({ uid: data.uid ?? d.id, displayName: data.displayName ?? '이름 없음', groupId: gid });
+      });
+      return grouped;
+    };
+    const unsubscribeLegacyMembers = onSnapshot(
+      legacyMemberQuery,
       (snap) => {
-        const grouped: Record<string, TeacherStudent[]> = {};
-        snap.docs.forEach((d) => {
-          const data = d.data() as any;
-          const gid = data.groupId ?? '';
-          if (!groupIds.includes(gid)) return;
-          if (!grouped[gid]) grouped[gid] = [];
-          grouped[gid].push({ uid: data.uid ?? d.id, displayName: data.displayName ?? '이름 없음', groupId: gid });
-        });
-        memberGrouped = grouped;
+        legacyMemberGrouped = mapMemberGroups(snap);
         sync();
       },
-      () => setStudentsByGroup({}),
+      () => {
+        legacyMemberGrouped = {};
+        sync();
+      },
+    );
+    const unsubscribeMultiRoleMembers = onSnapshot(
+      multiRoleMemberQuery,
+      (snap) => {
+        multiRoleMemberGrouped = mapMemberGroups(snap);
+        sync();
+      },
+      () => {
+        multiRoleMemberGrouped = {};
+        sync();
+      },
     );
     const unsubscribeChildren = onSnapshot(
       childQuery,
@@ -301,7 +327,8 @@ export function TeacherRoleCards() {
       },
     );
     return () => {
-      unsubscribeMembers();
+      unsubscribeLegacyMembers();
+      unsubscribeMultiRoleMembers();
       unsubscribeChildren();
     };
   }, [groupIds.join('|')]);

@@ -20,9 +20,9 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../lib/auth';
 import {
   STUDENT_ACCESSIBLE_TAB_SLUGS,
-  isRestrictedDepartment,
   useNextGenerationAuth,
 } from '../../lib/nextGenerationAuth';
+import { hasDepartment } from '../../lib/nextGenerationRoles';
 import {
   NEXT_GENERATION_PATH,
   getContentPreview,
@@ -84,7 +84,7 @@ export default function ResourceLibraryPage({
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.
-  const isRestricted = departmentSlug === 'elementary' && isRestrictedDepartment(member?.department);
+  const isRestricted = departmentSlug === 'elementary' && hasDepartment(member, '학생');
   const allowedTabs = isRestricted
     ? tabs.filter((tab) => (STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(tab.id))
     : tabs;

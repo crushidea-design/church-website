@@ -1,6 +1,6 @@
 // Members tab body extracted from NextGenerationAdmin.tsx. Includes
 // the per-member row card; all data and callbacks flow in via props.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -17,7 +17,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { Department, NextGenerationMember } from '../../lib/nextGenerationAuth';
+import { Department, NextGenerationMember, NEXT_GENERATION_DEPARTMENTS } from '../../lib/nextGenerationAuth';
 import { getMemberDepartments, getPrimaryDepartment } from '../../lib/nextGenerationRoles';
 import {
   AdminTab,
@@ -47,6 +47,7 @@ function MemberRow({
   onApprove,
   onOpenReject,
   onToggleAdmin,
+  onUpdateRoles,
   onDelete,
 }: {
   m: NextGenerationMember;
@@ -56,11 +57,39 @@ function MemberRow({
   onApprove: (uid: string) => void;
   onOpenReject: (uid: string) => void;
   onToggleAdmin: (m: NextGenerationMember) => void;
+  onUpdateRoles: (member: NextGenerationMember, departments: Department[], primaryDepartment: Department) => void;
   onDelete: (uid: string) => void;
 }) {
   const isExpanded = expandedId === m.uid;
   const primaryDepartment = getPrimaryDepartment(m);
   const departments = getMemberDepartments(m);
+  const [draftDepartments, setDraftDepartments] = useState<Department[]>(departments);
+  const [draftPrimaryDepartment, setDraftPrimaryDepartment] = useState<Department>(primaryDepartment);
+
+  useEffect(() => {
+    setDraftDepartments(departments);
+    setDraftPrimaryDepartment(primaryDepartment);
+  }, [m.uid, departments.join('|'), primaryDepartment]);
+
+  const toggleDraftDepartment = (department: Department) => {
+    setDraftDepartments((current) => {
+      if (current.includes(department)) {
+        if (current.length === 1) return current;
+        const next = current.filter((item) => item !== department);
+        if (!next.includes(draftPrimaryDepartment)) {
+          setDraftPrimaryDepartment(next[0]);
+        }
+        return next;
+      }
+      return [...current, department];
+    });
+  };
+
+  const roleChanged =
+    draftPrimaryDepartment !== primaryDepartment ||
+    draftDepartments.length !== departments.length ||
+    draftDepartments.some((department) => !departments.includes(department));
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden mb-2">
       <button
@@ -121,6 +150,59 @@ function MemberRow({
               <p className="text-sm text-red-600">{m.rejectionReason}</p>
             </div>
           )}
+          <div className="rounded-lg border border-amber-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-amber-800">역할 수정</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-gray-500">
+                  기존 회원도 여러 역할을 가질 수 있습니다. 대표 역할은 화면에서 가장 먼저 보입니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateRoles(m, draftDepartments, draftPrimaryDepartment)}
+                disabled={submitting || !roleChanged}
+                className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                저장
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {NEXT_GENERATION_DEPARTMENTS.map((department) => (
+                <label
+                  key={department}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                    draftDepartments.includes(department)
+                      ? 'border-amber-300 bg-amber-50 text-amber-900'
+                      : 'border-gray-200 bg-gray-50 text-gray-500'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={draftDepartments.includes(department)}
+                    onChange={() => toggleDraftDepartment(department)}
+                    className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
+                  />
+                  {department}
+                </label>
+              ))}
+            </div>
+            <label className="mt-3 block text-xs font-bold text-gray-600">
+              대표 역할
+              <select
+                value={draftPrimaryDepartment}
+                onChange={(e) => setDraftPrimaryDepartment(e.target.value as Department)}
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                {draftDepartments.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           <div className="flex gap-2 flex-wrap">
             {m.role === 'pending' && (
               <>
@@ -205,6 +287,7 @@ export default function AdminMembersTab({
   onApproveMember,
   onOpenReject,
   onToggleAdmin,
+  onUpdateMemberRoles,
   onDeleteMember,
 }: {
   search: string;
@@ -236,6 +319,7 @@ export default function AdminMembersTab({
   onApproveMember: (uid: string) => void;
   onOpenReject: (uid: string) => void;
   onToggleAdmin: (m: NextGenerationMember) => void;
+  onUpdateMemberRoles: (member: NextGenerationMember, departments: Department[], primaryDepartment: Department) => void;
   onDeleteMember: (uid: string) => void;
 }) {
   const memberRowProps = {
@@ -245,6 +329,7 @@ export default function AdminMembersTab({
     onApprove: onApproveMember,
     onOpenReject,
     onToggleAdmin,
+    onUpdateRoles: onUpdateMemberRoles,
     onDelete: onDeleteMember,
   };
 

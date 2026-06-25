@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Loader2, Plus, Trash2, Copy, Check } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import { buildProxyChildRecords } from '../next-generation/proxyChildren';
+import { subscribeGroups } from './api';
+import type { WordFruitGroup } from './types';
 
 interface DraftChild {
   tempId: string;
@@ -24,6 +26,21 @@ export default function ParentOnboardingModal() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const [groups, setGroups] = useState<WordFruitGroup[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+
+  useEffect(() => {
+    return subscribeGroups(
+      (items) => {
+        setGroups(items);
+        setGroupsLoading(false);
+      },
+      () => {
+        setGroups([]);
+        setGroupsLoading(false);
+      },
+    );
+  }, []);
 
   if (!user || !member) return null;
 
@@ -38,7 +55,7 @@ export default function ParentOnboardingModal() {
   const addDraft = () => setDrafts((prev) => [...prev, makeDraft()]);
 
   const validStep1 = drafts.every((d) => d.name.trim().length > 0);
-  const validStep2 = drafts.every((d) => d.usesPhone !== null);
+  const validStep2 = drafts.every((d) => d.usesPhone !== null && (d.usesPhone === 'yes' || d.groupId.trim().length > 0));
 
   const parentEmail = (member.email || '').toLowerCase();
   const signupHint = (child: DraftChild) => {
@@ -149,13 +166,23 @@ export default function ParentOnboardingModal() {
                     value={d.grade}
                     onChange={(e) => updateDraft(idx, { grade: e.target.value })}
                   />
-                  <input
+                  <select
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="반/그룹"
                     value={d.groupId}
                     onChange={(e) => updateDraft(idx, { groupId: e.target.value })}
-                  />
+                    disabled={groupsLoading || groups.length === 0}
+                  >
+                    <option value="">{groupsLoading ? '반 불러오는 중' : '반 선택'}</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  스마트폰이 없는 아이는 교사가 같은 반에서 볼 수 있도록 반 선택이 필요합니다.
+                </p>
               </div>
             ))}
             <button
@@ -203,6 +230,11 @@ export default function ParentOnboardingModal() {
                     </button>
                   ))}
                 </div>
+                {d.usesPhone === 'no' && !d.groupId && (
+                  <p className="mt-2 text-xs font-bold text-rose-600">
+                    스마트폰이 없는 아이는 이전 단계에서 반을 선택해야 저장할 수 있어요.
+                  </p>
+                )}
               </div>
             ))}
             <div className="mt-4 flex justify-between">
