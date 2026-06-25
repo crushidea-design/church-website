@@ -13,6 +13,7 @@ import { arrayRemove, arrayUnion } from 'firebase/firestore';
 import { BookOpen, Eye, EyeOff, Loader2, UserSearch } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { useNextGenerationAuth, NextGenerationMember } from '../lib/nextGenerationAuth';
+import { hasDepartment } from '../lib/nextGenerationRoles';
 import {
   BIBLE_BOOKS_NT_COUNT,
   BIBLE_BOOKS_OT_COUNT,
@@ -38,7 +39,7 @@ interface BibleReadingChartProps {
 
 export default function BibleReadingChart({ enableBrowse = false }: BibleReadingChartProps) {
   const { user, member, isPastor, isMember } = useNextGenerationAuth();
-  const isStudent = isMember && member?.department === '학생';
+  const isStudent = isMember && hasDepartment(member, '학생');
 
   // Pastor: pick which student to view/edit. Default to none until selected.
   const [students, setStudents] = useState<NextGenerationMember[]>([]);
@@ -70,23 +71,48 @@ export default function BibleReadingChart({ enableBrowse = false }: BibleReading
       return;
     }
     setStudentsLoading(true);
-    const q = query(
+    const legacyQuery = query(
       collection(db, 'next_generation_members'),
       where('department', '==', '학생'),
       where('role', '==', 'member'),
     );
-    const unsub = onSnapshot(
-      q,
+    const multiRoleQuery = query(
+      collection(db, 'next_generation_members'),
+      where('departments', 'array-contains', '학생'),
+      where('role', '==', 'member'),
+    );
+    let legacyStudents: NextGenerationMember[] = [];
+    let multiRoleStudents: NextGenerationMember[] = [];
+    const sync = () => {
+      const byUid = new Map<string, NextGenerationMember>();
+      [...legacyStudents, ...multiRoleStudents].forEach((student) => byUid.set(student.uid, student));
+      const list = Array.from(byUid.values())
+        .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'ko'));
+      setStudents(list);
+      setStudentsLoading(false);
+    };
+    const unsubLegacy = onSnapshot(
+      legacyQuery,
       (snap) => {
-        const list = snap.docs
-          .map((d) => d.data() as NextGenerationMember)
-          .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'ko'));
-        setStudents(list);
-        setStudentsLoading(false);
+        legacyStudents = snap.docs.map((d) => d.data() as NextGenerationMember);
+        sync();
       },
       () => setStudentsLoading(false),
     );
-    return () => unsub();
+    const unsubMultiRole = onSnapshot(
+      multiRoleQuery,
+      (snap) => {
+        multiRoleStudents = snap.docs.map((d) => d.data() as NextGenerationMember);
+        sync();
+      },
+      () => {
+        setStudentsLoading(false);
+      },
+    );
+    return () => {
+      unsubLegacy();
+      unsubMultiRole();
+    };
   }, [isPastor]);
 
   useEffect(() => {

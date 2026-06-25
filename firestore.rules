@@ -444,6 +444,13 @@ service cloud.firestore {
         ngHasDepartment('교사');
     }
 
+    function isNextGenerationParent() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/next_generation_members/$(request.auth.uid)) &&
+        ngMemberData().role == 'member' &&
+        ngHasDepartment('학부모');
+    }
+
     /**
      * Teacher with no groupIds set sees all (legacy behavior). Teacher with
      * groupIds sees only progress whose groupId matches one of theirs.
@@ -504,14 +511,14 @@ service cloud.firestore {
     match /next_generation_children/{childId} {
       allow read: if isAuthenticated() && (
         isNextGenerationPastor() ||
-        request.auth.uid in resource.data.parentUids ||
+        ('parentUids' in resource.data && request.auth.uid in resource.data.parentUids) ||
         (isNextGenerationTeacher() &&
           'groupId' in resource.data &&
-          (!('groupIds' in ngMemberData()) ||
-           ngMemberData().groupIds.size() == 0 ||
-           resource.data.groupId in ngMemberData().groupIds))
+          'groupIds' in ngMemberData() &&
+          ngMemberData().groupIds.size() > 0 &&
+          resource.data.groupId in ngMemberData().groupIds)
       );
-      allow create: if isAuthenticated() &&
+      allow create: if isNextGenerationParent() &&
         request.resource.data.keys().hasOnly([
           'kind',
           'displayName',
@@ -531,8 +538,10 @@ service cloud.firestore {
         request.resource.data.displayName.size() <= 100 &&
         request.resource.data.department in ['유치부', '유초등부', '학생'] &&
         request.resource.data.groupId is string &&
+        request.resource.data.groupId.size() > 0 &&
         request.resource.data.groupId.size() <= 120 &&
         request.resource.data.parentUids is list &&
+        request.resource.data.parentUids.size() == 1 &&
         request.auth.uid in request.resource.data.parentUids &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.linkedUid == null &&
@@ -541,7 +550,7 @@ service cloud.firestore {
         request.resource.data.updatedAt is timestamp;
       allow update: if isAuthenticated() && (
         isNextGenerationPastor() ||
-        request.auth.uid in resource.data.parentUids
+        (isNextGenerationParent() && 'parentUids' in resource.data && request.auth.uid in resource.data.parentUids)
       ) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName',
@@ -551,9 +560,21 @@ service cloud.firestore {
           'linkedUid',
           'visibility',
           'updatedAt'
-        ]);
+        ]) &&
+        (
+          isNextGenerationPastor() ||
+          (
+            request.resource.data.parentUids is list &&
+            request.resource.data.parentUids.size() == 1 &&
+            request.auth.uid in request.resource.data.parentUids &&
+            request.resource.data.groupId is string &&
+            request.resource.data.groupId.size() > 0 &&
+            request.resource.data.groupId.size() <= 120 &&
+            request.resource.data.visibility == 'family_and_teachers'
+          )
+        );
       allow delete: if isNextGenerationPastor() ||
-        (isAuthenticated() && request.auth.uid in resource.data.parentUids);
+        (isNextGenerationParent() && 'parentUids' in resource.data && request.auth.uid in resource.data.parentUids);
     }
 
     match /next_generation_notifications/{notificationId} {

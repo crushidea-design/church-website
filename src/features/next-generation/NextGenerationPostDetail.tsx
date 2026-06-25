@@ -7,9 +7,9 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../lib/auth';
 import {
   STUDENT_ACCESSIBLE_TAB_SLUGS,
-  isRestrictedDepartment,
   useNextGenerationAuth,
 } from '../../lib/nextGenerationAuth';
+import { hasDepartment } from '../../lib/nextGenerationRoles';
 import { useNextGenerationCms } from '../../lib/nextGenerationCms';
 import {
   NEXT_GENERATION_PATH,
@@ -51,7 +51,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
   const location = useLocation();
   const { role } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
-  const isRestricted = isRestrictedDepartment(member?.department);
+  const isRestricted = hasDepartment(member, '학생');
   const { tabs: cmsTabs, departments: cmsDepartments } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);

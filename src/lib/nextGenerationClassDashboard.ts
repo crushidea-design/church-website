@@ -4,6 +4,7 @@ export interface ClassDashboardMember {
   email?: string;
   role?: string;
   department?: string;
+  departments?: string[];
   church?: string;
   intro?: string;
   provider?: string;
@@ -131,7 +132,7 @@ export function buildNextGenerationClassDashboard({
   });
 
   const students = members
-    .filter((member) => member.role === 'member' && member.department === studentDepartment)
+    .filter((member) => member.role === 'member' && hasDashboardDepartment(member, studentDepartment))
     .filter((member) => !visibleGroupSet || (member.groupId && visibleGroupSet.has(member.groupId)))
     .map((member): ClassDashboardStudent => {
       const normalizedGroupId = normalizeGroupId(member.groupId);
@@ -184,6 +185,11 @@ export function buildNextGenerationClassDashboard({
     currentUncheckedCount: students.filter((student) => student.currentAttendanceStatus === 'unchecked').length,
     recentAttendancePercent: averagePercent(students.map((student) => student.recentAttendancePercent)),
   };
+}
+
+function hasDashboardDepartment(member: ClassDashboardMember, department: string) {
+  return member.department === department ||
+    (Array.isArray(member.departments) && member.departments.includes(department));
 }
 
 function buildGroups(students: ClassDashboardStudent[]): ClassDashboardGroup[] {

@@ -410,20 +410,36 @@ export async function notifyPublishViaServer(weekId: string): Promise<{
 }
 
 export async function fetchElementaryNotificationTargets(): Promise<string[]> {
-  const targets: string[] = [];
-  for (const department of ['학생', '학부모', '교사']) {
-    const q = query(
-      collection(db, 'next_generation_members'),
-      where('department', '==', department),
-      where('role', '==', 'member'),
-    );
-    const snap = await getDocs(q);
-    snap.docs.forEach((d) => {
-      const data = d.data() as { uid?: string };
-      if (data.uid) targets.push(data.uid);
-    });
-  }
+  const members = await Promise.all([
+    fetchApprovedMembersByDepartment('학생'),
+    fetchApprovedMembersByDepartment('학부모'),
+    fetchApprovedMembersByDepartment('교사'),
+  ]);
+  const targets = members.flat().map((member) => member.uid).filter(Boolean);
   return Array.from(new Set(targets));
+}
+
+async function fetchApprovedMembersByDepartment(department: string): Promise<any[]> {
+  const byUid = new Map<string, any>();
+  const legacyQuery = query(
+    collection(db, 'next_generation_members'),
+    where('department', '==', department),
+    where('role', '==', 'member'),
+  );
+  const multiRoleQuery = query(
+    collection(db, 'next_generation_members'),
+    where('departments', 'array-contains', department),
+    where('role', '==', 'member'),
+  );
+  const [legacySnap, multiRoleSnap] = await Promise.all([
+    getDocs(legacyQuery),
+    getDocs(multiRoleQuery),
+  ]);
+  [...legacySnap.docs, ...multiRoleSnap.docs].forEach((d) => {
+    const data = d.data() as any;
+    byUid.set(data.uid ?? d.id, { uid: data.uid ?? d.id, ...data });
+  });
+  return Array.from(byUid.values());
 }
 
 export function subscribeGroups(
@@ -492,16 +508,10 @@ export async function setMemberGroupIds(uid: string, groupIds: string[]) {
 }
 
 export async function fetchElementaryStudents(): Promise<Array<{ uid: string; displayName: string; groupId?: string }>> {
-  const q = query(
-    collection(db, 'next_generation_members'),
-    where('department', '==', '학생'),
-    where('role', '==', 'member'),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data() as { uid?: string; displayName?: string; groupId?: string };
+  const members = await fetchApprovedMembersByDepartment('학생');
+  return members.map((data) => {
     return {
-      uid: data.uid ?? d.id,
+      uid: data.uid,
       displayName: data.displayName ?? '이름 없음',
       groupId: data.groupId,
     };
@@ -580,16 +590,10 @@ export async function backfillProgressGroupIds(): Promise<BackfillReport> {
 }
 
 export async function fetchTeachers(): Promise<Array<{ uid: string; displayName: string; email: string; groupIds: string[] }>> {
-  const q = query(
-    collection(db, 'next_generation_members'),
-    where('department', '==', '교사'),
-    where('role', '==', 'member'),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data() as any;
+  const members = await fetchApprovedMembersByDepartment('교사');
+  return members.map((data) => {
     return {
-      uid: data.uid ?? d.id,
+      uid: data.uid,
       displayName: data.displayName ?? '이름 없음',
       email: data.email ?? '',
       groupIds: Array.isArray(data.groupIds) ? data.groupIds : [],
