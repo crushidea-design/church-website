@@ -53,4 +53,16 @@ describe('proxy child records', () => {
     expect(result.memberSummaries.map((child) => child.name)).toEqual(['민준']);
     expect(result.childDocs[0].data.department).toBe('유초등부');
   });
+  it('preserves an existing proxy child id when editing', () => {
+    const result = buildProxyChildRecords({
+      parentUid: 'parent-1',
+      now: 555,
+      children: [
+        { id: 'proxy:parent-1:existing', name: '하임', grade: '초1', usesPhone: 'no', groupId: 'joy' },
+      ],
+    });
+
+    expect(result.memberSummaries[0].id).toBe('proxy:parent-1:existing');
+    expect(result.childDocs[0].id).toBe('proxy:parent-1:existing');
+  });
 });

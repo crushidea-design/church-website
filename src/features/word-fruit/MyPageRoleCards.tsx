@@ -96,6 +96,10 @@ export function ParentRoleCards() {
   const weekId = useMemo(() => getWeekId(), []);
   const childIds = member?.childIds ?? [];
   const proxyChildren = member?.proxyChildren ?? [];
+  const proxyNames = new Set(proxyChildren.map((child) => child.name.replace(/\s+/g, '').trim()).filter(Boolean));
+  const pendingChildNames = (member?.childNames ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0 && !proxyNames.has(name.replace(/\s+/g, '').trim()));
   const combinedIds = useMemo(
     () => [...childIds, ...proxyChildren.map((p) => p.id)],
     [childIds.join('|'), proxyChildren.map((p) => p.id).join('|')],
@@ -169,7 +173,17 @@ export function ParentRoleCards() {
       <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-black text-emerald-950">우리 아이 열매</h2>
         {entries.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">등록된 자녀가 없어요.</p>
+          pendingChildNames.length > 0 ? (
+            <div className="mt-2 rounded-xl border border-sky-100 bg-sky-50 p-3 text-sm text-slate-600">
+              <p className="font-bold text-sky-800">학생 계정 연결을 기다리는 자녀가 있어요.</p>
+              <p className="mt-1 text-xs font-bold text-slate-500">{pendingChildNames.join(', ')}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                자녀가 학생으로 가입하고 승인되면 말씀 열매 기록이 이곳에 연결됩니다.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">등록된 자녀가 없어요.</p>
+          )
         ) : (
           <div className="mt-3 space-y-2">
             {entries.map((c) => {

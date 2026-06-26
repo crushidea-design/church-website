@@ -12,7 +12,7 @@ import {
 import { arrayRemove, arrayUnion } from 'firebase/firestore';
 import { BookOpen, Eye, EyeOff, Loader2, UserSearch } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { useNextGenerationAuth, NextGenerationMember } from '../lib/nextGenerationAuth';
+import { useNextGenerationAuth, NextGenerationMember, NEXT_GENERATION_DEPARTMENTS } from '../lib/nextGenerationAuth';
 import { hasDepartment } from '../lib/nextGenerationRoles';
 import {
   BIBLE_BOOKS_NT_COUNT,
@@ -83,9 +83,10 @@ export default function BibleReadingChart({ enableBrowse = false }: BibleReading
     );
     let legacyStudents: NextGenerationMember[] = [];
     let multiRoleStudents: NextGenerationMember[] = [];
+    let proxyStudents: NextGenerationMember[] = [];
     const sync = () => {
       const byUid = new Map<string, NextGenerationMember>();
-      [...legacyStudents, ...multiRoleStudents].forEach((student) => byUid.set(student.uid, student));
+      [...legacyStudents, ...multiRoleStudents, ...proxyStudents].forEach((student) => byUid.set(student.uid, student));
       const list = Array.from(byUid.values())
         .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'ko'));
       setStudents(list);
@@ -109,9 +110,32 @@ export default function BibleReadingChart({ enableBrowse = false }: BibleReading
         setStudentsLoading(false);
       },
     );
+    const unsubProxyChildren = onSnapshot(
+      collection(db, 'next_generation_children'),
+      (snap) => {
+        proxyStudents = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            uid: d.id,
+            email: '',
+            displayName: data.displayName ?? '이름 없는 아이',
+            role: 'member',
+            department: NEXT_GENERATION_DEPARTMENTS[3],
+            church: '',
+            intro: '',
+            provider: 'google',
+            createdAt: data.createdAt,
+            groupId: data.groupId ?? '',
+          } as NextGenerationMember;
+        });
+        sync();
+      },
+      () => setStudentsLoading(false),
+    );
     return () => {
       unsubLegacy();
       unsubMultiRole();
+      unsubProxyChildren();
     };
   }, [isPastor]);
 

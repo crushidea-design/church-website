@@ -18,7 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Department, NextGenerationMember, NEXT_GENERATION_DEPARTMENTS } from '../../lib/nextGenerationAuth';
-import { getMemberDepartments, getPrimaryDepartment } from '../../lib/nextGenerationRoles';
+import { getMemberDepartments, getPrimaryDepartment, hasDepartment } from '../../lib/nextGenerationRoles';
 import {
   AdminTab,
   DEPT_COLORS,
@@ -41,6 +41,7 @@ type NotificationAudience = 'all' | Department[];
 
 function MemberRow({
   m,
+  members,
   expandedId,
   submitting,
   onToggleExpand,
@@ -48,9 +49,12 @@ function MemberRow({
   onOpenReject,
   onToggleAdmin,
   onUpdateRoles,
+  onLinkParentChild,
+  onCreateTeacherAssignedChild,
   onDelete,
 }: {
   m: NextGenerationMember;
+  members: NextGenerationMember[];
   expandedId: string | null;
   submitting: boolean;
   onToggleExpand: (id: string | null) => void;
@@ -58,6 +62,8 @@ function MemberRow({
   onOpenReject: (uid: string) => void;
   onToggleAdmin: (m: NextGenerationMember) => void;
   onUpdateRoles: (member: NextGenerationMember, departments: Department[], primaryDepartment: Department) => void;
+  onLinkParentChild: (parent: NextGenerationMember, student: NextGenerationMember) => void;
+  onCreateTeacherAssignedChild: (teacher: NextGenerationMember, child: { name: string; grade: string; groupId: string }) => void;
   onDelete: (uid: string) => void;
 }) {
   const isExpanded = expandedId === m.uid;
@@ -65,11 +71,31 @@ function MemberRow({
   const departments = getMemberDepartments(m);
   const [draftDepartments, setDraftDepartments] = useState<Department[]>(departments);
   const [draftPrimaryDepartment, setDraftPrimaryDepartment] = useState<Department>(primaryDepartment);
+  const [linkTargetUid, setLinkTargetUid] = useState('');
+  const [assignedChildName, setAssignedChildName] = useState('');
+  const [assignedChildGrade, setAssignedChildGrade] = useState('');
+  const [assignedChildGroupId, setAssignedChildGroupId] = useState(m.groupIds?.[0] ?? '');
+  const parentDepartment = NEXT_GENERATION_DEPARTMENTS[2];
+  const studentDepartment = NEXT_GENERATION_DEPARTMENTS[3];
+  const isParent = hasDepartment(m, parentDepartment);
+  const isStudent = hasDepartment(m, studentDepartment);
+  const isTeacher = hasDepartment(m, NEXT_GENERATION_DEPARTMENTS[1]);
+  const parentOptions = members.filter((member) => member.role === 'member' && hasDepartment(member, parentDepartment));
+  const studentOptions = members.filter((member) => member.role === 'member' && hasDepartment(member, studentDepartment));
+  const linkOptions = isParent
+    ? studentOptions.filter((student) => student.uid !== m.uid && !(m.childIds ?? []).includes(student.uid))
+    : isStudent
+      ? parentOptions.filter((parent) => parent.uid !== m.uid && !(parent.childIds ?? []).includes(m.uid))
+      : [];
 
   useEffect(() => {
     setDraftDepartments(departments);
     setDraftPrimaryDepartment(primaryDepartment);
-  }, [m.uid, departments.join('|'), primaryDepartment]);
+    setLinkTargetUid('');
+    setAssignedChildName('');
+    setAssignedChildGrade('');
+    setAssignedChildGroupId(m.groupIds?.[0] ?? '');
+  }, [m.uid, departments.join('|'), primaryDepartment, m.groupIds?.join('|')]);
 
   const toggleDraftDepartment = (department: Department) => {
     setDraftDepartments((current) => {
@@ -203,6 +229,108 @@ function MemberRow({
             </label>
           </div>
 
+          {(isParent || isStudent) && (
+            <div className="rounded-lg border border-emerald-200 bg-white p-3">
+              <div className="mb-2">
+                <p className="text-xs font-bold text-emerald-800">부모-학생 계정 연결</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-gray-500">
+                  이미 가입한 학생 아이디와 부모 계정을 관리자가 직접 연결할 수 있습니다.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <select
+                  value={linkTargetUid}
+                  onChange={(e) => setLinkTargetUid(e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  <option value="">{isParent ? '연결할 학생 선택' : '연결할 부모 선택'}</option>
+                  {linkOptions.map((member) => (
+                    <option key={member.uid} value={member.uid}>
+                      {member.displayName} ({member.email})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={submitting || !linkTargetUid}
+                  onClick={() => {
+                    const target = members.find((member) => member.uid === linkTargetUid);
+                    if (!target) return;
+                    if (isParent) onLinkParentChild(m, target);
+                    if (isStudent) onLinkParentChild(target, m);
+                    setLinkTargetUid('');
+                  }}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  연결하기
+                </button>
+              </div>
+              {linkOptions.length === 0 && (
+                <p className="mt-2 text-[11px] font-bold text-gray-400">
+                  연결할 수 있는 승인된 {isParent ? '학생' : '부모'} 계정이 없습니다.
+                </p>
+              )}
+            </div>
+          )}
+
+          {isTeacher && (
+            <div className="rounded-lg border border-sky-200 bg-white p-3">
+              <div className="mb-2">
+                <p className="text-xs font-bold text-sky-800">교사 전담 아이 추가</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-gray-500">
+                  부모가 교회에 다니지 않는 특별한 경우, 관리자가 이 교사에게 직접 아이를 붙일 수 있습니다.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px_150px_auto]">
+                <input
+                  value={assignedChildName}
+                  onChange={(e) => setAssignedChildName(e.target.value)}
+                  placeholder="아이 이름"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                />
+                <input
+                  value={assignedChildGrade}
+                  onChange={(e) => setAssignedChildGrade(e.target.value)}
+                  placeholder="학년"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                />
+                <select
+                  value={assignedChildGroupId}
+                  onChange={(e) => setAssignedChildGroupId(e.target.value)}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                >
+                  <option value="">담당 반 선택</option>
+                  {(m.groupIds ?? []).map((groupId) => (
+                    <option key={groupId} value={groupId}>
+                      {groupId}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={submitting || !assignedChildName.trim() || !assignedChildGroupId.trim()}
+                  onClick={() => {
+                    onCreateTeacherAssignedChild(m, {
+                      name: assignedChildName.trim(),
+                      grade: assignedChildGrade.trim(),
+                      groupId: assignedChildGroupId.trim(),
+                    });
+                    setAssignedChildName('');
+                    setAssignedChildGrade('');
+                  }}
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  추가
+                </button>
+              </div>
+              {(m.groupIds ?? []).length === 0 && (
+                <p className="mt-2 text-[11px] font-bold text-rose-500">
+                  이 교사에게 담당 반을 먼저 배정해야 전담 아이를 추가할 수 있습니다.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 flex-wrap">
             {m.role === 'pending' && (
               <>
@@ -288,6 +416,8 @@ export default function AdminMembersTab({
   onOpenReject,
   onToggleAdmin,
   onUpdateMemberRoles,
+  onLinkParentChild,
+  onCreateTeacherAssignedChild,
   onDeleteMember,
 }: {
   search: string;
@@ -320,9 +450,12 @@ export default function AdminMembersTab({
   onOpenReject: (uid: string) => void;
   onToggleAdmin: (m: NextGenerationMember) => void;
   onUpdateMemberRoles: (member: NextGenerationMember, departments: Department[], primaryDepartment: Department) => void;
+  onLinkParentChild: (parent: NextGenerationMember, student: NextGenerationMember) => void;
+  onCreateTeacherAssignedChild: (teacher: NextGenerationMember, child: { name: string; grade: string; groupId: string }) => void;
   onDeleteMember: (uid: string) => void;
 }) {
   const memberRowProps = {
+    members,
     expandedId,
     submitting,
     onToggleExpand,
@@ -330,6 +463,8 @@ export default function AdminMembersTab({
     onOpenReject,
     onToggleAdmin,
     onUpdateRoles: onUpdateMemberRoles,
+    onLinkParentChild,
+    onCreateTeacherAssignedChild,
     onDelete: onDeleteMember,
   };
 

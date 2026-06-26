@@ -26,6 +26,7 @@ import {
   CardModal,
   CommunitySummary,
   InfoTile,
+  StudentCommunityProgress,
   StudentTree,
 } from './WordFruitDisplayParts';
 
@@ -60,6 +61,7 @@ export default function WordFruitPanel() {
 
   const isParent = hasDepartment(member, '학부모');
   const isTeacher = hasDepartment(member, '교사') && member?.role === 'member';
+  const isStudent = hasDepartment(member, '학생');
   const childIds = useMemo(() => member?.childIds ?? [], [member?.childIds]);
   const proxyChildren = useMemo(() => member?.proxyChildren ?? [], [member?.proxyChildren]);
   const combinedChildUserIds = useMemo(
@@ -117,11 +119,13 @@ export default function WordFruitPanel() {
       }
       return subscribeAllProgress(selectedWeekId, setAllProgress);
     }
+    if (isStudent) {
+      return subscribeAllProgress(selectedWeekId, setAllProgress);
+    }
     setAllProgress([]);
     return;
-  }, [selectedWeekId, isPastor, isTeacher, teacherIsScoped, teacherGroupIds]);
+  }, [selectedWeekId, isPastor, isTeacher, isStudent, teacherIsScoped, teacherGroupIds]);
 
-  const isStudent = hasDepartment(member, '학생');
   const todayKey = getTodayKey();
   const isAllowedDay = isCheckAllowedDay();
   const canCheckToday = isCurrentWeek && isAllowedDay;
@@ -265,15 +269,22 @@ export default function WordFruitPanel() {
                 </p>
               </div>
             ) : isStudent ? (
-              <StudentTree
-                fruit={fruit}
-                progress={progress}
-                stage={stage}
-                alreadyToday={alreadyToday}
-                canCheck={canCheckToday}
-                onCheck={handleCheckClick}
-                myAllProgress={myAllProgress}
-              />
+              <>
+                <StudentTree
+                  fruit={fruit}
+                  progress={progress}
+                  stage={stage}
+                  alreadyToday={alreadyToday}
+                  canCheck={canCheckToday}
+                  onCheck={handleCheckClick}
+                  myAllProgress={myAllProgress}
+                />
+                <StudentCommunityProgress
+                  progresses={allProgress}
+                  currentUserId={user.uid}
+                  fruitName={fruit.fruitName}
+                />
+              </>
             ) : isTeacher ? (
               <TeacherView
                 weekId={selectedWeekId}

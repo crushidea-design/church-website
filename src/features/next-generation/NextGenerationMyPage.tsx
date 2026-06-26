@@ -11,12 +11,14 @@ import {
   Loader2,
   Lock,
   MessageSquare,
+  Plus,
   Users,
 } from 'lucide-react';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import {
   NEXT_GENERATION_DEPARTMENTS,
+  NextGenerationMember,
   useNextGenerationAuth,
 } from '../../lib/nextGenerationAuth';
 import {
@@ -33,6 +35,7 @@ import NextGenerationHighlightBand from '../../components/NextGenerationHighligh
 import NextGenerationQA from '../../pages/NextGenerationQA';
 import NextGenerationTodayWord from '../../pages/NextGenerationTodayWord';
 import { ParentRoleCards, TeacherRoleCards } from '../word-fruit/MyPageRoleCards';
+import ParentOnboardingModal from '../word-fruit/ParentOnboardingModal';
 import ResourceLibraryPage from './ResourceLibraryPage';
 import { youngAdultResourceTabs, youngAdultsImage } from './sharedConstants';
 
@@ -54,6 +57,66 @@ interface MyReadingItem {
   updatedAt?: any;
 }
 
+function ParentChildrenCard({
+  member,
+  onOpen,
+}: {
+  member: NextGenerationMember | null;
+  onOpen: () => void;
+}) {
+  const proxyChildren = member?.proxyChildren ?? [];
+  const proxyNames = new Set(proxyChildren.map((child) => child.name.replace(/\s+/g, '').trim()).filter(Boolean));
+  const childNames = (member?.childNames ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0 && !proxyNames.has(name.replace(/\s+/g, '').trim()));
+  const linkedCount = member?.childIds?.length ?? 0;
+
+  return (
+    <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-emerald-950">우리 아이</h2>
+          <p className="mt-1 text-xs font-bold text-slate-500">자녀 등록과 수정은 여기에서 할 수 있어요.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700"
+        >
+          <Plus size={13} />
+          추가/수정
+        </button>
+      </div>
+
+      {proxyChildren.length === 0 && childNames.length === 0 && linkedCount === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-slate-500">
+          아직 등록된 자녀가 없어요. 버튼을 눌러 자녀를 추가해 주세요.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {proxyChildren.map((child) => (
+            <div key={child.id} className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+              <p className="text-sm font-black text-emerald-950">{child.name}</p>
+              <p className="mt-0.5 text-xs font-bold text-emerald-700">부모 계정에서 관리</p>
+            </div>
+          ))}
+          {childNames.map((name) => (
+            <div key={name} className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+              <p className="text-sm font-black text-emerald-950">{name}</p>
+              <p className="mt-0.5 text-xs font-bold text-sky-700">학생 계정 가입/연결 대기</p>
+            </div>
+          ))}
+          {linkedCount > 0 && (
+            <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+              학생 계정으로 연결된 자녀 {linkedCount}명
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NextGenerationMyPage() {
   const [searchParams] = useSearchParams();
   const {
@@ -69,6 +132,7 @@ export default function NextGenerationMyPage() {
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [readings, setReadings] = useState<MyReadingItem[]>([]);
   const [readingsLoading, setReadingsLoading] = useState(false);
+  const [showParentChildrenModal, setShowParentChildrenModal] = useState(false);
   const isFromDemo = searchParams.get('fromDemo') === '1';
   const demoReturnBanner = isFromDemo ? (
     <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
@@ -306,7 +370,12 @@ export default function NextGenerationMyPage() {
         </div>
 
         <aside className="space-y-6">
-          {isParentRole && <ParentRoleCards />}
+          {isParentRole && (
+            <>
+              <ParentChildrenCard member={member} onOpen={() => setShowParentChildrenModal(true)} />
+              <ParentRoleCards />
+            </>
+          )}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
@@ -346,6 +415,9 @@ export default function NextGenerationMyPage() {
           </div>
         </aside>
       </section>
+      {showParentChildrenModal && (
+        <ParentOnboardingModal onClose={() => setShowParentChildrenModal(false)} />
+      )}
     </div>
   );
 }
