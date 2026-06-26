@@ -1,4 +1,5 @@
 export interface ProxyChildDraftInput {
+  id?: string;
   name: string;
   grade?: string;
   usesPhone: 'yes' | 'no' | null;
@@ -45,7 +46,7 @@ export function buildProxyChildRecords({
     .map((child, originalIndex) => ({ child, originalIndex }))
     .filter(({ child }) => child.usesPhone === 'no' && child.name.trim().length > 0)
     .map(({ child, originalIndex }) => {
-      const id = `proxy:${parentUid}:${now}-${originalIndex}`;
+      const id = child.id || `proxy:${parentUid}:${now}-${originalIndex}`;
       const name = child.name.trim();
       const grade = child.grade?.trim() || undefined;
       const groupId = child.groupId?.trim() || '';

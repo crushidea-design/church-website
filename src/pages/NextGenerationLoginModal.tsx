@@ -40,8 +40,13 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
 
   // Sync view when auth state changes while modal is open (e.g., pastor approves while modal is visible)
   useEffect(() => {
-    if (isRejected) setView('rejected');
-    else if (isPending) setView('pending');
+    if (isRejected) {
+      setError('');
+      setView('rejected');
+    } else if (isPending) {
+      setError('');
+      setView('pending');
+    }
   }, [isRejected, isPending]);
 
   const [error, setError] = useState('');
@@ -181,6 +186,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
           : {}),
       };
       await signUpWithEmail(data);
+      setError('');
       setView('pending');
     } catch (err: any) {
       handleError(err);
@@ -218,6 +224,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
           : {}),
       };
       await completeGoogleSignUp(data);
+      setError('');
       setView('pending');
     } catch (err: any) {
       handleError(err);

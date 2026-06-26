@@ -126,6 +126,72 @@ export function StudentTree({
   );
 }
 
+export function StudentCommunityProgress({
+  progresses,
+  currentUserId,
+  fruitName,
+}: {
+  progresses: WordFruitProgress[];
+  currentUserId?: string;
+  fruitName: string;
+}) {
+  const visible = progresses
+    .filter((progress) => progress.userId !== currentUserId)
+    .sort((a, b) => {
+      if (b.checkCount !== a.checkCount) return b.checkCount - a.checkCount;
+      return a.childName.localeCompare(b.childName, 'ko');
+    });
+
+  if (visible.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-5 rounded-xl border border-sky-100 bg-sky-50/70 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-black text-emerald-950">친구들 열매도 함께 자라고 있어요</h3>
+          <p className="mt-1 text-xs font-bold text-slate-500">
+            이름과 진행 상태만 보여요. 서로 응원하는 용도로 확인해 주세요.
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-sky-700">
+          {visible.length}명
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {visible.map((progress) => {
+          const stage = Math.min(progress.fruitStage ?? progress.checkCount ?? 0, 3) as 0 | 1 | 2 | 3;
+          return (
+            <div key={progress.id} className="rounded-xl border border-sky-100 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-emerald-950">{progress.childName}</p>
+                  <p className="mt-0.5 text-xs font-bold text-slate-500">
+                    체크 {Math.min(progress.checkCount, 3)}/3
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black ${
+                  progress.completed
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : progress.checkCount > 0
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {progress.completed ? '익었어요' : progress.checkCount > 0 ? '자라는 중' : '시작 전'}
+                </span>
+              </div>
+              <div className="mt-3">
+                <WordFruitTree stage={stage} fruitName={fruitName} className="max-w-[120px]" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function CardModal({
   card,
   submitting,

@@ -2,9 +2,7 @@
 // auth menu, admin/tutorial entry points.
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { Bell, HelpCircle, LogIn, LogOut, Settings, X } from 'lucide-react';
-import { db } from '../../lib/firebase';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
   NEXT_GENERATION_PATH,
@@ -17,10 +15,8 @@ import {
   markNextGenerationTutorialSeen,
   shouldAutoOpenNextGenerationTutorial,
 } from '../../lib/nextGenerationTutorial';
-import { shouldShowParentOnboarding } from '../word-fruit/parentOnboarding';
 import NextGenerationLoginModal from '../../pages/NextGenerationLoginModal';
 import NextGenerationAdmin from '../../pages/NextGenerationAdmin';
-import ParentOnboardingModal from '../word-fruit/ParentOnboardingModal';
 import NextGenerationTutorialModal from './NextGenerationTutorialModal';
 import { getRejectedNoticeVersion } from './sharedConstants';
 
@@ -38,7 +34,6 @@ export default function NextGenerationHeader() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [enablingNotifications, setEnablingNotifications] = useState(false);
-  const [parentProxyChildCount, setParentProxyChildCount] = useState<number | null>(null);
 
   // 종 버튼: 최초 1회 권한 요청, 이후에는 알림함 토글
   // 토픽 구독은 정식 회원(hasAccess)일 때만, 반려/대기는 토큰만 등록
@@ -89,24 +84,6 @@ export default function NextGenerationHeader() {
   useEffect(() => {
     if (needsSignUp) setShowLoginModal(true);
   }, [needsSignUp]);
-
-  useEffect(() => {
-    if (!user || !hasAccess) {
-      setParentProxyChildCount(0);
-      return;
-    }
-
-    setParentProxyChildCount(null);
-    const q = query(
-      collection(db, 'next_generation_children'),
-      where('parentUids', 'array-contains', user.uid),
-    );
-    return onSnapshot(
-      q,
-      (snap) => setParentProxyChildCount(snap.size),
-      () => setParentProxyChildCount(0),
-    );
-  }, [user, hasAccess]);
 
   useEffect(() => {
     const openLogin = () => setShowLoginModal(true);
@@ -395,9 +372,6 @@ export default function NextGenerationHeader() {
         />
       )}
       {showAdminModal && <NextGenerationAdmin onClose={() => setShowAdminModal(false)} />}
-      {parentProxyChildCount !== null && shouldShowParentOnboarding(member, hasAccess, parentProxyChildCount > 0) && (
-        <ParentOnboardingModal />
-      )}
     </>
   );
 }

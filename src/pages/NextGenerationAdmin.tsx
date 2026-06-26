@@ -35,6 +35,7 @@ import AdminQATab from '../features/next-generation/AdminQATab';
 import AdminClassesTab from '../features/next-generation/AdminClassesTab';
 import AdminMembersTab from '../features/next-generation/AdminMembersTab';
 import { AdminAnswerModal, AdminRejectModal } from '../features/next-generation/AdminModals';
+import { inferProxyChildDepartment } from '../features/next-generation/proxyChildren';
 
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -381,6 +382,60 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       showToast('역할을 저장했습니다.');
     } catch {
       showToast('역할 저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const linkParentChild = async (parent: NextGenerationMember, student: NextGenerationMember) => {
+    if (!parent?.uid || !student?.uid) return;
+    setSubmitting(true);
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'next_generation_members', parent.uid), {
+        childIds: arrayUnion(student.uid),
+        childNames: arrayUnion(student.displayName),
+      });
+      batch.update(doc(db, 'next_generation_members', student.uid), {
+        parentEmail: parent.email?.trim().toLowerCase() || '',
+      });
+      await batch.commit();
+      showToast(`${student.displayName} 학생을 ${parent.displayName} 학부모와 연결했습니다.`);
+    } catch {
+      showToast('부모-학생 연결 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const createTeacherAssignedChild = async (
+    teacher: NextGenerationMember,
+    child: { name: string; grade: string; groupId: string },
+  ) => {
+    const childName = child.name.trim();
+    const groupId = child.groupId.trim();
+    if (!user || !childName || !groupId) return;
+    setSubmitting(true);
+    try {
+      const id = `teacher-child:${teacher.uid}:${Date.now()}`;
+      await setDoc(doc(db, 'next_generation_children', id), {
+        kind: 'proxy',
+        careType: 'teacher_assigned',
+        displayName: childName,
+        department: inferProxyChildDepartment(child.grade),
+        groupId,
+        parentUids: [],
+        assignedTeacherUids: [teacher.uid],
+        linkedUid: null,
+        visibility: 'family_and_teachers',
+        createdBy: user.uid,
+        createdByAdmin: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      showToast(`${childName} 아이를 ${teacher.displayName} 교사에게 배정했습니다.`);
+    } catch {
+      showToast('교사 전담 아이 추가 중 오류가 발생했습니다.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -780,6 +835,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
               onOpenReject={(uid) => { setRejectTargetId(uid); setRejectReason(''); }}
               onToggleAdmin={toggleNextGenerationAdmin}
               onUpdateMemberRoles={updateMemberRoles}
+              onLinkParentChild={linkParentChild}
+              onCreateTeacherAssignedChild={createTeacherAssignedChild}
               onDeleteMember={deleteMember}
             />
           )}

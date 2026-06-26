@@ -503,7 +503,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         (isNextGenerationPastor() ||
          (request.auth.uid == memberId &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro', 'parentOnboardingCompleted', 'proxyChildren'])));
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'church', 'intro', 'parentOnboardingCompleted', 'proxyChildren', 'childNames'])));
       allow delete: if isNextGenerationPastor() ||
         (isAuthenticated() && request.auth.uid == memberId && resource.data.role == 'pending');
     }
@@ -512,22 +512,26 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         isNextGenerationPastor() ||
         ('parentUids' in resource.data && request.auth.uid in resource.data.parentUids) ||
+        ('assignedTeacherUids' in resource.data && request.auth.uid in resource.data.assignedTeacherUids) ||
         (isNextGenerationTeacher() &&
           'groupId' in resource.data &&
           'groupIds' in ngMemberData() &&
           ngMemberData().groupIds.size() > 0 &&
           resource.data.groupId in ngMemberData().groupIds)
       );
-      allow create: if isNextGenerationParent() &&
+      allow create: if (isNextGenerationParent() || isNextGenerationPastor()) &&
         request.resource.data.keys().hasOnly([
           'kind',
+          'careType',
           'displayName',
           'department',
           'groupId',
           'parentUids',
+          'assignedTeacherUids',
           'linkedUid',
           'visibility',
           'createdBy',
+          'createdByAdmin',
           'parentName',
           'createdAt',
           'updatedAt'
@@ -541,38 +545,59 @@ service cloud.firestore {
         request.resource.data.groupId.size() > 0 &&
         request.resource.data.groupId.size() <= 120 &&
         request.resource.data.parentUids is list &&
-        request.resource.data.parentUids.size() == 1 &&
-        request.auth.uid in request.resource.data.parentUids &&
+        (
+          (isNextGenerationParent() &&
+            request.resource.data.parentUids.size() == 1 &&
+            request.auth.uid in request.resource.data.parentUids &&
+            !('assignedTeacherUids' in request.resource.data) &&
+            !('createdByAdmin' in request.resource.data)) ||
+          (isNextGenerationPastor() &&
+            request.resource.data.parentUids.size() <= 10 &&
+            (!('assignedTeacherUids' in request.resource.data) ||
+              (request.resource.data.assignedTeacherUids is list &&
+               request.resource.data.assignedTeacherUids.size() > 0 &&
+               request.resource.data.assignedTeacherUids.size() <= 10)) &&
+            (!('createdByAdmin' in request.resource.data) || request.resource.data.createdByAdmin == true))
+        ) &&
         request.resource.data.createdBy == request.auth.uid &&
+        (!('careType' in request.resource.data) || request.resource.data.careType in ['teacher_assigned']) &&
         request.resource.data.linkedUid == null &&
         request.resource.data.visibility == 'family_and_teachers' &&
         request.resource.data.createdAt is timestamp &&
         request.resource.data.updatedAt is timestamp;
       allow update: if isAuthenticated() && (
-        isNextGenerationPastor() ||
-        (isNextGenerationParent() && 'parentUids' in resource.data && request.auth.uid in resource.data.parentUids)
-      ) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName',
-          'department',
-          'groupId',
-          'parentUids',
-          'linkedUid',
-          'visibility',
-          'updatedAt'
-        ]) &&
-        (
-          isNextGenerationPastor() ||
-          (
-            request.resource.data.parentUids is list &&
-            request.resource.data.parentUids.size() == 1 &&
-            request.auth.uid in request.resource.data.parentUids &&
-            request.resource.data.groupId is string &&
-            request.resource.data.groupId.size() > 0 &&
-            request.resource.data.groupId.size() <= 120 &&
-            request.resource.data.visibility == 'family_and_teachers'
-          )
-        );
+        (isNextGenerationPastor() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName',
+            'department',
+            'groupId',
+            'parentUids',
+            'assignedTeacherUids',
+            'linkedUid',
+            'visibility',
+            'careType',
+            'updatedAt'
+          ])) ||
+        (isNextGenerationParent() &&
+          'parentUids' in resource.data &&
+          request.auth.uid in resource.data.parentUids &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName',
+            'department',
+            'groupId',
+            'parentUids',
+            'linkedUid',
+            'visibility',
+            'updatedAt'
+          ]) &&
+          request.resource.data.parentUids is list &&
+          request.resource.data.parentUids.size() == 1 &&
+          request.auth.uid in request.resource.data.parentUids &&
+          request.resource.data.groupId is string &&
+          request.resource.data.groupId.size() > 0 &&
+          request.resource.data.groupId.size() <= 120 &&
+          request.resource.data.visibility == 'family_and_teachers')
+      );
       allow delete: if isNextGenerationPastor() ||
         (isNextGenerationParent() && 'parentUids' in resource.data && request.auth.uid in resource.data.parentUids);
     }
@@ -734,6 +759,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         isNextGenerationPastor() ||
+        (ngMemberData().role == 'member' && ngHasDepartment('학생')) ||
         isParentOfNgUser(resource.data.userId) ||
         teacherCanReadProgress(resource.data) ||
         // Parent reads own proxy children
