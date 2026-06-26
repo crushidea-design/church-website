@@ -11,6 +11,7 @@ import {
   subscribeMyProgress,
   subscribeProgressForGroups,
   subscribeProgressForUsers,
+  upsertProgressByLeader,
 } from './api';
 import { WordFruitProgress } from './types';
 import WordFruitTree from './WordFruitTree';
@@ -254,8 +255,11 @@ export function TeacherRoleCards() {
   const [studentsByGroup, setStudentsByGroup] = useState<Record<string, TeacherStudent[]>>({});
   const [attendance, setAttendance] = useState<Record<string, AttendanceDoc[]>>({});
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, boolean>>({});
+  const [practiceDrafts, setPracticeDrafts] = useState<Record<string, string>>({});
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [savingFruitUid, setSavingFruitUid] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const todayKey = getTodayKey();
 
   useEffect(() => {
     if (groupIds.length === 0) return;
@@ -375,6 +379,7 @@ export function TeacherRoleCards() {
     });
     return result;
   }, [groupIds.join('|'), progresses, studentsByGroup]);
+  const progressByUid = useMemo(() => new Map(progresses.map((progress) => [progress.userId, progress])), [progresses]);
 
   useEffect(() => {
     const seeded: Record<string, boolean> = {};
@@ -413,6 +418,62 @@ export function TeacherRoleCards() {
       setMessage('출석부 저장 중 오류가 발생했습니다.');
     } finally {
       setSavingGroup(null);
+    }
+  };
+
+  const savePractice = async (student: TeacherStudent, gid: string) => {
+    const progress = progressByUid.get(student.uid) ?? null;
+    const practice = (practiceDrafts[student.uid] ?? progress?.practice ?? '').trim();
+    if (!practice) {
+      setMessage('실천 내용을 먼저 입력해 주세요.');
+      setTimeout(() => setMessage(''), 1800);
+      return;
+    }
+    setSavingFruitUid(`save:${student.uid}`);
+    setMessage('');
+    try {
+      await upsertProgressByLeader({
+        weekId,
+        userId: student.uid,
+        childName: student.displayName,
+        practice,
+        groupId: gid,
+        existingProgress: progress,
+      });
+      setPracticeDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[student.uid];
+        return next;
+      });
+      setMessage('말씀 열매 실천 내용을 저장했습니다.');
+      setTimeout(() => setMessage(''), 1600);
+    } catch {
+      setMessage('말씀 열매 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSavingFruitUid(null);
+    }
+  };
+
+  const addFruitCheck = async (student: TeacherStudent, gid: string) => {
+    const progress = progressByUid.get(student.uid) ?? null;
+    const practice = (practiceDrafts[student.uid] ?? progress?.practice ?? '').trim();
+    setSavingFruitUid(`check:${student.uid}`);
+    setMessage('');
+    try {
+      await addTodayCheckByLeader({
+        weekId,
+        userId: student.uid,
+        childName: student.displayName,
+        practice,
+        groupId: gid,
+        existingProgress: progress,
+      });
+      setMessage('이번 주 말씀 열매 체크를 추가했습니다.');
+      setTimeout(() => setMessage(''), 1600);
+    } catch {
+      setMessage('말씀 열매 체크 중 오류가 발생했습니다.');
+    } finally {
+      setSavingFruitUid(null);
     }
   };
 
@@ -464,25 +525,64 @@ export function TeacherRoleCards() {
                 </p>
               ) : (
                 <div className="mt-3 space-y-1.5">
-                  {list.map((student) => (
-                    <label key={student.uid} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
-                      <span className="font-bold text-slate-800">{student.displayName}</span>
-                      <span className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                        {attendanceDrafts[student.uid] ? '출석' : '미출석'}
-                        <input
-                          type="checkbox"
-                          checked={!!attendanceDrafts[student.uid]}
-                          onChange={(event) => {
-                            setAttendanceDrafts((drafts) => ({
+                  {list.map((student) => {
+                    const progress = progressByUid.get(student.uid) ?? null;
+                    const checkedToday = !!progress && (progress.checkedDates ?? []).includes(todayKey);
+                    const practiceValue = practiceDrafts[student.uid] ?? progress?.practice ?? '';
+                    return (
+                      <div key={student.uid} className="rounded-lg bg-white px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-800">{student.displayName}</span>
+                          <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                            {attendanceDrafts[student.uid] ? '출석' : '미출석'}
+                            <input
+                              type="checkbox"
+                              checked={!!attendanceDrafts[student.uid]}
+                              onChange={(event) => {
+                                setAttendanceDrafts((drafts) => ({
+                                  ...drafts,
+                                  [student.uid]: event.target.checked,
+                                }));
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-400"
+                            />
+                          </label>
+                        </div>
+                        <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                          <input
+                            type="text"
+                            value={practiceValue}
+                            onChange={(event) => setPracticeDrafts((drafts) => ({
                               ...drafts,
-                              [student.uid]: event.target.checked,
-                            }));
-                          }}
-                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-400"
-                        />
-                      </span>
-                    </label>
-                  ))}
+                              [student.uid]: event.target.value,
+                            }))}
+                            maxLength={200}
+                            placeholder="이번 주 작은 순종"
+                            className="rounded-md border border-slate-200 px-2 py-1.5 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => savePractice(student, gid)}
+                            disabled={savingFruitUid === `save:${student.uid}`}
+                            className="rounded-md border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-bold text-emerald-700 disabled:opacity-60"
+                          >
+                            {savingFruitUid === `save:${student.uid}` ? '저장 중' : '실천 저장'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addFruitCheck(student, gid)}
+                            disabled={savingFruitUid === `check:${student.uid}` || checkedToday || progress?.completed}
+                            className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white disabled:bg-slate-300"
+                          >
+                            {checkedToday ? '오늘 완료' : progress?.completed ? '주간 완료' : '열매 +1'}
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[11px] font-bold text-slate-400">
+                          말씀 열매 {Math.min(progress?.checkCount ?? 0, 3)}/3
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <button
