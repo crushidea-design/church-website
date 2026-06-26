@@ -36,10 +36,18 @@ describe('shouldShowParentOnboarding', () => {
     expect(shouldShowParentOnboarding(parent({ childIds: ['child-1'] }), true)).toBe(false);
   });
 
+  it('does not show when cached child names already exist', () => {
+    expect(shouldShowParentOnboarding(parent({ childNames: ['아이'] }), true)).toBe(false);
+  });
+
   it('does not show when a proxy child already exists', () => {
     expect(shouldShowParentOnboarding(parent({
       proxyChildren: [{ id: 'proxy:parent-1:1', name: '아이', usesPhone: false }],
     }), true)).toBe(false);
+  });
+
+  it('does not show when a proxy child exists in the child collection', () => {
+    expect(shouldShowParentOnboarding(parent(), true, true)).toBe(false);
   });
 
   it('does not show for non-parent members or inaccessible accounts', () => {

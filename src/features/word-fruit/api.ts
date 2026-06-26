@@ -431,13 +431,18 @@ async function fetchApprovedMembersByDepartment(department: string): Promise<any
     where('departments', 'array-contains', department),
     where('role', '==', 'member'),
   );
-  const [legacySnap, multiRoleSnap] = await Promise.all([
-    getDocs(legacyQuery),
-    getDocs(multiRoleQuery),
-  ]);
-  [...legacySnap.docs, ...multiRoleSnap.docs].forEach((d) => {
+  const legacySnap = await getDocs(legacyQuery);
+  let multiRoleDocs: typeof legacySnap.docs = [];
+  try {
+    const multiRoleSnap = await getDocs(multiRoleQuery);
+    multiRoleDocs = multiRoleSnap.docs;
+  } catch (err) {
+    console.warn('Failed to load multi-role next generation members; using legacy department query only.', err);
+  }
+  [...legacySnap.docs, ...multiRoleDocs].forEach((d) => {
     const data = d.data() as any;
-    byUid.set(data.uid ?? d.id, { uid: data.uid ?? d.id, ...data });
+    const uid = data.uid ?? d.id;
+    byUid.set(uid, { ...data, uid });
   });
   return Array.from(byUid.values());
 }
