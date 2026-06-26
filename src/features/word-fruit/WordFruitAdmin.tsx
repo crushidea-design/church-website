@@ -535,6 +535,7 @@ function PracticeManager({
         childName: displayName,
         practice: value,
         groupId,
+        existingProgress: progressByUid.get(uid) ?? null,
       });
       setDrafts((d) => ({ ...d, [uid]: '' }));
       setMsg({ tone: 'ok', text: `${displayName} 저장됨` });

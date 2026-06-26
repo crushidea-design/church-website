@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -36,6 +35,7 @@ export {
 } from './logic';
 import { fruitStageOf, progressDocId } from './logic';
 import { normalizeLegacyFruitTotalInput } from './logic';
+import { mergeElementaryStudents } from './elementaryStudents';
 
 export function subscribeWeeklyWordFruit(
   weekId: string,
@@ -120,11 +120,11 @@ export async function upsertProgressByLeader(input: {
   childName: string;
   practice: string;
   groupId?: string;
+  existingProgress?: WordFruitProgress | null;
 }) {
   const id = progressDocId(input.weekId, input.userId);
   const ref = doc(db, WORD_FRUIT_PROGRESS_COLLECTION, id);
-  const existing = await getDoc(ref);
-  if (!existing.exists()) {
+  if (!input.existingProgress) {
     await setDoc(ref, {
       weekId: input.weekId,
       userId: input.userId,
@@ -139,7 +139,7 @@ export async function upsertProgressByLeader(input: {
       updatedAt: serverTimestamp(),
     });
   } else {
-    const cur = existing.data() as WordFruitProgress;
+    const cur = input.existingProgress;
     await updateDoc(ref, {
       childName: input.childName,
       practice: input.practice,
@@ -164,6 +164,7 @@ export async function addTodayCheckByLeader(input: {
   childName: string;
   practice?: string;
   groupId?: string;
+  existingProgress?: WordFruitProgress | null;
 }) {
   const id = progressDocId(input.weekId, input.userId);
   const ref = doc(db, WORD_FRUIT_PROGRESS_COLLECTION, id);
@@ -171,8 +172,7 @@ export async function addTodayCheckByLeader(input: {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
-  const existing = await getDoc(ref);
-  if (!existing.exists()) {
+  if (!input.existingProgress) {
     const checkedDates = [todayKey];
     await setDoc(ref, {
       weekId: input.weekId,
@@ -190,7 +190,7 @@ export async function addTodayCheckByLeader(input: {
     });
     return { skipped: false } as const;
   }
-  const cur = existing.data() as WordFruitProgress;
+  const cur = input.existingProgress;
   const checkedDates = Array.isArray(cur.checkedDates) ? cur.checkedDates : [];
   if (checkedDates.includes(todayKey)) {
     return { skipped: true } as const;
@@ -514,13 +514,21 @@ export async function setMemberGroupIds(uid: string, groupIds: string[]) {
 
 export async function fetchElementaryStudents(): Promise<Array<{ uid: string; displayName: string; groupId?: string }>> {
   const members = await fetchApprovedMembersByDepartment('학생');
-  return members.map((data) => {
+  const memberStudents = members.map((data) => ({
+    uid: data.uid,
+    displayName: data.displayName ?? '이름 없음',
+    groupId: data.groupId,
+  }));
+  const childSnap = await getDocs(collection(db, 'next_generation_children'));
+  const childStudents = childSnap.docs.map((childDoc) => {
+    const data = childDoc.data() as any;
     return {
-      uid: data.uid,
+      uid: childDoc.id,
       displayName: data.displayName ?? '이름 없음',
-      groupId: data.groupId,
+      groupId: data.groupId ?? '',
     };
   });
+  return mergeElementaryStudents(memberStudents, childStudents);
 }
 
 export interface BackfillReport {

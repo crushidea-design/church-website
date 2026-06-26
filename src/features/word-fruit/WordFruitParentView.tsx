@@ -58,6 +58,7 @@ export default function ParentView({
         childName: entry.name,
         practice: entry.progress?.practice,
         groupId: entry.progress?.groupId ?? '',
+        existingProgress: entry.progress,
       });
     } catch (e: any) {
       setErr(e?.message || '저장 실패');

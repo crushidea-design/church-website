@@ -293,6 +293,7 @@ function TeacherStudentRow({
         childName: student.displayName,
         practice: practice.trim(),
         groupId: student.groupId,
+        existingProgress: progress,
       });
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 1500);
@@ -313,6 +314,7 @@ function TeacherStudentRow({
         childName: student.displayName,
         practice: practice.trim() || progress?.practice,
         groupId: student.groupId,
+        existingProgress: progress,
       });
     } catch (e: any) {
       setErr(e?.message || '저장 실패');
