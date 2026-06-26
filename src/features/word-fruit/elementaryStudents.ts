@@ -2,6 +2,7 @@ export interface ElementaryStudentListItem {
   uid: string;
   displayName: string;
   groupId?: string;
+  source?: 'member' | 'child';
 }
 
 export function mergeElementaryStudents(
@@ -19,4 +20,8 @@ export function mergeElementaryStudents(
   });
 
   return Array.from(byUid.values()).sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
+}
+
+export function getMemberStudentOptions(students: ElementaryStudentListItem[]): ElementaryStudentListItem[] {
+  return students.filter((student) => student.source !== 'child');
 }

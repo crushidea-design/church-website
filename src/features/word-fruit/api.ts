@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -36,6 +37,7 @@ export {
 import { fruitStageOf, progressDocId } from './logic';
 import { normalizeLegacyFruitTotalInput } from './logic';
 import { mergeElementaryStudents } from './elementaryStudents';
+import type { ElementaryStudentListItem } from './elementaryStudents';
 
 export function subscribeWeeklyWordFruit(
   weekId: string,
@@ -124,7 +126,8 @@ export async function upsertProgressByLeader(input: {
 }) {
   const id = progressDocId(input.weekId, input.userId);
   const ref = doc(db, WORD_FRUIT_PROGRESS_COLLECTION, id);
-  if (!input.existingProgress) {
+  const currentSnap = await getDoc(ref);
+  if (!currentSnap.exists()) {
     await setDoc(ref, {
       weekId: input.weekId,
       userId: input.userId,
@@ -139,7 +142,7 @@ export async function upsertProgressByLeader(input: {
       updatedAt: serverTimestamp(),
     });
   } else {
-    const cur = input.existingProgress;
+    const cur = currentSnap.data() as WordFruitProgress;
     await updateDoc(ref, {
       childName: input.childName,
       practice: input.practice,
@@ -172,7 +175,8 @@ export async function addTodayCheckByLeader(input: {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
-  if (!input.existingProgress) {
+  const currentSnap = await getDoc(ref);
+  if (!currentSnap.exists()) {
     const checkedDates = [todayKey];
     await setDoc(ref, {
       weekId: input.weekId,
@@ -190,7 +194,7 @@ export async function addTodayCheckByLeader(input: {
     });
     return { skipped: false } as const;
   }
-  const cur = input.existingProgress;
+  const cur = currentSnap.data() as WordFruitProgress;
   const checkedDates = Array.isArray(cur.checkedDates) ? cur.checkedDates : [];
   if (checkedDates.includes(todayKey)) {
     return { skipped: true } as const;
@@ -508,24 +512,37 @@ export async function setMemberGroup(uid: string, groupId: string) {
   await updateDoc(doc(db, 'next_generation_members', uid), { groupId });
 }
 
+export async function setElementaryStudentGroup(student: Pick<ElementaryStudentListItem, 'uid' | 'source'>, groupId: string) {
+  if (student.source === 'child') {
+    await updateDoc(doc(db, 'next_generation_children', student.uid), {
+      groupId,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+  await setMemberGroup(student.uid, groupId);
+}
+
 export async function setMemberGroupIds(uid: string, groupIds: string[]) {
   await updateDoc(doc(db, 'next_generation_members', uid), { groupIds });
 }
 
-export async function fetchElementaryStudents(): Promise<Array<{ uid: string; displayName: string; groupId?: string }>> {
+export async function fetchElementaryStudents(): Promise<ElementaryStudentListItem[]> {
   const members = await fetchApprovedMembersByDepartment('학생');
-  const memberStudents = members.map((data) => ({
+  const memberStudents: ElementaryStudentListItem[] = members.map((data) => ({
     uid: data.uid,
     displayName: data.displayName ?? '이름 없음',
     groupId: data.groupId,
+    source: 'member',
   }));
   const childSnap = await getDocs(collection(db, 'next_generation_children'));
-  const childStudents = childSnap.docs.map((childDoc) => {
+  const childStudents: ElementaryStudentListItem[] = childSnap.docs.map((childDoc) => {
     const data = childDoc.data() as any;
     return {
       uid: childDoc.id,
       displayName: data.displayName ?? '이름 없음',
       groupId: data.groupId ?? '',
+      source: 'child',
     };
   });
   return mergeElementaryStudents(memberStudents, childStudents);

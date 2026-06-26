@@ -27,6 +27,9 @@ import {
   StatusRow,
   formatAdminDate as formatDate,
 } from './adminHelpers';
+import type { WordFruitGroup } from '../word-fruit/types';
+import type { VirtualChildProfile } from './virtualChildren';
+import { getVirtualChildrenForMember } from './virtualChildren';
 
 export type SystemHealth = {
   ok: boolean;
@@ -42,6 +45,8 @@ type NotificationAudience = 'all' | Department[];
 function MemberRow({
   m,
   members,
+  virtualChildren,
+  wordFruitGroups,
   expandedId,
   submitting,
   onToggleExpand,
@@ -55,6 +60,8 @@ function MemberRow({
 }: {
   m: NextGenerationMember;
   members: NextGenerationMember[];
+  virtualChildren: VirtualChildProfile[];
+  wordFruitGroups: WordFruitGroup[];
   expandedId: string | null;
   submitting: boolean;
   onToggleExpand: (id: string | null) => void;
@@ -80,6 +87,8 @@ function MemberRow({
   const isParent = hasDepartment(m, parentDepartment);
   const isStudent = hasDepartment(m, studentDepartment);
   const isTeacher = hasDepartment(m, NEXT_GENERATION_DEPARTMENTS[1]);
+  const assignedVirtualChildren = getVirtualChildrenForMember(virtualChildren, m);
+  const groupNameById = new Map(wordFruitGroups.map((group) => [group.id, group.name]));
   const parentOptions = members.filter((member) => member.role === 'member' && hasDepartment(member, parentDepartment));
   const studentOptions = members.filter((member) => member.role === 'member' && hasDepartment(member, studentDepartment));
   const linkOptions = isParent
@@ -273,6 +282,37 @@ function MemberRow({
             </div>
           )}
 
+          {(isParent || isTeacher) && (
+            <div className="rounded-lg border border-sky-200 bg-white p-3">
+              <div className="mb-2">
+                <p className="text-xs font-bold text-sky-800">배정된 가상/전담 아이</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-gray-500">
+                  부모가 등록한 폰 없는 아이와 관리자가 교사에게 붙인 아이가 여기에 표시됩니다.
+                </p>
+              </div>
+              {assignedVirtualChildren.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-sky-100 bg-sky-50/60 p-2 text-[11px] font-bold text-gray-400">
+                  아직 배정된 아이가 없습니다.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {assignedVirtualChildren.map((child) => {
+                    const isTeacherAssigned = (child.assignedTeacherUids ?? []).includes(m.uid);
+                    const groupLabel = groupNameById.get(child.groupId ?? '') ?? child.groupId ?? '반 미배정';
+                    return (
+                      <span
+                        key={child.id}
+                        className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-900"
+                      >
+                        {child.displayName} · {isTeacherAssigned ? '교사 전담' : '부모 관리'} · {groupLabel}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {isTeacher && (
             <div className="rounded-lg border border-sky-200 bg-white p-3">
               <div className="mb-2">
@@ -302,7 +342,7 @@ function MemberRow({
                   <option value="">담당 반 선택</option>
                   {(m.groupIds ?? []).map((groupId) => (
                     <option key={groupId} value={groupId}>
-                      {groupId}
+                      {groupNameById.get(groupId) ?? groupId}
                     </option>
                   ))}
                 </select>
@@ -408,6 +448,8 @@ export default function AdminMembersTab({
   rejectedMembers,
   filteredMembers,
   members,
+  virtualChildren,
+  wordFruitGroups,
   expandedId,
   submitting,
   onTabChange,
@@ -442,6 +484,8 @@ export default function AdminMembersTab({
   rejectedMembers: NextGenerationMember[];
   filteredMembers: NextGenerationMember[];
   members: NextGenerationMember[];
+  virtualChildren: VirtualChildProfile[];
+  wordFruitGroups: WordFruitGroup[];
   expandedId: string | null;
   submitting: boolean;
   onTabChange: (tab: AdminTab) => void;
@@ -456,6 +500,8 @@ export default function AdminMembersTab({
 }) {
   const memberRowProps = {
     members,
+    virtualChildren,
+    wordFruitGroups,
     expandedId,
     submitting,
     onToggleExpand,

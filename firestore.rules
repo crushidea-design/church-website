@@ -755,6 +755,10 @@ service cloud.firestore {
     }
 
     match /next_generation_word_fruit_progress/{progressId} {
+      // Let next-generation users probe an empty progress document before
+      // creating it. Existing documents are still scoped by the read rule below.
+      allow get: if isNextGenerationAccess() &&
+        !exists(/databases/$(database)/documents/next_generation_word_fruit_progress/$(progressId));
       // Owner / pastor / linked parent / teacher (group-scoped if groupIds set)
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||

@@ -1,6 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Save, Sparkles, Users2 } from 'lucide-react';
-import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import {
+  collection,
+  deleteField,
+  doc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import {
   backfillProgressGroupIds,
@@ -8,13 +20,19 @@ import {
   fetchElementaryStudents,
   fetchTeachers,
   saveLegacyFruitTotal,
-  setMemberGroup,
+  setElementaryStudentGroup,
   setMemberGroupIds,
   subscribeGroups,
   subscribeLegacyFruitTotals,
 } from './api';
 import type { BackfillReport } from './api';
+import type { ElementaryStudentListItem } from './elementaryStudents';
+import { getMemberStudentOptions } from './elementaryStudents';
 import type { LegacyWordFruitTotal, WordFruitGroup } from './types';
+import { WORD_FRUIT_PROGRESS_COLLECTION } from './types';
+import type { NextGenerationMember } from '../../lib/nextGenerationAuth';
+import type { VirtualChildProfile } from '../next-generation/virtualChildren';
+import { summarizeVirtualChildOwners } from '../next-generation/virtualChildren';
 
 /**
  * Cross-week setup for the word-fruit feature: groups, parent linking, and
@@ -25,6 +43,7 @@ export default function WordFruitSettings() {
   return (
     <div className="space-y-8">
       <GroupManager />
+      <VirtualChildrenManager />
       <LegacyFruitTotalsManager />
       <ParentLinkManager />
       <MigrationTool />
@@ -36,7 +55,7 @@ export default function WordFruitSettings() {
 
 function GroupManager() {
   const [groups, setGroups] = useState<WordFruitGroup[]>([]);
-  const [students, setStudents] = useState<Array<{ uid: string; displayName: string; groupId?: string }>>([]);
+  const [students, setStudents] = useState<ElementaryStudentListItem[]>([]);
   const [teachers, setTeachers] = useState<Array<{ uid: string; displayName: string; email: string; groupIds: string[] }>>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -75,13 +94,13 @@ function GroupManager() {
     }
   };
 
-  const handleAssignStudent = async (uid: string, displayName: string, groupId: string) => {
-    setBusy(`student:${uid}`);
+  const handleAssignStudent = async (student: ElementaryStudentListItem, groupId: string) => {
+    setBusy(`student:${student.uid}`);
     setMsg(null);
     try {
-      await setMemberGroup(uid, groupId);
-      setStudents((list) => list.map((s) => (s.uid === uid ? { ...s, groupId } : s)));
-      setMsg({ tone: 'ok', text: `${displayName} 반 배정 저장됨` });
+      await setElementaryStudentGroup(student, groupId);
+      setStudents((list) => list.map((s) => (s.uid === student.uid ? { ...s, groupId } : s)));
+      setMsg({ tone: 'ok', text: `${student.displayName} 반 배정 저장됨` });
     } catch (e) {
       console.error(e);
       setMsg({ tone: 'err', text: '저장 중 오류가 발생했습니다.' });
@@ -187,7 +206,7 @@ function GroupManager() {
                         <td className="px-3 py-2">
                           <select
                             value={s.groupId ?? ''}
-                            onChange={(e) => handleAssignStudent(s.uid, s.displayName, e.target.value)}
+                            onChange={(e) => handleAssignStudent(s, e.target.value)}
                             disabled={busy === `student:${s.uid}`}
                             className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
                           >
@@ -265,6 +284,295 @@ function GroupManager() {
 }
 
 /* ────────────────────────── 부모-자녀 연결 ─────────────────────────── */
+
+/* ─────────────────────── 가상/전담 아이 관리 ─────────────────────── */
+
+function memberHasDepartment(member: NextGenerationMember, department: string) {
+  return member.department === department || (member.departments ?? []).includes(department as any);
+}
+
+function proxySummariesForParent(children: VirtualChildProfile[], parentUid: string) {
+  return children
+    .filter((child) => (child.parentUids ?? []).includes(parentUid))
+    .map((child) => ({
+      id: child.id,
+      name: child.displayName,
+      usesPhone: false,
+      ...(child.groupId ? { groupId: child.groupId } : {}),
+    }));
+}
+
+function VirtualChildrenManager() {
+  const [children, setChildren] = useState<VirtualChildProfile[]>([]);
+  const [members, setMembers] = useState<NextGenerationMember[]>([]);
+  const [groups, setGroups] = useState<WordFruitGroup[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, { displayName: string; groupId: string; parentUid: string; teacherUid: string }>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => subscribeGroups(setGroups), []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'next_generation_members'), orderBy('displayName'));
+    return onSnapshot(q, (snap) => {
+      setMembers(snap.docs.map((d) => ({ ...(d.data() as NextGenerationMember), uid: (d.data() as any).uid ?? d.id })));
+    });
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'next_generation_children'), orderBy('displayName'));
+    return onSnapshot(q, (snap) => {
+      setChildren(snap.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          displayName: data.displayName ?? '이름 없음',
+          department: data.department ?? '',
+          groupId: data.groupId ?? '',
+          parentUids: Array.isArray(data.parentUids) ? data.parentUids : [],
+          assignedTeacherUids: Array.isArray(data.assignedTeacherUids) ? data.assignedTeacherUids : [],
+          careType: data.careType,
+          createdByAdmin: !!data.createdByAdmin,
+          parentName: data.parentName,
+        };
+      }));
+    });
+  }, []);
+
+  const groupNameById = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups]);
+  const parents = useMemo(
+    () => members.filter((member) => member.role === 'member' && memberHasDepartment(member, '학부모')),
+    [members],
+  );
+  const teachers = useMemo(
+    () => members.filter((member) => member.role === 'member' && memberHasDepartment(member, '교사')),
+    [members],
+  );
+
+  const updateDraft = (
+    child: VirtualChildProfile,
+    patch: Partial<{ displayName: string; groupId: string; parentUid: string; teacherUid: string }>,
+  ) => {
+    setDrafts((current) => ({
+      ...current,
+      [child.id]: {
+        displayName: child.displayName,
+        groupId: child.groupId ?? '',
+        parentUid: child.parentUids?.[0] ?? '',
+        teacherUid: child.assignedTeacherUids?.[0] ?? '',
+        ...(current[child.id] ?? {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const saveChild = async (child: VirtualChildProfile) => {
+    const draft = drafts[child.id] ?? {
+      displayName: child.displayName,
+      groupId: child.groupId ?? '',
+      parentUid: child.parentUids?.[0] ?? '',
+      teacherUid: child.assignedTeacherUids?.[0] ?? '',
+    };
+    const displayName = draft.displayName.trim();
+    if (!displayName || !draft.groupId) {
+      setMsg({ tone: 'err', text: '아이 이름과 반을 입력해 주세요.' });
+      return;
+    }
+    const nextChild: VirtualChildProfile = {
+      ...child,
+      displayName,
+      groupId: draft.groupId,
+      parentUids: draft.parentUid ? [draft.parentUid] : [],
+      assignedTeacherUids: draft.teacherUid ? [draft.teacherUid] : [],
+      careType: draft.teacherUid ? 'teacher_assigned' : child.careType,
+    };
+    const affectedParents = Array.from(new Set([...(child.parentUids ?? []), ...(nextChild.parentUids ?? [])]));
+    const nextChildren = children.map((item) => (item.id === child.id ? nextChild : item));
+    const batch = writeBatch(db);
+    setBusyId(child.id);
+    setMsg(null);
+    try {
+      batch.update(doc(db, 'next_generation_children', child.id), {
+        displayName: nextChild.displayName,
+        groupId: nextChild.groupId,
+        parentUids: nextChild.parentUids ?? [],
+        assignedTeacherUids: nextChild.assignedTeacherUids ?? [],
+        careType: nextChild.careType ?? deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+      affectedParents.forEach((parentUid) => {
+        batch.update(doc(db, 'next_generation_members', parentUid), {
+          proxyChildren: proxySummariesForParent(nextChildren, parentUid),
+          parentOnboardingCompleted: true,
+        });
+      });
+      await batch.commit();
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[child.id];
+        return next;
+      });
+      setMsg({ tone: 'ok', text: `${displayName} 정보를 저장했습니다.` });
+    } catch (e) {
+      console.error(e);
+      setMsg({ tone: 'err', text: '저장 중 오류가 발생했습니다.' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deleteChild = async (child: VirtualChildProfile) => {
+    if (!confirm(`${child.displayName} 아이를 삭제할까요?\n말씀 열매 진행 기록도 함께 삭제됩니다.`)) return;
+    const remainingChildren = children.filter((item) => item.id !== child.id);
+    const batch = writeBatch(db);
+    setBusyId(child.id);
+    setMsg(null);
+    try {
+      batch.delete(doc(db, 'next_generation_children', child.id));
+      const progressSnap = await getDocs(query(
+        collection(db, WORD_FRUIT_PROGRESS_COLLECTION),
+        where('userId', '==', child.id),
+      ));
+      progressSnap.docs.forEach((progressDoc) => batch.delete(progressDoc.ref));
+      (child.parentUids ?? []).forEach((parentUid) => {
+        batch.update(doc(db, 'next_generation_members', parentUid), {
+          proxyChildren: proxySummariesForParent(remainingChildren, parentUid),
+        });
+      });
+      await batch.commit();
+      setMsg({ tone: 'ok', text: `${child.displayName} 아이를 삭제했습니다.` });
+    } catch (e) {
+      console.error(e);
+      setMsg({ tone: 'err', text: '삭제 중 오류가 발생했습니다.' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section>
+      <div className="flex items-center gap-2">
+        <Users2 size={16} className="text-sky-700" />
+        <h3 className="text-base font-black text-emerald-950">가상/전담 아이 관리</h3>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        부모가 등록한 폰 없는 아이와 관리자가 교사에게 붙인 아이를 한곳에서 확인하고 수정합니다.
+      </p>
+      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs font-bold text-slate-500">전체</p>
+          <p className="text-lg font-black text-emerald-800">{children.length}명</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs font-bold text-slate-500">부모 관리</p>
+          <p className="text-lg font-black text-sky-800">{children.filter((child) => (child.parentUids ?? []).length > 0).length}명</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs font-bold text-slate-500">교사 전담</p>
+          <p className="text-lg font-black text-amber-800">{children.filter((child) => (child.assignedTeacherUids ?? []).length > 0).length}명</p>
+        </div>
+      </div>
+
+      {msg && (
+        <div
+          className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+            msg.tone === 'ok'
+              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border border-red-200 bg-red-50 text-red-700'
+          }`}
+        >
+          {msg.tone === 'ok' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+          {msg.text}
+        </div>
+      )}
+
+      {children.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+          등록된 가상/전담 아이가 없습니다.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {children.map((child) => {
+            const draft = drafts[child.id] ?? {
+              displayName: child.displayName,
+              groupId: child.groupId ?? '',
+              parentUid: child.parentUids?.[0] ?? '',
+              teacherUid: child.assignedTeacherUids?.[0] ?? '',
+            };
+            const owners = summarizeVirtualChildOwners(child, members);
+            return (
+              <div key={child.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="grid gap-2 lg:grid-cols-[1.1fr_0.9fr_0.9fr_0.9fr_auto]">
+                  <input
+                    value={draft.displayName}
+                    onChange={(e) => updateDraft(child, { displayName: e.target.value })}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-800"
+                  />
+                  <select
+                    value={draft.groupId}
+                    onChange={(e) => updateDraft(child, { groupId: e.target.value })}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <option value="">반 선택</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>{group.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={draft.parentUid}
+                    onChange={(e) => updateDraft(child, { parentUid: e.target.value })}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <option value="">부모 없음</option>
+                    {parents.map((parent) => (
+                      <option key={parent.uid} value={parent.uid}>{parent.displayName}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={draft.teacherUid}
+                    onChange={(e) => updateDraft(child, { teacherUid: e.target.value })}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <option value="">전담 교사 없음</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.uid} value={teacher.uid}>{teacher.displayName}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => saveChild(child)}
+                      disabled={busyId === child.id}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {busyId === child.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteChild(child)}
+                      disabled={busyId === child.id}
+                      className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-60"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                  현재 배정: 반 {groupNameById.get(child.groupId ?? '') ?? child.groupId ?? '미배정'}
+                  {' · '}
+                  부모 {owners.parentNames.length ? owners.parentNames.join(', ') : '없음'}
+                  {' · '}
+                  교사 {owners.teacherNames.length ? owners.teacherNames.join(', ') : '없음'}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function LegacyFruitTotalsManager() {
   const [items, setItems] = useState<LegacyWordFruitTotal[]>([]);
@@ -525,7 +833,7 @@ interface ParentRow {
 
 function ParentLinkManager() {
   const [parents, setParents] = useState<ParentRow[]>([]);
-  const [students, setStudents] = useState<Array<{ uid: string; displayName: string }>>([]);
+  const [students, setStudents] = useState<ElementaryStudentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string[]>>({});
   const [savingUid, setSavingUid] = useState<string | null>(null);
@@ -545,7 +853,7 @@ function ParentLinkManager() {
           )),
         ]);
         if (cancel) return;
-        setStudents(studentList);
+        setStudents(getMemberStudentOptions(studentList));
         setParents(parentSnap.docs.map((d) => {
           const data = d.data() as any;
           return {

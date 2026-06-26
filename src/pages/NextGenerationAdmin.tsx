@@ -20,6 +20,8 @@ import { Users, BookOpen } from 'lucide-react';
 import { NEXT_GENERATION_NOTIFICATION_TOPIC } from '../services/notificationService';
 import BibleReadingChart from './BibleReadingChart';
 import WordFruitSettings from '../features/word-fruit/WordFruitSettings';
+import { subscribeGroups } from '../features/word-fruit/api';
+import type { WordFruitGroup } from '../features/word-fruit/types';
 
 import {
   AdminTab,
@@ -36,6 +38,7 @@ import AdminClassesTab from '../features/next-generation/AdminClassesTab';
 import AdminMembersTab from '../features/next-generation/AdminMembersTab';
 import { AdminAnswerModal, AdminRejectModal } from '../features/next-generation/AdminModals';
 import { inferProxyChildDepartment } from '../features/next-generation/proxyChildren';
+import type { VirtualChildProfile } from '../features/next-generation/virtualChildren';
 
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -43,6 +46,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const [tab, setTab] = useState<AdminTab>('members');
   const [members, setMembers] = useState<NextGenerationMember[]>([]);
   const [proxyChildMembers, setProxyChildMembers] = useState<NextGenerationMember[]>([]);
+  const [virtualChildren, setVirtualChildren] = useState<VirtualChildProfile[]>([]);
+  const [wordFruitGroups, setWordFruitGroups] = useState<WordFruitGroup[]>([]);
   const [qaItems, setQaItems] = useState<QAItem[]>([]);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [classReadings, setClassReadings] = useState<ClassReadingDoc[]>([]);
@@ -137,6 +142,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     return () => unsub();
   }, []);
 
+  useEffect(() => subscribeGroups(setWordFruitGroups), []);
+
   // Subscribe to QA
   useEffect(() => {
     const q = query(collection(db, 'next_generation_qa'), orderBy('createdAt', 'desc'));
@@ -184,29 +191,47 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
   const teacherGroupIds = !isNextGenerationPastor && nextMember?.groupIds?.length
     ? nextMember.groupIds
     : undefined;
+  const mapChildDoc = (childDoc: any): VirtualChildProfile => {
+    const data = childDoc.data() as any;
+    return {
+      id: childDoc.id,
+      displayName: data.displayName ?? '이름 없음',
+      department: data.department ?? studentDepartment,
+      groupId: data.groupId ?? '',
+      parentUids: Array.isArray(data.parentUids) ? data.parentUids : [],
+      assignedTeacherUids: Array.isArray(data.assignedTeacherUids) ? data.assignedTeacherUids : [],
+      careType: data.careType,
+      createdByAdmin: !!data.createdByAdmin,
+      parentName: data.parentName,
+    };
+  };
+  const childProfileToMember = (child: VirtualChildProfile): NextGenerationMember => ({
+    uid: child.id,
+    email: '',
+    displayName: child.displayName,
+    role: 'member',
+    department: studentDepartment,
+    church: '',
+    intro: '',
+    provider: 'google',
+    createdAt: undefined as any,
+    groupId: child.groupId ?? '',
+  });
   useEffect(() => {
     if (isNextGenerationPastor) {
       const q = query(collection(db, 'next_generation_children'), orderBy('displayName', 'asc'));
       return onSnapshot(q, (snap) => {
-        setProxyChildMembers(snap.docs.map((childDoc) => {
-          const data = childDoc.data() as any;
-          return {
-            uid: childDoc.id,
-            email: '',
-            displayName: data.displayName ?? '이름 없음',
-            role: 'member',
-            department: studentDepartment,
-            church: '',
-            intro: '',
-            provider: 'google',
-            createdAt: data.createdAt,
-            groupId: data.groupId ?? '',
-          } as NextGenerationMember;
-        }));
-      }, () => setProxyChildMembers([]));
+        const children = snap.docs.map(mapChildDoc);
+        setVirtualChildren(children);
+        setProxyChildMembers(children.map(childProfileToMember));
+      }, () => {
+        setVirtualChildren([]);
+        setProxyChildMembers([]);
+      });
     }
 
     if (!teacherGroupIds || teacherGroupIds.length === 0) {
+      setVirtualChildren([]);
       setProxyChildMembers([]);
       return;
     }
@@ -216,22 +241,13 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
       where('groupId', 'in', teacherGroupIds.slice(0, 10)),
     );
     return onSnapshot(q, (snap) => {
-      setProxyChildMembers(snap.docs.map((childDoc) => {
-        const data = childDoc.data() as any;
-        return {
-          uid: childDoc.id,
-          email: '',
-          displayName: data.displayName ?? '이름 없음',
-          role: 'member',
-          department: studentDepartment,
-          church: '',
-          intro: '',
-          provider: 'google',
-          createdAt: data.createdAt,
-          groupId: data.groupId ?? '',
-        } as NextGenerationMember;
-      }));
-    }, () => setProxyChildMembers([]));
+      const children = snap.docs.map(mapChildDoc);
+      setVirtualChildren(children);
+      setProxyChildMembers(children.map(childProfileToMember));
+    }, () => {
+      setVirtualChildren([]);
+      setProxyChildMembers([]);
+    });
   }, [isNextGenerationPastor, studentDepartment, teacherGroupIds?.join('|')]);
   const classDashboardMembers = useMemo(
     () => [...members, ...proxyChildMembers],
@@ -827,6 +843,8 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
               rejectedMembers={rejectedMembers}
               filteredMembers={filteredMembers}
               members={members}
+              virtualChildren={virtualChildren}
+              wordFruitGroups={wordFruitGroups}
               expandedId={expandedId}
               submitting={submitting}
               onTabChange={setTab}
