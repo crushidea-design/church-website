@@ -129,7 +129,12 @@ export function ParentRoleCards() {
   const worshipMap = new Map(logs.map((l) => [l.weekKey, l]));
   const thisWeekDone = worshipMap.has(thisWeekKey);
 
-  const handleChildPlus = async (id: string, name: string, groupId?: string) => {
+  const handleChildPlus = async (
+    id: string,
+    name: string,
+    groupId: string | undefined,
+    progress: WordFruitProgress | null,
+  ) => {
     setSavingChild(id);
     try {
       await addTodayCheckByLeader({
@@ -137,6 +142,7 @@ export function ParentRoleCards() {
         userId: id,
         childName: name,
         groupId: groupId ?? '',
+        existingProgress: progress,
       });
     } catch {
       // ignore
@@ -197,7 +203,7 @@ export function ParentRoleCards() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleChildPlus(c.id, c.name, c.groupId)}
+                    onClick={() => handleChildPlus(c.id, c.name, c.groupId, p ?? null)}
                     disabled={savingChild === c.id || checkedToday || p?.completed}
                     className="ml-2 shrink-0 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white disabled:bg-slate-300"
                   >
