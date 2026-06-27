@@ -181,6 +181,13 @@ function NextGenerationInner() {
   const location = useLocation();
   const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();
   const { departments: cmsDepartments, tabs: cmsTabs, introSections } = useNextGenerationCms();
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('scrollTop') !== '1') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
   const mappedDepartments: DepartmentCardItem[] = useMemo(
     () =>
       (cmsDepartments.length > 0 ? cmsDepartments : (sectionTabs as any))

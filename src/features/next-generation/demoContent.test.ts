@@ -48,11 +48,11 @@ describe('next generation demo content', () => {
 
   it('provides real-page links for every demo feature after sign-up', () => {
     expect(DEMO_REAL_PAGE_LINKS).toEqual({
-      bibleReading: '/next/me?fromDemo=1',
-      curriculum: '/next/elementary?resource=elementary_workbook&fromDemo=1',
-      wordFruit: '/next/elementary?highlight=word-fruit&fromDemo=1',
-      qa: '/next/elementary?highlight=qa&fromDemo=1',
-      familyWorship: '/next/elementary?resource=family_worship&fromDemo=1',
+      bibleReading: '/next/me?fromDemo=1&scrollTop=1',
+      curriculum: '/next/elementary?resource=elementary_workbook&fromDemo=1&scrollTop=1',
+      wordFruit: '/next/elementary?highlight=word-fruit&fromDemo=1&scrollTop=1',
+      qa: '/next/elementary?highlight=qa&fromDemo=1&scrollTop=1',
+      familyWorship: '/next/elementary?resource=family_worship&fromDemo=1&scrollTop=1',
     });
   });
 });

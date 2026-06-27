@@ -15,16 +15,16 @@ export interface NextGenerationDemoStep {
 }
 
 export const DEMO_CURRICULUM_PATH = '/next/elementary?resource=elementary_workbook';
-export const DEMO_CURRICULUM_FROM_DEMO_PATH = `${DEMO_CURRICULUM_PATH}&fromDemo=1`;
+export const DEMO_CURRICULUM_FROM_DEMO_PATH = `${DEMO_CURRICULUM_PATH}&fromDemo=1&scrollTop=1`;
 export const DEMO_PAGE_PATH = '/next/demo';
 export const NEXT_GENERATION_HOME_PATH = '/next';
 export const DEMO_BIBLE_READING_COMPLETED_BOOK_INDEXES = [0, 1, 17, 18, 35, 36, 48, 49, 64, 65];
 export const DEMO_REAL_PAGE_LINKS = {
-  bibleReading: '/next/me?fromDemo=1',
+  bibleReading: '/next/me?fromDemo=1&scrollTop=1',
   curriculum: DEMO_CURRICULUM_FROM_DEMO_PATH,
-  wordFruit: '/next/elementary?highlight=word-fruit&fromDemo=1',
-  qa: '/next/elementary?highlight=qa&fromDemo=1',
-  familyWorship: '/next/elementary?resource=family_worship&fromDemo=1',
+  wordFruit: '/next/elementary?highlight=word-fruit&fromDemo=1&scrollTop=1',
+  qa: '/next/elementary?highlight=qa&fromDemo=1&scrollTop=1',
+  familyWorship: '/next/elementary?resource=family_worship&fromDemo=1&scrollTop=1',
 };
 
 export const NEXT_GENERATION_DEMO_STEPS: NextGenerationDemoStep[] = [
