@@ -84,7 +84,7 @@ export default function PrivacyPolicy() {
               </p>
               <ul className="list-disc pl-5 space-y-2">
                 <li>개인정보 보호책임자: 관리자</li>
-                <li>연락처: crushidea@gmail.com</li>
+                <li>연락처: contact@builttogether.church</li>
               </ul>
             </section>
 

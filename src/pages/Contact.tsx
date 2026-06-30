@@ -63,7 +63,7 @@ export default function Contact() {
                 </div>
                 <div className="ml-4">
                   <h3 className="text-lg font-medium text-wood-900">이메일</h3>
-                  <p className="mt-1 text-wood-600">crushidea@gmail.com</p>
+                  <p className="mt-1 text-wood-600">contact@builttogether.church</p>
                 </div>
               </div>
               <div className="flex items-start">

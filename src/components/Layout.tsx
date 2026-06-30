@@ -356,7 +356,7 @@ export default function Layout() {
             <div>
               <h4 className="font-bold mb-4 text-wood-100">연락처</h4>
               <ul className="space-y-2 text-sm text-wood-300">
-                <li>이메일: crushidea@gmail.com</li>
+                <li>이메일: contact@builttogether.church</li>
                 <li>예배 장소: (개척 준비 중)</li>
               </ul>
             </div>
