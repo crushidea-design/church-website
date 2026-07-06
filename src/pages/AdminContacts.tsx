@@ -148,7 +148,7 @@ export default function AdminContacts() {
       }
     >
       {messages.length === 0 ? (
-        <div className="rounded-[2rem] border border-wood-200 bg-white p-12 text-center text-wood-500 shadow-sm">
+        <div className="rounded-md border border-wood-200 bg-white p-12 text-center text-wood-500 shadow-sm">
           <Inbox className="mx-auto mb-4 h-12 w-12 text-wood-300" />
           <p className="text-lg font-medium text-wood-700">아직 접수된 문의가 없습니다.</p>
           <p className="mt-2 text-sm text-wood-500">새 문의가 들어오면 이 화면에서 바로 확인할 수 있습니다.</p>

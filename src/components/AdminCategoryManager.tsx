@@ -100,7 +100,7 @@ export default function AdminCategoryManager({
       }
     >
       <div className="space-y-8">
-        <div className="rounded-[2rem] border border-wood-200 bg-white p-8 shadow-sm">
+        <div className="rounded-md border border-wood-200 bg-white p-8 shadow-sm">
           <h2 className="mb-6 text-xl font-bold text-wood-900">{addTitle}</h2>
           <form onSubmit={onAddCategory} className="flex flex-col gap-4 sm:flex-row">
             <input
@@ -108,13 +108,13 @@ export default function AdminCategoryManager({
               value={newCategoryName}
               onChange={(event) => onNewCategoryNameChange(event.target.value)}
               placeholder={addPlaceholder}
-              className="flex-grow rounded-xl border border-wood-300 bg-wood-50 px-4 py-3 text-sm shadow-sm outline-none transition focus:border-wood-500 focus:ring-2 focus:ring-wood-500"
+              className="flex-grow rounded-md border border-wood-300 bg-wood-50 px-4 py-3 text-sm shadow-sm outline-none transition focus:border-wood-500 focus:ring-2 focus:ring-wood-500"
               required
             />
             <button
               type="submit"
               disabled={isAdding || !newCategoryName.trim()}
-              className="inline-flex items-center justify-center rounded-xl bg-wood-900 px-6 py-3 font-medium text-white shadow-sm transition hover:bg-wood-800 disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-md bg-wood-900 px-6 py-3 font-medium text-white shadow-sm transition hover:bg-wood-800 disabled:opacity-50"
             >
               <Plus size={20} className="mr-2" />
               {isAdding ? '추가 중' : '추가하기'}
@@ -123,7 +123,7 @@ export default function AdminCategoryManager({
           {helperText && <p className="mt-4 text-sm leading-6 text-wood-500">{helperText}</p>}
         </div>
 
-        <div className="overflow-hidden rounded-[2rem] border border-wood-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-md border border-wood-200 bg-white shadow-sm">
           <div className="border-b border-wood-100 bg-wood-50/60 p-6">
             <h2 className="font-bold text-wood-900">
               {listTitle} <span className="text-wood-500">({categoryCount})</span>
@@ -240,12 +240,12 @@ export default function AdminCategoryManager({
 
         <AnimatePresence>
           {deletingId && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-red-100 bg-white p-10 shadow-2xl"
+                className="relative w-full max-w-md overflow-hidden rounded-md border border-red-100 bg-white p-10 shadow-lg"
               >
                 <div className="absolute left-0 top-0 h-2 w-full bg-red-500" />
                 <div className="mb-6 flex justify-center">
@@ -266,7 +266,7 @@ export default function AdminCategoryManager({
                       setDeletingId(null);
                       setDeletingName('');
                     }}
-                    className="flex-1 rounded-2xl border border-wood-200 px-6 py-4 font-bold text-wood-600 transition hover:bg-wood-50"
+                    className="flex-1 rounded-md border border-wood-200 px-6 py-4 font-bold text-wood-600 transition hover:bg-wood-50"
                   >
                     취소
                   </button>
@@ -277,7 +277,7 @@ export default function AdminCategoryManager({
                       setDeletingId(null);
                       setDeletingName('');
                     }}
-                    className="flex-1 rounded-2xl bg-red-600 px-6 py-4 font-bold text-white shadow-lg shadow-red-200 transition hover:bg-red-700"
+                    className="flex-1 rounded-md bg-red-600 px-6 py-4 font-bold text-white shadow-lg shadow-red-200 transition hover:bg-red-700"
                   >
                     삭제 확정
                   </button>

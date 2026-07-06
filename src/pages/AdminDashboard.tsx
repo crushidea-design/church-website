@@ -242,8 +242,8 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {adminItems.map((item) => {
             const card = (
-              <div className="h-full rounded-2xl border border-wood-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 border ${item.color}`}>
+              <div className="h-full rounded-md border border-wood-200 bg-white p-6 shadow-sm hover:shadow-md transition">
+                <div className={`w-12 h-12 rounded-md flex items-center justify-center mb-4 border ${item.color}`}>
                   {item.isLoading ? <RefreshCw className="animate-spin" size={22} /> : <item.icon size={22} />}
                 </div>
                 <h2 className="text-xl font-bold text-wood-900 mb-2">{item.title}</h2>

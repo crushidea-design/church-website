@@ -421,7 +421,7 @@ export default function PostDetail() {
       const videoId = match[2];
       parts.push(
         <div key={`yt-${match.index}`} className="my-8 w-full max-w-3xl mx-auto">
-          <div className="aspect-video rounded-xl overflow-hidden shadow-lg bg-wood-900 mb-2">
+          <div className="aspect-video rounded-md overflow-hidden shadow-lg bg-wood-900 mb-2">
             <iframe
               width="100%"
               height="100%"
@@ -547,7 +547,7 @@ export default function PostDetail() {
           {isAdmin && (post.category === 'sermon' || post.category === 'research') && (
             <Link
               to={`/create-post?type=${post.category}${post.sermonCategoryId ? `&categoryId=${post.sermonCategoryId}` : post.researchCategoryId ? `&categoryId=${post.researchCategoryId}` : post.subCategory ? `&subCategory=${post.subCategory}` : ''}`}
-              className="inline-flex items-center px-4 py-2 bg-white text-wood-900 rounded-full text-sm font-medium hover:bg-wood-50 transition border border-wood-200 shadow-sm"
+              className="inline-flex items-center px-4 py-2 bg-white text-wood-900 rounded-sm text-sm font-medium hover:bg-wood-50 transition border border-wood-200 shadow-sm"
             >
               <Plus size={16} className="mr-2" />
               영상 추가 등록
@@ -556,10 +556,10 @@ export default function PostDetail() {
         </div>
 
         {/* Post Content */}
-        <article className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden mb-8">
+        <article className="bg-white rounded-md shadow-sm border border-wood-200 overflow-hidden mb-8">
           <div className="p-8 md:p-12">
             <div className="flex items-center justify-between mb-6">
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-wood-50 text-wood-800">
+              <span className="inline-flex items-center px-3 py-1 rounded-sm text-sm font-medium bg-wood-50 text-wood-800">
                 {getPostCategoryLabel()}
               </span>
               <div className="flex items-center text-sm text-wood-600 gap-4">
@@ -599,19 +599,19 @@ export default function PostDetail() {
                     삭제
                   </button>
                 ) : (
-                  <div className="flex items-center space-x-2 bg-red-50 p-2 rounded-xl border border-red-100">
+                  <div className="flex items-center space-x-2 bg-red-50 p-2 rounded-md border border-red-100">
                     <span className="text-xs text-red-600 font-bold px-1">정말 삭제할까요?</span>
                     <button
                       onClick={handleDeletePost}
                       disabled={isDeleting}
-                      className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full hover:bg-red-700 disabled:opacity-50 transition"
+                      className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-sm hover:bg-red-700 disabled:opacity-50 transition"
                     >
                       {isDeleting ? '삭제 중...' : '확인'}
                     </button>
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
                       disabled={isDeleting}
-                      className="text-xs bg-wood-200 text-wood-700 px-3 py-1.5 rounded-full hover:bg-wood-300 transition"
+                      className="text-xs bg-wood-200 text-wood-700 px-3 py-1.5 rounded-sm hover:bg-wood-300 transition"
                     >
                       취소
                     </button>
@@ -635,10 +635,10 @@ export default function PostDetail() {
 
                 <div className="space-y-4">
                   {attachments.map((attachment, index) => (
-                    <div key={`${attachment.url}-${index}`} className="rounded-2xl border border-wood-200 bg-white p-4">
+                    <div key={`${attachment.url}-${index}`} className="rounded-md border border-wood-200 bg-white p-4">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <span className="mb-2 inline-flex rounded-full bg-wood-50 px-3 py-1 text-xs font-bold text-wood-700">
+                          <span className="mb-2 inline-flex rounded-sm bg-wood-50 px-3 py-1 text-xs font-bold text-wood-700">
                             {getMaterialAttachmentLabel(attachment)}
                           </span>
                           <p className="break-all text-sm font-medium text-wood-900">{attachment.name}</p>
@@ -651,14 +651,14 @@ export default function PostDetail() {
                             href={attachment.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
+                            className="inline-flex items-center px-4 py-2 bg-wood-50 text-wood-900 rounded-sm text-sm font-medium hover:bg-wood-100 transition border border-wood-200"
                           >
                             새 창에서 열기
                           </a>
                           <a
                             href={attachment.url}
                             download={attachment.name}
-                            className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-full text-sm font-medium hover:bg-wood-800 transition"
+                            className="inline-flex items-center px-4 py-2 bg-wood-900 text-white rounded-sm text-sm font-medium hover:bg-wood-800 transition"
                           >
                             다운로드
                           </a>
@@ -666,7 +666,7 @@ export default function PostDetail() {
                       </div>
 
                       {attachment.type === 'pdf' && (
-                        <div className="mt-4 w-full bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
+                        <div className="mt-4 w-full bg-white rounded-md border border-wood-200 overflow-hidden shadow-inner relative">
                           <PdfCanvasViewer
                             url={attachment.url}
                             onDownload={() => {
@@ -711,14 +711,14 @@ export default function PostDetail() {
 
         {/* Comments Section */}
         {post.category !== 'today_word' && post.category !== 'next_generation' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
+        <div className="bg-white rounded-md shadow-sm border border-wood-200 p-8 md:p-12">
           <h3 className="text-xl font-bold text-wood-900 mb-8 flex items-center">
             <MessageSquare className="mr-2 text-wood-900" />
             댓글 {post.commentCount || 0}
           </h3>
 
           {commentError && (
-            <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+            <div className="mb-8 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
               {commentError}
             </div>
           )}
@@ -731,7 +731,7 @@ export default function PostDetail() {
                 <textarea
                   id="comment"
                   rows={3}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                  className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
                   placeholder="댓글을 남겨주세요..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
@@ -742,14 +742,14 @@ export default function PostDetail() {
                 <button
                   type="submit"
                   disabled={submitting || !newComment.trim()}
-                  className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
+                  className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-medium rounded-sm shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
                 >
                   {submitting ? '등록 중...' : '댓글 등록'}
                 </button>
               </div>
             </form>
           ) : (
-            <div className="bg-wood-50 rounded-xl p-6 text-center mb-10 border border-wood-100">
+            <div className="bg-wood-50 rounded-md p-6 text-center mb-10 border border-wood-100">
               <p className="text-wood-600 mb-4">댓글을 작성하려면 로그인이 필요합니다.</p>
             </div>
           )}
@@ -763,7 +763,7 @@ export default function PostDetail() {
                     {comment.authorName?.charAt(0) || '익'}
                   </div>
                 </div>
-                <div className="flex-grow bg-wood-50 rounded-2xl p-5 border border-wood-100">
+                <div className="flex-grow bg-wood-50 rounded-md p-5 border border-wood-100">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-bold text-wood-900">{comment.authorName}</h4>
                     <span className="text-xs text-wood-500">
@@ -812,7 +812,7 @@ export default function PostDetail() {
               <button
                 onClick={handleLoadMoreComments}
                 disabled={loadingMoreComments}
-                className="px-6 py-2.5 bg-wood-50 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-100 transition border border-wood-200 disabled:opacity-50"
+                className="px-6 py-2.5 bg-wood-50 text-wood-700 rounded-sm text-sm font-medium hover:bg-wood-100 transition border border-wood-200 disabled:opacity-50"
               >
                 {loadingMoreComments ? '遺덈윭?ㅻ뒗 以?..' : '?볤? ??蹂닿린'}
               </button>

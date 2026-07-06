@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   collection, query, where, orderBy, getDocs, limit, 
@@ -137,7 +136,7 @@ export default function ResearchLab() {
           action={canWrite ? (
             <Link
               to={`/create-post?type=research${activeTab && activeTab !== 'all' ? `&categoryId=${activeTab}` : ''}`}
-              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
+              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-sm hover:bg-wood-800 transition font-medium"
             >
               <Plus size={20} className="mr-2" />
               연구글 작성
@@ -150,10 +149,10 @@ export default function ResearchLab() {
         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <button
             onClick={() => handleTabChange('all')}
-            className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
+            className={`px-5 py-2.5 rounded-sm text-sm font-medium transition whitespace-nowrap border ${
               activeTab === 'all'
-                ? 'bg-wood-900 text-white shadow-md transform scale-105'
-                : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                ? 'bg-wood-900 border-wood-900 text-white'
+                : 'bg-white text-wood-600 hover:bg-wood-50 border-wood-200'
             }`}
           >
             전체
@@ -162,10 +161,10 @@ export default function ResearchLab() {
             <button
               key={cat.id}
               onClick={() => handleTabChange(cat.id)}
-              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
+              className={`px-5 py-2.5 rounded-sm text-sm font-medium transition whitespace-nowrap border ${
                 activeTab === cat.id
-                  ? 'bg-wood-900 text-white shadow-md transform scale-105'
-                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                  ? 'bg-wood-900 border-wood-900 text-white'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border-wood-200'
               }`}
             >
               {cat.name}
@@ -173,10 +172,10 @@ export default function ResearchLab() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-wood-200 shadow-sm self-end md:self-auto">
+        <div className="flex items-center gap-3 bg-white p-2 rounded-md border border-wood-200 shadow-sm self-end md:self-auto">
           <button
             onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-            className="px-4 py-1.5 text-sm font-bold text-wood-700 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
+            className="px-4 py-1.5 text-sm font-bold text-wood-700 hover:bg-wood-50 rounded-md transition flex items-center gap-1"
           >
             <ArrowUpDown size={16} className="text-wood-400" />
             {sortOrderDirection === 'desc' ? '내림차순' : '오름차순'}
@@ -184,7 +183,7 @@ export default function ResearchLab() {
         </div>
       </div>
 
-      {error && <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-center font-medium">{error}</div>}
+      {error && <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md text-center font-medium">{error}</div>}
 
       {/* 게시글 그리드 */}
       {loading ? (
@@ -193,49 +192,45 @@ export default function ResearchLab() {
           <p className="text-wood-500 font-medium">연구글을 불러오는 중입니다...</p>
         </div>
       ) : sortedPosts.length === 0 ? (
-        <div className="text-center py-32 bg-white rounded-3xl border border-wood-200 shadow-sm">
+        <div className="text-center py-32 bg-white rounded-md border border-wood-200 shadow-sm">
           <BookOpen className="mx-auto h-16 w-16 text-wood-200 mb-6" />
           <h3 className="text-xl font-bold text-wood-900">등록된 연구글이 없습니다</h3>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {sortedPosts.map((post, index) => (
-              <motion.div key={post.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.03, 0.4) }}>
+            {sortedPosts.map((post) => (
+              <div key={post.id}>
                 <Link to={`/post/${post.id}`} className="block h-full group">
-                  <div className="bg-white rounded-3xl shadow-sm border border-wood-100 p-8 h-full hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 flex flex-col relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-wood-900 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
-                    <div className="flex items-center justify-between mb-6">
-                      <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-wood-50 text-wood-800 border border-wood-100">
+                  <div className="bg-white border border-wood-200 p-8 h-full hover:border-gold-500 transition-colors flex flex-col">
+                    <div className="flex items-baseline justify-between mb-6">
+                      <span className="text-xs font-semibold tracking-wider text-gold-700">
                         {researchCategories.find(c => c.id === post.researchCategoryId)?.name || '연구글'}
                       </span>
                       <span className="text-xs font-medium text-wood-400">{formatDate(post.createdAt)}</span>
                     </div>
-                    <h3 className="text-xl font-bold text-wood-900 mb-4 line-clamp-2 leading-tight group-hover:text-wood-700 transition-colors">{post.title}</h3>
+                    <h3 className="text-xl font-serif font-bold text-wood-950 mb-4 line-clamp-2 leading-snug group-hover:underline decoration-gold-500 underline-offset-4">{post.title}</h3>
                     <p className="text-wood-600 line-clamp-3 mb-8 flex-grow text-sm leading-relaxed">{post.content.replace(/<[^>]*>?/gm, '')}</p>
-                    <div className="flex items-center justify-between text-xs font-bold text-wood-500 pt-5 border-t border-wood-50">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-wood-100 flex items-center justify-center text-[10px] text-wood-600">{post.authorName?.[0] || 'M'}</div>
-                        <span>{post.authorName}</span>
-                      </div>
-                      <span className="bg-wood-50 px-2 py-1 rounded-md">댓글 {post.commentCount || 0}</span>
+                    <div className="flex items-center justify-between text-xs font-medium text-wood-500 pt-5 border-t border-wood-200">
+                      <span>{post.authorName}</span>
+                      <span>댓글 {post.commentCount || 0}</span>
                     </div>
                   </div>
                 </Link>
-              </motion.div>
+              </div>
             ))}
           </div>
 
           {/* 페이지네이션 */}
           {(currentPage > 1 || currentResearch.hasMore) && (
             <div className="flex justify-center items-center gap-2 mt-16">
-              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
+              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || loading} className="p-3 rounded-sm border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors">
                 <ChevronLeft size={20} />
               </button>
-              <div className="px-5 py-3 rounded-xl bg-white border border-wood-200 text-sm font-bold text-wood-700 shadow-sm">
+              <div className="px-5 py-3 rounded-sm bg-white border border-wood-200 text-sm font-semibold text-wood-700">
                 {currentPage}
               </div>
-              <button onClick={() => handlePageChange(currentPage + 1)} disabled={!currentResearch.hasMore || loading} className="p-3 rounded-xl border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors shadow-sm">
+              <button onClick={() => handlePageChange(currentPage + 1)} disabled={!currentResearch.hasMore || loading} className="p-3 rounded-sm border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors">
                 <ChevronRight size={20} />
               </button>
             </div>

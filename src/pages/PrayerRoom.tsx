@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, increment, orderBy, limit, Timestamp } from 'firebase/firestore';
@@ -105,11 +104,11 @@ export default function PrayerRoom() {
   if (role !== 'regular' && role !== 'admin') {
     return (
       <div className="min-h-screen bg-[#f5f2ed] text-[#5a5a40] flex items-center justify-center p-4">
-        <div className="bg-[#ffffff]/80 p-8 rounded-2xl text-center shadow-lg border border-[#e5e7eb] max-w-sm">
+        <div className="bg-[#ffffff]/80 p-8 rounded-md text-center shadow-lg border border-[#e5e7eb] max-w-sm">
           <Lock className="mx-auto mb-4 h-10 w-10 text-[#5a5a40] opacity-60" />
           <h2 className="mb-3 text-lg font-bold">'기도자의 방'은 정회원 공간입니다</h2>
           <p className="mb-6 text-sm leading-6 opacity-80">정회원 성도님들이 서로의 짐을 나누는 은밀한 공간입니다. 목사님께 등급 조정을 요청해 주세요.</p>
-          <button onClick={() => navigate('/')} className="bg-[#5a5a40] text-white px-6 py-2 rounded-full font-bold hover:bg-[#4a4a35] transition">홈으로</button>
+          <button onClick={() => navigate('/')} className="bg-[#5a5a40] text-white px-6 py-2 rounded-sm font-bold hover:bg-[#4a4a35] transition">홈으로</button>
         </div>
       </div>
     );
@@ -178,25 +177,18 @@ export default function PrayerRoom() {
     <div className="min-h-screen bg-black">
       {/* New Post Notification Banner */}
       {hasNewPosts && (
-        <motion.div
-          initial={{ y: -100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4"
-        >
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4">
           <button
             onClick={() => fetchPrayers()}
-            className="w-full bg-[#f59e0b] text-black py-3 px-6 rounded-full font-bold shadow-2xl flex items-center justify-center gap-3 hover:bg-[#d97706] transition-all transform hover:scale-105 active:scale-95"
+            className="w-full bg-[#f59e0b] text-black py-3 px-6 rounded-sm font-bold shadow-lg flex items-center justify-center gap-3 hover:bg-[#d97706] transition-colors"
           >
-            <Bell size={18} className="animate-bounce" />
+            <Bell size={18} />
             <span>새로운 기도 제목이 있습니다. [보기]</span>
           </button>
-        </motion.div>
+        </div>
       )}
 
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 2, delay: 1 }}
+      <div
         className="min-h-screen bg-cover bg-center text-[#fef3c7] p-4 md:p-8 relative overflow-hidden" style={{ backgroundImage: `url(${BACKGROUND_IMAGE})` }}
       >
         <div className="absolute inset-0 bg-black/30 z-0"></div>
@@ -205,17 +197,13 @@ export default function PrayerRoom() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-32 h-full min-h-[calc(100vh-160px)]">
           {/* Left Side: Verse and Input - Vertically Centered */}
           <div className="flex flex-col justify-center h-full py-8">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 1.5, duration: 1 }}
-            >
-              <header className="text-center bg-[#1e1e1e]/60 p-8 rounded-2xl backdrop-blur-sm border border-[#333] mb-8">
+            <div>
+              <header className="text-center bg-[#1e1e1e]/60 p-8 rounded-md border border-[#333] mb-8">
                 <h1 className="font-serif text-xl md:text-2xl mb-4 text-[#fef3c7] leading-relaxed">"너는 기도할 때에 네 골방에 들어가 문을 닫고 은밀한 중에 계신 네 아버지께 기도하라..."</h1>
                 <p className="text-[#f59e0b] font-serif text-xl">- 마태복음 6:6 -</p>
               </header>
 
-              <form onSubmit={handleSubmit} className="bg-[#1e1e1e]/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg border border-[#333]">
+              <form onSubmit={handleSubmit} className="bg-[#1e1e1e]/80 p-8 rounded-md shadow-lg border border-[#333]">
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
@@ -228,30 +216,24 @@ export default function PrayerRoom() {
                     <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} className="accent-[#f59e0b]" />
                     <span className="text-sm">목사님께만 공개(비공개)</span>
                   </label>
-                  <button type="submit" className="bg-[#f59e0b] text-black px-8 py-3 rounded-full font-bold hover:bg-[#d97706] transition shadow-lg">기도 올리기</button>
+                  <button type="submit" className="bg-[#f59e0b] text-black px-8 py-3 rounded-sm font-bold hover:bg-[#d97706] transition">기도 올리기</button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
 
           {/* Right Side: Prayer Requests List with Scroll Indicator */}
           <div className="relative h-full max-h-[calc(100vh-160px)] flex flex-col">
             <div className="space-y-6 overflow-y-auto pr-2 no-scrollbar flex-1 pb-20">
               {requests.length === 0 ? (
-                <div className="text-center py-20 bg-[#1e1e1e]/40 rounded-2xl border border-[#333] backdrop-blur-sm">
+                <div className="text-center py-20 bg-[#1e1e1e]/40 rounded-md border border-[#333]">
                   <p className="text-[#fef3c7]/60 italic">아직 올라온 기도제목이 없습니다.</p>
                 </div>
               ) : (
-                requests.map((req, index) => (
-                  <motion.div 
-                    key={req.id} 
-                    initial={{ opacity: 0, y: 20 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ 
-                      delay: 1.8 + Math.min(index * 0.03, 0.4),
-                      ease: "easeOut"
-                    }}
-                    className="bg-[#2d2a1a]/80 backdrop-blur-sm p-6 rounded-2xl border border-[#f59e0b]/30 shadow-lg"
+                requests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="bg-[#2d2a1a]/80 p-6 rounded-md border border-[#f59e0b]/30"
                   >
                     <div className="flex justify-between items-start mb-4">
                       <p className="font-bold text-[#fef3c7]">{req.authorName}</p>
@@ -284,32 +266,28 @@ export default function PrayerRoom() {
                         </div>
                       </div>
                     ) : <p className="mb-6 whitespace-pre-wrap text-[#fef3c7] leading-relaxed">{req.content}</p>}
-                    <button onClick={() => handlePray(req.id, req.prayedBy || [])} className="flex items-center gap-2 text-[#f59e0b] hover:text-[#d97706] transition group">
-                      <Heart size={18} className={req.prayedBy?.includes(user?.uid || '') ? "fill-[#f59e0b]" : "group-hover:scale-110 transition-transform"} />
+                    <button onClick={() => handlePray(req.id, req.prayedBy || [])} className="flex items-center gap-2 text-[#f59e0b] hover:text-[#d97706] transition">
+                      <Heart size={18} className={req.prayedBy?.includes(user?.uid || '') ? "fill-[#f59e0b]" : ""} />
                       <span className="font-bold">함께 기도합니다 ({req.prayCount})</span>
                     </button>
-                  </motion.div>
+                  </div>
                 ))
               )}
             </div>
             
             {/* Scroll Indicator Gradient */}
             {requests.length > 2 && (
-              <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none rounded-b-2xl flex items-end justify-center pb-6">
-                <motion.div
-                  animate={{ y: [0, 8, 0] }}
-                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                  className="text-[#f59e0b] flex flex-col items-center gap-2"
-                >
-                  <span className="text-[10px] uppercase tracking-[0.2em] font-black drop-shadow-lg">기도제목 더보기</span>
-                  <div className="w-px h-12 bg-gradient-to-b from-[#f59e0b] to-transparent shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
-                </motion.div>
+              <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none flex items-end justify-center pb-6">
+                <div className="text-[#f59e0b] flex flex-col items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-[0.2em] font-bold">기도제목 더보기</span>
+                  <div className="w-px h-12 bg-gradient-to-b from-[#f59e0b] to-transparent"></div>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
     </div>
   );
 }

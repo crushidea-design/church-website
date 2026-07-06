@@ -4,7 +4,6 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
 import { MessageSquare, FileText, Calendar, Mail, BookOpen, Bell, Edit, Save, X, Plus } from 'lucide-react';
-import { motion } from 'motion/react';
 import { MAIN_NOTIFICATION_TOPIC, requestNotificationPermission } from '../services/notificationService';
 
 export default function Profile() {
@@ -174,14 +173,10 @@ export default function Profile() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Notification Permission UI - Prominent at the top */}
       {notificationStatus !== 'granted' && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gold-50 p-6 rounded-2xl border border-gold-200 shadow-sm mb-8"
-        >
+        <div className="bg-gold-50 p-6 rounded-md border border-gold-200 mb-8">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-            <div className="p-4 bg-white text-gold-600 rounded-2xl shadow-sm">
-              <Bell size={28} className="animate-pulse" />
+            <div className="p-4 bg-white text-gold-600 rounded-md border border-gold-200">
+              <Bell size={28} />
             </div>
             <div className="flex-1 text-center sm:text-left">
               <h3 className="text-lg font-bold text-wood-900 mb-1">매일 아침 말씀 알림을 받아보세요!</h3>
@@ -205,8 +200,8 @@ export default function Profile() {
               {notificationStatus !== 'unsupported' && (
                 <button
                   onClick={handleEnableNotifications}
-                  className={`w-full sm:w-auto px-8 py-3 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md flex items-center justify-center gap-2 ${
-                    notificationStatus === 'denied' ? 'bg-red-600 hover:bg-red-700' : 'bg-wood-900 hover:bg-wood-800'
+                  className={`w-full sm:w-auto px-8 py-3 text-white text-sm font-semibold rounded-sm transition-colors flex items-center justify-center gap-2 ${
+                    notificationStatus === 'denied' ? 'bg-coral-700 hover:bg-coral-800' : 'bg-wood-900 hover:bg-wood-800'
                   }`}
                 >
                   <Bell size={18} />
@@ -215,10 +210,10 @@ export default function Profile() {
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden mb-8">
+      <div className="bg-white rounded-md shadow-sm border border-wood-200 overflow-hidden mb-8">
         <div className="p-8 sm:p-10 bg-wood-50 border-b border-wood-200">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-6">
@@ -292,13 +287,13 @@ export default function Profile() {
                   <Link
                     key={post.id}
                     to={`/post/${post.id}`}
-                    className="block p-5 rounded-xl border border-wood-100 hover:border-wood-300 hover:shadow-sm transition-all bg-white"
+                    className="block p-5 rounded-md border border-wood-100 hover:border-wood-300 hover:shadow-sm transition-all bg-white"
                   >
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-lg font-medium text-wood-900 line-clamp-1">
                         {post.title}
                       </h3>
-                      <span className="text-xs font-medium px-2.5 py-1 bg-wood-100 text-wood-600 rounded-full whitespace-nowrap ml-4">
+                      <span className="text-xs font-medium px-2.5 py-1 bg-wood-100 text-wood-600 rounded-sm whitespace-nowrap ml-4">
                         {post.category === 'journal' ? '개척일지' : 
                          post.category === 'sermon' ? '설교' : 
                          post.category === 'research' ? '연구소' :
@@ -333,7 +328,7 @@ export default function Profile() {
                   <Link
                     key={comment.id}
                     to={`/post/${comment.postId}`}
-                    className="block p-5 rounded-xl border border-wood-100 hover:border-wood-300 hover:shadow-sm transition-all bg-white"
+                    className="block p-5 rounded-md border border-wood-100 hover:border-wood-300 hover:shadow-sm transition-all bg-white"
                   >
                     <p className="text-wood-800 mb-3 line-clamp-2">
                       {comment.content}
@@ -367,7 +362,7 @@ export default function Profile() {
                   return (
                     <div
                       key={reading.id}
-                      className="block p-5 rounded-xl border border-wood-100 bg-white"
+                      className="block p-5 rounded-md border border-wood-100 bg-white"
                     >
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
@@ -376,7 +371,7 @@ export default function Profile() {
                             {reading.date}
                           </h3>
                         </div>
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${isComplete ? 'bg-gold-100 text-gold-700' : 'bg-wood-100 text-wood-600'}`}>
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-sm ${isComplete ? 'bg-gold-100 text-gold-700' : 'bg-wood-100 text-wood-600'}`}>
                           {readCount} / {totalCount} 완료
                         </span>
                       </div>

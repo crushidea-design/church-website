@@ -372,7 +372,7 @@ export default function CreatePost() {
           돌아가기
         </button>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
+        <div className="bg-white rounded-md shadow-sm border border-wood-200 p-8 md:p-12">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-serif font-bold text-wood-900">
               {getTitle()}
@@ -381,7 +381,7 @@ export default function CreatePost() {
               type="submit"
               form="create-post-form"
               disabled={submitting}
-              className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
+              className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-sm shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
             >
               {submitting ? (
                 <div className="flex items-center">
@@ -393,7 +393,7 @@ export default function CreatePost() {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start text-red-700">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md flex items-start text-red-700">
               <div className="flex-shrink-0 mt-0.5">
                 <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -416,7 +416,7 @@ export default function CreatePost() {
                     id="researchCategoryId"
                     value={researchCategoryId}
                     onChange={(e) => setResearchCategoryId(e.target.value)}
-                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                    className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   >
                     {researchCategories.length === 0 ? (
                       <option value="">등록된 카테고리가 없습니다</option>
@@ -429,7 +429,7 @@ export default function CreatePost() {
                   <button
                     type="button"
                     onClick={() => navigate('/admin/research-categories')}
-                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    className="p-3 bg-wood-100 text-wood-600 rounded-md hover:bg-wood-200 transition"
                     title="카테고리 관리"
                   >
                     <Plus size={20} />
@@ -453,7 +453,7 @@ export default function CreatePost() {
                     id="sermonCategoryId"
                     value={sermonCategoryId}
                     onChange={(e) => setSermonCategoryId(e.target.value)}
-                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                    className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   >
                     {sermonCategories.length === 0 ? (
                       <option value="">등록된 카테고리가 없습니다</option>
@@ -466,7 +466,7 @@ export default function CreatePost() {
                   <button
                     type="button"
                     onClick={() => navigate('/admin/sermon-categories')}
-                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    className="p-3 bg-wood-100 text-wood-600 rounded-md hover:bg-wood-200 transition"
                     title="카테고리 관리"
                   >
                     <Plus size={20} />
@@ -489,7 +489,7 @@ export default function CreatePost() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                 placeholder="제목을 입력하세요"
                 required
                 maxLength={200}
@@ -497,7 +497,7 @@ export default function CreatePost() {
             </div>
 
             {type === 'today_word' && (
-              <div className="rounded-2xl border border-wood-200 bg-wood-50 p-4">
+              <div className="rounded-md border border-wood-200 bg-wood-50 p-4">
                 <label htmlFor="todayWordDate" className="block text-sm font-medium text-wood-700 mb-2">
                   묵상 대상 날짜
                 </label>
@@ -506,18 +506,18 @@ export default function CreatePost() {
                   id="todayWordDate"
                   value={todayWordDate}
                   onChange={(e) => setTodayWordDate(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 bg-white p-3 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm"
+                  className="block w-full rounded-md border-wood-300 bg-white p-3 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm"
                   required
                 />
                 <p className="mt-2 text-sm leading-6 text-wood-600">
                   이 날짜가 말씀 아카이브에서 가이드를 찾는 기준입니다. 실제 게시물을 미리 작성해도 등록일은 공개 화면에 표시되지 않습니다.
                 </p>
                 {todayWordReadings.length > 0 && (
-                  <div className="mt-3 rounded-xl border border-wood-200 bg-white p-3">
+                  <div className="mt-3 rounded-md border border-wood-200 bg-white p-3">
                     <p className="text-xs font-medium text-wood-500 mb-1.5">이 날짜의 맥체인 성경 읽기</p>
                     <div className="flex flex-wrap gap-1.5">
                       {todayWordReadings.map((passage, i) => (
-                        <span key={i} className="text-xs text-wood-700 bg-white border border-wood-200 rounded-full px-2.5 py-1">
+                        <span key={i} className="text-xs text-wood-700 bg-white border border-wood-200 rounded-sm px-2.5 py-1">
                           {passage.text}
                         </span>
                       ))}
@@ -537,7 +537,7 @@ export default function CreatePost() {
                   id="journalDate"
                   value={journalDate}
                   onChange={(e) => setJournalDate(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   required
                 />
               </div>
@@ -554,7 +554,7 @@ export default function CreatePost() {
                 rows={15}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
                 placeholder={type === 'journal' ? "오늘의 기록을 남겨주세요." : "내용을 입력하세요. 유튜브 링크를 포함하면 영상이 자동 삽입됩니다."}
                 required
                 maxLength={50000}
@@ -566,7 +566,7 @@ export default function CreatePost() {
                 <label className="block text-sm font-medium text-wood-700 mb-2">
                   PDF 파일 첨부 (선택)
                 </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-wood-300 border-dashed rounded-xl bg-wood-50 hover:bg-wood-100 transition-colors cursor-pointer relative">
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-wood-300 border-dashed rounded-md bg-wood-50 hover:bg-wood-100 transition-colors cursor-pointer relative">
                   <div className="space-y-1 text-center">
                     {pdfFile ? (
                       <div className="flex items-center justify-center space-x-2">
@@ -578,7 +578,7 @@ export default function CreatePost() {
                             e.stopPropagation();
                             setPdfFile(null);
                           }}
-                          className="p-1 hover:bg-wood-200 rounded-full transition"
+                          className="p-1 hover:bg-wood-200 rounded-sm transition"
                         >
                           <X className="h-4 w-4 text-wood-500" />
                         </button>
@@ -616,14 +616,14 @@ export default function CreatePost() {
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="mr-4 px-6 py-2.5 border border-wood-300 shadow-sm text-sm font-medium rounded-full text-wood-700 bg-white hover:bg-wood-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition"
+                className="mr-4 px-6 py-2.5 border border-wood-300 shadow-sm text-sm font-medium rounded-sm text-wood-700 bg-white hover:bg-wood-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition"
               >
                 취소
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
+                className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-sm shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
               >
                 {submitting ? (
                   <div className="flex items-center">
@@ -636,9 +636,9 @@ export default function CreatePost() {
             
             {submitting && uploadProgress > 0 && uploadProgress < 100 && (
               <div className="mt-4">
-                <div className="w-full bg-wood-200 rounded-full h-2.5">
+                <div className="w-full bg-wood-200 rounded-sm h-2.5">
                   <div 
-                    className="bg-wood-600 h-2.5 rounded-full transition-all duration-300" 
+                    className="bg-wood-600 h-2.5 rounded-sm transition-all duration-300" 
                     style={{ width: `${uploadProgress}%` }}
                   ></div>
                 </div>

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, where, orderBy, getDocs, doc, writeBatch, limit, startAfter } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -292,7 +291,7 @@ export default function Sermons() {
       <button
         onClick={handleRepairSortOrder}
         disabled={loading}
-        className="inline-flex items-center px-4 py-2 text-sm text-amber-600 hover:text-amber-700 transition-colors disabled:opacity-50 border border-amber-200 rounded-lg hover:bg-amber-50"
+        className="inline-flex items-center px-4 py-2 text-sm text-gold-700 hover:text-gold-800 transition-colors disabled:opacity-50 border border-gold-300 rounded-sm hover:bg-gold-50"
         title="정렬 데이터 복구"
       >
         <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -315,7 +314,7 @@ export default function Sermons() {
     return (
       <div className="bg-wood-100 min-h-screen py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-12 text-center">
+          <div className="bg-white rounded-md shadow-sm border border-wood-200 p-12 text-center">
             <Video className="mx-auto h-16 w-16 text-wood-300 mb-6" />
             <h2 className="text-3xl font-serif font-bold text-wood-900 mb-4">정회원 전용 공간입니다</h2>
             <p className="text-wood-600 text-lg mb-8">
@@ -324,7 +323,7 @@ export default function Sermons() {
             </p>
             <Link
               to="/"
-              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-full hover:bg-wood-800 transition shadow-sm font-medium"
+              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-sm hover:bg-wood-800 transition font-medium"
             >
               홈으로 돌아가기
             </Link>
@@ -359,10 +358,10 @@ export default function Sermons() {
                 setActiveTab(tab.id);
                 setSearchParams({ tab: tab.id });
               }}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+              className={`px-6 py-2.5 rounded-sm text-sm font-medium transition whitespace-nowrap border ${
                 activeTab === tab.id
-                  ? 'bg-wood-900 text-white shadow-sm'
-                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                  ? 'bg-wood-900 border-wood-900 text-white'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border-wood-200'
               }`}
             >
               {tab.name}
@@ -374,10 +373,10 @@ export default function Sermons() {
                 setActiveTab(UNCATEGORIZED_SERMON_TAB);
                 setSearchParams({ tab: UNCATEGORIZED_SERMON_TAB });
               }}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+              className={`px-6 py-2.5 rounded-sm text-sm font-medium transition whitespace-nowrap border ${
                 activeTab === UNCATEGORIZED_SERMON_TAB
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
+                  ? 'bg-gold-700 border-gold-700 text-white'
+                  : 'bg-white text-gold-700 hover:bg-gold-50 border-gold-300'
               }`}
             >
               카테고리 미지정
@@ -391,10 +390,10 @@ export default function Sermons() {
                 setActiveTab('past_sermons');
                 setSearchParams({ tab: 'past_sermons' });
               }}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+              className={`px-6 py-2.5 rounded-sm text-sm font-medium transition whitespace-nowrap border ${
                 activeTab === 'past_sermons'
-                  ? 'bg-wood-900 text-white shadow-sm'
-                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                  ? 'bg-wood-900 border-wood-900 text-white'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border-wood-200'
               }`}
             >
               지난 설교들
@@ -406,10 +405,10 @@ export default function Sermons() {
                 setActiveTab('pilgrims_progress');
                 setSearchParams({ tab: 'pilgrims_progress' });
               }}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+              className={`px-6 py-2.5 rounded-sm text-sm font-medium transition whitespace-nowrap border ${
                 activeTab === 'pilgrims_progress'
-                  ? 'bg-wood-900 text-white shadow-sm'
-                  : 'bg-white text-wood-600 hover:bg-wood-50 border border-wood-200'
+                  ? 'bg-wood-900 border-wood-900 text-white'
+                  : 'bg-white text-wood-600 hover:bg-wood-50 border-wood-200'
               }`}
             >
               천로역정
@@ -417,10 +416,10 @@ export default function Sermons() {
           )}
         </div>
 
-        <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-wood-200 shadow-sm self-end md:self-auto">
+        <div className="flex items-center gap-3 bg-white p-1.5 rounded-md border border-wood-200 shadow-sm self-end md:self-auto">
           <button
             onClick={() => setSortOrderDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-1 text-sm font-medium text-wood-600 hover:bg-wood-50 rounded-xl transition flex items-center gap-1"
+            className="px-3 py-1 text-sm font-medium text-wood-600 hover:bg-wood-50 rounded-md transition flex items-center gap-1"
           >
             <ArrowUpDown size={14} className="text-wood-400" />
             {sortOrderDirection === 'desc' ? '내림차순' : '오름차순'}
@@ -429,7 +428,7 @@ export default function Sermons() {
       </div>
 
       {error && (
-        <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-center font-medium">
+        <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md text-center font-medium">
           {error}
         </div>
       )}
@@ -439,7 +438,7 @@ export default function Sermons() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
         </div>
       ) : sortedVideos.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border border-wood-200">
+        <div className="text-center py-20 bg-white rounded-md border border-wood-200">
           <Video className="mx-auto h-12 w-12 text-wood-300 mb-4" />
           <h3 className="text-lg font-medium text-wood-900">등록된 영상이 없습니다</h3>
           <p className="mt-2 text-wood-500">곧 새로운 말씀 영상이 업데이트될 예정입니다.</p>
@@ -450,25 +449,16 @@ export default function Sermons() {
             {sortedVideos.map((video, index) => {
               const videoId = getYouTubeId(video.content);
               return (
-                <motion.div
-                  key={video.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ 
-                    delay: Math.min(index * 0.03, 0.4),
-                    ease: "easeOut"
-                  }}
-                >
+                <div key={video.id}>
                   <Link to={`/post/${video.id}`} className="block h-full group">
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-wood-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-full">
+                    <div className="bg-white overflow-hidden border border-wood-200 hover:border-gold-500 transition-colors flex flex-col h-full">
                       <div className="aspect-video bg-wood-900 relative">
                         {videoId ? (
                           <img
                             src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
                             alt={video.title}
                             loading="lazy"
-                            className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity duration-300"
+                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/0.jpg`;
                             }}
@@ -479,20 +469,18 @@ export default function Sermons() {
                           </div>
                         )}
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <PlayCircle className="text-white" size={32} />
-                          </div>
+                          <PlayCircle className="text-white/90" size={44} strokeWidth={1.25} />
                         </div>
                       </div>
                       <div className="p-6 flex-grow">
-                        <h3 className="text-lg font-bold text-wood-900 mb-2 line-clamp-2">{video.title}</h3>
+                        <h3 className="text-lg font-serif font-bold text-wood-950 mb-2 line-clamp-2 leading-snug">{video.title}</h3>
                         <p className="text-sm text-wood-500">
                           {formatDate(video.createdAt)}
                         </p>
                       </div>
                     </div>
                   </Link>
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -503,19 +491,19 @@ export default function Sermons() {
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1 || loading}
-                className="p-2 rounded-lg border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
+                className="p-2 rounded-sm border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
               >
                 <ChevronLeft size={20} />
               </button>
               
-              <div className="px-4 py-2 rounded-lg bg-white border border-wood-200 text-sm font-bold text-wood-700">
+              <div className="px-4 py-2 rounded-sm bg-white border border-wood-200 text-sm font-semibold text-wood-700">
                 {currentPage}
               </div>
 
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={!currentSermons.hasMore || loading}
-                className="p-2 rounded-lg border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
+                className="p-2 rounded-sm border border-wood-200 text-wood-600 hover:bg-wood-50 disabled:opacity-30 transition-colors"
               >
                 <ChevronRight size={20} />
               </button>

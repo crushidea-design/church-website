@@ -215,7 +215,7 @@ export default function AdminChurchInfo() {
       icon={<Info size={14} />}
       maxWidthClassName="max-w-4xl"
     >
-        <div className="bg-white rounded-3xl shadow-sm border border-wood-200 overflow-hidden">
+        <div className="bg-white rounded-md shadow-sm border border-wood-200 overflow-hidden">
           <div className="border-b border-wood-200 px-8 md:px-12 pt-4 bg-white">
             <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
               {tabs.map((tab) => (
@@ -236,7 +236,7 @@ export default function AdminChurchInfo() {
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 md:p-12 space-y-8">
-            <div className="bg-blue-50 p-4 rounded-xl flex items-start gap-3 text-blue-800 border border-blue-100 mb-8">
+            <div className="bg-blue-50 p-4 rounded-md flex items-start gap-3 text-blue-800 border border-blue-100 mb-8">
               <Info size={20} className="mt-0.5 flex-shrink-0" />
               <p className="text-sm leading-relaxed">
                 이곳에서 수정하는 내용은 '교회 소개' 페이지에 즉시 반영됩니다. 
@@ -251,11 +251,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">첫 번째 섹션</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                    <input type="text" value={introTitle1} onChange={(e) => setIntroTitle1(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={introTitle1} onChange={(e) => setIntroTitle1(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={4} value={introContent1} onChange={(e) => setIntroContent1(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={4} value={introContent1} onChange={(e) => setIntroContent1(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -263,18 +263,18 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">두 번째 섹션</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                    <input type="text" value={introTitle2} onChange={(e) => setIntroTitle2(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={introTitle2} onChange={(e) => setIntroTitle2(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={4} value={introContent2} onChange={(e) => setIntroContent2(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={4} value={introContent2} onChange={(e) => setIntroContent2(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">인용구 (강조 텍스트)</h3>
                   <div>
-                    <textarea rows={4} value={quote} onChange={(e) => setQuote(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50 font-serif italic" required />
+                    <textarea rows={4} value={quote} onChange={(e) => setQuote(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50 font-serif italic" required />
                   </div>
                 </div>
               </div>
@@ -288,16 +288,16 @@ export default function AdminChurchInfo() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">인용구</label>
-                      <input type="text" value={nameQuote} onChange={(e) => setNameQuote(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={nameQuote} onChange={(e) => setNameQuote(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">출처</label>
-                      <input type="text" value={nameQuoteSource} onChange={(e) => setNameQuoteSource(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={nameQuoteSource} onChange={(e) => setNameQuoteSource(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">설명</label>
-                    <textarea rows={3} value={nameDescription} onChange={(e) => setNameDescription(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={3} value={nameDescription} onChange={(e) => setNameDescription(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -305,11 +305,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">의미 소개</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">섹션 제목</label>
-                    <input type="text" value={nameMeaningTitle} onChange={(e) => setNameMeaningTitle(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={nameMeaningTitle} onChange={(e) => setNameMeaningTitle(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">도입부 설명</label>
-                    <textarea rows={2} value={nameMeaningIntro} onChange={(e) => setNameMeaningIntro(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={2} value={nameMeaningIntro} onChange={(e) => setNameMeaningIntro(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -317,11 +317,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">포인트 1</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                    <input type="text" value={namePoint1Title} onChange={(e) => setNamePoint1Title(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={namePoint1Title} onChange={(e) => setNamePoint1Title(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={2} value={namePoint1Desc} onChange={(e) => setNamePoint1Desc(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={2} value={namePoint1Desc} onChange={(e) => setNamePoint1Desc(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -330,16 +330,16 @@ export default function AdminChurchInfo() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                      <input type="text" value={namePoint2Title} onChange={(e) => setNamePoint2Title(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={namePoint2Title} onChange={(e) => setNamePoint2Title(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">부제목 (라틴어 등)</label>
-                      <input type="text" value={namePoint2Sub} onChange={(e) => setNamePoint2Sub(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={namePoint2Sub} onChange={(e) => setNamePoint2Sub(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={2} value={namePoint2Desc} onChange={(e) => setNamePoint2Desc(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={2} value={namePoint2Desc} onChange={(e) => setNamePoint2Desc(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
               </div>
@@ -352,11 +352,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">메인 타이틀 및 설명</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">섹션 제목</label>
-                    <input type="text" value={visionTitle} onChange={(e) => setVisionTitle(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={visionTitle} onChange={(e) => setVisionTitle(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">주요 설명</label>
-                    <textarea rows={3} value={visionDesc} onChange={(e) => setVisionDesc(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={3} value={visionDesc} onChange={(e) => setVisionDesc(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -364,11 +364,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">비전 1</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                    <input type="text" value={visionPoint1Title} onChange={(e) => setVisionPoint1Title(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={visionPoint1Title} onChange={(e) => setVisionPoint1Title(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={2} value={visionPoint1Desc} onChange={(e) => setVisionPoint1Desc(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={2} value={visionPoint1Desc} onChange={(e) => setVisionPoint1Desc(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -376,11 +376,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">비전 2</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                    <input type="text" value={visionPoint2Title} onChange={(e) => setVisionPoint2Title(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={visionPoint2Title} onChange={(e) => setVisionPoint2Title(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={2} value={visionPoint2Desc} onChange={(e) => setVisionPoint2Desc(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={2} value={visionPoint2Desc} onChange={(e) => setVisionPoint2Desc(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
 
@@ -388,11 +388,11 @@ export default function AdminChurchInfo() {
                   <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">비전 3</h3>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                    <input type="text" value={visionPoint3Title} onChange={(e) => setVisionPoint3Title(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <input type="text" value={visionPoint3Title} onChange={(e) => setVisionPoint3Title(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                    <textarea rows={2} value={visionPoint3Desc} onChange={(e) => setVisionPoint3Desc(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                    <textarea rows={2} value={visionPoint3Desc} onChange={(e) => setVisionPoint3Desc(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                   </div>
                 </div>
               </div>
@@ -406,11 +406,11 @@ export default function AdminChurchInfo() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                      <input type="text" value={ciTitle} onChange={(e) => setCiTitle(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={ciTitle} onChange={(e) => setCiTitle(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">부제목</label>
-                      <input type="text" value={ciSub} onChange={(e) => setCiSub(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={ciSub} onChange={(e) => setCiSub(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                   </div>
                 </div>
@@ -426,11 +426,11 @@ export default function AdminChurchInfo() {
                     <h3 className="text-lg font-bold text-wood-900 border-b border-wood-100 pb-2">포인트 {item.num}</h3>
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">제목</label>
-                      <input type="text" value={item.t} onChange={(e) => item.setT(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <input type="text" value={item.t} onChange={(e) => item.setT(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-wood-700 mb-2">내용</label>
-                      <textarea rows={3} value={item.d} onChange={(e) => item.setD(e.target.value)} className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
+                      <textarea rows={3} value={item.d} onChange={(e) => item.setD(e.target.value)} className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50" required />
                     </div>
                   </div>
                 ))}

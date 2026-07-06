@@ -74,7 +74,7 @@ export default function TodayWord() {
       <ArchiveIntroSection description="매일의 성경 읽기와 묵상 가이드라인을 통해 하나님의 말씀을 깊이 있게 만나는 시간입니다." />
 
       {/* 오늘의 묵상 읽기표 섹션 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
+      <div className="bg-white rounded-md border border-wood-200 overflow-hidden">
         <div className="bg-wood-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h2 className="text-xl font-serif font-bold text-white flex items-center gap-2">
             <CalendarIcon size={20} className="text-gold-400" />
@@ -90,7 +90,7 @@ export default function TodayWord() {
                 dateInputRef.current?.click();
               }
             }}
-            className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl border border-white/20 hover:bg-white/20 transition-colors cursor-pointer relative group"
+            className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer relative group"
           >
             <CalendarIcon size={16} className="text-white/80 group-hover:text-white transition-colors" />
             <span className="text-white font-medium">{dateStr}</span>
@@ -108,7 +108,7 @@ export default function TodayWord() {
         </div>
         <div className="p-6">
           {isSelectedLeapDay && (
-            <div className="mb-4 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 text-sm text-wood-800">
+            <div className="mb-4 rounded-sm border border-gold-300 bg-gold-50 px-4 py-3 text-sm text-wood-800">
               2월 29일은 윤년 보정일입니다. 맥체인 성경읽기표는 365일 기준이므로 오늘은 밀린 본문을 보충하거나 2월 28일 본문을 다시 읽으며 묵상해 주세요.
             </div>
           )}
@@ -116,7 +116,7 @@ export default function TodayWord() {
           {readingPlan.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {readingPlan.map((passage, index) => (
-                <div key={index} className="bg-wood-50 rounded-xl p-4 border border-wood-100 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                <div key={index} className="bg-wood-50 rounded-sm p-4 border border-wood-200 flex flex-col items-center justify-center text-center relative overflow-hidden">
                   {/* Checkbox for reading progress */}
                   <button 
                     onClick={() => handleToggleProgress(index)}
@@ -136,14 +136,14 @@ export default function TodayWord() {
                   <div className="flex gap-2">
                     <button 
                       onClick={() => openBridgeModal(passage.gaeLink, '개역개정')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-wood-100 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-200 hover:text-wood-900 transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-wood-200 text-wood-700 rounded-sm text-sm font-medium hover:border-wood-400 hover:text-wood-900 transition-colors"
                     >
                       <BookOpen size={14} />
                       개역개정
                     </button>
                     <button 
                       onClick={() => openBridgeModal(passage.saeHangeulLink, '새한글성경')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-wood-100 text-wood-700 rounded-full text-sm font-medium hover:bg-wood-200 hover:text-wood-900 transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-wood-200 text-wood-700 rounded-sm text-sm font-medium hover:border-wood-400 hover:text-wood-900 transition-colors"
                     >
                       <BookOpen size={14} />
                       새한글성경
@@ -153,7 +153,7 @@ export default function TodayWord() {
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-wood-200 bg-wood-50 px-4 py-8 text-center text-wood-600">
+            <div className="rounded-sm border border-wood-200 bg-wood-50 px-4 py-8 text-center text-wood-600">
               오늘은 별도의 읽기표를 표시하지 않습니다.
             </div>
           )}
@@ -162,8 +162,8 @@ export default function TodayWord() {
 
       {/* Bridge Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl border border-wood-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-md shadow-lg border border-wood-200 max-w-md w-full overflow-hidden">
             <div className="bg-wood-900 p-4 text-center">
               <BookOpen className="mx-auto text-gold-400 mb-2" size={32} />
               <h3 className="text-xl font-serif font-bold text-white">외부 사이트 이동 안내</h3>
@@ -179,14 +179,14 @@ export default function TodayWord() {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={handleOpenBible}
-                  className="w-full py-3 bg-wood-900 text-white rounded-xl font-bold hover:bg-wood-800 transition-all shadow-lg shadow-wood-200 flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-wood-900 text-white rounded-sm font-semibold hover:bg-wood-800 transition-colors flex items-center justify-center gap-2"
                 >
                   {selectedVersion} 읽기 시작
                   <ExternalLink size={16} />
                 </button>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="w-full py-3 bg-white text-wood-500 border border-wood-200 rounded-xl font-medium hover:bg-wood-50 transition-colors"
+                  className="w-full py-3 bg-white text-wood-500 border border-wood-200 rounded-sm font-medium hover:bg-wood-50 transition-colors"
                 >
                   취소
                 </button>
@@ -197,7 +197,7 @@ export default function TodayWord() {
       )}
 
       {/* 묵상 가이드라인 섹션 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-6 md:p-8">
+      <div className="bg-white rounded-md border border-wood-200 p-6 md:p-8">
         <div className="flex flex-col gap-4 mb-6 border-b border-wood-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-2xl font-serif font-bold text-wood-900">묵상 가이드</h3>
@@ -206,7 +206,7 @@ export default function TodayWord() {
           {role === 'admin' && (
             <Link
               to={`/create-post?type=today_word&date=${dateStr}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-wood-900 text-white text-sm font-medium rounded-full hover:bg-wood-800 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-wood-900 text-white text-sm font-medium rounded-sm hover:bg-wood-800 transition-colors"
             >
               <Edit size={16} />
               이 날짜 가이드 작성
@@ -229,14 +229,14 @@ export default function TodayWord() {
             </div>
           </div>
         ) : (
-          <div className="py-12 text-center text-wood-500 bg-wood-50 rounded-xl border border-wood-100 border-dashed mb-8">
+          <div className="py-12 text-center text-wood-500 bg-wood-50 rounded-sm border border-wood-200 border-dashed mb-8">
             <BookOpen size={48} className="mx-auto mb-4 opacity-20" />
             <p>{dateStr}에 등록된 묵상 가이드가 없습니다.</p>
           </div>
         )}
 
         {/* 오늘의 한줄 묵상 (Private) */}
-        <div className="mt-8 bg-wood-50 rounded-xl p-6 border border-wood-100">
+        <div className="mt-8 bg-wood-50 rounded-sm p-6 border border-wood-200">
           <div className="flex justify-between items-center mb-4">
             <h4 className="text-lg font-bold text-wood-900 flex items-center gap-2">
               <Edit size={18} className="text-wood-500" />
@@ -250,7 +250,7 @@ export default function TodayWord() {
                 <button
                   onClick={() => saveProgress()}
                   disabled={savingProgress}
-                  className="px-4 py-1.5 bg-wood-900 text-white text-sm font-bold rounded-lg hover:bg-wood-800 transition-colors disabled:opacity-50"
+                  className="px-4 py-1.5 bg-wood-900 text-white text-sm font-semibold rounded-sm hover:bg-wood-800 transition-colors disabled:opacity-50"
                 >
                   저장
                 </button>
@@ -261,7 +261,7 @@ export default function TodayWord() {
             value={meditation}
             onChange={handleMeditationChange}
             placeholder="다른 사람에게 공개되지 않습니다. 나의 묵상을 자유롭게 작성해보세요."
-            className="w-full bg-white border border-wood-200 rounded-xl p-4 text-wood-800 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none resize-none transition-shadow placeholder:text-wood-300"
+            className="w-full bg-white border border-wood-200 rounded-sm p-4 text-wood-800 focus:border-wood-500 outline-none resize-none transition-colors placeholder:text-wood-300"
             rows={3}
           />
           {!user && (

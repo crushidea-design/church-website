@@ -84,7 +84,7 @@ export default function AdminUsers() {
       maxWidthClassName="max-w-7xl"
     >
 
-        <div className="bg-white rounded-2xl shadow-sm border border-wood-200 overflow-hidden">
+        <div className="bg-white rounded-md shadow-sm border border-wood-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -208,9 +208,9 @@ export default function AdminUsers() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
+          <div className="bg-white p-6 rounded-md border border-wood-200 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+              <div className="w-10 h-10 rounded-md bg-purple-50 flex items-center justify-center text-purple-600">
                 <Shield size={20} />
               </div>
               <h3 className="font-bold text-wood-900">관리자 (Admin)</h3>
@@ -219,9 +219,9 @@ export default function AdminUsers() {
               모든 게시글 작성, 수정, 삭제 권한을 가집니다. 회원 등급을 관리하고 시스템 설정을 변경할 수 있습니다.
             </p>
           </div>
-          <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
+          <div className="bg-white p-6 rounded-md border border-wood-200 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gold-50 flex items-center justify-center text-gold-600">
+              <div className="w-10 h-10 rounded-md bg-gold-50 flex items-center justify-center text-gold-600">
                 <CheckCircle2 size={20} />
               </div>
               <h3 className="font-bold text-wood-900">정회원 (Regular)</h3>
@@ -230,9 +230,9 @@ export default function AdminUsers() {
               말씀 서재의 모든 영상을 시청할 수 있습니다. 소통 게시판에서 자유롭게 활동할 수 있습니다.
             </p>
           </div>
-          <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
+          <div className="bg-white p-6 rounded-md border border-wood-200 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+              <div className="w-10 h-10 rounded-md bg-amber-50 flex items-center justify-center text-amber-600">
                 <UserIcon size={20} />
               </div>
               <h3 className="font-bold text-wood-900">학생 (Student)</h3>
@@ -241,9 +241,9 @@ export default function AdminUsers() {
               다음세대 학생 회원으로 구분됩니다. 정회원 전용 공간은 별도 승인 전까지 제한됩니다.
             </p>
           </div>
-          <div className="bg-white p-6 rounded-2xl border border-wood-200 shadow-sm">
+          <div className="bg-white p-6 rounded-md border border-wood-200 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-wood-50 flex items-center justify-center text-wood-600">
+              <div className="w-10 h-10 rounded-md bg-wood-50 flex items-center justify-center text-wood-600">
                 <AlertCircle size={20} />
               </div>
               <h3 className="font-bold text-wood-900">일반회원 (User)</h3>

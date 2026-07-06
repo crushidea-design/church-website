@@ -49,7 +49,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
       return (
         <div className="min-h-screen flex items-center justify-center bg-wood-50 p-4">
-          <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center border border-wood-200">
+          <div className="max-w-md w-full bg-white rounded-md shadow-lg p-8 text-center border border-wood-200">
             <h2 className={`text-2xl font-bold ${isQuotaError ? 'text-wood-900' : 'text-red-600'} mb-4 font-serif`}>
               {isQuotaError ? '알림' : '오류가 발생했습니다'}
             </h2>

@@ -84,7 +84,7 @@ export function ScheduleTab({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#dbe3e8] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-md border border-[#dbe3e8] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#607080]">Ministry Schedule</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#17202b]">사역 일정</h2>
@@ -459,7 +459,7 @@ export function SchedulePopupForm({
     <form
       data-schedule-popup="true"
       onSubmit={onSubmit}
-      className="fixed left-1/2 top-[max(6rem,12vh)] z-[80] max-h-[78vh] w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[#cbd8df] bg-white p-4 text-left shadow-[0_22px_58px_rgba(21,38,57,0.22)]"
+      className="fixed left-1/2 top-[max(6rem,12vh)] z-[80] max-h-[78vh] w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-md border border-[#cbd8df] bg-white p-4 text-left shadow-[0_22px_58px_rgba(21,38,57,0.22)]"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
@@ -548,7 +548,7 @@ export function WeekScheduleGrid({
         {days.map((day) => (
           <div
             key={day.dateIso}
-            className={`relative min-h-[150px] overflow-visible rounded-xl border p-3 transition ${
+            className={`relative min-h-[150px] overflow-visible rounded-md border p-3 transition ${
               day.isToday ? 'border-[#2e6b5f] bg-[#eef7f3] shadow-[inset_0_0_0_1px_rgba(46,107,95,0.16)]' : 'border-[#dbe3e8] bg-[#f8fafb]'
             }`}
           >
@@ -675,7 +675,7 @@ export function MonthScheduleGrid({
             {days.map((day) => (
               <div
                 key={day.dateIso}
-                className={`relative min-h-[128px] overflow-visible rounded-xl border p-2 transition ${
+                className={`relative min-h-[128px] overflow-visible rounded-md border p-2 transition ${
                   day.isToday
                     ? 'border-[#2e6b5f] bg-[#eef7f3] shadow-[inset_0_0_0_1px_rgba(46,107,95,0.16)]'
                     : day.isCurrentMonth

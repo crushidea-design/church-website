@@ -410,7 +410,7 @@ export default function AdminNotifications() {
       }
     >
       <div className="space-y-8">
-        <div className="rounded-[2rem] border border-wood-200 bg-white p-8 shadow-sm">
+        <div className="rounded-md border border-wood-200 bg-white p-8 shadow-sm">
           <div className="mb-8 rounded-[1.5rem] border border-orange-100 bg-orange-50 p-5">
             <div className="flex items-start gap-3">
               <Users className="mt-0.5 text-orange-600" />
@@ -473,7 +473,7 @@ export default function AdminNotifications() {
                         value={scheduledDate}
                         onChange={(event) => setScheduledDate(event.target.value)}
                         min={new Date().toISOString().split('T')[0]}
-                        className="w-full rounded-xl border border-wood-200 px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-gold-500"
+                        className="w-full rounded-md border border-wood-200 px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-gold-500"
                       />
                     </div>
                     <div>
@@ -482,7 +482,7 @@ export default function AdminNotifications() {
                         <select
                           value={scheduledTime}
                           onChange={(event) => setScheduledTime(event.target.value)}
-                          className="w-full appearance-none rounded-xl border border-wood-200 bg-white px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-gold-500"
+                          className="w-full appearance-none rounded-md border border-wood-200 bg-white px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-gold-500"
                         >
                           {Array.from({ length: 24 }).map((_, index) => {
                             const hour = index.toString().padStart(2, '0');
@@ -542,7 +542,7 @@ export default function AdminNotifications() {
                       {usersWithTokens.map((entry) => (
                         <label
                           key={entry.uid}
-                          className="flex cursor-pointer items-center gap-3 rounded-xl p-3 transition hover:bg-white"
+                          className="flex cursor-pointer items-center gap-3 rounded-md p-3 transition hover:bg-white"
                         >
                           <input
                             type="checkbox"
@@ -575,7 +575,7 @@ export default function AdminNotifications() {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="예: 이번 주 예배 안내"
-                className="w-full rounded-xl border border-wood-200 px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
+                className="w-full rounded-md border border-wood-200 px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
                 required
               />
             </div>
@@ -587,7 +587,7 @@ export default function AdminNotifications() {
                 onChange={(event) => setBody(event.target.value)}
                 placeholder="성도들에게 전달할 핵심 내용을 입력해 주세요."
                 rows={4}
-                className="w-full resize-none rounded-xl border border-wood-200 px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
+                className="w-full resize-none rounded-md border border-wood-200 px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
                 required
               />
             </div>
@@ -599,7 +599,7 @@ export default function AdminNotifications() {
                   <select
                     value={selectedCategory}
                     onChange={(event) => setSelectedCategory(event.target.value)}
-                    className="w-full appearance-none rounded-xl border border-wood-200 bg-white px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
+                    className="w-full appearance-none rounded-md border border-wood-200 bg-white px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
                   >
                     {CATEGORIES.map((category) => (
                       <option key={category.id} value={category.id}>
@@ -616,7 +616,7 @@ export default function AdminNotifications() {
                       value={selectedPostId}
                       onChange={(event) => handlePostSelect(event.target.value)}
                       disabled={loadingPosts || posts.length === 0}
-                      className="w-full appearance-none rounded-xl border border-wood-200 bg-white px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500 disabled:bg-wood-50"
+                      className="w-full appearance-none rounded-md border border-wood-200 bg-white px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500 disabled:bg-wood-50"
                     >
                       <option value="">목록으로 이동</option>
                       {posts.map((post) => (
@@ -640,12 +640,12 @@ export default function AdminNotifications() {
                   value={targetUrl}
                   onChange={(event) => setTargetUrl(event.target.value)}
                   placeholder="예: /journal/123"
-                  className="w-full rounded-xl border border-wood-200 px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
+                  className="w-full rounded-md border border-wood-200 px-4 py-3 outline-none transition focus:ring-2 focus:ring-gold-500"
                 />
               )}
 
               {selectedCategory !== 'manual' && (
-                <div className="rounded-xl border border-wood-100 bg-wood-50 px-4 py-3">
+                <div className="rounded-md border border-wood-100 bg-wood-50 px-4 py-3">
                   <p className="text-sm text-wood-600">
                     <span className="font-medium text-wood-800">선택된 분류:</span> {selectedCategoryLabel}
                   </p>
@@ -658,7 +658,7 @@ export default function AdminNotifications() {
 
             {status && (
               <div
-                className={`flex items-center gap-3 rounded-xl border p-4 ${
+                className={`flex items-center gap-3 rounded-md border p-4 ${
                   status.type === 'success'
                     ? 'border-green-100 bg-green-50 text-green-700'
                     : 'border-red-100 bg-red-50 text-red-700'
@@ -674,14 +674,14 @@ export default function AdminNotifications() {
                 type="button"
                 onClick={handleSendTestNotification}
                 disabled={loading || !title || !body}
-                className="flex-1 rounded-xl bg-wood-100 py-4 font-bold text-wood-700 transition hover:bg-wood-200 disabled:opacity-50"
+                className="flex-1 rounded-md bg-wood-100 py-4 font-bold text-wood-700 transition hover:bg-wood-200 disabled:opacity-50"
               >
                 내 기기로 테스트 발송
               </button>
               <button
                 type="submit"
                 disabled={loading || !title || !body || tokenCount === 0 || (targetAudience === 'specific' && selectedUserIds.length === 0)}
-                className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-wood-900 py-4 font-bold text-white shadow-lg transition hover:bg-wood-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex flex-[1.6] items-center justify-center gap-2 rounded-md bg-wood-900 py-4 font-bold text-white shadow-lg transition hover:bg-wood-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (
                   <Loader2 className="animate-spin" size={20} />

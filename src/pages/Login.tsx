@@ -146,7 +146,7 @@ export default function Login() {
         </div>
 
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-wood-200">
+          <div className="bg-white py-8 px-4 shadow sm:rounded-md sm:px-10 border border-wood-200">
             <form className="space-y-6" onSubmit={handleResetPassword}>
               {error && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
@@ -228,7 +228,7 @@ export default function Login() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-wood-200">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-md sm:px-10 border border-wood-200">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
