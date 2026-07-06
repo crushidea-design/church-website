@@ -9,29 +9,41 @@
   --color-wood-500: #8b5e3c;
   --color-wood-400: #a67c52;
   --color-wood-300: #c19a6b;
-  --color-wood-200: #dcb884;
+  --color-wood-200: #e6d9c5;
   --color-wood-100: #fdfaf6;
   --color-wood-50: #fefcf9;
-  
+
   --color-forest-900: #1a2a1d;
   --color-forest-800: #2a3d2e;
   --color-forest-700: #3d5a40;
-  
+  --color-forest-600: #4b6b50;
+  --color-forest-100: #e5ece6;
+
+  --color-gold-800: #6b5330;
+  --color-gold-700: #86683a;
+  --color-gold-600: #a98544;
   --color-gold-500: #c5a059;
   --color-gold-400: #d4b47a;
+  --color-gold-300: #ddc496;
+  --color-gold-200: #e9d9b8;
+  --color-gold-100: #f3ead8;
+  --color-gold-50: #faf6ee;
 
   --color-coral-800: #9f2f23;
   --color-coral-700: #c84032;
   --color-coral-600: #e95440;
   --color-coral-100: #ffe1dc;
-  
-  --font-serif: "Cormorant Garamond", "Playfair Display", serif;
-  --font-sans: "Inter", system-ui, sans-serif;
+
+  --font-serif: "Noto Serif KR", "Apple SD Gothic Neo", Georgia, serif;
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+    "Noto Sans KR", system-ui, sans-serif;
 }
 
 @layer base {
   body {
-    @apply bg-wood-100 text-wood-900;
+    @apply bg-wood-100 text-wood-900 antialiased;
+    letter-spacing: -0.01em;
+    word-break: keep-all;
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -39,5 +51,12 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+}
+
+@layer components {
+  /* 절제된 편집 디자인 공통 요소 */
+  .overline-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.25em] text-gold-700;
   }
 }

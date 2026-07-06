@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { Edit2, Check, X as CloseIcon, BookOpen, Heart, Users } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -162,40 +161,37 @@ export default function Introduction() {
     <div className="bg-white pt-5 pb-16 sm:pt-10 sm:pb-24">
       <SiteCmsSections pageSlug="introduction" placement="top" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
+        <div>
           <div className="mb-16">
             <div className="text-center mb-12">
-              <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">교회 소개</h1>
-              <div className="w-24 h-1 bg-gold-500 mx-auto" />
+              <p className="overline-label mb-3">About</p>
+              <h1 className="text-4xl font-serif font-bold text-wood-950 mb-5">교회 소개</h1>
+              <div className="w-10 h-px bg-gold-600 mx-auto" />
             </div>
 
             {/* Quote and Description at the top */}
-            <div className="mb-16 space-y-6 text-center max-w-4xl mx-auto">
-              <div className="bg-wood-50 p-6 sm:p-8 rounded-3xl border-l-4 border-r-4 border-wood-900 shadow-sm">
-                <p className="font-serif italic text-wood-900 text-xl sm:text-2xl leading-relaxed">
-                  {nameQuote} <span className="block mt-3 text-base text-wood-600 not-italic">{nameQuoteSource}</span>
+            <div className="mb-16 space-y-8 text-center max-w-4xl mx-auto">
+              <blockquote className="border-y border-wood-200 py-8">
+                <p className="font-serif text-wood-900 text-xl sm:text-2xl leading-relaxed">
+                  {nameQuote} <span className="block mt-3 text-sm text-wood-500">{nameQuoteSource}</span>
                 </p>
-              </div>
-              
-              <p className="text-wood-800 text-lg sm:text-xl leading-relaxed font-medium">
+              </blockquote>
+
+              <p className="text-wood-800 text-lg leading-relaxed">
                 {nameDescription}
               </p>
             </div>
 
-            <div className="bg-white rounded-[2rem] shadow-sm border border-wood-100 p-6 md:p-8">
+            <div className="border border-wood-200 bg-white p-4 md:p-6">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-stretch">
                 {/* Logo Button */}
                 <div className="lg:col-span-3 flex justify-center lg:justify-start">
                   <button
                     onClick={() => setShowLogoModal(true)}
-                    className="group flex flex-col items-center w-full h-full transition-all duration-500"
+                    className="group flex flex-col items-center w-full h-full"
                   >
-                    <div className="w-full h-full min-h-[120px] lg:min-h-[200px] pt-8 pb-4 lg:pt-10 lg:pb-6 px-4 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex flex-col items-center justify-center relative">
-                      <Logo className="w-28 h-28 lg:w-[160px] lg:h-[160px] group-hover:scale-110 transition-transform duration-700 drop-shadow-md" />
+                    <div className="w-full h-full min-h-[120px] lg:min-h-[200px] pt-8 pb-4 lg:pt-10 lg:pb-6 px-4 bg-wood-50 border border-wood-200 group-hover:border-gold-500 transition-colors flex flex-col items-center justify-center relative">
+                      <Logo className="w-28 h-28 lg:w-[160px] lg:h-[160px]" />
                       <span className="absolute top-4 lg:top-6 left-6 sm:left-8 text-xs sm:text-sm text-wood-400 font-medium tracking-tight group-hover:text-wood-600 transition-colors">로고 의미 보기</span>
                     </div>
                   </button>
@@ -205,10 +201,10 @@ export default function Introduction() {
                 <div className="lg:col-span-9 flex justify-center lg:justify-start">
                   <button
                     onClick={() => setShowNameModal(true)}
-                    className="group flex flex-col items-center lg:items-start w-full h-full transition-all duration-500"
+                    className="group flex flex-col items-center lg:items-start w-full h-full"
                   >
-                    <div className="w-full h-full min-h-[120px] lg:min-h-[200px] pt-8 pb-4 lg:pt-10 lg:pb-6 px-6 sm:px-8 lg:px-10 bg-stone-50 rounded-[2.5rem] border border-stone-100 shadow-sm group-hover:shadow-xl group-hover:bg-white transition-all duration-500 transform group-hover:-translate-y-2 flex flex-col justify-center relative">
-                      <div className="w-full flex flex-col justify-center group-hover:scale-105 transition-transform duration-700 origin-center lg:origin-left">
+                    <div className="w-full h-full min-h-[120px] lg:min-h-[200px] pt-8 pb-4 lg:pt-10 lg:pb-6 px-6 sm:px-8 lg:px-10 bg-wood-50 border border-wood-200 group-hover:border-gold-500 transition-colors flex flex-col justify-center relative">
+                      <div className="w-full flex flex-col justify-center">
                         <div className="flex justify-between font-serif font-bold text-[1.3rem] min-[400px]:text-2xl sm:text-4xl lg:text-[3rem] text-wood-900 leading-tight w-full">
                           {Array.from("함께 지어져가는 교회").map((c, i) => (
                             <span key={i} className={c === ' ' ? 'w-1.5 sm:w-2.5 lg:w-3' : ''}>{c}</span>
@@ -235,7 +231,7 @@ export default function Introduction() {
                 src={introImage}
                 alt="Bible and light"
                 loading="lazy"
-                className="rounded-2xl shadow-xl object-cover h-[500px] w-full border-4 border-wood-200 transition-opacity duration-500"
+                className="rounded-sm object-cover h-[500px] w-full border border-wood-200 transition-opacity duration-500"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   console.error('Image failed to load:', introImage);
@@ -252,21 +248,17 @@ export default function Introduction() {
                     setNewImageUrl(introImage);
                     setIsEditing(true);
                   }}
-                  className="absolute top-4 right-4 z-20 bg-white/80 hover:bg-white text-wood-900 p-3 rounded-full backdrop-blur-sm transition-all shadow-md"
+                  className="absolute top-4 right-4 z-20 bg-white/90 hover:bg-white text-wood-900 p-3 rounded-sm border border-wood-200 transition-colors"
                   title="이미지 수정"
                 >
-                  <Edit2 size={20} className="hover:scale-110 transition-transform" />
+                  <Edit2 size={20} />
                 </button>
               )}
 
               {/* Admin Edit Modal/Overlay */}
               {isEditing && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-wood-950/60 backdrop-blur-sm p-4 rounded-2xl">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white rounded-2xl p-6 w-full shadow-2xl border border-wood-100"
-                  >
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-wood-950/60 p-4 rounded-sm">
+                  <div className="bg-white rounded-md p-6 w-full shadow-lg border border-wood-200">
                     <h3 className="text-lg font-serif font-bold text-wood-900 mb-4">이미지 수정</h3>
                     <div className="space-y-4">
                       <div>
@@ -275,14 +267,14 @@ export default function Introduction() {
                           value={newImageUrl}
                           onChange={(e) => setNewImageUrl(e.target.value)}
                           placeholder="구글 드라이브 링크 또는 이미지 주소"
-                          className="w-full px-3 py-2 text-sm rounded-xl border border-wood-200 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none transition bg-wood-50"
+                          className="w-full px-3 py-2 text-sm rounded-sm border border-wood-200 focus:border-wood-500 outline-none transition bg-wood-50"
                         />
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={handleUpdateImage}
                           disabled={submitting}
-                          className="flex-1 bg-wood-900 text-white py-2 rounded-xl text-sm font-medium hover:bg-wood-800 transition flex items-center justify-center gap-1 disabled:opacity-50"
+                          className="flex-1 bg-wood-900 text-white py-2 rounded-sm text-sm font-medium hover:bg-wood-800 transition flex items-center justify-center gap-1 disabled:opacity-50"
                         >
                           {submitting ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -295,14 +287,14 @@ export default function Introduction() {
                         </button>
                         <button
                           onClick={() => setIsEditing(false)}
-                          className="flex-1 bg-wood-100 text-wood-700 py-2 rounded-xl text-sm font-medium hover:bg-wood-200 transition flex items-center justify-center gap-1"
+                          className="flex-1 bg-wood-100 text-wood-700 py-2 rounded-sm text-sm font-medium hover:bg-wood-200 transition flex items-center justify-center gap-1"
                         >
                           <CloseIcon size={16} />
                           취소
                         </button>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
               )}
             </div>
@@ -322,59 +314,52 @@ export default function Introduction() {
                 </p>
               </div>
 
-              <div className="bg-wood-50 p-6 rounded-xl border-l-4 border-wood-900">
-                <p className="font-serif italic text-wood-900 text-lg leading-relaxed whitespace-pre-wrap">
+              <div className="bg-wood-50 p-6 border-l-2 border-gold-600">
+                <p className="font-serif text-wood-900 text-lg leading-relaxed whitespace-pre-wrap">
                   {quote}
                 </p>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Logo Meaning Modal */}
       {showLogoModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={() => setShowLogoModal(false)}
-            className="absolute inset-0 bg-wood-950/80 backdrop-blur-md"
+            className="absolute inset-0 bg-wood-950/80"
           />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl border border-wood-100"
-          >
+          <div className="relative bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-md shadow-lg border border-wood-200">
             <button
               onClick={() => setShowLogoModal(false)}
-              className="absolute top-6 right-6 p-2 hover:bg-wood-100 rounded-full transition-colors z-10"
+              className="absolute top-6 right-6 p-2 hover:bg-wood-100 rounded-sm transition-colors z-10"
             >
               <CloseIcon size={24} className="text-wood-500" />
             </button>
 
             <div className="p-8 sm:p-12">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                <div className="flex justify-center p-12 bg-stone-50 rounded-[3rem] border border-stone-100 shadow-inner relative overflow-hidden group">
+                <div className="flex justify-center p-12 bg-wood-50 border border-wood-200 relative overflow-hidden">
                   {/* Shekinah Cloud Effect */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-[140%] h-[140%] bg-amber-100/40 rounded-full blur-[80px] animate-pulse"></div>
+                    <div className="w-[140%] h-[140%] bg-gold-100/50 rounded-full blur-[80px]"></div>
                     <div className="absolute w-full h-full bg-[radial-gradient(circle_at_center,transparent_0%,rgba(255,255,255,0.8)_100%)]"></div>
                   </div>
-                  <Logo size={320} className="relative z-10 drop-shadow-2xl transform transition-transform duration-700 group-hover:scale-105" />
+                  <Logo size={320} className="relative z-10" />
                 </div>
 
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-3xl font-serif font-bold text-wood-900 mb-2">{ciTitle}</h2>
+                    <h2 className="text-3xl font-serif font-bold text-wood-950 mb-2">{ciTitle}</h2>
                     <p className="text-gold-700 font-medium">{ciSub}</p>
-                    <div className="w-12 h-1 bg-gold-500 mt-4" />
+                    <div className="w-10 h-px bg-gold-600 mt-4" />
                   </div>
 
                   <div className="space-y-6">
                     <div className="flex gap-5">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg shadow-sm">1</div>
+                      <div className="flex-shrink-0 w-9 h-9 border border-gold-400 text-gold-700 flex items-center justify-center font-serif font-bold">1</div>
                       <div>
                         <h3 className="text-xl font-bold text-wood-900 mb-2">{ciPoint1Title}</h3>
                         <p className="text-wood-700 leading-relaxed whitespace-pre-line">
@@ -384,7 +369,7 @@ export default function Introduction() {
                     </div>
 
                     <div className="flex gap-5">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg shadow-sm">2</div>
+                      <div className="flex-shrink-0 w-9 h-9 border border-gold-400 text-gold-700 flex items-center justify-center font-serif font-bold">2</div>
                       <div>
                         <h3 className="text-xl font-bold text-wood-900 mb-2">{ciPoint2Title}</h3>
                         <p className="text-wood-700 leading-relaxed whitespace-pre-line">
@@ -394,7 +379,7 @@ export default function Introduction() {
                     </div>
 
                     <div className="flex gap-5">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg shadow-sm">3</div>
+                      <div className="flex-shrink-0 w-9 h-9 border border-gold-400 text-gold-700 flex items-center justify-center font-serif font-bold">3</div>
                       <div>
                         <h3 className="text-xl font-bold text-wood-900 mb-2">{ciPoint3Title}</h3>
                         <p className="text-wood-700 leading-relaxed whitespace-pre-line">
@@ -404,7 +389,7 @@ export default function Introduction() {
                     </div>
 
                     <div className="flex gap-5">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg shadow-sm">4</div>
+                      <div className="flex-shrink-0 w-9 h-9 border border-gold-400 text-gold-700 flex items-center justify-center font-serif font-bold">4</div>
                       <div>
                         <h3 className="text-xl font-bold text-wood-900 mb-2">{ciPoint4Title}</h3>
                         <p className="text-wood-700 leading-relaxed whitespace-pre-line">
@@ -414,7 +399,7 @@ export default function Introduction() {
                     </div>
 
                     <div className="flex gap-5">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg shadow-sm">5</div>
+                      <div className="flex-shrink-0 w-9 h-9 border border-gold-400 text-gold-700 flex items-center justify-center font-serif font-bold">5</div>
                       <div>
                         <h3 className="text-xl font-bold text-wood-900 mb-2">{ciPoint5Title}</h3>
                         <p className="text-wood-700 leading-relaxed whitespace-pre-line">
@@ -426,83 +411,74 @@ export default function Introduction() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
       {/* Name Meaning Modal */}
       {showNameModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={() => setShowNameModal(false)}
-            className="absolute inset-0 bg-wood-950/80 backdrop-blur-md"
+            className="absolute inset-0 bg-wood-950/80"
           />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl border border-wood-100"
-          >
+          <div className="relative bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-md shadow-lg border border-wood-200">
             <button
               onClick={() => setShowNameModal(false)}
-              className="absolute top-6 right-6 p-2 hover:bg-wood-100 rounded-full transition-colors z-10"
+              className="absolute top-6 right-6 p-2 hover:bg-wood-100 rounded-sm transition-colors z-10"
             >
               <CloseIcon size={24} className="text-wood-500" />
             </button>
 
             <div className="p-8 sm:p-12">
               <div className="text-center mb-10">
-                <h2 className="text-3xl font-serif font-bold text-wood-900 mb-4">{nameMeaningTitle}</h2>
-                <div className="w-16 h-1 bg-gold-500 mx-auto" />
+                <h2 className="text-3xl font-serif font-bold text-wood-950 mb-5">{nameMeaningTitle}</h2>
+                <div className="w-10 h-px bg-gold-600 mx-auto" />
               </div>
 
               <div className="space-y-8">
-                <p className="text-wood-800 leading-relaxed text-xl whitespace-pre-line text-center font-medium">
+                <p className="text-wood-800 leading-relaxed text-lg whitespace-pre-line text-center">
                   {nameMeaningIntro}
                 </p>
-                
-                <div className="bg-wood-50 p-8 rounded-2xl border border-wood-100 shadow-sm">
-                  <h4 className="text-xl font-bold text-wood-900 mb-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-gold-500"></div>
+
+                <div className="bg-wood-50 p-8 border-l-2 border-gold-600">
+                  <h4 className="text-xl font-bold text-wood-900 mb-3">
                     {namePoint1Title}
                   </h4>
-                  <p className="text-wood-700 leading-relaxed text-lg pl-5 whitespace-pre-line">
+                  <p className="text-wood-700 leading-relaxed text-lg whitespace-pre-line">
                     {namePoint1Desc}
                   </p>
                 </div>
 
-                <div className="bg-wood-50 p-8 rounded-2xl border border-wood-100 shadow-sm">
-                  <h4 className="text-xl font-bold text-wood-900 mb-2 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-gold-500"></div>
+                <div className="bg-wood-50 p-8 border-l-2 border-gold-600">
+                  <h4 className="text-xl font-bold text-wood-900 mb-2">
                     {namePoint2Title}
                   </h4>
-                  <p className="text-wood-500 text-base italic mb-3 pl-5">
+                  <p className="text-wood-500 text-base italic mb-3">
                     {namePoint2Sub}
                   </p>
-                  <p className="text-wood-700 leading-relaxed text-lg pl-5 whitespace-pre-line">
+                  <p className="text-wood-700 leading-relaxed text-lg whitespace-pre-line">
                     {namePoint2Desc}
                   </p>
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
       {/* Vision Section */}
-      <section className="py-24 bg-wood-50 mt-16">
+      <section className="py-24 bg-wood-50 border-t border-wood-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-serif font-bold text-wood-900 mb-4">{visionTitle}</h2>
-            <div className="w-24 h-1 bg-gold-500 mx-auto mb-8" />
+            <p className="overline-label mb-3">Vision</p>
+            <h2 className="text-3xl font-serif font-bold text-wood-950 mb-6">{visionTitle}</h2>
             <p className="text-lg text-wood-700 max-w-2xl mx-auto leading-relaxed whitespace-pre-line">
               {visionDesc}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-wood-200 border border-wood-200">
             {[
               {
                 icon: BookOpen,
@@ -520,23 +496,13 @@ export default function Introduction() {
                 desc: visionPoint3Desc
               }
             ].map((item, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ 
-                  delay: Math.min(index * 0.03, 0.4),
-                  ease: "easeOut"
-                }}
-                className="bg-white p-8 rounded-2xl shadow-sm border border-wood-100 text-center hover:shadow-md transition"
-              >
-                <div className="w-16 h-16 bg-wood-50 rounded-full flex items-center justify-center mx-auto mb-6 text-wood-900">
-                  <item.icon size={32} />
+              <div key={index} className="bg-white p-10 text-center">
+                <div className="flex items-center justify-center mb-6 text-gold-700">
+                  <item.icon size={28} strokeWidth={1.5} />
                 </div>
-                <h3 className="text-xl font-bold text-wood-900 mb-4">{item.title}</h3>
+                <h3 className="text-xl font-serif font-bold text-wood-950 mb-4">{item.title}</h3>
                 <p className="text-wood-600 leading-relaxed">{item.desc}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>

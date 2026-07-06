@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -88,13 +87,14 @@ export default function Journal() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-end mb-12 border-b border-wood-200 pb-6">
           <div>
-            <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">개척 일지</h1>
+            <p className="overline-label mb-3">Journal</p>
+            <h1 className="text-4xl font-serif font-bold text-wood-950 mb-4">개척 일지</h1>
             <p className="text-wood-600 text-lg">교회가 세워져 가는 과정과 고민을 담은 기록입니다.</p>
           </div>
           {role === 'admin' && (
             <Link
               to="/create-post?type=journal"
-              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-xl hover:bg-wood-800 transition shadow-md font-medium"
+              className="inline-flex items-center px-6 py-3 bg-wood-900 text-white rounded-sm hover:bg-wood-800 transition font-medium"
             >
               <Plus size={20} className="mr-2" />
               일지 작성
@@ -103,7 +103,7 @@ export default function Journal() {
         </div>
 
         {error && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-center font-medium">
+          <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md text-center font-medium">
             {error}
           </div>
         )}
@@ -115,7 +115,7 @@ export default function Journal() {
             <p className="text-wood-500">일지를 불러오는 중입니다...</p>
           </div>
         ) : journal.data.length === 0 ? (
-          <div className="text-center py-32 bg-white rounded-3xl border border-wood-200 shadow-sm">
+          <div className="text-center py-32 bg-white rounded-md border border-wood-200 shadow-sm">
             <Book className="mx-auto h-16 w-16 text-wood-200 mb-6" />
             <h3 className="text-xl font-bold text-wood-900">등록된 일지가 없습니다</h3>
             <p className="mt-2 text-wood-500">목사님의 소중한 기록을 기다립니다.</p>
@@ -123,33 +123,27 @@ export default function Journal() {
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {journal.data.map((post, index) => (
-                <motion.div
+              {journal.data.map((post) => (
+                <div
                   key={post.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ 
-                    delay: Math.min(index * 0.03, 0.4),
-                    ease: "easeOut"
-                  }}
-                  className="bg-white rounded-3xl shadow-sm border border-wood-100 overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 flex flex-col group"
+                  className="bg-white border border-wood-200 overflow-hidden hover:border-gold-500 transition-colors flex flex-col group"
                 >
                   <Link to={`/post/${post.id}`} className="p-8 flex-grow flex flex-col">
-                    <h3 className="text-xl font-bold text-wood-900 mb-4 line-clamp-2 leading-tight group-hover:text-wood-700 transition-colors">
+                    <h3 className="text-xl font-serif font-bold text-wood-950 mb-4 line-clamp-2 leading-snug group-hover:underline decoration-gold-500 underline-offset-4">
                       {post.title}
                     </h3>
                     <p className="text-wood-600 text-sm line-clamp-3 mb-6 leading-relaxed flex-grow">
                       {post.content.replace(/<[^>]*>?/gm, '')}
                     </p>
-                    <div className="mt-auto pt-6 border-t border-wood-50 flex items-center justify-between text-xs font-bold text-wood-400">
-                      <span className="bg-wood-50 px-2 py-1 rounded-md">{formatDate(post.createdAt)}</span>
-                      <div className="flex items-center gap-1 bg-wood-50 px-2 py-1 rounded-md">
+                    <div className="mt-auto pt-6 border-t border-wood-200 flex items-center justify-between text-xs font-medium text-wood-500">
+                      <span>{formatDate(post.createdAt)}</span>
+                      <div className="flex items-center gap-1.5">
                         <MessageSquare size={14} />
                         <span>{post.commentCount || 0}</span>
                       </div>
                     </div>
                   </Link>
-                </motion.div>
+                </div>
               ))}
             </div>
 
@@ -158,7 +152,7 @@ export default function Journal() {
                 <button
                   onClick={handleLoadMore}
                   disabled={loadingMore}
-                  className="flex items-center gap-2 px-10 py-4 bg-white border-2 border-wood-900 text-wood-900 rounded-2xl font-bold hover:bg-wood-900 hover:text-white transition-all duration-300 shadow-lg disabled:opacity-50 group"
+                  className="flex items-center gap-2 px-10 py-3 bg-white border border-wood-300 text-wood-800 rounded-sm font-medium hover:border-wood-900 hover:text-wood-950 transition-colors disabled:opacity-50"
                 >
                   {loadingMore ? (
                     <>
@@ -168,7 +162,7 @@ export default function Journal() {
                   ) : (
                     <>
                       더 보기
-                      <ChevronDown size={20} className="group-hover:translate-y-1 transition-transform" />
+                      <ChevronDown size={18} />
                     </>
                   )}
                 </button>

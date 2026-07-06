@@ -221,7 +221,7 @@ export default function AdminActivityLogs() {
         </div>
       }
     >
-      <div className="overflow-hidden rounded-[2rem] border border-wood-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-md border border-wood-200 bg-white shadow-sm">
         {groupedLogs.length === 0 ? (
           <div className="p-12 text-center text-wood-500">기록된 활동 로그가 없습니다.</div>
         ) : (

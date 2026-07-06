@@ -273,7 +273,7 @@ export function MemberForm({
   onClose: () => void;
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-[#dbe3e8] bg-[#f8fafb] p-4">
+    <div className="mt-4 rounded-md border border-[#dbe3e8] bg-[#f8fafb] p-4">
       <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
         <TextInput label="이름" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />

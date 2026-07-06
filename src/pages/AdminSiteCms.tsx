@@ -564,11 +564,11 @@ function AdminSiteCmsInner() {
         ))}
       </div>
 
-      {notice && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{notice}</div>}
+      {notice && <div className="mb-5 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{notice}</div>}
 
       {activeTab === 'pages' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-wood-200 bg-white p-5">
+          <div className="rounded-md border border-wood-200 bg-white p-5">
             <h3 className="text-lg font-bold text-wood-900">페이지 추가</h3>
             <div className="mt-3 grid gap-3 md:grid-cols-4">
               <input value={newPageTitle} onChange={(e) => setNewPageTitle(e.target.value)} className="rounded-lg border border-wood-200 px-3 py-2 text-sm" placeholder="페이지 제목" />
@@ -578,11 +578,11 @@ function AdminSiteCmsInner() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-wood-200 bg-white p-5">
+          <div className="rounded-md border border-wood-200 bg-white p-5">
             <h3 className="mb-3 text-lg font-bold text-wood-900">페이지 목록</h3>
             <div className="space-y-3">
               {pages.map((page) => (
-                <div key={page.id} className="grid gap-3 rounded-xl border border-wood-100 p-3 md:grid-cols-[1.2fr_1fr_1fr_120px_100px_80px]">
+                <div key={page.id} className="grid gap-3 rounded-md border border-wood-100 p-3 md:grid-cols-[1.2fr_1fr_1fr_120px_100px_80px]">
                   <input defaultValue={page.title} onBlur={(e) => savePage(page.id, { title: e.target.value.trim() || page.title })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                   <input defaultValue={page.label} onBlur={(e) => savePage(page.id, { label: e.target.value.trim() || page.label })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                   <input
@@ -622,7 +622,7 @@ function AdminSiteCmsInner() {
 
       {activeTab === 'sections' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-5">
             <h3 className="text-lg font-bold text-wood-900">주요 소개글 편집 허브</h3>
             <p className="mt-1 text-xs leading-5 text-wood-700">
               아래 "콘텐츠 섹션"은 각 페이지의 상단/하단에 끼워 넣는 <b>보조 안내·공지</b> 영역입니다.
@@ -705,7 +705,7 @@ function AdminSiteCmsInner() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-wood-200 bg-white p-5">
+          <div className="rounded-md border border-wood-200 bg-white p-5">
             <h3 className="text-lg font-bold text-wood-900">섹션 추가</h3>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <select value={selectedPageSlug} onChange={(e) => setSelectedPageSlug(e.target.value)} className="rounded-lg border border-wood-200 px-3 py-2 text-sm">
@@ -733,7 +733,7 @@ function AdminSiteCmsInner() {
             </button>
           </div>
 
-          <div className="rounded-2xl border border-wood-200 bg-white p-5">
+          <div className="rounded-md border border-wood-200 bg-white p-5">
             <h3 className="mb-3 text-lg font-bold text-wood-900">섹션 목록 — {pages.find((p) => p.slug === selectedPageSlug)?.title || selectedPageSlug}</h3>
             {filteredSections.length === 0 && (
               <p className="rounded-lg border border-dashed border-wood-200 p-4 text-sm text-wood-500">
@@ -742,7 +742,7 @@ function AdminSiteCmsInner() {
             )}
             <div className="space-y-3">
               {filteredSections.map((section) => (
-                <div key={section.id} className="rounded-xl border border-wood-100 p-3">
+                <div key={section.id} className="rounded-md border border-wood-100 p-3">
                   <div className="grid gap-2 md:grid-cols-[1.4fr_120px_120px_90px_80px]">
                     <input defaultValue={section.title} onBlur={(e) => saveSection(section.id, { title: e.target.value.trim() || section.title })} className="rounded border border-wood-200 px-3 py-2 text-sm" />
                     <select defaultValue={section.type} onChange={(e) => saveSection(section.id, { type: e.target.value as SiteCmsSection['type'] })} className="rounded border border-wood-200 px-3 py-2 text-sm">
@@ -774,7 +774,7 @@ function AdminSiteCmsInner() {
       )}
 
       {activeTab === 'posts' && (
-        <div className="rounded-2xl border border-wood-200 bg-white p-5">
+        <div className="rounded-md border border-wood-200 bg-white p-5">
           <h3 className="text-lg font-bold text-wood-900">게시물 정리</h3>
           <div className="mt-3 grid gap-2 md:grid-cols-5">
             <input value={search} onChange={(e) => setSearch(e.target.value)} className="rounded border border-wood-200 px-3 py-2 text-sm" placeholder="제목/작성자 검색" />
@@ -810,7 +810,7 @@ function AdminSiteCmsInner() {
             <button type="button" onClick={restoreSelectedPosts} className="inline-flex items-center justify-center gap-1 rounded bg-emerald-600 px-3 py-2 text-xs font-bold text-white"><ArchiveRestore size={12} />복구</button>
           </div>
 
-          <div className="mt-4 overflow-x-auto rounded-xl border border-wood-100">
+          <div className="mt-4 overflow-x-auto rounded-md border border-wood-100">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-wood-50">
                 <tr>
@@ -851,7 +851,7 @@ function AdminSiteCmsInner() {
 
       {activeTab === 'categories' && (
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-wood-200 bg-white p-5">
+          <div className="rounded-md border border-wood-200 bg-white p-5">
             <h3 className="text-lg font-bold text-wood-900">말씀서재 카테고리</h3>
             <div className="mt-3 flex gap-2">
               <input value={newSermonCategory} onChange={(e) => setNewSermonCategory(e.target.value)} className="flex-1 rounded border border-wood-200 px-3 py-2 text-sm" placeholder="새 카테고리명" />
@@ -868,7 +868,7 @@ function AdminSiteCmsInner() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-wood-200 bg-white p-5">
+          <div className="rounded-md border border-wood-200 bg-white p-5">
             <h3 className="text-lg font-bold text-wood-900">연구실 카테고리</h3>
             <div className="mt-3 flex gap-2">
               <input value={newResearchCategory} onChange={(e) => setNewResearchCategory(e.target.value)} className="flex-1 rounded border border-wood-200 px-3 py-2 text-sm" placeholder="새 카테고리명" />
@@ -888,7 +888,7 @@ function AdminSiteCmsInner() {
       )}
 
       {activeTab === 'tools' && (
-        <div className="space-y-3 rounded-2xl border border-wood-200 bg-white p-5">
+        <div className="space-y-3 rounded-md border border-wood-200 bg-white p-5">
           <h3 className="text-lg font-bold text-wood-900">운영 도구</h3>
           <div className="grid gap-2 md:grid-cols-3">
             <a href="/admin/church-info" className="inline-flex items-center justify-center gap-2 rounded-lg bg-wood-900 px-3 py-3 text-sm font-bold text-white">

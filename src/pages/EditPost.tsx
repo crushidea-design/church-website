@@ -574,7 +574,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           돌아가기
         </button>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
+        <div className="bg-white rounded-md shadow-sm border border-wood-200 p-8 md:p-12">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-serif font-bold text-wood-900">
               {getTitle()}
@@ -583,7 +583,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
               type="submit"
               form="edit-post-form"
               disabled={submitting || !title.trim() || !content.trim()}
-              className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
+              className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-sm shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition disabled:opacity-50"
             >
               {submitting ? (
                 <div className="flex items-center">
@@ -596,7 +596,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
 
           <form id="edit-post-form" onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
+              <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
                 {error}
               </div>
             )}
@@ -610,7 +610,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                     id="researchCategoryId"
                     value={researchCategoryId}
                     onChange={(e) => setResearchCategoryId(e.target.value)}
-                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                    className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   >
                     {researchCategories.length === 0 ? (
                       <option value="">등록된 카테고리가 없습니다</option>
@@ -623,7 +623,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   <button
                     type="button"
                     onClick={() => navigate('/admin/research-categories')}
-                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    className="p-3 bg-wood-100 text-wood-600 rounded-md hover:bg-wood-200 transition"
                     title="카테고리 관리"
                   >
                     <Plus size={20} />
@@ -642,7 +642,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                     id="sermonCategoryId"
                     value={sermonCategoryId}
                     onChange={(e) => setSermonCategoryId(e.target.value)}
-                    className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                    className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   >
                     {sermonCategories.length === 0 ? (
                       <option value="">등록된 카테고리가 없습니다</option>
@@ -655,7 +655,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   <button
                     type="button"
                     onClick={() => navigate('/admin/sermon-categories')}
-                    className="p-3 bg-wood-100 text-wood-600 rounded-xl hover:bg-wood-200 transition"
+                    className="p-3 bg-wood-100 text-wood-600 rounded-md hover:bg-wood-200 transition"
                     title="카테고리 관리"
                   >
                     <Plus size={20} />
@@ -674,7 +674,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   type="url"
                   value={youtubeUrl}
                   onChange={(e) => setYoutubeUrl(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   placeholder="https://www.youtube.com/watch?v=..."
                   maxLength={500}
                 />
@@ -693,7 +693,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                 placeholder="제목을 입력하세요"
                 required
                 maxLength={200}
@@ -710,7 +710,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   id="dateKey"
                   value={dateKey}
                   onChange={(e) => setDateKey(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                   required
                 />
               </div>
@@ -721,7 +721,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                 <label className="block text-sm font-medium text-wood-700 mb-2">
                   {isNextGeneration ? '자료 파일 첨부' : 'PDF 파일 첨부'}
                 </label>
-                <div className="mt-1 rounded-xl border-2 border-dashed border-wood-300 bg-wood-50 px-6 pt-5 pb-6 transition-colors hover:bg-wood-100">
+                <div className="mt-1 rounded-md border-2 border-dashed border-wood-300 bg-wood-50 px-6 pt-5 pb-6 transition-colors hover:bg-wood-100">
                   {isNextGeneration ? (
                     <div>
                       <div className="space-y-1 text-center">
@@ -751,7 +751,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                           {existingAttachments.map((attachment, index) => (
                             <li
                               key={`${attachment.url}-${index}`}
-                              className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                              className="flex flex-col gap-3 rounded-md bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <span className="flex items-center gap-3 text-sm font-medium text-wood-900">
                                 <FileText className="h-5 w-5 shrink-0 text-wood-600" />
@@ -778,7 +778,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                           {materialFiles.map((file, index) => (
                             <li
                               key={`${file.name}-${file.lastModified}-${index}`}
-                              className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                              className="flex flex-col gap-3 rounded-md bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <span className="flex items-center gap-3 text-sm font-medium text-wood-900">
                                 <FileText className="h-5 w-5 shrink-0 text-wood-600" />
@@ -813,7 +813,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                                 e.stopPropagation();
                                 setRemoveExistingPdf(true);
                               }}
-                              className="p-1 hover:bg-wood-200 rounded-full transition"
+                              className="p-1 hover:bg-wood-200 rounded-sm transition"
                             >
                               <X className="h-4 w-4 text-wood-500" />
                             </button>
@@ -829,7 +829,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                                 setPdfFile(null);
                                 if (existingPdfUrl) setRemoveExistingPdf(false);
                               }}
-                              className="p-1 hover:bg-wood-200 rounded-full transition"
+                              className="p-1 hover:bg-wood-200 rounded-sm transition"
                             >
                               <X className="h-4 w-4 text-wood-500" />
                             </button>
@@ -875,7 +875,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   id="nextGenerationWeekKey"
                   value={nextGenerationWeekKey}
                   onChange={(e) => setNextGenerationWeekKey(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                 />
               </div>
             )}
@@ -889,7 +889,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   id="nextGenerationTopicId"
                   value={nextGenerationTopicId}
                   onChange={(e) => setNextGenerationTopicId(e.target.value)}
-                  className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
+                  className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                 >
                   {NEXT_GENERATION_TOPIC_OPTIONS.map((topic) => (
                     <option key={topic.id} value={topic.id}>{topic.name}</option>
@@ -909,7 +909,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                 rows={15}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="block w-full rounded-xl border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
                 placeholder="내용을 입력하세요. 유튜브 링크를 포함하면 영상이 자동 삽입됩니다."
                 required
                 maxLength={50000}
@@ -920,14 +920,14 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="mr-4 px-6 py-2.5 border border-wood-300 shadow-sm text-sm font-medium rounded-full text-wood-700 bg-white hover:bg-wood-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition"
+                className="mr-4 px-6 py-2.5 border border-wood-300 shadow-sm text-sm font-medium rounded-sm text-wood-700 bg-white hover:bg-wood-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 transition"
               >
                 취소
               </button>
               <button
                 type="submit"
                 disabled={submitting || !title.trim() || !content.trim()}
-                className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
+                className="inline-flex items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-sm shadow-sm text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
               >
                 {submitting ? (
                   <div className="flex items-center">

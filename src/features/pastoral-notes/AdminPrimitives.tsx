@@ -39,7 +39,7 @@ export function MiniCount({ label, value }: { label: string; value: number }) {
 
 export function EmptyState({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-xl border border-dashed border-[#ccd7df] bg-[#f8fafb] p-8 text-center text-sm text-[#607080]">
+    <p className="rounded-md border border-dashed border-[#ccd7df] bg-[#f8fafb] p-8 text-center text-sm text-[#607080]">
       {children}
     </p>
   );

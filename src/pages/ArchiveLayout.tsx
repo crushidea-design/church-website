@@ -17,7 +17,8 @@ export default function ArchiveLayout() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SiteCmsSections pageSlug="archive" placement="top" className="mb-8" />
       <div className="mb-8">
-        <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">말씀 아카이브</h1>
+        <p className="overline-label mb-3">Archive</p>
+        <h1 className="text-4xl font-serif font-bold text-wood-950 mb-4">말씀 아카이브</h1>
         <p className="text-wood-600">
           하나님의 말씀을 깊이 있게 연구하고 묵상하는 공간입니다.
         </p>

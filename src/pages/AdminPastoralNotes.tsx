@@ -936,7 +936,7 @@ export default function AdminPastoralNotes() {
 
         <aside className="hidden border-r border-[#dbe3e8] bg-[#0f2742] text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
-            <img src="/raah-icon-48.png" alt="" className="h-11 w-11 rounded-xl border border-white/10 bg-white/10" />
+            <img src="/raah-icon-48.png" alt="" className="h-11 w-11 rounded-md border border-white/10 bg-white/10" />
             <div>
               <p className="text-lg font-semibold tracking-[0.14em]">RAAH</p>
               <p className="text-xs font-medium text-[#adcacd]">Pastoral Care CRM</p>
@@ -944,7 +944,7 @@ export default function AdminPastoralNotes() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-5">
-            <div className="rounded-xl border border-white/10 bg-white/[0.06] p-3">
+            <div className="rounded-md border border-white/10 bg-white/[0.06] p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#adcacd]">Secure Workspace</p>
               <p className="mt-2 text-sm leading-5 text-white/75">목양 돌봄 기록과 후속 계획을 한 곳에서 관리합니다.</p>
               <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
@@ -959,7 +959,7 @@ export default function AdminPastoralNotes() {
                   key={tab.id}
                   type="button"
                   onClick={() => switchTab(tab.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${
                     activeTab === tab.id ? 'bg-white text-[#12345a] shadow-sm' : 'text-white/72 hover:bg-white/10 hover:text-white'
                   }`}
                 >
@@ -979,7 +979,7 @@ export default function AdminPastoralNotes() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder={TEXT.search[activeTab]}
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/10 px-3 pl-9 text-sm text-white outline-none placeholder:text-white/45 transition focus:border-[#adcacd] focus:ring-2 focus:ring-[#adcacd]/20"
+                className="h-11 w-full rounded-md border border-white/10 bg-white/10 px-3 pl-9 text-sm text-white outline-none placeholder:text-white/45 transition focus:border-[#adcacd] focus:ring-2 focus:ring-[#adcacd]/20"
               />
             </label>
             <div className="mt-3 flex items-center gap-2">
@@ -998,7 +998,7 @@ export default function AdminPastoralNotes() {
         </aside>
 
         <main className="min-w-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:min-h-screen lg:pb-0">
-          <header className="sticky top-0 z-20 border-b border-[#dbe3e8] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+          <header className="sticky top-0 z-20 border-b border-[#dbe3e8] bg-white/95 px-4 py-3 lg:hidden">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-center gap-3">
                 {!subdomainMode && (
@@ -1024,7 +1024,7 @@ export default function AdminPastoralNotes() {
             </div>
           </header>
 
-          <header className="hidden border-b border-[#dbe3e8] bg-white/82 px-8 py-5 backdrop-blur lg:block">
+          <header className="hidden border-b border-[#dbe3e8] bg-white/82 px-8 py-5 lg:block">
             <div className="mx-auto flex max-w-[1540px] items-center justify-between gap-6">
               <div>
                 <div className="flex items-center gap-3">
@@ -1227,7 +1227,7 @@ export default function AdminPastoralNotes() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#dbe3e8] bg-white/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(21,38,57,0.08)] backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#dbe3e8] bg-white/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(21,38,57,0.08)] lg:hidden">
         <div className="grid grid-cols-6 gap-1">
           {tabs.map((tab) => (
             <button

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Mail, MapPin, Phone } from 'lucide-react';
@@ -39,8 +38,9 @@ export default function Contact() {
     <div className="bg-wood-100 py-16 sm:py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-serif font-bold text-wood-900 mb-4">문의 및 개척 모임 참여</h1>
-          <div className="w-24 h-1 bg-gold-500 mx-auto mb-8" />
+          <p className="overline-label mb-3">Contact</p>
+          <h1 className="text-4xl font-serif font-bold text-wood-950 mb-5">문의 및 개척 모임 참여</h1>
+          <div className="w-10 h-px bg-gold-600 mx-auto mb-8" />
           <p className="text-lg text-wood-700 max-w-2xl mx-auto leading-relaxed">
             '함께 지어져가는 교회'의 개척 준비 모임에 참여하시거나,
             목사님께 궁금한 점이 있으시다면 언제든 연락해 주세요.
@@ -49,12 +49,7 @@ export default function Contact() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
           {/* Contact Info */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="bg-wood-50 rounded-3xl p-10 lg:p-12 flex flex-col justify-center border border-wood-200"
-          >
+          <div className="bg-wood-50 rounded-md p-10 lg:p-12 flex flex-col justify-center border border-wood-200">
             <h2 className="text-2xl font-bold text-wood-900 mb-8">연락처 정보</h2>
             <div className="space-y-8">
               <div className="flex items-start">
@@ -85,15 +80,10 @@ export default function Contact() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Contact Form */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="bg-white rounded-3xl shadow-lg border border-wood-100 p-10 lg:p-12"
-          >
+          <div className="bg-white rounded-md border border-wood-200 p-10 lg:p-12">
             {success ? (
               <div className="text-center py-12">
                 <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-forest-100 mb-6">
@@ -123,7 +113,7 @@ export default function Contact() {
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="block w-full rounded-xl border-wood-200 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                    className="block w-full rounded-sm border border-wood-200 focus:border-wood-500 focus:outline-none sm:text-sm p-4 bg-wood-50"
                     placeholder="홍길동"
                     required
                   />
@@ -137,7 +127,7 @@ export default function Contact() {
                     id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full rounded-xl border-wood-200 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                    className="block w-full rounded-sm border border-wood-200 focus:border-wood-500 focus:outline-none sm:text-sm p-4 bg-wood-50"
                     placeholder="example@email.com"
                     required
                   />
@@ -151,7 +141,7 @@ export default function Contact() {
                     rows={6}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="block w-full rounded-xl border-wood-200 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-4 bg-wood-50"
+                    className="block w-full rounded-sm border border-wood-200 focus:border-wood-500 focus:outline-none sm:text-sm p-4 bg-wood-50"
                     placeholder="개척 모임 참여 희망, 또는 궁금한 점을 남겨주세요."
                     required
                   />
@@ -159,13 +149,13 @@ export default function Contact() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full flex justify-center py-4 px-4 border border-transparent rounded-full shadow-sm text-base font-medium text-white bg-wood-900 hover:bg-wood-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-wood-500 disabled:opacity-50 transition"
+                  className="w-full flex justify-center py-4 px-4 rounded-sm text-base font-medium text-white bg-wood-900 hover:bg-wood-800 focus:outline-none disabled:opacity-50 transition"
                 >
                   {submitting ? '전송 중...' : '메시지 보내기'}
                 </button>
               </form>
             )}
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

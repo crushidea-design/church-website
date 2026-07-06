@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
           돌아가기
         </button>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-wood-200 p-8 md:p-12">
+        <div className="bg-white rounded-md shadow-sm border border-wood-200 p-8 md:p-12">
           <h1 className="text-3xl font-serif font-bold text-wood-900 mb-8">개인정보처리방침</h1>
           
           <div className="prose prose-stone max-w-none text-wood-700 leading-relaxed space-y-6">

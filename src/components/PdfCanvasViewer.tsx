@@ -223,7 +223,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 bg-white rounded-2xl border border-wood-200">
+      <div className="flex flex-col items-center justify-center h-96 bg-white rounded-md border border-wood-200">
         <Loader2 className="animate-spin text-wood-900 mb-4" size={32} />
         <p className="text-wood-600">문서를 렌더링하는 중입니다...</p>
       </div>
@@ -232,7 +232,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 bg-red-50 rounded-2xl border border-red-200 p-8 text-center">
+      <div className="flex flex-col items-center justify-center h-96 bg-red-50 rounded-md border border-red-200 p-8 text-center">
         <p className="text-red-600 mb-4">{error}</p>
         <button 
           onClick={onDownload}
@@ -245,7 +245,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
   }
 
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-wood-200 overflow-hidden shadow-inner relative">
+    <div className="flex flex-col bg-white rounded-md border border-wood-200 overflow-hidden shadow-inner relative">
       {/* Top Toolbar */}
       <div className="flex items-center justify-between p-4 bg-white border-b border-wood-200">
         <div className="text-sm font-bold text-wood-900 bg-wood-100 px-4 py-1.5 rounded-full">
@@ -290,7 +290,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
             onClick={goToPrevPage}
             className="absolute left-0 top-0 bottom-0 w-1/3 md:w-1/4 cursor-pointer flex items-center justify-start px-4 md:px-8 opacity-0 hover:opacity-100 transition-opacity group"
           >
-            <div className="bg-black/30 text-white rounded-full p-3 backdrop-blur-sm shadow-lg transform scale-90 group-hover:scale-100 transition-all">
+            <div className="bg-black/30 text-white rounded-full p-3 shadow-lg transform scale-90 group-hover:scale-100 transition-all">
               <ChevronLeft size={36} />
             </div>
           </div>
@@ -302,7 +302,7 @@ export default function PdfCanvasViewer({ url, onDownload }: PdfCanvasViewerProp
             onClick={goToNextPage}
             className="absolute right-0 top-0 bottom-0 w-1/3 md:w-1/4 cursor-pointer flex items-center justify-end px-4 md:px-8 opacity-0 hover:opacity-100 transition-opacity group"
           >
-            <div className="bg-black/30 text-white rounded-full p-3 backdrop-blur-sm shadow-lg transform scale-90 group-hover:scale-100 transition-all">
+            <div className="bg-black/30 text-white rounded-full p-3 shadow-lg transform scale-90 group-hover:scale-100 transition-all">
               <ChevronRight size={36} />
             </div>
           </div>

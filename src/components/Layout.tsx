@@ -68,34 +68,29 @@ export default function Layout() {
         const toastId = payload.messageId || payload.notification.title;
         
         toast.custom((t) => (
-          <div className="bg-amber-50 rounded-2xl p-4 shadow-lg border border-amber-200 flex items-center gap-4 w-[350px] max-w-[90vw] pointer-events-auto">
-            <div className="bg-amber-100 p-2 rounded-full shrink-0">
-              <motion.div
-                animate={{ y: [0, -8, 0, -4, 0] }}
-                transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
-              >
-                <Bell className="text-amber-600" size={24} />
-              </motion.div>
+          <div className="bg-white rounded-md p-4 shadow-md border border-wood-200 flex items-center gap-4 w-[350px] max-w-[90vw] pointer-events-auto">
+            <div className="border border-wood-200 p-2 rounded-sm shrink-0">
+              <Bell className="text-gold-600" size={20} />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-amber-900 text-sm truncate">{payload.notification.title}</h4>
-              <p className="text-xs text-amber-800 truncate">{payload.notification.body}</p>
+              <h4 className="font-semibold text-wood-900 text-sm truncate">{payload.notification.title}</h4>
+              <p className="text-xs text-wood-600 truncate">{payload.notification.body}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {url !== '/' && (
-                <button 
+                <button
                   onClick={() => {
                     navigate(url);
                     toast.dismiss(t);
                   }}
-                  className="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition"
+                  className="text-xs font-semibold text-wood-800 border border-wood-300 hover:bg-wood-100 px-3 py-1.5 rounded-sm transition"
                 >
                   보기
                 </button>
               )}
-              <button 
+              <button
                 onClick={() => toast.dismiss(t)}
-                className="text-amber-400 hover:text-amber-600 p-1 transition"
+                className="text-wood-400 hover:text-wood-700 p-1 transition"
               >
                 <X size={16} />
               </button>
@@ -164,12 +159,12 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col bg-wood-100 font-sans text-wood-900">
       <Toaster position="top-right" expand={true} richColors />
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-wood-200 sticky top-0 z-50 shadow-sm">
+      <header className="bg-wood-50 border-b border-wood-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
               <Link to="/" className="flex-shrink-0 flex items-end gap-2 group">
-                <Logo className="w-16 h-16 drop-shadow-md transition-transform duration-300 group-hover:scale-105" />
+                <Logo className="w-16 h-16" />
                 <div className="flex flex-col justify-center mb-2 min-w-[200px] lg:min-w-[220px]">
                   <div className="flex justify-between font-serif font-bold text-xl lg:text-xl text-wood-900 leading-tight w-full">
                     {Array.from("함께 지어져가는 교회").map((c, i) => (
@@ -193,7 +188,7 @@ export default function Layout() {
                   to={item.path}
                   className={cn(
                     "text-xs xl:text-sm font-medium transition-colors hover:text-wood-600 whitespace-nowrap",
-                    location.pathname === item.path ? "text-wood-900 font-bold border-b-2 border-gold-500 pb-1" : "text-wood-600"
+                    location.pathname === item.path ? "text-wood-950 font-semibold border-b border-gold-600 pb-1" : "text-wood-600"
                   )}
                 >
                   {item.name}
@@ -210,11 +205,11 @@ export default function Layout() {
                       {role === 'admin' && (
                         <Link 
                           to="/admin" 
-                          className="text-[10px] xl:text-xs bg-wood-900 text-white px-2 xl:px-3 py-1 rounded-full ml-2 hover:bg-wood-800 transition-colors shadow-sm font-bold relative"
+                          className="text-[10px] xl:text-xs bg-wood-900 text-white px-2 xl:px-3 py-1 rounded-sm ml-2 hover:bg-wood-800 transition-colors font-semibold relative"
                         >
                           목사님
                           {hasUnreadMessages && (
-                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-coral-700 rounded-full border-2 border-white" />
                           )}
                         </Link>
                       )}
@@ -229,7 +224,7 @@ export default function Layout() {
                 ) : (
                   <Link
                     to="/login"
-                    className="text-xs xl:text-sm font-medium bg-wood-900 text-white px-4 xl:px-5 py-1.5 xl:py-2 rounded-full hover:bg-wood-800 transition shadow-sm whitespace-nowrap"
+                    className="text-xs xl:text-sm font-medium bg-wood-900 text-white px-4 xl:px-5 py-1.5 xl:py-2 rounded-sm hover:bg-wood-800 transition whitespace-nowrap"
                   >
                     로그인
                   </Link>
@@ -291,11 +286,11 @@ export default function Layout() {
                           <Link 
                             to="/admin" 
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="text-xs bg-wood-900 text-white px-2 py-0.5 rounded-full ml-2 font-bold relative inline-flex items-center"
+                            className="text-xs bg-wood-900 text-white px-2 py-0.5 rounded-sm ml-2 font-semibold relative inline-flex items-center"
                           >
                             목사님
                             {hasUnreadMessages && (
-                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white animate-pulse" />
+                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-coral-700 rounded-full border border-white" />
                             )}
                           </Link>
                         )}

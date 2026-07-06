@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Edit2, Check, X as CloseIcon, Calendar } from 'lucide-react';
+import { ArrowRight, Edit2, Check, X as CloseIcon } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useAuth } from '../lib/auth';
@@ -263,9 +262,6 @@ export default function Home() {
     }
   };
 
-  const brickPattern = `url("data:image/svg+xml,%3Csvg width='42' height='44' viewBox='0 0 42 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='Page-1' fill='none' fill-rule='evenodd'%3E%3Cg id='brick-wall' fill='%23001f3f' fill-opacity='0.03'%3E%3Cpath d='M0 0h42v44H0V0zm1 1h40v20H1V1zM0 23h20v20H0V23zm22 0h20v20H22V23z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
-  const woodTexture = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E")`;
-
   return (
     <div className="bg-white">
       {/* Hero Section */}
@@ -296,7 +292,7 @@ export default function Home() {
               setNewImageUrl(heroImage);
               setIsEditing(true);
             }}
-            className="absolute top-24 right-8 z-20 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full backdrop-blur-sm transition-all border border-white/30 group"
+            className="absolute top-24 right-8 z-20 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full transition-all border border-white/30 group"
             title="배경 이미지 수정"
           >
             <Edit2 size={20} className="group-hover:scale-110 transition-transform" />
@@ -305,12 +301,8 @@ export default function Home() {
 
         {/* Admin Edit Modal/Overlay */}
         {isEditing && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-wood-950/60 backdrop-blur-sm p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl border border-wood-100"
-            >
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-wood-950/60 p-4">
+            <div className="bg-white rounded-md p-8 max-w-lg w-full shadow-lg border border-wood-200">
               <h3 className="text-2xl font-serif font-bold text-wood-900 mb-6">배경 이미지 수정</h3>
               <div className="space-y-4">
                 <div>
@@ -320,7 +312,7 @@ export default function Home() {
                     value={newImageUrl}
                     onChange={(e) => setNewImageUrl(e.target.value)}
                     placeholder="구글 드라이브 링크 또는 이미지 주소"
-                    className="w-full px-4 py-3 rounded-xl border border-wood-200 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none transition bg-wood-50"
+                    className="w-full px-4 py-3 rounded-sm border border-wood-200 focus:border-wood-500 outline-none transition bg-wood-50"
                   />
                   <p className="mt-2 text-xs text-wood-500">
                     구글 드라이브 공유 링크를 붙여넣으시면 자동으로 변환됩니다.<br />
@@ -331,7 +323,7 @@ export default function Home() {
                   <button
                     onClick={handleUpdateHero}
                     disabled={submitting}
-                    className="flex-1 bg-wood-900 text-white py-3 rounded-xl font-medium hover:bg-wood-800 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="flex-1 bg-wood-900 text-white py-3 rounded-sm font-medium hover:bg-wood-800 transition flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {submitting ? (
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -344,116 +336,96 @@ export default function Home() {
                   </button>
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="flex-1 bg-wood-100 text-wood-700 py-3 rounded-xl font-medium hover:bg-wood-200 transition flex items-center justify-center gap-2"
+                    className="flex-1 bg-wood-100 text-wood-700 py-3 rounded-sm font-medium hover:bg-wood-200 transition flex items-center justify-center gap-2"
                   >
                     <CloseIcon size={18} />
                     취소
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
         
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-          >
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-6 leading-tight drop-shadow-2xl">
-              함께 지어져가는 <span className="text-gold-400">교회</span>
-            </h1>
-            <p className="text-lg md:text-2xl text-wood-100 mb-4 max-w-4xl mx-auto font-serif font-light leading-relaxed drop-shadow-md">
-              "너희도 성령 안에서 하나님이 거하실 처소가 되기 위하여<br />그리스도 예수 안에서 함께 지어져 가느니라"
-            </p>
-            <p className="text-lg md:text-2xl text-wood-100 font-serif font-light mb-12 drop-shadow-md">에베소서 2:22</p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/intro"
-                className="inline-flex items-center justify-center px-8 py-4 text-base font-medium rounded-full text-wood-900 bg-white hover:bg-wood-50 transition shadow-lg"
-              >
-                교회 소개
-                <ArrowRight className="ml-2" size={20} />
-              </Link>
-              <Link
-                to="/contact"
-                className="inline-flex items-center justify-center px-8 py-4 text-base font-medium rounded-full text-white border-2 border-white/30 hover:bg-white/10 transition"
-              >
-                개척 모임 참여
-              </Link>
-            </div>
-          </motion.div>
+          <p className="text-[11px] md:text-xs font-semibold uppercase tracking-[0.35em] text-gold-400 mb-6">
+            Built Together Church
+          </p>
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-8 leading-tight">
+            함께 지어져가는 교회
+          </h1>
+          <p className="text-base md:text-xl text-wood-100/90 mb-3 max-w-3xl mx-auto font-serif leading-relaxed">
+            너희도 성령 안에서 하나님이 거하실 처소가 되기 위하여
+            <br />
+            그리스도 예수 안에서 함께 지어져 가느니라
+          </p>
+          <p className="text-sm md:text-base text-gold-300 font-serif mb-14 tracking-widest">에베소서 2장 22절</p>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/intro"
+              className="inline-flex items-center justify-center px-8 py-3.5 text-sm font-semibold rounded-sm text-wood-900 bg-white hover:bg-wood-100 transition"
+            >
+              교회 소개
+            </Link>
+            <Link
+              to="/contact"
+              className="inline-flex items-center justify-center px-8 py-3.5 text-sm font-semibold rounded-sm text-white border border-white/50 hover:bg-white/10 transition"
+            >
+              개척 모임 참여
+            </Link>
+          </div>
         </div>
       </section>
 
       <SiteCmsSections pageSlug="home" placement="top" />
 
       {/* Latest Posts Section */}
-      <section className="py-24 relative" style={{ backgroundColor: '#fcfcfc', backgroundImage: brickPattern }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-12">
-            <div>
-              <h2 className="text-3xl font-serif font-bold text-[#001f3f] mb-4">최신 게시물</h2>
-              <div className="w-16 h-1 bg-[#E2725B] mb-4" />
-              <p className="text-lg text-wood-600">함께 지어져가는 교회의 최근 소식과 나눔을 확인하세요.</p>
-            </div>
+      <section className="py-24 bg-wood-50 border-t border-wood-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-14">
+            <p className="overline-label mb-3">Latest</p>
+            <h2 className="text-3xl font-serif font-bold text-wood-950 mb-3">최신 게시물</h2>
+            <p className="text-base text-wood-600">함께 지어져가는 교회의 최근 소식과 나눔입니다.</p>
           </div>
 
           {loadingPosts ? (
             <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#001f3f]"></div>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-wood-700"></div>
             </div>
           ) : homeLatestPosts.length === 0 ? (
-            <div className="text-center py-12 bg-white/80 backdrop-blur-sm rounded-2xl border border-wood-200">
+            <div className="text-center py-12 bg-white rounded-md border border-wood-200">
               <p className="text-wood-500">아직 등록된 게시물이 없습니다.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {homeLatestPosts.map((post, index) => (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ 
-                    delay: Math.min(index * 0.03, 0.4),
-                    ease: "easeOut"
-                  }}
-                  className="group"
-                >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-wood-200 border border-wood-200">
+              {homeLatestPosts.map((post) => (
+                <div key={post.id} className="group bg-white">
                   <Link to={`/post/${post.id}`} className="block h-full">
-                    <div className="bg-white h-full rounded-2xl overflow-hidden shadow-md hover:shadow-xl border border-wood-100 hover:border-[#A0522D]/40 transition-all duration-300 flex flex-col relative">
-                      {/* Wood texture top border */}
-                      <div className="h-2 w-full bg-[#A0522D]" style={{ backgroundImage: woodTexture }}></div>
-                      
-                      <div className="p-8 flex flex-col flex-grow">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#001f3f]/5 text-[#001f3f] border border-[#001f3f]/10">
-                            {getCategoryName(post)}
-                          </span>
-                          <span className="flex items-center text-xs text-wood-500">
-                            <Calendar size={12} className="mr-1" />
-                            {formatDate(post.createdAt, 'yyyy.MM.dd')}
-                          </span>
-                        </div>
-                        
-                        <h3 className="text-xl font-bold text-[#001f3f] mb-4 line-clamp-2 group-hover:text-[#E2725B] transition-colors">
-                          {post.title}
-                        </h3>
-                        
-                        <p className="text-wood-600 text-sm leading-relaxed flex-grow line-clamp-3">
-                          {generateSummary(post.content)}
-                        </p>
-                        
-                        <div className="mt-6 pt-4 border-t border-wood-100 flex items-center text-[#A0522D] text-sm font-medium group-hover:text-[#E2725B] transition-colors">
-                          자세히 보기 <ArrowRight size={16} className="ml-1 transform group-hover:translate-x-1 transition-transform" />
-                        </div>
+                    <div className="h-full p-8 flex flex-col">
+                      <div className="flex items-baseline justify-between mb-5">
+                        <span className="text-xs font-semibold tracking-wider text-gold-700">
+                          {getCategoryName(post)}
+                        </span>
+                        <span className="text-xs text-wood-500">
+                          {formatDate(post.createdAt, 'yyyy.MM.dd')}
+                        </span>
+                      </div>
+
+                      <h3 className="text-xl font-serif font-bold text-wood-950 mb-4 line-clamp-2 leading-snug group-hover:underline decoration-gold-500 underline-offset-4">
+                        {post.title}
+                      </h3>
+
+                      <p className="text-wood-600 text-sm leading-relaxed flex-grow line-clamp-3">
+                        {generateSummary(post.content)}
+                      </p>
+
+                      <div className="mt-8 flex items-center text-wood-700 text-sm font-medium">
+                        자세히 보기 <ArrowRight size={15} className="ml-1.5" />
                       </div>
                     </div>
                   </Link>
-                </motion.div>
+                </div>
               ))}
             </div>
           )}

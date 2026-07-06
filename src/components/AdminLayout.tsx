@@ -39,7 +39,7 @@ export default function AdminLayout({
   return (
     <div className="min-h-screen bg-wood-100 py-12">
       <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${maxWidthClassName}`}>
-        <div className="mb-8 rounded-[2rem] border border-wood-200 bg-white p-6 shadow-sm md:p-8">
+        <div className="mb-8 rounded-md border border-wood-200 bg-white p-6 shadow-sm md:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div className="flex items-start gap-4">
               <button
