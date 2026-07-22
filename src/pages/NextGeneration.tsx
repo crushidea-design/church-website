@@ -234,6 +234,20 @@ function NextGenerationInner() {
   const postId = currentSection === 'post' ? pathParts[2] : null;
   const editId = currentSection === 'edit' ? pathParts[2] : null;
   const currentDepartment = mappedDepartments.find((department) => department.slug === currentSection);
+  // Memoize these so their array identity is stable across renders. They are
+  // passed as props into ResourceLibraryPage, whose fetch effect depends on
+  // weeklyResourceIds — an unstable array there caused an infinite render loop.
+  const departmentTabs = useMemo(
+    () => (currentDepartment ? mappedTabs.filter((tab) => tab.departmentSlug === currentDepartment.slug) : []),
+    [mappedTabs, currentDepartment]
+  );
+  const weeklyResourceIds = useMemo(
+    () =>
+      departmentTabs
+        .filter((tab) => tab.useWeekKey && !tab.isWeeklyGroup && tab.id !== 'family_worship')
+        .map((tab) => tab.id),
+    [departmentTabs]
+  );
 
   let content: React.ReactNode = <IntroPage sections={introSections} departments={mappedDepartments} />;
 
@@ -248,10 +262,6 @@ function NextGenerationInner() {
   } else if (currentSection === 'create') {
     content = <NextGenerationCreatePost />;
   } else if (currentDepartment) {
-    const departmentTabs = mappedTabs.filter((tab) => tab.departmentSlug === currentDepartment.slug);
-    const weeklyResourceIds = departmentTabs
-      .filter((tab) => tab.useWeekKey && !tab.isWeeklyGroup && tab.id !== 'family_worship')
-      .map((tab) => tab.id);
     const guestTabId = departmentTabs.find((tab) => tab.isGuestOpen)?.id;
     content = (
       <ResourceLibraryPage
