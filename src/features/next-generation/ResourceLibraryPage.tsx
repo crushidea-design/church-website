@@ -124,16 +124,16 @@ export default function ResourceLibraryPage({
     <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-black text-emerald-900">실제 기능 화면을 시연 중입니다</p>
+          <p className="text-sm font-black text-emerald-900">부모용 안내에서 실제 기능을 확인하고 있습니다</p>
           <p className="mt-1 text-sm font-bold text-slate-600">
-            기능을 확인한 뒤 다시 시연 코스로 돌아갈 수 있습니다.
+            공과와 말씀열매·가정예배·질문 기능을 살펴본 뒤 부모 안내로 돌아갈 수 있습니다.
           </p>
         </div>
         <Link
           to={`${NEXT_GENERATION_PATH}/demo`}
           className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700"
         >
-          시연 코스로 돌아가기
+          부모 안내로 돌아가기
         </Link>
       </div>
     </div>
