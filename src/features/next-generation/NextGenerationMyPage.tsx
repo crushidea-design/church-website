@@ -138,16 +138,16 @@ export default function NextGenerationMyPage() {
     <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-black text-emerald-900">실제 말씀기록표 화면을 시연 중입니다</p>
+          <p className="text-sm font-black text-emerald-900">부모용 안내에서 실제 내 페이지를 확인하고 있습니다</p>
           <p className="mt-1 text-sm font-bold text-slate-600">
-            내 페이지에서 말씀기록표를 확인한 뒤 다시 시연 코스로 돌아갈 수 있습니다.
+            자녀 등록과 우리 아이 말씀열매·가정예배 기록 위치를 살펴본 뒤 부모 안내로 돌아가세요.
           </p>
         </div>
         <Link
           to={`${NEXT_GENERATION_PATH}/demo`}
           className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700"
         >
-          시연 코스로 돌아가기
+          부모 안내로 돌아가기
         </Link>
       </div>
     </div>

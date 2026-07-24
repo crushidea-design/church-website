@@ -92,6 +92,11 @@ export default function NextGenerationHeader() {
   }, []);
 
   useEffect(() => {
+    if (location.pathname === `${NEXT_GENERATION_PATH}/demo`) {
+      setShowTutorial(false);
+      return;
+    }
+
     if (needsSignUp || isRejected) {
       return;
     }
@@ -103,7 +108,7 @@ export default function NextGenerationHeader() {
     } catch (error) {
       console.warn('Unable to read next-generation tutorial state:', error);
     }
-  }, [isRejected, needsSignUp]);
+  }, [isRejected, location.pathname, needsSignUp]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
