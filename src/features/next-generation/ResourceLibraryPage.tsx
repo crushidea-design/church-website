@@ -343,7 +343,7 @@ export default function ResourceLibraryPage({
                   }`}
                 >
                   {isTabLocked ? <Lock size={16} className="sm:hidden" /> : <Icon size={16} className="sm:hidden" />}
-                  {isTabLocked ? <Lock size={18} className="hidden sm:block" /> : <Icon size={18} className="hidden sm:block" />}
+                  {isTabLocked ? <Lock size={18} className="block max-sm:hidden" /> : <Icon size={18} className="block max-sm:hidden" />}
                   {tab.name}
                 </button>
               );

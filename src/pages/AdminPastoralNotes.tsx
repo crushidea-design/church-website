@@ -934,7 +934,7 @@ export default function AdminPastoralNotes() {
           </div>
         </header>
 
-        <aside className="hidden border-r border-[#dbe3e8] bg-[#0f2742] text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
+        <aside className="flex max-lg:hidden border-r border-[#dbe3e8] bg-[#0f2742] text-white lg:sticky lg:top-0 lg:h-screen lg:flex-col">
           <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
             <img src="/raah-icon-48.png" alt="" className="h-11 w-11 rounded-md border border-white/10 bg-white/10" />
             <div>
@@ -1024,7 +1024,7 @@ export default function AdminPastoralNotes() {
             </div>
           </header>
 
-          <header className="hidden border-b border-[#dbe3e8] bg-white/82 px-8 py-5 lg:block">
+          <header className="block max-lg:hidden border-b border-[#dbe3e8] bg-white/82 px-8 py-5">
             <div className="mx-auto flex max-w-[1540px] items-center justify-between gap-6">
               <div>
                 <div className="flex items-center gap-3">
