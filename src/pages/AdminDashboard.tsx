@@ -233,7 +233,7 @@ export default function AdminDashboard() {
               <p className="text-wood-600">교회 운영과 콘텐츠 관리를 위한 공간입니다.</p>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-2 bg-wood-900 text-white px-4 py-2 rounded-full text-sm font-medium shadow-md">
+          <div className="flex max-sm:hidden items-center gap-2 bg-wood-900 text-white px-4 py-2 rounded-full text-sm font-medium shadow-md">
             <ShieldCheck size={18} />
             관리자 모드
           </div>

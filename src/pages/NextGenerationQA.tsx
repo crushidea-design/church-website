@@ -186,7 +186,7 @@ export default function NextGenerationQA({ department, compact = false }: Props)
           <div>
             <h2 className="text-2xl font-black tracking-normal text-emerald-950">질문 있습니다</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              말씀을 듣다 생긴 질문, 신앙의 여정에서 맞닥뜨린 고민을 자유롭게 남겨 주세요.<br className="hidden sm:block" />
+              말씀을 듣다 생긴 질문, 신앙의 여정에서 맞닥뜨린 고민을 자유롭게 남겨 주세요.<br className="block max-sm:hidden" />
               목사님이 직접 답변드립니다. 민감한 내용은 <span className="inline-flex items-center gap-0.5 font-bold text-amber-700"><EyeOff size={12} />비공개</span> 옵션으로 작성하시면 본인과 목사님만 볼 수 있습니다.
             </p>
           </div>

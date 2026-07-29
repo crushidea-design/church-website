@@ -164,7 +164,7 @@ export default function NextGenerationHeader() {
                   <span>THE</span>
                   <span>COVENANT</span>
                 </span>
-                <span className="mt-1 hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700 sm:flex">
+                <span className="mt-1 flex max-sm:hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
                   {Array.from('GROWING IN THE COVENANT').map((char, index) => (
                     <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
                       {char}
@@ -260,7 +260,7 @@ export default function NextGenerationHeader() {
             </nav>
 
             {/* Auth controls (desktop) */}
-            <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+            <div className="flex max-lg:hidden items-center gap-2 flex-shrink-0">
               {!authLoading && !user && (
                 <button
                   onClick={() => setShowLoginModal(true)}

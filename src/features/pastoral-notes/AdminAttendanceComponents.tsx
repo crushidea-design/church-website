@@ -360,7 +360,7 @@ export function AttendanceFlowPanel({
       ) : (
         <>
           <div className="mt-4">
-            <div className="hidden overflow-x-auto rounded-md border border-[#dbe3e8] lg:block">
+            <div className="block max-lg:hidden overflow-x-auto rounded-md border border-[#dbe3e8]">
               <table className="min-w-[980px] w-full border-collapse bg-white text-sm">
                 <thead className="bg-[#f8fafb]">
                   <tr>

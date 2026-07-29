@@ -116,7 +116,7 @@ export function MembersTab({
           )}
         </div>
 
-        <div className="mt-4 hidden max-h-[calc(100vh-220px)] overflow-auto rounded-lg border border-[#dbe3e8] bg-[#ffffff] lg:block">
+        <div className="mt-4 block max-lg:hidden max-h-[calc(100vh-220px)] overflow-auto rounded-lg border border-[#dbe3e8] bg-[#ffffff]">
           {members.length === 0 ? (
             <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState>
           ) : (
