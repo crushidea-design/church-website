@@ -22,14 +22,18 @@ import {
   NextGenerationIconName,
   NextGenerationIntroSection,
   NextGenerationResourceTab,
+  NextGenerationTopic,
   normalizeCmsSlug,
   seedNextGenerationCmsIfEmpty,
   syncMissingDefaultNextGenerationTabs,
+  syncMissingDefaultNextGenerationTopics,
   upsertNextGenerationDepartment,
   upsertNextGenerationIntroSection,
   upsertNextGenerationTab,
+  upsertNextGenerationTopic,
   useNextGenerationCms,
 } from '../lib/nextGenerationCms';
+import { NEXT_GENERATION_UNASSIGNED_TOPIC_ID } from '../lib/nextGenerationTopics';
 import { Loader2, Settings } from 'lucide-react';
 
 import {
@@ -45,11 +49,12 @@ import CmsIntroTab from '../features/next-generation/CmsIntroTab';
 import CmsMaterialsTab from '../features/next-generation/CmsMaterialsTab';
 import CmsResourceTabsTab from '../features/next-generation/CmsResourceTabsTab';
 import CmsDepartmentsTab from '../features/next-generation/CmsDepartmentsTab';
+import CmsTopicsTab, { SHARED_TOPIC_DEPARTMENT_VALUE } from '../features/next-generation/CmsTopicsTab';
 
 function AdminNextGenerationCmsInner() {
   const navigate = useNavigate();
   const { role, loading: authLoading } = useAuth();
-  const { loading, departments, tabs, introSections } = useNextGenerationCms();
+  const { loading, departments, tabs, introSections, topics } = useNextGenerationCms();
   const [activeTab, setActiveTab] = useState<AdminTab>('departments');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -82,6 +87,11 @@ function AdminNextGenerationCmsInner() {
   const [newTabUseTopic, setNewTabUseTopic] = useState(false);
   const [newTabGuestOpen, setNewTabGuestOpen] = useState(false);
 
+  const [newTopicName, setNewTopicName] = useState('');
+  const [newTopicSlug, setNewTopicSlug] = useState('');
+  const [newTopicDepartmentSlug, setNewTopicDepartmentSlug] = useState(SHARED_TOPIC_DEPARTMENT_VALUE);
+  const [newTopicKeywords, setNewTopicKeywords] = useState('');
+
   const [newIntroDepartmentSlug, setNewIntroDepartmentSlug] = useState('');
   const [newIntroTitle, setNewIntroTitle] = useState('');
   const [newIntroType, setNewIntroType] = useState<NextGenerationIntroSection['sectionType']>('text');
@@ -113,8 +123,11 @@ function AdminNextGenerationCmsInner() {
       if (role !== 'admin') return;
       await seedNextGenerationCmsIfEmpty();
       const syncedCount = await syncMissingDefaultNextGenerationTabs();
+      const syncedTopicCount = await syncMissingDefaultNextGenerationTopics();
       if (syncedCount > 0) {
         showDone(`기본 자료실 탭 ${syncedCount}개를 CMS에 추가했습니다.`);
+      } else if (syncedTopicCount > 0) {
+        showDone(`기본 주제 ${syncedTopicCount}개를 CMS에 추가했습니다.`);
       }
     };
     run();
@@ -146,6 +159,22 @@ function AdminNextGenerationCmsInner() {
       })),
     [departments, tabs]
   );
+
+  const topicGroups = useMemo(() => {
+    const byOrder = (a: NextGenerationTopic, b: NextGenerationTopic) => a.order - b.order;
+    const departmentGroups = departments.map((department) => ({
+      key: department.slug,
+      label: department.name,
+      topics: topics.filter((topic) => topic.departmentSlug === department.slug).sort(byOrder),
+    }));
+    const sharedTopics = topics
+      .filter((topic) => !topic.departmentSlug || !departments.some((d) => d.slug === topic.departmentSlug))
+      .sort(byOrder);
+
+    return sharedTopics.length > 0
+      ? [...departmentGroups, { key: '__shared__', label: '모든 부서 공통', topics: sharedTopics }]
+      : departmentGroups;
+  }, [departments, topics]);
 
   const filteredMaterials = useMemo(() => {
     const byText = search.trim().toLowerCase();
@@ -217,6 +246,20 @@ function AdminNextGenerationCmsInner() {
         ...patch,
         order: patch.order ?? tab.order,
         isVisible: patch.isVisible ?? tab.isVisible,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveTopic = async (topic: NextGenerationTopic, patch: Partial<NextGenerationTopic>) => {
+    setBusy(true);
+    try {
+      await upsertNextGenerationTopic(topic.slug, {
+        ...topic,
+        ...patch,
+        order: patch.order ?? topic.order,
+        isVisible: patch.isVisible ?? topic.isVisible,
       });
     } finally {
       setBusy(false);
@@ -295,6 +338,71 @@ function AdminNextGenerationCmsInner() {
       setNewTabWeeklyGroup(false);
       setNewTabGuestOpen(false);
       showDone('탭을 추가했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addTopic = async () => {
+    const slug = normalizeCmsSlug(newTopicSlug || newTopicName);
+    if (!slug || !newTopicName.trim()) return;
+    if (slug === NEXT_GENERATION_UNASSIGNED_TOPIC_ID) {
+      alert(`'${NEXT_GENERATION_UNASSIGNED_TOPIC_ID}'는 주제가 지정되지 않은 자료('기타')에 쓰이는 예약어입니다.`);
+      return;
+    }
+    if (topics.some((topic) => topic.slug === slug)) {
+      alert('이미 같은 slug의 주제가 있습니다.');
+      return;
+    }
+    const order = topics.filter((topic) => topic.departmentSlug === newTopicDepartmentSlug).length + 1;
+    setBusy(true);
+    try {
+      await upsertNextGenerationTopic(slug, {
+        departmentSlug: newTopicDepartmentSlug,
+        name: newTopicName.trim(),
+        keywords: newTopicKeywords
+          .split(',')
+          .map((keyword) => keyword.trim())
+          .filter(Boolean),
+        isVisible: true,
+        order,
+      });
+      setNewTopicName('');
+      setNewTopicSlug('');
+      setNewTopicKeywords('');
+      showDone('주제를 추가했습니다. 자료실에는 이 주제의 자료가 생긴 뒤부터 폴더가 보입니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteTopic = async (topic: NextGenerationTopic) => {
+    if (
+      !confirm(
+        `주제 '${topic.name}'을(를) 삭제할까요?\n이 주제로 지정된 자료는 삭제되지 않고 '기타'로 옮겨집니다.`
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const postSnap = await getDocs(
+        query(collection(db, 'posts'), where('category', '==', 'next_generation'), limit(500))
+      );
+      const batch = writeBatch(db);
+      postSnap.docs.forEach((item) => {
+        const data = item.data() as any;
+        if (data.nextGenerationTopicId === topic.slug) {
+          batch.update(item.ref, {
+            nextGenerationTopicId: NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
+      batch.delete(doc(db, 'next_generation_topics', topic.slug));
+      await batch.commit();
+      showDone('주제를 삭제하고 해당 자료를 기타로 옮겼습니다.');
     } finally {
       setBusy(false);
     }
@@ -613,6 +721,7 @@ function AdminNextGenerationCmsInner() {
           {[
             { id: 'departments', label: '부서 관리' },
             { id: 'resourceTabs', label: '탭 관리' },
+            { id: 'topics', label: '주제 관리' },
             { id: 'intro', label: '소개 관리' },
             { id: 'materials', label: '자료 관리' },
             { id: 'tools', label: '운영도구' },
@@ -679,6 +788,25 @@ function AdminNextGenerationCmsInner() {
           />
         )}
 
+        {activeTab === 'topics' && (
+          <CmsTopicsTab
+            busy={busy}
+            departments={departments}
+            topicGroups={topicGroups}
+            newTopicName={newTopicName}
+            newTopicSlug={newTopicSlug}
+            newTopicDepartmentSlug={newTopicDepartmentSlug}
+            newTopicKeywords={newTopicKeywords}
+            onNewTopicName={setNewTopicName}
+            onNewTopicSlug={setNewTopicSlug}
+            onNewTopicDepartmentSlug={setNewTopicDepartmentSlug}
+            onNewTopicKeywords={setNewTopicKeywords}
+            onAddTopic={addTopic}
+            onSaveTopic={saveTopic}
+            onDeleteTopic={deleteTopic}
+          />
+        )}
+
         {activeTab === 'intro' && (
           <CmsIntroTab
             departments={departments}
@@ -711,6 +839,7 @@ function AdminNextGenerationCmsInner() {
           <CmsMaterialsTab
             departments={departments}
             tabs={tabs}
+            topics={topics}
             tabsByDepartmentSlug={tabsByDepartmentSlug}
             filteredMaterials={filteredMaterials}
             materialsLoading={materialsLoading}

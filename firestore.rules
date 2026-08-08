@@ -137,7 +137,9 @@ service cloud.firestore {
              (!('journalDate' in data) || data.journalDate is timestamp) &&
              (!('dateKey' in data) || (data.dateKey is string && data.dateKey.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
              (!('nextGenerationWeekKey' in data) || (data.nextGenerationWeekKey is string && data.nextGenerationWeekKey.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
-             (!('nextGenerationTopicId' in data) || data.nextGenerationTopicId in ['ten-commandments', 'scripture', 'apostles-creed', 'unassigned']) &&
+             // Topics are managed in the next_generation_topics CMS collection,
+             // so the id is validated as a slug instead of a fixed list.
+             (!('nextGenerationTopicId' in data) || (data.nextGenerationTopicId is string && data.nextGenerationTopicId.matches("^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$"))) &&
              (!('sermonCategoryId' in data) || data.sermonCategoryId is string) &&
              (!('researchCategoryId' in data) || data.researchCategoryId is string) &&
              (!('uid' in data) || data.uid is string) &&
@@ -689,6 +691,11 @@ service cloud.firestore {
     }
 
     match /next_generation_intro_sections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /next_generation_topics/{topicId} {
       allow read: if true;
       allow write: if isAdmin();
     }

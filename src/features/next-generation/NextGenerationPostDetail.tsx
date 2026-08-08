@@ -19,6 +19,7 @@ import {
   getResourceLabel,
 } from '../../lib/nextGenerationResources';
 import {
+  getDepartmentTopics,
   getNextGenerationTopicLabel,
   inferNextGenerationTopicId,
   supportsNextGenerationTopic,
@@ -52,7 +53,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
   const { role } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
   const isRestricted = hasDepartment(member, '학생');
-  const { tabs: cmsTabs, departments: cmsDepartments } = useNextGenerationCms();
+  const { tabs: cmsTabs, departments: cmsDepartments, topics: cmsTopics } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
@@ -163,8 +164,12 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     copy: department.description || department.copy || '',
     icon: iconMap.Sparkles,
   }));
-  const inferredTopicId = inferNextGenerationTopicId(post);
   const postTabSlug = post.nextGenerationTabSlug || post.subCategory;
+  const postDepartmentSlug =
+    post.nextGenerationDepartmentSlug ||
+    mergedTabs.find((tab) => tab.id === postTabSlug)?.departmentSlug;
+  const postTopics = getDepartmentTopics(cmsTopics, postDepartmentSlug);
+  const inferredTopicId = inferNextGenerationTopicId(post, postTopics);
   const backPath = getNextGenerationPostBackPath(
     postTabSlug,
     mergedTabs,
@@ -211,7 +216,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
                 </span>
               {supportsNextGenerationTopic(postTabSlug) && (
                 <span className="inline-flex w-fit rounded-lg bg-sky-50 px-3 py-2 text-sm font-black text-emerald-950">
-                  {getNextGenerationTopicLabel(inferredTopicId)}
+                  {getNextGenerationTopicLabel(inferredTopicId, postTopics)}
                 </span>
               )}
             </div>

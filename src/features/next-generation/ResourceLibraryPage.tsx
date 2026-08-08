@@ -32,12 +32,13 @@ import {
   getResourceLabel,
 } from '../../lib/nextGenerationResources';
 import {
-  NEXT_GENERATION_TOPIC_OPTIONS,
   NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+  getDepartmentTopics,
   getNextGenerationTopicLabel,
   inferNextGenerationTopicId,
   supportsNextGenerationTopic,
 } from '../../lib/nextGenerationTopics';
+import { useNextGenerationTopics } from '../../lib/nextGenerationCms';
 import { getPostAttachments } from '../../lib/attachments';
 import { fruitWeekIdFromSundayKey } from '../word-fruit/api';
 import { formatDate } from '../../lib/utils';
@@ -115,6 +116,11 @@ export default function ResourceLibraryPage({
   };
   const isWeeklyTab = !!activeTab.isWeeklyGroup;
   const usesTopicFolders = !isWeeklyTab && (!!activeTab.useTopic || supportsNextGenerationTopic(activeTab.id));
+  const cmsTopics = useNextGenerationTopics();
+  const departmentTopics = useMemo(
+    () => getDepartmentTopics(cmsTopics, departmentSlug),
+    [cmsTopics, departmentSlug]
+  );
   const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
   const ActiveIcon = activeTab.icon;
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('asc');
@@ -188,18 +194,18 @@ export default function ResourceLibraryPage({
   const topicOptions = useMemo(() => {
     if (!usesTopicFolders) return [];
 
-    const inferredTopics = new Set(posts.map((post) => inferNextGenerationTopicId(post)));
-    const baseTopics = NEXT_GENERATION_TOPIC_OPTIONS.filter((topic) => inferredTopics.has(topic.id));
+    const inferredTopics = new Set(posts.map((post) => inferNextGenerationTopicId(post, departmentTopics)));
+    const baseTopics = departmentTopics.filter((topic) => inferredTopics.has(topic.id));
     const needsUnassigned = inferredTopics.has(NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
 
     if (baseTopics.length === 0) {
-      return NEXT_GENERATION_TOPIC_OPTIONS;
+      return departmentTopics;
     }
 
     return needsUnassigned
       ? [...baseTopics, { id: NEXT_GENERATION_UNASSIGNED_TOPIC_ID, name: '기타', keywords: [] }]
       : baseTopics;
-  }, [posts, usesTopicFolders]);
+  }, [departmentTopics, posts, usesTopicFolders]);
 
   const activeTopicId = useMemo(() => {
     if (!usesTopicFolders) return null;
@@ -208,18 +214,18 @@ export default function ResourceLibraryPage({
       return requestedTopic;
     }
 
-    return topicOptions[0]?.id || NEXT_GENERATION_TOPIC_OPTIONS[0].id;
+    return topicOptions[0]?.id || NEXT_GENERATION_UNASSIGNED_TOPIC_ID;
   }, [requestedTopic, topicOptions, usesTopicFolders]);
 
   const topicCounts = useMemo(() => {
     if (!usesTopicFolders) return new Map<string, number>();
 
     return posts.reduce((counts, post) => {
-      const topicId = inferNextGenerationTopicId(post);
+      const topicId = inferNextGenerationTopicId(post, departmentTopics);
       counts.set(topicId, (counts.get(topicId) || 0) + 1);
       return counts;
     }, new Map<string, number>());
-  }, [posts, usesTopicFolders]);
+  }, [departmentTopics, posts, usesTopicFolders]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -244,12 +250,12 @@ export default function ResourceLibraryPage({
 
     if (usesTopicFolders && activeTopicId) {
       return posts
-        .filter((post) => inferNextGenerationTopicId(post) === activeTopicId)
+        .filter((post) => inferNextGenerationTopicId(post, departmentTopics) === activeTopicId)
         .sort(byName);
     }
 
     return [...posts].sort(byName);
-  }, [posts, activeTopicId, currentWeekKey, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
+  }, [posts, activeTopicId, currentWeekKey, departmentTopics, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
 
   if (visibleTabs.length === 0) {
     return (
@@ -385,7 +391,7 @@ export default function ResourceLibraryPage({
               )}
               {usesTopicFolders && activeTopicId && (
                 <p className="mt-2 text-sm font-bold text-emerald-700">
-                  선택한 주제: {getNextGenerationTopicLabel(activeTopicId)}
+                  선택한 주제: {getNextGenerationTopicLabel(activeTopicId, departmentTopics)}
                 </p>
               )}
             </div>
@@ -468,7 +474,7 @@ export default function ResourceLibraryPage({
               <h3 className="text-xl font-black text-emerald-950">아직 등록된 자료가 없습니다</h3>
               <p className="mt-3 text-slate-700">
                 {usesTopicFolders && activeTopicId
-                  ? `${getNextGenerationTopicLabel(activeTopicId)} 주제 자료가 준비되면 이곳에 올라옵니다.`
+                  ? `${getNextGenerationTopicLabel(activeTopicId, departmentTopics)} 주제 자료가 준비되면 이곳에 올라옵니다.`
                   : '이번 주 자료가 준비되면 이곳에 올라옵니다.'}
               </p>
             </div>
@@ -501,7 +507,7 @@ export default function ResourceLibraryPage({
                         </span>
                         {supportsNextGenerationTopic(post.subCategory) && (
                           <span className="inline-flex rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-black text-emerald-950">
-                            {getNextGenerationTopicLabel(inferNextGenerationTopicId(post))}
+                            {getNextGenerationTopicLabel(inferNextGenerationTopicId(post, departmentTopics), departmentTopics)}
                           </span>
                         )}
                       </div>
