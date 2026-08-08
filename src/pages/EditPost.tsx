@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs, deleteField, setDoc, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -8,11 +8,13 @@ import { useStore } from '../store/useStore';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
+  getDepartmentTopics,
   inferNextGenerationTopicId,
   isNextGenerationWeeklyResource,
-  NEXT_GENERATION_TOPIC_OPTIONS,
+  NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
   supportsNextGenerationTopic,
 } from '../lib/nextGenerationTopics';
+import { useNextGenerationTopics } from '../lib/nextGenerationCms';
 import {
   formatFileSize,
   getFirstPdfAttachment,
@@ -71,7 +73,8 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   const isNextGeneration = nextGenerationMode || type === 'next_generation';
   const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
-  const [nextGenerationTopicId, setNextGenerationTopicId] = useState(NEXT_GENERATION_TOPIC_OPTIONS[0].id);
+  const [nextGenerationTopicId, setNextGenerationTopicId] = useState('');
+  const [nextGenerationDepartmentSlug, setNextGenerationDepartmentSlug] = useState('');
   const [nextGenerationWeekKey, setNextGenerationWeekKey] = useState('');
   const [sermonCategoryId, setSermonCategoryId] = useState('');
   const [sermonCategories, setSermonCategories] = useState<SermonCategory[]>([]);
@@ -89,6 +92,24 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const cmsTopics = useNextGenerationTopics();
+  const departmentTopics = useMemo(
+    () => getDepartmentTopics(cmsTopics, nextGenerationDepartmentSlug),
+    [cmsTopics, nextGenerationDepartmentSlug]
+  );
+
+  // The topic catalog is loaded asynchronously, so the stored topic is checked
+  // against it (and inferred from the text when missing) once it arrives.
+  useEffect(() => {
+    if (!isNextGeneration || loading) return;
+
+    setNextGenerationTopicId((current) => {
+      if (current && departmentTopics.some((topic) => topic.id === current)) return current;
+      if (current === NEXT_GENERATION_UNASSIGNED_TOPIC_ID) return current;
+      return inferNextGenerationTopicId({ nextGenerationTopicId: current, title, content }, departmentTopics);
+    });
+  }, [content, departmentTopics, isNextGeneration, loading, title]);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -126,7 +147,10 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           setType(data.category);
           setDateKey(data.dateKey || getLocalDateKey(getDateFromFirestoreValue(data.createdAt) || new Date()));
           setSubCategory(data.subCategory || 'general');
-          setNextGenerationTopicId(inferNextGenerationTopicId({ ...data, content: fullContent }));
+          // Keep the stored topic as-is here; it is validated against the CMS
+          // topic catalog once that catalog has loaded (see effect below).
+          setNextGenerationTopicId(data.nextGenerationTopicId || '');
+          setNextGenerationDepartmentSlug(data.nextGenerationDepartmentSlug || '');
           setNextGenerationWeekKey(data.nextGenerationWeekKey || '');
           setSermonCategoryId(data.sermonCategoryId || '');
           setResearchCategoryId(data.researchCategoryId || '');
@@ -356,7 +380,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         }
 
         if (supportsNextGenerationTopic(subCategory)) {
-          updateData.nextGenerationTopicId = nextGenerationTopicId;
+          updateData.nextGenerationTopicId = nextGenerationTopicId || NEXT_GENERATION_UNASSIGNED_TOPIC_ID;
         } else {
           updateData.nextGenerationTopicId = deleteField();
         }
@@ -891,9 +915,13 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
                   onChange={(e) => setNextGenerationTopicId(e.target.value)}
                   className="block w-full rounded-md border-wood-300 shadow-sm focus:border-wood-500 focus:ring-wood-500 sm:text-sm p-3 bg-wood-50"
                 >
-                  {NEXT_GENERATION_TOPIC_OPTIONS.map((topic) => (
-                    <option key={topic.id} value={topic.id}>{topic.name}</option>
-                  ))}
+                  {departmentTopics.length === 0 ? (
+                    <option value={NEXT_GENERATION_UNASSIGNED_TOPIC_ID}>기타 (등록된 주제 없음)</option>
+                  ) : (
+                    departmentTopics.map((topic) => (
+                      <option key={topic.id} value={topic.id}>{topic.name}</option>
+                    ))
+                  )}
                 </select>
               </div>
             )}

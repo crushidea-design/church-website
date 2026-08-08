@@ -4,12 +4,15 @@ import { Archive, ArchiveRestore, Loader2, Save } from 'lucide-react';
 import {
   NextGenerationDepartment,
   NextGenerationResourceTab,
+  NextGenerationTopic,
 } from '../../lib/nextGenerationCms';
+import { getNextGenerationTopicLabel } from '../../lib/nextGenerationTopics';
 import { NextGenerationPostSummary, formatPostDate } from './cmsAdminHelpers';
 
 export default function CmsMaterialsTab({
   departments,
   tabs,
+  topics,
   tabsByDepartmentSlug,
   filteredMaterials,
   materialsLoading,
@@ -34,6 +37,7 @@ export default function CmsMaterialsTab({
 }: {
   departments: NextGenerationDepartment[];
   tabs: NextGenerationResourceTab[];
+  topics: NextGenerationTopic[];
   tabsByDepartmentSlug: Record<string, NextGenerationResourceTab[]>;
   filteredMaterials: NextGenerationPostSummary[];
   materialsLoading: boolean;
@@ -176,7 +180,9 @@ export default function CmsMaterialsTab({
                     <p className="text-xs text-wood-500">
                       {post.authorName || '익명'} · {formatPostDate(post.createdAt)}
                       {post.nextGenerationWeekKey ? ` · 주차 ${post.nextGenerationWeekKey}` : ''}
-                      {post.nextGenerationTopicId ? ` · 주제 ${post.nextGenerationTopicId}` : ''}
+                      {post.nextGenerationTopicId
+                        ? ` · 주제 ${getNextGenerationTopicLabel(post.nextGenerationTopicId, topics)}`
+                        : ''}
                       {' · '}
                       {post.isArchived ? '휴지통' : '노출'}
                     </p>

@@ -6,7 +6,7 @@ import {
   PROTECTED_NEXT_GEN_TAB_SLUGS,
 } from '../../lib/nextGenerationCms';
 
-export type CmsAdminTab = 'departments' | 'resourceTabs' | 'intro' | 'materials' | 'tools';
+export type CmsAdminTab = 'departments' | 'resourceTabs' | 'topics' | 'intro' | 'materials' | 'tools';
 
 export const isProtectedDepartmentSlug = (slug: string) =>
   (PROTECTED_NEXT_GEN_DEPARTMENT_SLUGS as readonly string[]).includes(slug);

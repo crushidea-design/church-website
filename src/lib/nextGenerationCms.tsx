@@ -12,6 +12,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { NEXT_GENERATION_TOPIC_OPTIONS, NextGenerationTopicOption } from './nextGenerationTopics';
 
 export type NextGenerationIconName =
   | 'CalendarDays'
@@ -50,6 +51,17 @@ export interface NextGenerationResourceTab {
   isWeeklyGroup: boolean;
   useWeekKey: boolean;
   useTopic: boolean;
+}
+
+export interface NextGenerationTopic extends NextGenerationTopicOption {
+  id: string;
+  slug: string;
+  /** Empty means the topic is shared by every department. */
+  departmentSlug: string;
+  name: string;
+  keywords: string[];
+  isVisible: boolean;
+  order: number;
 }
 
 export type NextGenerationIntroSectionType = 'text' | 'highlights' | 'gallery';
@@ -267,6 +279,28 @@ export const DEFAULT_NEXT_GENERATION_TABS: NextGenerationResourceTab[] = [
   },
 ];
 
+export const DEFAULT_NEXT_GENERATION_TOPICS: NextGenerationTopic[] = NEXT_GENERATION_TOPIC_OPTIONS.map(
+  (topic, index) => ({
+    id: topic.id,
+    slug: topic.id,
+    departmentSlug: topic.departmentSlug || '',
+    name: topic.name,
+    keywords: topic.keywords,
+    isVisible: topic.isVisible !== false,
+    order: topic.order ?? index + 1,
+  })
+);
+
+export const normalizeNextGenerationTopicDoc = (id: string, data: any): NextGenerationTopic => ({
+  id,
+  slug: data?.slug || id,
+  departmentSlug: data?.departmentSlug || '',
+  name: data?.name || id,
+  keywords: Array.isArray(data?.keywords) ? data.keywords.filter((keyword: unknown) => typeof keyword === 'string') : [],
+  isVisible: data?.isVisible !== false,
+  order: typeof data?.order === 'number' ? data.order : 0,
+});
+
 export const DEFAULT_NEXT_GENERATION_INTRO_SECTIONS: NextGenerationIntroSection[] = [
   {
     id: 'elementary_intro_1',
@@ -345,6 +379,14 @@ export const seedNextGenerationCmsIfEmpty = async () => {
     });
   });
 
+  DEFAULT_NEXT_GENERATION_TOPICS.forEach((topic) => {
+    batch.set(doc(db, 'next_generation_topics', topic.slug), {
+      ...topic,
+      updatedAt: now,
+      createdAt: now,
+    });
+  });
+
   await batch.commit();
   return true;
 };
@@ -375,11 +417,44 @@ export const syncMissingDefaultNextGenerationTabs = async () => {
   return missingTabs.length;
 };
 
+/**
+ * Topics are seeded once with the rest of the CMS, so sites created before the
+ * topic catalog existed need the defaults backfilled separately.
+ */
+export const getMissingDefaultNextGenerationTopics = (existingTopics: Pick<NextGenerationTopic, 'slug'>[]) => {
+  const existingSlugs = new Set(existingTopics.map((topic) => topic.slug));
+  return DEFAULT_NEXT_GENERATION_TOPICS.filter((topic) => !existingSlugs.has(topic.slug));
+};
+
+export const syncMissingDefaultNextGenerationTopics = async () => {
+  const snapshot = await getDocs(collection(db, 'next_generation_topics'));
+  const existingTopics = snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data()));
+  const missingTopics = getMissingDefaultNextGenerationTopics(existingTopics);
+
+  if (missingTopics.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  const now = serverTimestamp();
+  missingTopics.forEach((topic) => {
+    batch.set(doc(db, 'next_generation_topics', topic.slug), {
+      ...topic,
+      updatedAt: now,
+      createdAt: now,
+    });
+  });
+
+  await batch.commit();
+  return missingTopics.length;
+};
+
 interface NextGenerationCmsContextType {
   loading: boolean;
   departments: NextGenerationDepartment[];
   tabs: NextGenerationResourceTab[];
   introSections: NextGenerationIntroSection[];
+  topics: NextGenerationTopic[];
+  /** False when the context falls back to defaults outside the provider. */
+  isProvided: boolean;
 }
 
 const NextGenerationCmsContext = createContext<NextGenerationCmsContextType>({
@@ -387,6 +462,8 @@ const NextGenerationCmsContext = createContext<NextGenerationCmsContextType>({
   departments: DEFAULT_NEXT_GENERATION_DEPARTMENTS,
   tabs: DEFAULT_NEXT_GENERATION_TABS,
   introSections: DEFAULT_NEXT_GENERATION_INTRO_SECTIONS,
+  topics: DEFAULT_NEXT_GENERATION_TOPICS,
+  isProvided: false,
 });
 
 export function NextGenerationCmsProvider({ children }: { children: React.ReactNode }) {
@@ -394,6 +471,7 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
   const [departments, setDepartments] = useState<NextGenerationDepartment[]>(DEFAULT_NEXT_GENERATION_DEPARTMENTS);
   const [tabs, setTabs] = useState<NextGenerationResourceTab[]>(DEFAULT_NEXT_GENERATION_TABS);
   const [introSections, setIntroSections] = useState<NextGenerationIntroSection[]>(DEFAULT_NEXT_GENERATION_INTRO_SECTIONS);
+  const [topics, setTopics] = useState<NextGenerationTopic[]>(DEFAULT_NEXT_GENERATION_TOPICS);
 
   useEffect(() => {
     const unsubs = [
@@ -417,6 +495,15 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
           setIntroSections(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as NextGenerationIntroSection)));
         }
       }),
+      onSnapshot(
+        query(collection(db, 'next_generation_topics'), orderBy('order', 'asc')),
+        (snapshot) => {
+          if (!snapshot.empty) {
+            setTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
+          }
+        },
+        () => undefined
+      ),
     ];
 
     return () => {
@@ -425,14 +512,40 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
   }, []);
 
   const value = useMemo(
-    () => ({ loading, departments, tabs, introSections }),
-    [loading, departments, tabs, introSections]
+    () => ({ loading, departments, tabs, introSections, topics, isProvided: true }),
+    [loading, departments, tabs, introSections, topics]
   );
 
   return <NextGenerationCmsContext.Provider value={value}>{children}</NextGenerationCmsContext.Provider>;
 }
 
 export const useNextGenerationCms = () => useContext(NextGenerationCmsContext);
+
+/**
+ * Topic catalog for pages that may live outside NextGenerationCmsProvider
+ * (e.g. the shared post editor). Inside the provider it reuses the existing
+ * subscription; outside it opens its own.
+ */
+export const useNextGenerationTopics = (): NextGenerationTopic[] => {
+  const { topics, isProvided } = useContext(NextGenerationCmsContext);
+  const [standaloneTopics, setStandaloneTopics] = useState<NextGenerationTopic[]>(DEFAULT_NEXT_GENERATION_TOPICS);
+
+  useEffect(() => {
+    if (isProvided) return;
+
+    return onSnapshot(
+      query(collection(db, 'next_generation_topics'), orderBy('order', 'asc')),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          setStandaloneTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
+        }
+      },
+      () => undefined
+    );
+  }, [isProvided]);
+
+  return isProvided ? topics : standaloneTopics;
+};
 
 export const normalizeCmsSlug = (value: string) =>
   value
@@ -465,6 +578,22 @@ export const upsertNextGenerationTab = async (
 ) => {
   await setDoc(
     doc(db, 'next_generation_resource_tabs', slug),
+    {
+      ...payload,
+      slug,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+export const upsertNextGenerationTopic = async (
+  slug: string,
+  payload: Omit<NextGenerationTopic, 'id' | 'slug'>
+) => {
+  await setDoc(
+    doc(db, 'next_generation_topics', slug),
     {
       ...payload,
       slug,

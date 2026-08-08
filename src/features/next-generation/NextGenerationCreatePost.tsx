@@ -25,7 +25,8 @@ import {
   getYouTubeVideoId,
 } from '../../lib/nextGenerationResources';
 import {
-  NEXT_GENERATION_TOPIC_OPTIONS,
+  NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+  getDepartmentTopics,
   inferNextGenerationTopicId,
   supportsNextGenerationTopic,
 } from '../../lib/nextGenerationTopics';
@@ -44,7 +45,7 @@ const NEXT_GENERATION_CATEGORY = 'next_generation';
 export default function NextGenerationCreatePost() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { tabs: cmsTabs } = useNextGenerationCms();
+  const { tabs: cmsTabs, topics: cmsTopics } = useNextGenerationCms();
   const [searchParams] = useSearchParams();
   const mergedTabs: ResourceTabItem[] = useMemo(
     () =>
@@ -78,11 +79,7 @@ export default function NextGenerationCreatePost() {
   const [selectedResourceId, setSelectedResourceId] = useState(
     isWeeklyCreate ? (weeklyTabsInDepartment[0]?.id || activeTab.id) : activeTab.id
   );
-  const [selectedTopicId, setSelectedTopicId] = useState(
-    NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic)
-      ? requestedTopic!
-      : NEXT_GENERATION_TOPIC_OPTIONS[0].id
-  );
+  const [selectedTopicId, setSelectedTopicId] = useState(requestedTopic || NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
   const [weekKey, setWeekKey] = useState(getCurrentSundayKey());
   const backPath = requestedTopic
     ? `${getResourceDepartmentPath(activeTab.id, mergedTabs)}?resource=${activeTab.id}&topic=${requestedTopic}`
@@ -101,6 +98,11 @@ export default function NextGenerationCreatePost() {
   const selectedTab = mergedTabs.find((tab) => tab.id === selectedResourceId);
   const usesWeekKey = isWeeklyCreate || !!selectedTab?.useWeekKey;
   const usesTopic = !!selectedTab?.useTopic;
+  const topicDepartmentSlug = selectedTab?.departmentSlug || activeTab.departmentSlug;
+  const departmentTopics = useMemo(
+    () => getDepartmentTopics(cmsTopics, topicDepartmentSlug),
+    [cmsTopics, topicDepartmentSlug]
+  );
   const supportsYoutubeUrl = supportsNextGenerationYoutubeUrl(selectedResourceId);
   const weeklyMaterialFileCount = Object.values(weeklyMaterialFiles).reduce((total, files) => total + files.length, 0);
 
@@ -123,21 +125,23 @@ export default function NextGenerationCreatePost() {
     });
   }, [isWeeklyCreate, weeklyTabsInDepartment]);
 
+  // Keep the picked topic valid for the department the selected tab belongs to.
   useEffect(() => {
     if (!usesTopic) {
-      setSelectedTopicId(NEXT_GENERATION_TOPIC_OPTIONS[0].id);
+      setSelectedTopicId(NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
+      return;
     }
-  }, [usesTopic]);
 
-  useEffect(() => {
-    if (
-      requestedTopic &&
-      NEXT_GENERATION_TOPIC_OPTIONS.some((topic) => topic.id === requestedTopic) &&
-      usesTopic
-    ) {
-      setSelectedTopicId(requestedTopic);
-    }
-  }, [requestedTopic, selectedResourceId, usesTopic]);
+    setSelectedTopicId((current) => {
+      if (requestedTopic && departmentTopics.some((topic) => topic.id === requestedTopic)) {
+        return requestedTopic;
+      }
+      if (departmentTopics.some((topic) => topic.id === current)) {
+        return current;
+      }
+      return departmentTopics[0]?.id || NEXT_GENERATION_UNASSIGNED_TOPIC_ID;
+    });
+  }, [departmentTopics, requestedTopic, selectedResourceId, usesTopic]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -563,14 +567,18 @@ export default function NextGenerationCreatePost() {
                   onChange={(event) => setSelectedTopicId(event.target.value)}
                   className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 >
-                  {NEXT_GENERATION_TOPIC_OPTIONS.map((topic) => (
-                    <option key={topic.id} value={topic.id}>
-                      {topic.name}
-                    </option>
-                  ))}
+                  {departmentTopics.length === 0 ? (
+                    <option value={NEXT_GENERATION_UNASSIGNED_TOPIC_ID}>기타 (등록된 주제 없음)</option>
+                  ) : (
+                    departmentTopics.map((topic) => (
+                      <option key={topic.id} value={topic.id}>
+                        {topic.name}
+                      </option>
+                    ))
+                  )}
                 </select>
                 <p className="mt-2 text-xs font-bold text-slate-500">
-                  같은 세부 탭 안에서도 시리즈 주제별로 자료를 묶어 보여줍니다.
+                  같은 세부 탭 안에서도 시리즈 주제별로 자료를 묶어 보여줍니다. 주제는 관리자 화면의 다음세대 CMS &gt; 주제 관리에서 추가합니다.
                 </p>
               </div>
             )}
