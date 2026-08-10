@@ -4,7 +4,10 @@ import {
   NextGenerationTopicOption,
   getDepartmentTopics,
   getNextGenerationTopicLabel,
+  getNextGenerationTopicFolderOptions,
   inferNextGenerationTopicId,
+  reconcileNextGenerationTopicId,
+  resolveNextGenerationDepartmentSlug,
 } from './nextGenerationTopics';
 
 const catalog: NextGenerationTopicOption[] = [
@@ -54,5 +57,40 @@ describe('next generation topic catalog', () => {
     expect(getNextGenerationTopicLabel('retreat', catalog)).toBe('수련회');
     expect(getNextGenerationTopicLabel(NEXT_GENERATION_UNASSIGNED_TOPIC_ID, catalog)).toBe('기타');
     expect(getNextGenerationTopicLabel('deleted-topic', catalog)).toBe('기타');
+  });
+
+  it('shows the 기타 folder when every post is unassigned', () => {
+    expect(
+      getNextGenerationTopicFolderOptions(
+        [NEXT_GENERATION_UNASSIGNED_TOPIC_ID, NEXT_GENERATION_UNASSIGNED_TOPIC_ID],
+        getDepartmentTopics(catalog, 'elementary')
+      ).map((topic) => topic.id)
+    ).toEqual([NEXT_GENERATION_UNASSIGNED_TOPIC_ID]);
+  });
+
+  it('keeps the department catalog as the empty-post fallback', () => {
+    expect(
+      getNextGenerationTopicFolderOptions([], getDepartmentTopics(catalog, 'elementary')).map((topic) => topic.id)
+    ).toEqual(['ten-commandments', 'lords-prayer', 'shared']);
+  });
+
+  it('keeps a stored custom topic while the live catalog is loading', () => {
+    expect(
+      reconcileNextGenerationTopicId(
+        'custom-topic',
+        { title: '사도신경', content: '' },
+        getDepartmentTopics(catalog, 'elementary'),
+        true
+      )
+    ).toBe('custom-topic');
+  });
+
+  it('resolves a legacy post department from its CMS tab', () => {
+    expect(
+      resolveNextGenerationDepartmentSlug('', 'retreat_materials', [
+        { slug: 'elementary_script', departmentSlug: 'elementary' },
+        { slug: 'retreat_materials', departmentSlug: 'young-adults' },
+      ])
+    ).toBe('young-adults');
   });
 });

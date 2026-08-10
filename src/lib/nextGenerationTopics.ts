@@ -77,6 +77,35 @@ export const getDepartmentTopics = (
     .filter((topic) => !topic.departmentSlug || !departmentSlug || topic.departmentSlug === departmentSlug)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
+export const resolveNextGenerationDepartmentSlug = (
+  storedDepartmentSlug: string | undefined,
+  tabSlug: string | undefined,
+  tabs: Array<{ id?: string; slug?: string; departmentSlug?: string }>
+) =>
+  storedDepartmentSlug ||
+  tabs.find((tab) => (tab.slug || tab.id) === tabSlug)?.departmentSlug ||
+  '';
+
+export const getNextGenerationTopicFolderOptions = (
+  inferredTopicIds: string[],
+  topics: NextGenerationTopicOption[]
+) => {
+  const inferredTopics = new Set(inferredTopicIds);
+  const matchingTopics = topics.filter((topic) => inferredTopics.has(topic.id));
+  const needsUnassigned = inferredTopics.has(NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
+  const unassignedTopic: NextGenerationTopicOption = {
+    id: NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+    name: '기타',
+    keywords: [],
+  };
+
+  if (matchingTopics.length === 0) {
+    return needsUnassigned ? [unassignedTopic] : topics;
+  }
+
+  return needsUnassigned ? [...matchingTopics, unassignedTopic] : matchingTopics;
+};
+
 export const getNextGenerationTopicLabel = (
   topicId?: string,
   topics: NextGenerationTopicOption[] = NEXT_GENERATION_TOPIC_OPTIONS
@@ -114,4 +143,20 @@ export const inferNextGenerationTopicId = (
   ));
 
   return matchedTopic?.id || NEXT_GENERATION_UNASSIGNED_TOPIC_ID;
+};
+
+export const reconcileNextGenerationTopicId = (
+  currentTopicId: string,
+  post: { title?: string; content?: string },
+  topics: NextGenerationTopicOption[],
+  catalogLoading: boolean
+) => {
+  if (catalogLoading) return currentTopicId;
+  if (currentTopicId === NEXT_GENERATION_UNASSIGNED_TOPIC_ID) return currentTopicId;
+  if (currentTopicId && topics.some((topic) => topic.id === currentTopicId)) return currentTopicId;
+
+  return inferNextGenerationTopicId(
+    { ...post, nextGenerationTopicId: currentTopicId },
+    topics
+  );
 };

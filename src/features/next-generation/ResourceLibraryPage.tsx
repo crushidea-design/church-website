@@ -35,6 +35,7 @@ import {
   NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
   getDepartmentTopics,
   getNextGenerationTopicLabel,
+  getNextGenerationTopicFolderOptions,
   inferNextGenerationTopicId,
   supportsNextGenerationTopic,
 } from '../../lib/nextGenerationTopics';
@@ -194,17 +195,10 @@ export default function ResourceLibraryPage({
   const topicOptions = useMemo(() => {
     if (!usesTopicFolders) return [];
 
-    const inferredTopics = new Set(posts.map((post) => inferNextGenerationTopicId(post, departmentTopics)));
-    const baseTopics = departmentTopics.filter((topic) => inferredTopics.has(topic.id));
-    const needsUnassigned = inferredTopics.has(NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
-
-    if (baseTopics.length === 0) {
-      return departmentTopics;
-    }
-
-    return needsUnassigned
-      ? [...baseTopics, { id: NEXT_GENERATION_UNASSIGNED_TOPIC_ID, name: '기타', keywords: [] }]
-      : baseTopics;
+    return getNextGenerationTopicFolderOptions(
+      posts.map((post) => inferNextGenerationTopicId(post, departmentTopics)),
+      departmentTopics
+    );
   }, [departmentTopics, posts, usesTopicFolders]);
 
   const activeTopicId = useMemo(() => {
