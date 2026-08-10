@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -427,11 +428,13 @@ export const getMissingDefaultNextGenerationTopics = (existingTopics: Pick<NextG
 };
 
 export const syncMissingDefaultNextGenerationTopics = async () => {
+  const migrationRef = doc(db, 'settings', 'next_generation_topic_catalog_v1');
+  const migrationSnapshot = await getDoc(migrationRef);
+  if (migrationSnapshot.exists()) return 0;
+
   const snapshot = await getDocs(collection(db, 'next_generation_topics'));
   const existingTopics = snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data()));
   const missingTopics = getMissingDefaultNextGenerationTopics(existingTopics);
-
-  if (missingTopics.length === 0) return 0;
 
   const batch = writeBatch(db);
   const now = serverTimestamp();
@@ -442,6 +445,10 @@ export const syncMissingDefaultNextGenerationTopics = async () => {
       createdAt: now,
     });
   });
+  batch.set(migrationRef, {
+    version: 1,
+    completedAt: now,
+  });
 
   await batch.commit();
   return missingTopics.length;
@@ -449,6 +456,8 @@ export const syncMissingDefaultNextGenerationTopics = async () => {
 
 interface NextGenerationCmsContextType {
   loading: boolean;
+  tabsLoading: boolean;
+  topicsLoading: boolean;
   departments: NextGenerationDepartment[];
   tabs: NextGenerationResourceTab[];
   introSections: NextGenerationIntroSection[];
@@ -459,6 +468,8 @@ interface NextGenerationCmsContextType {
 
 const NextGenerationCmsContext = createContext<NextGenerationCmsContextType>({
   loading: true,
+  tabsLoading: true,
+  topicsLoading: true,
   departments: DEFAULT_NEXT_GENERATION_DEPARTMENTS,
   tabs: DEFAULT_NEXT_GENERATION_TABS,
   introSections: DEFAULT_NEXT_GENERATION_INTRO_SECTIONS,
@@ -468,6 +479,8 @@ const NextGenerationCmsContext = createContext<NextGenerationCmsContextType>({
 
 export function NextGenerationCmsProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
+  const [tabsLoading, setTabsLoading] = useState(true);
+  const [topicsLoading, setTopicsLoading] = useState(true);
   const [departments, setDepartments] = useState<NextGenerationDepartment[]>(DEFAULT_NEXT_GENERATION_DEPARTMENTS);
   const [tabs, setTabs] = useState<NextGenerationResourceTab[]>(DEFAULT_NEXT_GENERATION_TABS);
   const [introSections, setIntroSections] = useState<NextGenerationIntroSection[]>(DEFAULT_NEXT_GENERATION_INTRO_SECTIONS);
@@ -485,11 +498,16 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
         },
         () => setLoading(false)
       ),
-      onSnapshot(query(collection(db, 'next_generation_resource_tabs'), orderBy('order', 'asc')), (snapshot) => {
-        if (!snapshot.empty) {
-          setTabs(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as NextGenerationResourceTab)));
-        }
-      }),
+      onSnapshot(
+        query(collection(db, 'next_generation_resource_tabs'), orderBy('order', 'asc')),
+        (snapshot) => {
+          if (!snapshot.empty) {
+            setTabs(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as NextGenerationResourceTab)));
+          }
+          setTabsLoading(false);
+        },
+        () => setTabsLoading(false)
+      ),
       onSnapshot(query(collection(db, 'next_generation_intro_sections'), orderBy('order', 'asc')), (snapshot) => {
         if (!snapshot.empty) {
           setIntroSections(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as NextGenerationIntroSection)));
@@ -498,11 +516,10 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
       onSnapshot(
         query(collection(db, 'next_generation_topics'), orderBy('order', 'asc')),
         (snapshot) => {
-          if (!snapshot.empty) {
-            setTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
-          }
+          setTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
+          setTopicsLoading(false);
         },
-        () => undefined
+        () => setTopicsLoading(false)
       ),
     ];
 
@@ -512,8 +529,8 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
   }, []);
 
   const value = useMemo(
-    () => ({ loading, departments, tabs, introSections, topics, isProvided: true }),
-    [loading, departments, tabs, introSections, topics]
+    () => ({ loading, tabsLoading, topicsLoading, departments, tabs, introSections, topics, isProvided: true }),
+    [loading, tabsLoading, topicsLoading, departments, tabs, introSections, topics]
   );
 
   return <NextGenerationCmsContext.Provider value={value}>{children}</NextGenerationCmsContext.Provider>;
@@ -526,26 +543,52 @@ export const useNextGenerationCms = () => useContext(NextGenerationCmsContext);
  * (e.g. the shared post editor). Inside the provider it reuses the existing
  * subscription; outside it opens its own.
  */
-export const useNextGenerationTopics = (): NextGenerationTopic[] => {
-  const { topics, isProvided } = useContext(NextGenerationCmsContext);
+export const useNextGenerationTopicCatalog = () => {
+  const { topics, tabs, isProvided, tabsLoading, topicsLoading } = useContext(NextGenerationCmsContext);
   const [standaloneTopics, setStandaloneTopics] = useState<NextGenerationTopic[]>(DEFAULT_NEXT_GENERATION_TOPICS);
+  const [standaloneTabs, setStandaloneTabs] = useState<NextGenerationResourceTab[]>(DEFAULT_NEXT_GENERATION_TABS);
+  const [standaloneTopicsLoading, setStandaloneTopicsLoading] = useState(true);
+  const [standaloneTabsLoading, setStandaloneTabsLoading] = useState(true);
 
   useEffect(() => {
     if (isProvided) return;
 
-    return onSnapshot(
+    const unsubscribeTopics = onSnapshot(
       query(collection(db, 'next_generation_topics'), orderBy('order', 'asc')),
       (snapshot) => {
-        if (!snapshot.empty) {
-          setStandaloneTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
-        }
+        setStandaloneTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
+        setStandaloneTopicsLoading(false);
       },
-      () => undefined
+      () => setStandaloneTopicsLoading(false)
     );
+    const unsubscribeTabs = onSnapshot(
+      query(collection(db, 'next_generation_resource_tabs'), orderBy('order', 'asc')),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          setStandaloneTabs(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as NextGenerationResourceTab)));
+        }
+        setStandaloneTabsLoading(false);
+      },
+      () => setStandaloneTabsLoading(false)
+    );
+
+    return () => {
+      unsubscribeTopics();
+      unsubscribeTabs();
+    };
   }, [isProvided]);
 
-  return isProvided ? topics : standaloneTopics;
+  return isProvided
+    ? { topics, tabs, loading: topicsLoading || tabsLoading }
+    : {
+        topics: standaloneTopics,
+        tabs: standaloneTabs,
+        loading: standaloneTopicsLoading || standaloneTabsLoading,
+      };
 };
+
+export const useNextGenerationTopics = (): NextGenerationTopic[] =>
+  useNextGenerationTopicCatalog().topics;
 
 export const normalizeCmsSlug = (value: string) =>
   value

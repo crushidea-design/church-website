@@ -13,6 +13,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
+import type { DocumentData, DocumentReference, UpdateData } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import AdminLayout from '../components/AdminLayout';
@@ -50,6 +51,42 @@ import CmsMaterialsTab from '../features/next-generation/CmsMaterialsTab';
 import CmsResourceTabsTab from '../features/next-generation/CmsResourceTabsTab';
 import CmsDepartmentsTab from '../features/next-generation/CmsDepartmentsTab';
 import CmsTopicsTab, { SHARED_TOPIC_DEPARTMENT_VALUE } from '../features/next-generation/CmsTopicsTab';
+
+const WRITE_BATCH_SIZE = 400;
+
+const commitDocumentUpdatesInBatches = async (
+  updates: Array<{ ref: DocumentReference<DocumentData>; data: UpdateData<DocumentData> }>
+) => {
+  for (let index = 0; index < updates.length; index += WRITE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    updates.slice(index, index + WRITE_BATCH_SIZE).forEach(({ ref, data }) => {
+      batch.update(ref, data);
+    });
+    await batch.commit();
+  }
+};
+
+const updateMatchingNextGenerationPostsInBatches = async (
+  field: string,
+  value: string,
+  data: UpdateData<DocumentData>
+) => {
+  while (true) {
+    const snapshot = await getDocs(
+      query(
+        collection(db, 'posts'),
+        where('category', '==', 'next_generation'),
+        where(field, '==', value),
+        limit(WRITE_BATCH_SIZE)
+      )
+    );
+    if (snapshot.empty) return;
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((item) => batch.update(item.ref, data));
+    await batch.commit();
+  }
+};
 
 function AdminNextGenerationCmsInner() {
   const navigate = useNavigate();
@@ -162,18 +199,28 @@ function AdminNextGenerationCmsInner() {
 
   const topicGroups = useMemo(() => {
     const byOrder = (a: NextGenerationTopic, b: NextGenerationTopic) => a.order - b.order;
+    const departmentSlugs = new Set(departments.map((department) => department.slug));
     const departmentGroups = departments.map((department) => ({
       key: department.slug,
       label: department.name,
       topics: topics.filter((topic) => topic.departmentSlug === department.slug).sort(byOrder),
     }));
     const sharedTopics = topics
-      .filter((topic) => !topic.departmentSlug || !departments.some((d) => d.slug === topic.departmentSlug))
+      .filter((topic) => !topic.departmentSlug)
+      .sort(byOrder);
+    const orphanedTopics = topics
+      .filter((topic) => topic.departmentSlug && !departmentSlugs.has(topic.departmentSlug))
       .sort(byOrder);
 
-    return sharedTopics.length > 0
-      ? [...departmentGroups, { key: '__shared__', label: '모든 부서 공통', topics: sharedTopics }]
-      : departmentGroups;
+    return [
+      ...departmentGroups,
+      ...(sharedTopics.length > 0
+        ? [{ key: '__shared__', label: '모든 부서 공통', topics: sharedTopics }]
+        : []),
+      ...(orphanedTopics.length > 0
+        ? [{ key: '__orphaned__', label: '소속 부서 없음 (수정 필요)', topics: orphanedTopics }]
+        : []),
+    ];
   }, [departments, topics]);
 
   const filteredMaterials = useMemo(() => {
@@ -387,21 +434,11 @@ function AdminNextGenerationCmsInner() {
 
     setBusy(true);
     try {
-      const postSnap = await getDocs(
-        query(collection(db, 'posts'), where('category', '==', 'next_generation'), limit(500))
-      );
-      const batch = writeBatch(db);
-      postSnap.docs.forEach((item) => {
-        const data = item.data() as any;
-        if (data.nextGenerationTopicId === topic.slug) {
-          batch.update(item.ref, {
-            nextGenerationTopicId: NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
-            updatedAt: serverTimestamp(),
-          });
-        }
+      await updateMatchingNextGenerationPostsInBatches('nextGenerationTopicId', topic.slug, {
+        nextGenerationTopicId: NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+        updatedAt: serverTimestamp(),
       });
-      batch.delete(doc(db, 'next_generation_topics', topic.slug));
-      await batch.commit();
+      await deleteDoc(doc(db, 'next_generation_topics', topic.slug));
       showDone('주제를 삭제하고 해당 자료를 기타로 옮겼습니다.');
     } finally {
       setBusy(false);
@@ -457,33 +494,29 @@ function AdminNextGenerationCmsInner() {
 
     setBusy(true);
     try {
-      const batch = writeBatch(db);
       const movingTabs = tabs.filter((tab) => tab.departmentSlug === department.slug);
       const movingIntros = introSections.filter((section) => section.departmentSlug === department.slug);
+      const movingTopics = topics.filter((topic) => topic.departmentSlug === department.slug);
 
-      movingTabs.forEach((tab) => {
-        batch.update(doc(db, 'next_generation_resource_tabs', tab.slug), {
-          departmentSlug: targetDepartment.slug,
-        });
+      await commitDocumentUpdatesInBatches([
+        ...movingTabs.map((tab) => ({
+          ref: doc(db, 'next_generation_resource_tabs', tab.slug),
+          data: { departmentSlug: targetDepartment.slug, updatedAt: serverTimestamp() },
+        })),
+        ...movingIntros.map((section) => ({
+          ref: doc(db, 'next_generation_intro_sections', section.id),
+          data: { departmentSlug: targetDepartment.slug, updatedAt: serverTimestamp() },
+        })),
+        ...movingTopics.map((topic) => ({
+          ref: doc(db, 'next_generation_topics', topic.slug),
+          data: { departmentSlug: targetDepartment.slug, updatedAt: serverTimestamp() },
+        })),
+      ]);
+      await updateMatchingNextGenerationPostsInBatches('nextGenerationDepartmentSlug', department.slug, {
+        nextGenerationDepartmentSlug: targetDepartment.slug,
+        updatedAt: serverTimestamp(),
       });
-      movingIntros.forEach((section) => {
-        batch.update(doc(db, 'next_generation_intro_sections', section.id), {
-          departmentSlug: targetDepartment.slug,
-        });
-      });
-
-      const postSnap = await getDocs(
-        query(collection(db, 'posts'), where('category', '==', 'next_generation'), limit(500))
-      );
-      postSnap.docs.forEach((item) => {
-        const data = item.data() as any;
-        if ((data.nextGenerationDepartmentSlug || '') === department.slug) {
-          batch.update(item.ref, { nextGenerationDepartmentSlug: targetDepartment.slug });
-        }
-      });
-
-      batch.delete(doc(db, 'next_generation_departments', department.slug));
-      await batch.commit();
+      await deleteDoc(doc(db, 'next_generation_departments', department.slug));
       showDone('부서를 삭제하고 관련 데이터를 이동했습니다.');
     } finally {
       setBusy(false);
@@ -512,23 +545,15 @@ function AdminNextGenerationCmsInner() {
 
     setBusy(true);
     try {
-      const postSnap = await getDocs(
-        query(collection(db, 'posts'), where('category', '==', 'next_generation'), limit(500))
-      );
-      const batch = writeBatch(db);
-      postSnap.docs.forEach((item) => {
-        const data = item.data() as any;
-        const tabSlug = data.nextGenerationTabSlug || data.subCategory || '';
-        if (tabSlug === tab.slug) {
-          batch.update(item.ref, {
-            subCategory: targetTab.slug,
-            nextGenerationTabSlug: targetTab.slug,
-            nextGenerationDepartmentSlug: targetTab.departmentSlug,
-          });
-        }
-      });
-      batch.delete(doc(db, 'next_generation_resource_tabs', tab.slug));
-      await batch.commit();
+      const movePatch = {
+        subCategory: targetTab.slug,
+        nextGenerationTabSlug: targetTab.slug,
+        nextGenerationDepartmentSlug: targetTab.departmentSlug,
+        updatedAt: serverTimestamp(),
+      };
+      await updateMatchingNextGenerationPostsInBatches('subCategory', tab.slug, movePatch);
+      await updateMatchingNextGenerationPostsInBatches('nextGenerationTabSlug', tab.slug, movePatch);
+      await deleteDoc(doc(db, 'next_generation_resource_tabs', tab.slug));
       showDone('탭을 삭제하고 게시물을 이동했습니다.');
     } finally {
       setBusy(false);

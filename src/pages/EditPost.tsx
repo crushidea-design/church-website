@@ -9,12 +9,13 @@ import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
 import {
   getDepartmentTopics,
-  inferNextGenerationTopicId,
   isNextGenerationWeeklyResource,
   NEXT_GENERATION_UNASSIGNED_TOPIC_ID,
+  reconcileNextGenerationTopicId,
+  resolveNextGenerationDepartmentSlug,
   supportsNextGenerationTopic,
 } from '../lib/nextGenerationTopics';
-import { useNextGenerationTopics } from '../lib/nextGenerationCms';
+import { useNextGenerationTopicCatalog } from '../lib/nextGenerationCms';
 import {
   formatFileSize,
   getFirstPdfAttachment,
@@ -93,10 +94,14 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const cmsTopics = useNextGenerationTopics();
+  const { topics: cmsTopics, tabs: cmsTabs, loading: topicCatalogLoading } = useNextGenerationTopicCatalog();
+  const effectiveDepartmentSlug = useMemo(
+    () => resolveNextGenerationDepartmentSlug(nextGenerationDepartmentSlug, subCategory, cmsTabs),
+    [cmsTabs, nextGenerationDepartmentSlug, subCategory]
+  );
   const departmentTopics = useMemo(
-    () => getDepartmentTopics(cmsTopics, nextGenerationDepartmentSlug),
-    [cmsTopics, nextGenerationDepartmentSlug]
+    () => getDepartmentTopics(cmsTopics, effectiveDepartmentSlug),
+    [cmsTopics, effectiveDepartmentSlug]
   );
 
   // The topic catalog is loaded asynchronously, so the stored topic is checked
@@ -104,12 +109,13 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   useEffect(() => {
     if (!isNextGeneration || loading) return;
 
-    setNextGenerationTopicId((current) => {
-      if (current && departmentTopics.some((topic) => topic.id === current)) return current;
-      if (current === NEXT_GENERATION_UNASSIGNED_TOPIC_ID) return current;
-      return inferNextGenerationTopicId({ nextGenerationTopicId: current, title, content }, departmentTopics);
-    });
-  }, [content, departmentTopics, isNextGeneration, loading, title]);
+    setNextGenerationTopicId((current) => reconcileNextGenerationTopicId(
+      current,
+      { title, content },
+      departmentTopics,
+      topicCatalogLoading
+    ));
+  }, [content, departmentTopics, isNextGeneration, loading, title, topicCatalogLoading]);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -354,6 +360,9 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
       if (isNextGeneration) {
         updateData.subCategory = subCategory;
         updateData.nextGenerationTabSlug = subCategory;
+        if (effectiveDepartmentSlug) {
+          updateData.nextGenerationDepartmentSlug = effectiveDepartmentSlug;
+        }
 
         if (youtubeUrl.trim()) {
           updateData.youtubeUrl = youtubeUrl.trim();
