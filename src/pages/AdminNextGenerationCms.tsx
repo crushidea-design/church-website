@@ -42,6 +42,7 @@ import {
   ELEMENTARY_TAB_HINT_SLUGS,
   NextGenerationPostSummary,
   YOUNG_ADULT_TAB_HINT_SLUGS,
+  isPostInNextGenerationTab,
   isProtectedDepartmentSlug,
   isProtectedTabSlug,
 } from '../features/next-generation/cmsAdminHelpers';
@@ -551,8 +552,19 @@ function AdminNextGenerationCmsInner() {
         nextGenerationDepartmentSlug: targetTab.departmentSlug,
         updatedAt: serverTimestamp(),
       };
-      await updateMatchingNextGenerationPostsInBatches('subCategory', tab.slug, movePatch);
       await updateMatchingNextGenerationPostsInBatches('nextGenerationTabSlug', tab.slug, movePatch);
+      const legacySnapshot = await getDocs(
+        query(
+          collection(db, 'posts'),
+          where('category', '==', 'next_generation'),
+          where('subCategory', '==', tab.slug)
+        )
+      );
+      await commitDocumentUpdatesInBatches(
+        legacySnapshot.docs
+          .filter((item) => isPostInNextGenerationTab(item.data(), tab.slug))
+          .map((item) => ({ ref: item.ref, data: movePatch }))
+      );
       await deleteDoc(doc(db, 'next_generation_resource_tabs', tab.slug));
       showDone('탭을 삭제하고 게시물을 이동했습니다.');
     } finally {
