@@ -23,6 +23,17 @@ export function fruitWeekIdFromSundayKey(sundayKey: string): string {
   return getWeekId(d);
 }
 
+/**
+ * Fruit shown to children and parents for the active Sunday message.
+ * On Sunday this intentionally advances to the following Mon-Sat ISO week.
+ */
+export function getActiveWordFruitWeekId(date: Date = new Date()): string {
+  const sunday = new Date(date);
+  sunday.setHours(12, 0, 0, 0);
+  sunday.setDate(sunday.getDate() - sunday.getDay());
+  return fruitWeekIdFromSundayKey(getTodayKey(sunday));
+}
+
 export function getTodayKey(date: Date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

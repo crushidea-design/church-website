@@ -64,7 +64,19 @@ export const getSundayDate = (baseDate = new Date()) => {
   return date;
 };
 
-export const getCurrentSundayKey = () => toLocalDateKey(getSundayDate());
+/** The most recent Sunday, switching to the new Sunday on Sunday itself. */
+export const getActiveSundayDate = (baseDate = new Date()) => {
+  const date = new Date(baseDate);
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - date.getDay());
+  return date;
+};
+
+/** Upcoming Sunday used for teacher/admin preparation flows. */
+export const getCurrentSundayKey = (baseDate = new Date()) => toLocalDateKey(getSundayDate(baseDate));
+
+/** Sunday whose message is currently being continued by children and parents. */
+export const getActiveSundayKey = (baseDate = new Date()) => toLocalDateKey(getActiveSundayDate(baseDate));
 
 export const getPostWeekKey = (post: NextGenerationResourcePost) => {
   if (typeof post.nextGenerationWeekKey === 'string' && post.nextGenerationWeekKey) {
