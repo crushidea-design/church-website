@@ -42,6 +42,11 @@ export interface NextGenerationPostSummary {
   createdAt?: any;
 }
 
+export const isPostInNextGenerationTab = (
+  post: Pick<NextGenerationPostSummary, 'subCategory' | 'nextGenerationTabSlug'>,
+  tabSlug: string
+) => (post.nextGenerationTabSlug || post.subCategory) === tabSlug;
+
 export const formatPostDate = (value: any) => {
   const date = value?.toDate?.() || (typeof value === 'string' ? new Date(value) : null);
   if (!date || Number.isNaN(date.getTime())) return '-';

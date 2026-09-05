@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_NEXT_GENERATION_TABS,
   getMissingDefaultNextGenerationTabs,
+  isServerConfirmedCatalogSnapshot,
 } from './nextGenerationCms';
 
 describe('next generation CMS defaults', () => {
@@ -17,5 +18,10 @@ describe('next generation CMS defaults', () => {
     const missing = getMissingDefaultNextGenerationTabs(DEFAULT_NEXT_GENERATION_TABS);
 
     expect(missing).toEqual([]);
+  });
+
+  it('waits for a server-confirmed catalog snapshot', () => {
+    expect(isServerConfirmedCatalogSnapshot({ metadata: { fromCache: true } })).toBe(false);
+    expect(isServerConfirmedCatalogSnapshot({ metadata: { fromCache: false } })).toBe(true);
   });
 });

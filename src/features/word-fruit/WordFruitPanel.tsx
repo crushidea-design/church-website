@@ -6,8 +6,8 @@ import { hasDepartment } from '../../lib/nextGenerationRoles';
 import {
   checkInToday,
   fruitStageOf,
+  getActiveWordFruitWeekId,
   getTodayKey,
-  getWeekId,
   isCheckAllowedDay,
   subscribeAllProgress,
   subscribeMyProgress,
@@ -32,11 +32,12 @@ import {
 
 export default function WordFruitPanel() {
   const { user, member, isPastor } = useNextGenerationAuth();
-  const currentWeekId = useMemo(() => getWeekId(), []);
+  const currentWeekId = useMemo(() => getActiveWordFruitWeekId(), []);
   const [searchParams] = useSearchParams();
   const requestedWeekId = searchParams.get('wfWeekId') || '';
   const [selectedWeekId, setSelectedWeekId] = useState(requestedWeekId || currentWeekId);
   const isCurrentWeek = selectedWeekId === currentWeekId;
+  const isFutureWeek = selectedWeekId > currentWeekId;
 
   // Honor URL changes to wfWeekId (e.g. from the weekly curriculum page)
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function WordFruitPanel() {
         <p className="mt-1 text-sm leading-6 text-slate-600">{fruit?.guideMessage || GUIDE_MESSAGE_DEFAULT}</p>
         {!isCurrentWeek && fruit && (
           <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-            지난 주차 보기 ({fruit.startDate} ~ {fruit.endDate})
+            {isFutureWeek ? '다가오는 주차 준비' : '지난 주차 보기'} ({fruit.startDate} ~ {fruit.endDate})
           </p>
         )}
       </div>

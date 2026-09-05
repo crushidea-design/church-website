@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   fruitStageOf,
   fruitWeekIdFromSundayKey,
+  getActiveWordFruitWeekId,
   getTodayKey,
   getWeekId,
   isCheckAllowedDay,
@@ -44,6 +45,17 @@ describe('fruitWeekIdFromSundayKey', () => {
     expect(fruitWeekIdFromSundayKey('')).toBe('');
     expect(fruitWeekIdFromSundayKey('2026/05/10')).toBe('');
     expect(fruitWeekIdFromSundayKey('not-a-date')).toBe('');
+  });
+});
+
+describe('getActiveWordFruitWeekId', () => {
+  it('keeps the latest Sunday fruit active from Monday through Saturday', () => {
+    expect(getActiveWordFruitWeekId(new Date(2026, 8, 1))).toBe('2026-W36');
+    expect(getActiveWordFruitWeekId(new Date(2026, 8, 5))).toBe('2026-W36');
+  });
+
+  it('switches to the new fruit week on Sunday itself', () => {
+    expect(getActiveWordFruitWeekId(new Date(2026, 8, 6))).toBe('2026-W37');
   });
 });
 

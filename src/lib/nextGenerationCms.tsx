@@ -477,6 +477,9 @@ const NextGenerationCmsContext = createContext<NextGenerationCmsContextType>({
   isProvided: false,
 });
 
+export const isServerConfirmedCatalogSnapshot = (snapshot: { metadata: { fromCache: boolean } }) =>
+  !snapshot.metadata.fromCache;
+
 export function NextGenerationCmsProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [tabsLoading, setTabsLoading] = useState(true);
@@ -515,11 +518,14 @@ export function NextGenerationCmsProvider({ children }: { children: React.ReactN
       }),
       onSnapshot(
         query(collection(db, 'next_generation_topics'), orderBy('order', 'asc')),
+        { includeMetadataChanges: true },
         (snapshot) => {
           setTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
-          setTopicsLoading(false);
+          if (isServerConfirmedCatalogSnapshot(snapshot)) {
+            setTopicsLoading(false);
+          }
         },
-        () => setTopicsLoading(false)
+        () => undefined
       ),
     ];
 
@@ -555,11 +561,14 @@ export const useNextGenerationTopicCatalog = () => {
 
     const unsubscribeTopics = onSnapshot(
       query(collection(db, 'next_generation_topics'), orderBy('order', 'asc')),
+      { includeMetadataChanges: true },
       (snapshot) => {
         setStandaloneTopics(snapshot.docs.map((d) => normalizeNextGenerationTopicDoc(d.id, d.data())));
-        setStandaloneTopicsLoading(false);
+        if (isServerConfirmedCatalogSnapshot(snapshot)) {
+          setStandaloneTopicsLoading(false);
+        }
       },
-      () => setStandaloneTopicsLoading(false)
+      () => undefined
     );
     const unsubscribeTabs = onSnapshot(
       query(collection(db, 'next_generation_resource_tabs'), orderBy('order', 'asc')),

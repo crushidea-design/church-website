@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatShortDate,
+  getActiveSundayKey,
   getContentPreview,
   getCurrentSundayKey,
   getFamilyWorshipResourcePath,
@@ -28,6 +29,17 @@ describe('next generation resource helpers', () => {
   it('maps any day to the next Sunday key at local noon', () => {
     expect(toLocalDateKey(getSundayDate(new Date('2026-05-12T09:00:00+09:00')))).toBe('2026-05-17');
     expect(toLocalDateKey(getSundayDate(new Date('2026-05-17T03:00:00+09:00')))).toBe('2026-05-17');
+  });
+
+  it('keeps the most recent Sunday active until the next Sunday arrives', () => {
+    expect(getActiveSundayKey(new Date(2026, 8, 1, 9))).toBe('2026-08-30');
+    expect(getActiveSundayKey(new Date(2026, 8, 5, 23, 59))).toBe('2026-08-30');
+    expect(getActiveSundayKey(new Date(2026, 8, 6, 0, 1))).toBe('2026-09-06');
+  });
+
+  it('keeps the upcoming Sunday available for preparation', () => {
+    expect(getCurrentSundayKey(new Date(2026, 8, 1, 9))).toBe('2026-09-06');
+    expect(getCurrentSundayKey(new Date(2026, 8, 6, 9))).toBe('2026-09-06');
   });
 
   it('derives post week keys from explicit week keys before createdAt', () => {

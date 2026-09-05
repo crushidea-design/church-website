@@ -29,6 +29,7 @@ import {
 export {
   fruitStageOf,
   fruitWeekIdFromSundayKey,
+  getActiveWordFruitWeekId,
   getTodayKey,
   getWeekId,
   isCheckAllowedDay,

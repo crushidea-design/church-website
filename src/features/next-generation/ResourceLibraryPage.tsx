@@ -26,6 +26,7 @@ import { hasDepartment } from '../../lib/nextGenerationRoles';
 import {
   NEXT_GENERATION_PATH,
   getContentPreview,
+  getActiveSundayKey,
   getCurrentSundayKey,
   getPostWeekKey,
   getResourceDepartmentPath,
@@ -82,7 +83,7 @@ export default function ResourceLibraryPage({
   guestPostLimit,
 }: ResourceLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
-  const { user: ngUser, member } = useNextGenerationAuth();
+  const { user: ngUser, member, isPastor } = useNextGenerationAuth();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   // Restricted departments (e.g. 학생) only see the workbook tab; other tabs are hidden entirely.
@@ -122,7 +123,11 @@ export default function ResourceLibraryPage({
     () => getDepartmentTopics(cmsTopics, departmentSlug),
     [cmsTopics, departmentSlug]
   );
-  const currentWeekKey = useMemo(() => getCurrentSundayKey(), []);
+  const activeSundayKey = useMemo(() => getActiveSundayKey(), []);
+  const upcomingSundayKey = useMemo(() => getCurrentSundayKey(), []);
+  const canPreviewUpcoming = isAdmin || isPastor || (member?.role === 'member' && hasDepartment(member, '교사'));
+  const [selectedWeekKey, setSelectedWeekKey] = useState(activeSundayKey);
+  const isUpcomingPreview = selectedWeekKey === upcomingSundayKey && upcomingSundayKey !== activeSundayKey;
   const ActiveIcon = activeTab.icon;
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -148,7 +153,7 @@ export default function ResourceLibraryPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab.id, sortDir]);
+  }, [activeTab.id, selectedWeekKey, sortDir]);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -236,9 +241,7 @@ export default function ResourceLibraryPage({
     if (isWeeklyTab) {
       return weeklyResourceIds.flatMap((resourceId) => {
         const resourcePosts = posts.filter((post) => (post.nextGenerationTabSlug || post.subCategory) === resourceId);
-        const weeklyPosts = resourcePosts.filter((post) => getPostWeekKey(post) === currentWeekKey);
-
-        return weeklyPosts.length > 0 ? weeklyPosts : resourcePosts.slice(0, 1);
+        return resourcePosts.filter((post) => getPostWeekKey(post) === selectedWeekKey);
       });
     }
 
@@ -249,7 +252,7 @@ export default function ResourceLibraryPage({
     }
 
     return [...posts].sort(byName);
-  }, [posts, activeTopicId, currentWeekKey, departmentTopics, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
+  }, [posts, activeTopicId, selectedWeekKey, departmentTopics, isWeeklyTab, usesTopicFolders, sortDir, weeklyResourceIds]);
 
   if (visibleTabs.length === 0) {
     return (
@@ -369,17 +372,45 @@ export default function ResourceLibraryPage({
               </h2>
               <p className="mt-3 text-base leading-7 text-slate-700">{activeTab.description}</p>
               {isWeeklyTab && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-bold text-emerald-700">
-                    기준 주일: {currentWeekKey}
-                  </p>
-                  {departmentSlug === 'elementary' && currentWeekKey && (
-                    <Link
-                      to={`${NEXT_GENERATION_PATH}/elementary?highlight=word-fruit&wfWeekId=${fruitWeekIdFromSundayKey(currentWeekKey)}`}
-                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
-                    >
-                      <Sparkles size={12} /> 이번 주 말씀 열매 열기
-                    </Link>
+                <div className="mt-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-emerald-700">
+                      {isUpcomingPreview ? '다가오는 주일 준비자료' : '현재 말씀 기준 주일'}: {selectedWeekKey}
+                    </p>
+                    {departmentSlug === 'elementary' && selectedWeekKey && (
+                      <Link
+                        to={`${NEXT_GENERATION_PATH}/elementary?highlight=word-fruit&wfWeekId=${fruitWeekIdFromSundayKey(selectedWeekKey)}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <Sparkles size={12} /> {isUpcomingPreview ? '다가오는 말씀 열매 준비' : '이번 주 말씀 열매 열기'}
+                      </Link>
+                    )}
+                  </div>
+                  {canPreviewUpcoming && upcomingSundayKey !== activeSundayKey && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWeekKey(activeSundayKey)}
+                        className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                          !isUpcomingPreview
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                      >
+                        현재 말씀 · {activeSundayKey}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWeekKey(upcomingSundayKey)}
+                        className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                          isUpcomingPreview
+                            ? 'border-amber-500 bg-amber-500 text-white'
+                            : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50'
+                        }`}
+                      >
+                        다가오는 주일 준비 · {upcomingSundayKey}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
