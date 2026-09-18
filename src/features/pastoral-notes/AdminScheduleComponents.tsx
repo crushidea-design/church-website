@@ -99,7 +99,7 @@ export function ScheduleTab({
           ) : calendarStatus.connected ? (
             <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
               <CalendarDays size={16} />
-              Google 동기화
+              {isSaving ? '처리 중…' : 'Google 동기화'}
             </button>
           ) : (
             <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0'}>
@@ -379,7 +379,7 @@ export function MinistrySchedulePanel({
               </button>
             ) : calendarStatus.connected ? (
               <button type="button" onClick={onSyncCalendar} disabled={isSaving} className={shell.ghostButton + ' shrink-0 px-3 py-1.5 text-xs'}>
-                동기화
+                {isSaving ? '처리 중…' : '동기화'}
               </button>
             ) : (
               <button type="button" onClick={onConnectCalendar} disabled={isSaving} className={shell.button + ' shrink-0 px-3 py-1.5 text-xs'}>
@@ -472,7 +472,7 @@ export function SchedulePopupForm({
       </div>
       <div className="grid gap-2">
         <TextInput label="제목" value={form.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} placeholder="심방, 연락, 설교 준비" />
-        <div className="grid grid-cols-[minmax(0,1fr),112px] gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
           <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
           <TextInput label="시간" type="time" value={form.startsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, startsAt: value }))} />
         </div>
@@ -776,7 +776,7 @@ export function ScheduleColumn({ title, items, isSaving, onComplete }: { title: 
           <p className="rounded-lg border border-dashed border-[#dbe3e8] bg-[#f8fafb] p-3 text-sm text-[#607080]">일정 없음</p>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="grid grid-cols-[minmax(0,1fr),72px] gap-2 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
+            <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_72px] gap-2 rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{item.title}</p>
                 <p className="mt-1 text-xs text-[#607080]">

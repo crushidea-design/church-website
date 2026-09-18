@@ -1,3 +1,4 @@
+import ScheduledNotificationStatus from '../components/ScheduledNotificationStatus';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
@@ -699,6 +700,8 @@ export default function AdminNotifications() {
             </div>
           </form>
         </div>
+
+        <ScheduledNotificationStatus />
 
         <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50 p-6">
           <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-blue-900">

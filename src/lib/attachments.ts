@@ -1,3 +1,4 @@
+import { getAuth } from 'firebase/auth';
 import { FirebaseStorage, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 export type MaterialAttachmentType = 'pdf' | 'presentation' | 'image';
@@ -90,6 +91,8 @@ export const uploadMaterialFiles = async (
   files: File[],
   onProgress?: (progress: number) => void
 ) => {
+  const user = getAuth(storage.app).currentUser;
+  if (!user) throw new Error('파일을 업로드하려면 로그인해 주세요.');
   const attachments: MaterialAttachment[] = [];
   const total = files.length;
 
@@ -100,7 +103,7 @@ export const uploadMaterialFiles = async (
 
     const storagePath = `pdfs/materials/${Date.now()}_${index}_${getSafeStorageName(file.name)}`;
     const fileRef = ref(storage, storagePath);
-    await uploadBytes(fileRef, file, { contentType: file.type || undefined });
+    await uploadBytes(fileRef, file, { contentType: file.type || undefined, customMetadata: { ownerUid: user.uid } });
     const url = await getDownloadURL(fileRef);
 
     attachments.push({

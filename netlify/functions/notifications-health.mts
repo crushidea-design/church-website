@@ -1,5 +1,6 @@
+import { getMessaging } from 'firebase-admin/messaging';
 import type { Config } from '@netlify/functions';
-import { admin, getAppDb, initializeFirebaseAdmin, jsonResponse, requireAdmin } from './_shared/firebase-admin.mjs';
+import { getAppDb, initializeFirebaseAdmin, jsonResponse, requireAdmin } from './_shared/firebase-admin.mjs';
 
 export default async (req: Request) => {
   if (req.method !== 'GET') {
@@ -41,7 +42,7 @@ export default async (req: Request) => {
 
   try {
     // messaging() 호출 자체가 초기화 검증
-    admin.messaging();
+    getMessaging();
     messagingAvailable = true;
   } catch {
     // messaging 초기화 실패

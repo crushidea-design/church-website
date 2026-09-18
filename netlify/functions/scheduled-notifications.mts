@@ -1,7 +1,8 @@
+import { getMessaging } from 'firebase-admin/messaging';
+import { claimNotification } from './_shared/notification-claim.mjs';
 import type { Config } from '@netlify/functions';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
-  admin,
   buildNotificationMessage,
   getActiveTokensForUserIds,
   getAppDb,
@@ -23,10 +24,12 @@ export default async () => {
       .collection('scheduled_notifications')
       .where('status', '==', 'pending')
       .where('scheduledAt', '<=', now)
+      .limit(50)
       .get();
 
     for (const doc of notificationsSnapshot.docs) {
-      const notif = doc.data();
+      const notif = await claimNotification(db, doc.ref, now);
+      if (!notif) continue;
       const baseMessage = buildNotificationMessage({
         title: String(notif.title),
         body: String(notif.body),
@@ -36,7 +39,7 @@ export default async () => {
 
       try {
         if (notif.targetAudience === 'all') {
-          await admin.messaging().send({ ...baseMessage, topic: 'all_members' });
+          await getMessaging().send({ ...baseMessage, topic: 'all_members' });
         } else {
           let targetTokens: string[] = Array.isArray(notif.targetTokens)
             ? notif.targetTokens.filter((token: unknown): token is string => typeof token === 'string')
@@ -49,14 +52,15 @@ export default async () => {
           }
 
           if (targetTokens.length > 0) {
-            await sendMulticastInChunks(baseMessage, targetTokens);
+            const result = await sendMulticastInChunks(baseMessage, targetTokens);
+            if (result.failureCount > 0) throw new Error('Partial delivery requires review');
           }
         }
 
         await doc.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp() });
       } catch (error) {
         console.error(`Failed to send scheduled notification ${doc.id}:`, error);
-        await doc.ref.update({ status: 'failed', error: String(error) });
+        await doc.ref.update({ status: 'needs_review', error: 'DELIVERY_OUTCOME_UNCERTAIN' });
       }
     }
 

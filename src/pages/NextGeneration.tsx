@@ -14,7 +14,7 @@ import {
   NEXT_GENERATION_PATH,
 } from '../lib/nextGenerationResources';
 import { supportsNextGenerationTopic } from '../lib/nextGenerationTopics';
-import EditPost from './EditPost';
+const EditPost = React.lazy(() => import('./EditPost'));
 import {
   NextGenerationCmsProvider,
   useNextGenerationCms,
@@ -25,13 +25,13 @@ import {
   onMessageListener,
   requestNotificationPermission,
 } from '../services/notificationService';
-import NextGenerationCreatePost from '../features/next-generation/NextGenerationCreatePost';
+const NextGenerationCreatePost = React.lazy(() => import('../features/next-generation/NextGenerationCreatePost'));
 import NextGenerationPostDetail from '../features/next-generation/NextGenerationPostDetail';
 import ResourceLibraryPage from '../features/next-generation/ResourceLibraryPage';
 import IntroPage from '../features/next-generation/IntroPage';
 import NextGenerationHeader from '../features/next-generation/NextGenerationHeader';
-import NextGenerationMyPage from '../features/next-generation/NextGenerationMyPage';
-import NextGenerationDemoPage from '../features/next-generation/NextGenerationDemoPage';
+const NextGenerationMyPage = React.lazy(() => import('../features/next-generation/NextGenerationMyPage'));
+const NextGenerationDemoPage = React.lazy(() => import('../features/next-generation/NextGenerationDemoPage'));
 import {
   DepartmentCardItem,
   ResourceTabItem,

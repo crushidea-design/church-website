@@ -1,6 +1,6 @@
+import { getMessaging } from 'firebase-admin/messaging';
 import type { Config } from '@netlify/functions';
 import {
-  admin,
   buildNotificationMessage,
   createInAppNotifications,
   getActiveTokensForUserIds,
@@ -60,7 +60,7 @@ export default async (req: Request) => {
         return jsonResponse({ error: 'Unsupported topic' }, 400);
       }
 
-      const messageId = await admin.messaging().send({
+      const messageId = await getMessaging().send({
         ...baseMessage,
         topic,
       });

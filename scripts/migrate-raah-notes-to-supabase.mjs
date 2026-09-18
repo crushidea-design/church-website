@@ -1,5 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { cert, initializeApp } from 'firebase-admin/app';
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
-import admin from 'firebase-admin';
 
 const FIRESTORE_DATABASE_ID = 'ai-studio-718ae15e-9471-4be1-ad56-c48181aa8613';
 const ENCRYPTION_VERSION = 1;
@@ -53,11 +54,11 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABA
 const encryptionSecret = requiredEnv('RAAH_ENCRYPTION_SECRET');
 const serviceAccount = parseServiceAccount(requiredEnv('FIREBASE_SERVICE_ACCOUNT_KEY'));
 
-const app = admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+const app = initializeApp({
+  credential: cert(serviceAccount),
 });
 
-const firestore = admin.firestore(app);
+const firestore = getFirestore(app);
 firestore.settings({ databaseId: FIRESTORE_DATABASE_ID });
 const snapshot = await firestore.collection('pastoral_notes').orderBy('date', 'desc').get();
 

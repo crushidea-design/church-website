@@ -1,6 +1,7 @@
+import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { admin, getAppDb, initializeFirebaseAdmin, jsonResponse } from './_shared/firebase-admin.mjs';
+import { requireRaahAdmin } from './_shared/raah-auth.mjs';
 
 declare const Netlify:
   | {
@@ -44,7 +45,6 @@ type EncryptedPayload = {
   ciphertext: string;
 };
 
-const ADMIN_EMAIL = 'crushidea@gmail.com';
 const ENCRYPTION_VERSION = 1;
 
 const getEnv = (key: string) => {
@@ -100,63 +100,6 @@ const parseInput = (raw: unknown): PastoralNoteInput | null => {
   return input;
 };
 
-const getBearerToken = (req: Request) => {
-  const authHeader = req.headers.get('authorization') || '';
-  return authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
-};
-
-const requireRaahAdmin = async (req: Request) => {
-  const token = getBearerToken(req);
-  if (!token) return { response: jsonResponse({ error: 'Authentication required' }, 401) };
-
-  const firebaseReady = initializeFirebaseAdmin();
-  if (firebaseReady) {
-    try {
-      const decoded = await admin.auth().verifyIdToken(token);
-      if (decoded.email === ADMIN_EMAIL) return { user: { uid: decoded.uid, email: decoded.email, name: decoded.name || decoded.email || 'Admin' } };
-
-      const userDoc = await getAppDb().collection('users').doc(decoded.uid).get();
-      if (userDoc.exists && userDoc.data()?.role === 'admin') {
-        return { user: { uid: decoded.uid, email: decoded.email, name: decoded.name || decoded.email || 'Admin' } };
-      }
-    } catch {
-      // The transition period allows Supabase Auth tokens too, so continue below.
-    }
-  }
-
-  const supabaseUser = await getSupabaseAuthUser(token);
-  if (supabaseUser?.isAdmin) {
-    return { user: { uid: supabaseUser.id, email: supabaseUser.email, name: supabaseUser.name || supabaseUser.email || 'Admin' } };
-  }
-
-  return { response: jsonResponse({ error: 'Admin permission required' }, 403) };
-};
-
-const getSupabaseAuthUser = async (token: string) => {
-  const url = getEnv('SUPABASE_URL');
-  const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
-  if (!url || !serviceKey) return null;
-
-  const response = await fetch(`${url.replace(/\/$/, '')}/auth/v1/user`, {
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) return null;
-
-  const data = await response.json();
-  const appRole = data?.app_metadata?.role;
-  const userRole = data?.user_metadata?.role;
-  const isAdmin = data?.email === ADMIN_EMAIL || appRole === 'admin' || userRole === 'admin';
-  return {
-    id: String(data?.id || ''),
-    email: typeof data?.email === 'string' ? data.email : undefined,
-    name: typeof data?.user_metadata?.name === 'string' ? data.user_metadata.name : undefined,
-    isAdmin,
-  };
-};
-
 const getSupabaseConfig = () => {
   const url = getEnv('SUPABASE_URL')?.replace(/\/$/, '');
   const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
@@ -184,7 +127,7 @@ const supabaseFetch = async (path: string, init: RequestInit = {}) => {
     };
   }
 
-  const response = await fetch(`${config.url}/rest/v1/${path}`, {
+  const response = await supabaseRequest(`${config.url}/rest/v1/${path}`, {
     ...init,
     headers: {
       apikey: config.anonKey,
@@ -197,7 +140,7 @@ const supabaseFetch = async (path: string, init: RequestInit = {}) => {
   return { config, supabaseResponse: response };
 };
 
-const encryptPayload = (payload: PastoralNotePayload, secret: string): EncryptedPayload => {
+export const encryptPayload = (payload: PastoralNotePayload, secret: string): EncryptedPayload => {
   const key = createHash('sha256').update(secret).digest();
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
@@ -211,7 +154,7 @@ const encryptPayload = (payload: PastoralNotePayload, secret: string): Encrypted
   };
 };
 
-const decryptPayload = (payload: EncryptedPayload | string | null | undefined, secret: string): PastoralNotePayload => {
+export const decryptPayload = (payload: EncryptedPayload | string | null | undefined, secret: string): PastoralNotePayload => {
   const encrypted = typeof payload === 'string' ? (JSON.parse(payload) as EncryptedPayload) : payload;
   if (!encrypted?.iv || !encrypted.tag || !encrypted.ciphertext) {
     throw new Error('Encrypted payload is missing or invalid.');

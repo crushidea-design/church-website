@@ -155,7 +155,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
   const [needsSignUp, setNeedsSignUp] = useState(false);
   const [notifications, setNotifications] = useState<NextGenerationNotification[]>([]);
 
-  const isRootNextGenerationAdmin = user?.email === ADMIN_EMAIL;
+  const isRootNextGenerationAdmin = user?.email === ADMIN_EMAIL && user.emailVerified;
   const isPastor = isRootNextGenerationAdmin || !!member?.isNextGenerationAdmin;
   const isMember = !isPastor && member?.role === 'member';
   const isPending = !isPastor && member?.role === 'pending';
@@ -180,15 +180,9 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
         setNeedsSignUp(false);
       } else {
         setMember(null);
-        if (user.providerData.some(p => p.providerId === 'google.com')) {
-          // Google user with no member doc → needs to complete sign-up
-          setNeedsSignUp(true);
-        } else if (!signingUp.current) {
-          // Email user with no member doc → admin deleted their account.
-          // Delete the Auth account (succeeds since they just signed in)
-          // and fall back to sign-out if re-authentication is required.
-          user.delete().catch(() => auth.signOut());
-        }
+        // Main-site members can legitimately have no next-generation profile.
+        // Missing membership must never delete the shared Firebase account.
+        if (!signingUp.current) setNeedsSignUp(true);
       }
       setLoading(false);
     }, () => {
@@ -233,7 +227,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
         setMember(null);
         setNeedsSignUp(false);
         setLoading(false);
-      } else if (currentUser.email === ADMIN_EMAIL) {
+      } else if (currentUser.email === ADMIN_EMAIL && currentUser.emailVerified) {
         setMember(null);
         setNeedsSignUp(false);
         setLoading(false);
@@ -302,7 +296,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
       ...roleFields,
       church: data.church,
       intro: data.intro,
-      provider: 'google',
+      provider: user.providerData.some(p => p.providerId === 'google.com') ? 'google' : 'email',
       createdAt: serverTimestamp(),
     };
     if (roleFields.departments.includes('학생') && data.parentEmail && data.parentEmail.trim()) {

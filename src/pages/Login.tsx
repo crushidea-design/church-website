@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { ensureUserProfile } from '../lib/userProfile';
 import { auth, db, signInWithGoogle } from '../lib/firebase';
 import { getInAppBrowserLoginMessage, isInAppBrowser } from '../lib/inAppBrowser';
 import { Mail, Lock, LogIn, UserPlus, User, KeyRound } from 'lucide-react';
@@ -42,17 +42,6 @@ export default function Login() {
       default:
         setError('오류가 발생했습니다. 다시 시도해 주세요.');
     }
-  };
-
-  const ensureUserDocument = async (user: any, customDisplayName?: string) => {
-    const userRef = doc(db, 'users', user.uid);
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      displayName: customDisplayName || user.displayName || user.email?.split('@')[0] || 'User',
-      role: 'user',
-      createdAt: new Date()
-    }, { merge: true });
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -101,11 +90,11 @@ export default function Login() {
     try {
       if (isLoginMode) {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        await ensureUserDocument(userCredential.user);
+        await ensureUserProfile(db, userCredential.user);
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
-        await ensureUserDocument(userCredential.user, displayName.trim());
+        await ensureUserProfile(db, userCredential.user, displayName.trim());
       }
       navigate('/');
     } catch (err: any) {

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { writeComment } from '../lib/commentsApi';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, increment, serverTimestamp, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, updateDoc, serverTimestamp, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
+import { ref } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { formatDate, YOUTUBE_REGEX, getYouTubeId } from '../lib/utils';
@@ -23,6 +24,7 @@ export default function PostDetail() {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const pendingComment = useRef<{ id: string; content: string; postId: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [commentError, setCommentError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -251,27 +253,17 @@ export default function PostDetail() {
 
     setSubmitting(true);
     try {
-      const commentData = {
-        postId: id,
-        postCategory: post?.category || 'community',
-        content: newComment.trim(),
-        authorId: user.uid,
-        authorName: user.displayName || '익명',
-        createdAt: serverTimestamp()
-      };
-
-      const docRef = await addDoc(collection(db, 'comments'), commentData);
-      const newCommentObj = { id: docRef.id, ...commentData, createdAt: new Date() };
-
-      // Update post comment count and updatedAt
-      const postRef = doc(db, 'posts', id);
-      await updateDoc(postRef, {
-        commentCount: increment(1),
-        updatedAt: serverTimestamp()
-      });
-
-      setComments([...comments, newCommentObj]);
-      setPost({ ...post, commentCount: (post.commentCount || 0) + 1, updatedAt: new Date() });
+      const content = newComment.trim();
+      if (pendingComment.current?.content !== content || pendingComment.current?.postId !== id) {
+        pendingComment.current = { id: crypto.randomUUID(), content, postId: id };
+      }
+      const result = await writeComment(user, 'POST', { postId: id, commentId: pendingComment.current.id, content });
+      if (result.comment) {
+        const saved = { ...result.comment, createdAt: new Date(result.comment.createdAt) };
+        setComments((current) => current.some((item) => item.id === saved.id) ? current : [...current, saved]);
+      }
+      setPost((current) => ({ ...current, commentCount: result.commentCount, updatedAt: new Date() }));
+      pendingComment.current = null;
       setNewComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -292,7 +284,13 @@ export default function PostDetail() {
         attachments.map(async (attachment) => {
           try {
             const fileRef = ref(storage, attachment.storagePath || attachment.url);
-            await deleteObject(fileRef);
+            if (!user) throw new Error('로그인이 필요합니다.');
+            const response = await fetch('/api/attachments', {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: fileRef.fullPath }),
+            });
+            if (!response.ok) throw new Error('첨부파일 소유권을 확인할 수 없어 파일은 보존합니다.');
             console.info('Attachment deleted from storage');
           } catch (error) {
             console.error('Error deleting attachment from storage:', error);
@@ -383,17 +381,10 @@ export default function PostDetail() {
     
     setIsDeletingComment(commentId);
     try {
-      await deleteDoc(doc(db, 'comments', commentId));
-
-      // Decrement post comment count and update updatedAt
-      const postRef = doc(db, 'posts', id);
-      await updateDoc(postRef, {
-        commentCount: increment(-1),
-        updatedAt: serverTimestamp()
-      });
-
-      setComments(comments.filter(c => c.id !== commentId));
-      setPost({ ...post, commentCount: Math.max(0, (post.commentCount || 0) - 1), updatedAt: new Date() });
+      if (!user) return;
+      const result = await writeComment(user, 'DELETE', { postId: id, commentId });
+      setComments((current) => current.filter((comment) => comment.id !== commentId));
+      setPost((current) => ({ ...current, commentCount: result.commentCount, updatedAt: new Date() }));
       setShowCommentDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting comment:', error);

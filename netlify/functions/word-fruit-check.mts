@@ -1,6 +1,6 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import type { Config } from '@netlify/functions';
 import {
-  admin,
   buildNotificationMessage,
   createInAppNotifications,
   getActiveTokensForUserIds,
@@ -135,8 +135,8 @@ export default async (req: Request) => {
         checkedDates: nextDates,
         fruitStage: fruitStageOf(nextCount),
         completed: nextCount >= 3,
-        lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastCheckedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       return { count: nextCount, dates: nextDates, childName: data.childName ?? '' };
     });

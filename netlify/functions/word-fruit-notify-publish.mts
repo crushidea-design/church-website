@@ -1,6 +1,5 @@
 import type { Config } from '@netlify/functions';
 import {
-  admin,
   buildNotificationMessage,
   createInAppNotifications,
   getActiveTokensForUserIds,
@@ -13,8 +12,8 @@ import {
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
-const ensureNextGenerationPastor = async (uid: string, email: string | undefined) => {
-  if (email === ADMIN_EMAIL) return true;
+const ensureNextGenerationPastor = async (uid: string, email: string | undefined, emailVerified = false) => {
+  if (email === ADMIN_EMAIL && emailVerified) return true;
   const snap = await getAppDb().collection('next_generation_members').doc(uid).get();
   if (!snap.exists) return false;
   const data = snap.data() as { role?: string; isNextGenerationAdmin?: boolean };
@@ -47,7 +46,7 @@ export default async (req: Request) => {
   const decoded = await verifyRequestUser(req).catch(() => null);
   if (!decoded) return jsonResponse({ error: 'Authentication required' }, 401);
 
-  if (!(await ensureNextGenerationPastor(decoded.uid, decoded.email))) {
+  if (!(await ensureNextGenerationPastor(decoded.uid, decoded.email, decoded.email_verified === true))) {
     return jsonResponse({ error: 'Pastor permission required' }, 403);
   }
 

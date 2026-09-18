@@ -7,7 +7,7 @@ import { Menu, X, BookOpen, Users, Mail, Home, Info, PenTool, Heart, Bell, Spark
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import { onMessageListener } from '../services/notificationService';
 import { useSiteCms } from '../lib/siteCms';
 
@@ -157,7 +157,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-wood-100 font-sans text-wood-900">
-      <Toaster position="top-right" expand={true} richColors />
       {/* Header */}
       <header className="bg-wood-50 border-b border-wood-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
