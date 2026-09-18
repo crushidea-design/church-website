@@ -1,8 +1,9 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { connectAuthEmulator, getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { connectFirestoreEmulator, initializeFirestore, memoryLocalCache, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { ensureUserProfile } from './userProfile';
 import { getInAppBrowserLoginMessage, isInAppBrowser } from './inAppBrowser';
 import { 
   handleFirestoreError as baseHandleFirestoreError, 
@@ -10,7 +11,11 @@ import {
 } from './firestore-errors';
 
 // Configuration with environment variable fallback
-const config = {
+export const usesFirebaseEmulators = import.meta.env.DEV && import.meta.env.VITE_FIREBASE_EMULATORS === 'true';
+const config = usesFirebaseEmulators ? {
+  apiKey: 'demo-only-key', projectId: 'demo-church-review', authDomain: 'localhost',
+  storageBucket: 'demo-church-review.appspot.com', appId: 'demo-only-app', firestoreDatabaseId: '(default)',
+} : {
   ...firebaseConfig,
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (firebaseConfig.apiKey !== "REDACTED" ? firebaseConfig.apiKey : "")
 };
@@ -19,13 +24,19 @@ const config = {
 const app = initializeApp(config);
 
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
+  localCache: usesFirebaseEmulators ? memoryLocalCache() : persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
 }, config.firestoreDatabaseId);
 
 export const storage = getStorage(app, `gs://${config.storageBucket}`);
 export const auth = getAuth(app);
+
+if (usesFirebaseEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8180);
+  connectStorageEmulator(storage, '127.0.0.1', 9299);
+}
 
 // Re-export OperationType
 export { OperationType };
@@ -42,6 +53,7 @@ export let messaging: any = null;
 let messagingInitPromise: Promise<any | null> | null = null;
 
 export const getFirebaseMessaging = async () => {
+  if (usesFirebaseEmulators) return null;
   if (typeof window === 'undefined') return null;
   if (messaging) return messaging;
 
@@ -77,21 +89,8 @@ export const googleProvider = new GoogleAuthProvider();
  * Ensures a user document exists in Firestore after successful login.
  */
 async function ensureUserDocument(user: any) {
-  const userRef = doc(db, 'users', user.uid);
   try {
-    const snap = await getDoc(userRef);
-    if (!snap.exists()) {
-      // New user: create doc with createdAt
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || 'User',
-        role: 'user',
-        createdAt: new Date()
-      });
-    }
-    // Existing users: leave the doc untouched — updating createdAt would violate
-    // the Firestore rule that requires createdAt to be immutable after creation.
+    await ensureUserProfile(db, user);
   } catch (error: any) {
     console.error("Error ensuring user document:", error);
     // Don't block login if it's just a quota error or transient issue

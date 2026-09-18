@@ -1,7 +1,10 @@
+import { getMessaging } from 'firebase-admin/messaging';
+import { getAuth } from 'firebase-admin/auth';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { registerLocalRoutes } from './netlify/functions/_shared/local-routes';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import admin from 'firebase-admin';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -28,7 +31,7 @@ async function startServer() {
 
   const getAppDb = () => firebaseConfig.firestoreDatabaseId
     ? getFirestore(firebaseConfig.firestoreDatabaseId)
-    : admin.firestore();
+    : getFirestore();
 
   const verifyRequestUser = async (req: any) => {
     const authHeader = req.headers.authorization || '';
@@ -36,11 +39,11 @@ async function startServer() {
       ? authHeader.slice('Bearer '.length)
       : null;
 
-    if (!idToken || !admin.apps.length) {
+    if (!idToken || !getApps().length) {
       return null;
     }
 
-    return admin.auth().verifyIdToken(idToken);
+    return getAuth().verifyIdToken(idToken, true);
   };
 
   const requireAdmin = async (req: any, res: any) => {
@@ -51,7 +54,7 @@ async function startServer() {
         return null;
       }
 
-      if (decoded.email === ADMIN_EMAIL) {
+      if (decoded.email === ADMIN_EMAIL && decoded.email_verified === true) {
         return decoded;
       }
 
@@ -117,110 +120,41 @@ async function startServer() {
       }
 
       if (serviceAccount && serviceAccount.project_id) {
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
+        initializeApp({
+          credential: cert(serviceAccount)
         });
         console.log(`Firebase Admin initialized for project: ${serviceAccount.project_id}`);
         
         // Start cron job for scheduled notifications
-        startScheduledTasksCron();
+        if (process.env.ENABLE_LOCAL_SCHEDULED_NOTIFICATIONS === 'true') startScheduledTasksCron();
       } else {
         throw new Error('Could not parse valid service account key from FIREBASE_SERVICE_ACCOUNT_KEY');
       }
     } catch (error) {
       console.error('Error initializing Firebase Admin:', error);
-      const snippet = typeof serviceAccountKey === 'string' 
-        ? serviceAccountKey.substring(0, 50) + '...' 
-        : 'Not a string';
-      console.error('Service account key snippet:', snippet);
+
     }
   } else {
     console.warn('FIREBASE_SERVICE_ACCOUNT_KEY not found. Push notifications will not work.');
   }
 
   function startScheduledTasksCron() {
-    console.log('Starting scheduled tasks cron job...');
-    // Run every hour
     cron.schedule('0 * * * *', async () => {
       try {
-        const db = getAppDb();
-        const now = new Date();
-        
-        // Handle Scheduled Notifications
-        const notificationsSnapshot = await db.collection('scheduled_notifications')
-          .where('status', '==', 'pending')
-          .where('scheduledAt', '<=', now)
-          .get();
-
-        if (!notificationsSnapshot.empty) {
-          console.log(`Found ${notificationsSnapshot.size} scheduled notifications to send.`);
-          
-          for (const doc of notificationsSnapshot.docs) {
-            const notif = doc.data();
-            const baseMessage: any = {
-              notification: { title: notif.title, body: notif.body },
-              data: {
-                url: notif.targetUrl || '/',
-                ...(notif.imageUrl && { image: notif.imageUrl }),
-              },
-              webpush: {
-                notification: {
-                  icon: '/pwa-icon-192-v7.png',
-                  badge: '/favicon-48x48-v7.png',
-                  vibrate: [100, 50, 100],
-                  ...(notif.imageUrl && { image: notif.imageUrl }),
-                },
-                fcm_options: { link: notif.targetUrl || '/' }
-              }
-            };
-
-            try {
-              if (notif.targetAudience === 'all') {
-                // Zero-read broadcast
-                await admin.messaging().send({ ...baseMessage, topic: 'all_members' });
-              } else {
-                let targetTokens: string[] = notif.targetTokens || [];
-                if (targetTokens.length === 0 && notif.targetUserIds?.length > 0) {
-                  const thirtyDaysAgo = new Date();
-                  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                  const tokenSet = new Set<string>();
-                  for (let i = 0; i < notif.targetUserIds.length; i += 30) {
-                    const chunk = notif.targetUserIds.slice(i, i + 30);
-                    const tokensSnapshot = await db.collection('fcm_tokens')
-                      .where('userId', 'in', chunk)
-                      .where('updatedAt', '>=', thirtyDaysAgo)
-                      .get();
-                    tokensSnapshot.docs.forEach(t => tokenSet.add(t.data().token));
-                  }
-                  targetTokens = Array.from(tokenSet);
-                }
-
-                if (targetTokens.length > 0) {
-                  await admin.messaging().sendEachForMulticast({ ...baseMessage, tokens: targetTokens });
-                }
-              }
-              await doc.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp() });
-            } catch (err) {
-              console.error(`Failed to send scheduled notification ${doc.id}:`, err);
-              await doc.ref.update({ status: 'failed', error: String(err) });
-            }
-          }
-        }
-      } catch (error: any) {
-        if (error.code === 8 || (error.message && error.message.includes('RESOURCE_EXHAUSTED'))) {
-          console.warn('Firestore quota exceeded. Scheduled tasks will pause until quota resets.');
-        } else {
-          console.error('Error in scheduled tasks cron job:', error);
-        }
+        const { default: runNotifications } = await import('./netlify/functions/scheduled-notifications.mts');
+        await runNotifications();
+      } catch {
+        console.error('Scheduled notifications failed. Inspect delivery status before retrying.');
       }
     });
   }
 
   app.use(express.json());
+  registerLocalRoutes(app);
 
   // API Route: notification system health check (admin only)
   app.get('/api/notifications/health', async (req, res) => {
-    const adminInitialized = admin.apps.length > 0;
+    const adminInitialized = getApps().length > 0;
 
     const decoded = await verifyRequestUser(req).catch(() => null);
     if (!decoded || decoded.email !== ADMIN_EMAIL) {
@@ -254,7 +188,7 @@ async function startServer() {
     }
 
     try {
-      admin.messaging();
+      getMessaging();
       messagingAvailable = true;
     } catch {
       // messaging 초기화 실패
@@ -274,7 +208,7 @@ async function startServer() {
 
   app.post('/api/notifications/subscribe', async (req, res) => {
     const { token, topic = 'all_members', action = 'subscribe' } = req.body;
-    if (!admin.apps.length || !token) {
+    if (!getApps().length || !token) {
       return res.status(400).json({ error: 'Invalid request' });
     }
     if (!SUPPORTED_TOPICS.has(String(topic))) {
@@ -293,9 +227,9 @@ async function startServer() {
 
     try {
       if (action === 'unsubscribe') {
-        await admin.messaging().unsubscribeFromTopic(token, topic);
+        await getMessaging().unsubscribeFromTopic(token, topic);
       } else {
-        await admin.messaging().subscribeToTopic(token, topic);
+        await getMessaging().subscribeToTopic(token, topic);
       }
       res.json({ success: true });
     } catch (error) {
@@ -308,7 +242,7 @@ async function startServer() {
   app.post('/api/notifications/send', async (req, res) => {
     const { title, body, targetUrl, targetTokens, targetUserIds, imageUrl, useTopic, inAppTargetUids, inAppMessage } = req.body;
 
-    if (!admin.apps.length) {
+    if (!getApps().length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
     }
 
@@ -366,7 +300,7 @@ async function startServer() {
         if (!SUPPORTED_TOPICS.has(topic)) {
           return res.status(400).json({ error: 'Unsupported topic' });
         }
-        response = await admin.messaging().send({ ...baseMessage, topic });
+        response = await getMessaging().send({ ...baseMessage, topic });
         if (Array.isArray(inAppTargetUids) && inAppTargetUids.length > 0) {
           await createInAppNotifications(inAppTargetUids, inAppMessage || body).catch(console.error);
         }
@@ -391,7 +325,7 @@ async function startServer() {
         tokensToUse = Array.from(new Set(tokensToUse));
 
         if (tokensToUse.length > 0) {
-          response = await admin.messaging().sendEachForMulticast({
+          response = await getMessaging().sendEachForMulticast({
             ...baseMessage,
             tokens: tokensToUse,
           });
@@ -415,7 +349,7 @@ async function startServer() {
 
   // ─── 다음세대 말씀 열매 체크 (Asia/Seoul 기준 서버 검증) ─────────────
   app.post('/api/word-fruit/check', async (req, res) => {
-    if (!admin.apps.length) {
+    if (!getApps().length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
     }
     const decoded = await verifyRequestUser(req).catch(() => null);
@@ -536,7 +470,7 @@ async function startServer() {
                 fcm_options: { link: '/next/elementary?highlight=word-fruit' },
               },
             };
-            await admin.messaging().sendEachForMulticast({ ...baseMessage, tokens });
+            await getMessaging().sendEachForMulticast({ ...baseMessage, tokens });
           }
         } catch (err) {
           console.error('notifyLinkedParents failed:', err);
@@ -562,14 +496,14 @@ async function startServer() {
 
   // ─── 다음세대 말씀 열매: AI 카드 생성 (서버 측, 키 보호) ────────────
   app.post('/api/word-fruit/generate-cards', async (req, res) => {
-    if (!admin.apps.length) {
+    if (!getApps().length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
     }
     const decoded = await verifyRequestUser(req).catch(() => null);
     if (!decoded) return res.status(401).json({ error: 'Authentication required' });
 
     const isPastor = await (async () => {
-      if (decoded.email === ADMIN_EMAIL) return true;
+      if (decoded.email === ADMIN_EMAIL && decoded.email_verified === true) return true;
       const snap = await getAppDb().collection('next_generation_members').doc(decoded.uid).get();
       if (!snap.exists) return false;
       const data = snap.data() as any;
@@ -622,8 +556,8 @@ async function startServer() {
   });
 
   // ─── 다음세대 말씀 열매 게시 알림 (인앱 + FCM) ────────────────────
-  const ensureNextGenerationPastor = async (uid: string, email: string | undefined) => {
-    if (email === ADMIN_EMAIL) return true;
+  const ensureNextGenerationPastor = async (uid: string, email: string | undefined, emailVerified = false) => {
+    if (email === ADMIN_EMAIL && emailVerified) return true;
     const snap = await getAppDb().collection('next_generation_members').doc(uid).get();
     if (!snap.exists) return false;
     const data = snap.data() as any;
@@ -631,12 +565,12 @@ async function startServer() {
   };
 
   app.post('/api/word-fruit/notify-publish', async (req, res) => {
-    if (!admin.apps.length) {
+    if (!getApps().length) {
       return res.status(500).json({ error: 'Firebase Admin not initialized' });
     }
     const decoded = await verifyRequestUser(req).catch(() => null);
     if (!decoded) return res.status(401).json({ error: 'Authentication required' });
-    if (!(await ensureNextGenerationPastor(decoded.uid, decoded.email))) {
+    if (!(await ensureNextGenerationPastor(decoded.uid, decoded.email, decoded.email_verified === true))) {
       return res.status(403).json({ error: 'Pastor permission required' });
     }
     const weekId = typeof req.body?.weekId === 'string' ? req.body.weekId.trim() : '';
@@ -717,8 +651,7 @@ async function startServer() {
           fcm_options: { link: '/next/elementary?highlight=word-fruit' },
         },
       };
-      result = await admin
-        .messaging()
+      result = await getMessaging()
         .sendEachForMulticast({ ...baseMessage, tokens });
     }
 

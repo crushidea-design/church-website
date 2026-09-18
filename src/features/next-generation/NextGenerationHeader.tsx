@@ -80,7 +80,7 @@ export default function NextGenerationHeader() {
     setShowTutorial(false);
   };
 
-  // Show login modal when needsSignUp triggers (Google sign-in new user)
+  // Ask existing accounts without a next-generation profile to complete registration.
   useEffect(() => {
     if (needsSignUp) setShowLoginModal(true);
   }, [needsSignUp]);
@@ -97,7 +97,8 @@ export default function NextGenerationHeader() {
       return;
     }
 
-    if (needsSignUp || isRejected) {
+    if (needsSignUp || isRejected || showLoginModal) {
+      setShowTutorial(false);
       return;
     }
 
@@ -108,7 +109,7 @@ export default function NextGenerationHeader() {
     } catch (error) {
       console.warn('Unable to read next-generation tutorial state:', error);
     }
-  }, [isRejected, location.pathname, needsSignUp]);
+  }, [isRejected, location.pathname, needsSignUp, showLoginModal]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) {

@@ -1,6 +1,6 @@
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
-import { admin, getAppDb, initializeFirebaseAdmin, jsonResponse } from './_shared/firebase-admin.mjs';
+import { requireRaahAdmin } from './_shared/raah-auth.mjs';
 
 declare const Netlify:
   | {
@@ -60,7 +60,6 @@ type CalendarEventInput = {
   sourceLogId?: string;
 };
 
-const ADMIN_EMAIL = 'crushidea@gmail.com';
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const TIME_ZONE = 'Asia/Seoul';
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -83,64 +82,6 @@ const noStoreJson = (data: unknown, status = 200) =>
 const cleanText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 const validDate = (value?: string) => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 const validTime = (value?: string) => !value || /^\d{2}:\d{2}$/.test(value);
-
-const getBearerToken = (req: Request) => {
-  const authHeader = req.headers.get('authorization') || '';
-  return authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
-};
-
-const getSupabaseAuthUser = async (token: string) => {
-  const url = getEnv('SUPABASE_URL');
-  const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
-  if (!url || !serviceKey) return null;
-
-  const response = await fetch(`${url.replace(/\/$/, '')}/auth/v1/user`, {
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) return null;
-
-  const data = await response.json();
-  const appRole = data?.app_metadata?.role;
-  const userRole = data?.user_metadata?.role;
-  const isAdmin = data?.email === ADMIN_EMAIL || appRole === 'admin' || userRole === 'admin';
-  return {
-    id: String(data?.id || ''),
-    email: typeof data?.email === 'string' ? data.email : undefined,
-    name: typeof data?.user_metadata?.name === 'string' ? data.user_metadata.name : undefined,
-    isAdmin,
-  };
-};
-
-const requireRaahAdmin = async (req: Request): Promise<{ user?: RaahUser; response?: Response }> => {
-  const token = getBearerToken(req);
-  if (!token) return { response: jsonResponse({ error: 'Authentication required' }, 401) };
-
-  if (initializeFirebaseAdmin()) {
-    try {
-      const decoded = await admin.auth().verifyIdToken(token);
-      if (decoded.email === ADMIN_EMAIL) {
-        return { user: { uid: decoded.uid, email: decoded.email, name: decoded.name || decoded.email || 'Admin' } };
-      }
-
-      const userDoc = await getAppDb().collection('users').doc(decoded.uid).get();
-      if (userDoc.exists && userDoc.data()?.role === 'admin') {
-        return { user: { uid: decoded.uid, email: decoded.email, name: decoded.name || decoded.email || 'Admin' } };
-      }
-    } catch {
-      // Supabase Auth tokens are allowed during the transition period.
-    }
-  }
-
-  const supabaseUser = await getSupabaseAuthUser(token);
-  if (supabaseUser?.isAdmin) {
-    return { user: { uid: supabaseUser.id, email: supabaseUser.email, name: supabaseUser.name || supabaseUser.email || 'Admin' } };
-  }
-
-  return { response: jsonResponse({ error: 'Admin permission required' }, 403) };
-};
 
 const getConfig = () => {
   const supabaseUrl = getEnv('SUPABASE_URL')?.replace(/\/$/, '');
@@ -289,12 +230,12 @@ const addDaysIso = (dateIso: string, days: number) => {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 };
 
-const buildGoogleEventPayload = (input: CalendarEventInput) => {
+export const buildGoogleEventPayload = (input: CalendarEventInput) => {
   const endDate = input.endDate || input.date;
   if (!input.startsAt && !input.endsAt && endDate !== input.date) {
     return {
-      summary: input.title,
-      description: input.memo || '',
+      summary: input.memberId || input.memberName ? '목양 일정' : input.title,
+
       start: { date: input.date },
       end: { date: addDaysIso(endDate, 1) },
     };
@@ -302,8 +243,8 @@ const buildGoogleEventPayload = (input: CalendarEventInput) => {
   const startsAt = input.startsAt || '09:00';
   const endsAt = input.endsAt || addOneHour(startsAt);
   return {
-    summary: input.title,
-    description: input.memo || '',
+    summary: input.memberId || input.memberName ? '목양 일정' : input.title,
+
     start: { dateTime: `${input.date}T${startsAt}:00`, timeZone: TIME_ZONE },
     end: { dateTime: `${endDate}T${endsAt}:00`, timeZone: TIME_ZONE },
   };
@@ -447,7 +388,10 @@ const upsertScheduleItem = async (row: Record<string, unknown>) => {
         {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
-          body: JSON.stringify(row),
+          // Local notes and completion status must survive a Google round trip.
+          body: JSON.stringify(Object.fromEntries(Object.entries(row).filter(([key]) =>
+            !['memo', 'status'].includes(key) && !(externalId.startsWith('raah') && key === 'title')
+          ))),
         }
       )
     : await supabaseFetch(
@@ -459,6 +403,13 @@ const upsertScheduleItem = async (row: Record<string, unknown>) => {
         }
       );
   if (result.response) return { response: result.response };
+  if (result.supabaseResponse.status === 409 && source && externalId) {
+    // Another sync may have inserted the same Google event after our initial lookup.
+    const concurrent = await supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&source=eq.${encodeURIComponent(source)}&external_id=eq.${encodeURIComponent(externalId)}&limit=1`);
+    if (concurrent.response) return { response: concurrent.response };
+    const saved = await concurrent.supabaseResponse.json().catch(() => []);
+    if (concurrent.supabaseResponse.ok && saved[0]) return { item: rowToScheduleItem(saved[0]) };
+  }
   const rows = (await result.supabaseResponse.json().catch(() => [])) as ScheduleItemRow[];
   if (!result.supabaseResponse.ok) return { response: noStoreJson({ error: 'Failed to upsert RAAH schedule item.' }, result.supabaseResponse.status) };
   if (!rows[0]) return { response: noStoreJson({ error: 'RAAH schedule item was not saved.' }, 500) };
@@ -493,22 +444,32 @@ const handleSync = async () => {
   const manualRows = (await manualResult.supabaseResponse.json().catch(() => [])) as ScheduleItemRow[];
   if (!manualResult.supabaseResponse.ok) return noStoreJson({ error: 'Failed to load RAAH schedules for Google Calendar export.' }, manualResult.supabaseResponse.status);
   for (const row of manualRows) {
+    const eventId = `raah${createHash('sha256').update(row.id).digest('hex')}`;
     const createResponse = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(access.connection.calendar_id)}/events`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${access.accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(
-        buildGoogleEventPayload({
+        { id: eventId, ...buildGoogleEventPayload({
           title: row.title,
+          memberId: row.member_id || undefined,
+          memberName: row.member_name || undefined,
           date: row.date,
           endDate: row.end_date || row.date,
           startsAt: row.starts_at || '',
           endsAt: row.ends_at || '',
-          memo: row.memo || '',
-        })
+        }) }
       ),
     });
-    const createdEvent = (await createResponse.json().catch(() => ({}))) as GoogleEvent & { error?: { message?: string } };
-    if (!createResponse.ok || !createdEvent.id) {
+    let createdEvent = (await createResponse.json().catch(() => ({}))) as GoogleEvent & { error?: { message?: string } };
+    if (createResponse.status === 409) {
+      // A previous attempt may have created the event but lost the local acknowledgement.
+      const existing = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(access.connection.calendar_id)}/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${access.accessToken}` },
+      });
+      if (!existing.ok) return noStoreJson({ error: 'Existing calendar event could not be verified.' }, 502);
+      createdEvent = await existing.json();
+    }
+    if ((!createResponse.ok && createResponse.status !== 409) || !createdEvent.id) {
       return noStoreJson({ error: createdEvent.error?.message || 'Failed to export RAAH schedule to Google Calendar.' }, createResponse.status || 500);
     }
     const update = await supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&id=eq.${encodeURIComponent(row.id)}`, {

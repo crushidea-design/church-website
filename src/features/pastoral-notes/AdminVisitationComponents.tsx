@@ -79,7 +79,7 @@ export function VisitationTab({
 }) {
   const showInlineNewForm = isFormOpen && !editingLogId;
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(320px,440px),minmax(0,1fr)] xl:grid-cols-[minmax(360px,480px),minmax(0,1fr)]">
+    <section className="grid gap-4 lg:grid-cols-[minmax(320px,440px)_minmax(0,1fr)] xl:grid-cols-[minmax(360px,480px)_minmax(0,1fr)]">
       <div className={shell.panel + ' p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-9rem)] lg:overflow-hidden'}>
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -120,6 +120,7 @@ export function VisitationTab({
                   log={log}
                   active={selectedLogId === log.id}
                   onClick={() => {
+                    if (selectedLogId === log.id) return;
                     setSelectedLogId(log.id);
                     clearDecrypted();
                   }}
@@ -234,12 +235,12 @@ function LogFormContent({
       <div className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-[#17202b]">긴 메모 AI 정리</p>
-            <p className="mt-1 text-xs leading-5 text-[#607080]">상담 후 남긴 긴 메모를 붙여넣으면 아래 기록 칸으로 나눠 초안을 만듭니다.</p>
+            <p className="text-sm font-semibold text-[#17202b]">긴 메모 옮기기</p>
+            <p className="mt-1 text-xs leading-5 text-[#607080]">메모를 외부로 보내지 않고 아래 내밀한 기록 칸에 옮깁니다. 기도 제목과 다음 단계는 직접 정리해 주세요.</p>
           </div>
-          <button type="button" onClick={onAiDraft} disabled={isAiDrafting || rawAiMemo.trim().length < 10} className={shell.button + ' shrink-0'}>
+          <button type="button" onClick={onAiDraft} disabled={isAiDrafting || rawAiMemo.trim().length === 0} className={shell.button + ' shrink-0'}>
             <Sparkles size={16} />
-            {isAiDrafting ? '정리 중...' : 'AI로 정리'}
+            {isAiDrafting ? '옮기는 중...' : '기록으로 옮기기'}
           </button>
         </div>
         <textarea
@@ -247,7 +248,7 @@ function LogFormContent({
           onChange={(event) => setRawAiMemo(event.target.value)}
           rows={5}
           className={`${shell.input} mt-3 leading-6`}
-          placeholder="정리되지 않은 긴 메모를 여기에 붙여넣으세요. AI 결과는 바로 저장되지 않고, 아래 칸에 초안으로만 채워집니다."
+          placeholder="긴 메모를 붙여넣으세요. 기록으로 옮긴 뒤 내용을 확인하고 저장해 주세요."
         />
         {aiSuggestion && (
           <div className="mt-3 rounded-md border border-[#d5dee5] bg-[#ffffff] p-3 text-sm leading-6 text-[#28415b]">
@@ -397,7 +398,7 @@ export function LogPanel({
               </button>
             </div>
             {isCalendarEventFormOpen && calendarStatus?.connected && (
-              <form onSubmit={onCreateCalendarEvent} className="mt-4 grid gap-3 lg:grid-cols-[minmax(180px,1fr),150px,110px,110px]">
+              <form onSubmit={onCreateCalendarEvent} className="mt-4 grid gap-3 lg:grid-cols-[minmax(180px,1fr)_150px_110px_110px]">
                 <TextInput label="일정 제목" value={calendarEventForm.title} onChange={(value) => setCalendarEventForm((prev) => ({ ...prev, title: value }))} />
                 <TextInput label="날짜" type="date" value={calendarEventForm.date} onChange={(value) => setCalendarEventForm((prev) => ({ ...prev, date: value }))} />
                 <TextInput label="시작" type="time" value={calendarEventForm.startsAt} onChange={(value) => setCalendarEventForm((prev) => ({ ...prev, startsAt: value }))} />

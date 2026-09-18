@@ -1,4 +1,5 @@
 import React from 'react';
+import { Toaster } from 'sonner';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './lib/auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -92,6 +93,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <Toaster position="top-right" expand={true} richColors />
       <AuthProvider>
         <SiteCmsProvider>
           <BrowserRouter>

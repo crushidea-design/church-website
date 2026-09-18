@@ -2,9 +2,10 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { usesFirebaseEmulators } from './lib/firebase';
 
 // Register service worker for Firebase Messaging
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !usesFirebaseEmulators) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/firebase-messaging-sw.js')
       .then(registration => {

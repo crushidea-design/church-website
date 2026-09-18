@@ -99,17 +99,6 @@ describe('RAAH record editing wiring', () => {
   });
 });
 
-describe('RAAH AI draft wiring', () => {
-  it('allows long visitation memos enough output room to finish structured drafts', () => {
-    const aiServer = readFileSync(new URL('../../netlify/functions/raah-ai-assist.mts', import.meta.url), 'utf8');
-
-    expect(aiServer).toContain('const MAX_MEMO_LENGTH = 30000;');
-    expect(aiServer).toContain('const MAX_OUTPUT_TOKENS = 8192;');
-    expect(aiServer).toContain('maxOutputTokens: MAX_OUTPUT_TOKENS');
-    expect(aiServer).toContain('finishReason: candidate?.finishReason');
-  });
-});
-
 describe('RAAH attendance date wiring', () => {
   it('keeps Wednesday prayer attendance on the Wednesday date for the selected week', () => {
     const page = readFileSync(new URL('./AdminPastoralNotes.tsx', import.meta.url), 'utf8');

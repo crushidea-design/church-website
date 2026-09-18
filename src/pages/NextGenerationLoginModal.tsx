@@ -31,7 +31,7 @@ const GoogleIcon = () => (
 export default function NextGenerationLoginModal({ onClose, initialView = 'login', rejectionReason }: Props) {
   const {
     signInWithEmail, signUpWithEmail, signInWithGoogle, completeGoogleSignUp,
-    sendPasswordReset, checkEmailExists, member, isPending, isRejected,
+    sendPasswordReset, checkEmailExists, member, isPending, isRejected, needsSignUp,
   } = useNextGenerationAuth();
 
   const [view, setView] = useState<ModalView>(
@@ -46,8 +46,11 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
     } else if (isPending) {
       setError('');
       setView('pending');
+    } else if (needsSignUp) {
+      setError('');
+      setView('complete_google');
     }
-  }, [isRejected, isPending]);
+  }, [isRejected, isPending, needsSignUp]);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -551,7 +554,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
           {view === 'complete_google' && (
             <form onSubmit={handleCompleteGoogle} className="space-y-4">
               <p className="text-sm text-gray-500 -mt-2 mb-2">
-                Google 계정으로 처음 가입하셨습니다. 추가 정보를 입력해 주세요.
+                다음세대 이용을 위해 추가 정보를 입력해 주세요.
               </p>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">이름 <span className="text-red-500">*</span></label>

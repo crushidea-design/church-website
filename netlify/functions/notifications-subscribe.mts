@@ -1,5 +1,6 @@
+import { getMessaging } from 'firebase-admin/messaging';
 import type { Config } from '@netlify/functions';
-import { admin, initializeFirebaseAdmin, jsonResponse, verifyRequestUser } from './_shared/firebase-admin.mjs';
+import { initializeFirebaseAdmin, jsonResponse, verifyRequestUser } from './_shared/firebase-admin.mjs';
 
 const SUPPORTED_TOPICS = new Set(['all_members', 'next_members']);
 
@@ -33,11 +34,11 @@ export default async (req: Request) => {
 
   try {
     if (action === 'unsubscribe') {
-      await admin.messaging().unsubscribeFromTopic(token, topic);
+      await getMessaging().unsubscribeFromTopic(token, topic);
       return jsonResponse({ success: true });
     }
 
-    await admin.messaging().subscribeToTopic(token, topic);
+    await getMessaging().subscribeToTopic(token, topic);
     return jsonResponse({ success: true });
   } catch (error) {
     console.error('Error subscribing to topic:', error);

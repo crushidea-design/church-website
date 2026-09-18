@@ -1,5 +1,7 @@
-import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
+import { getAuth } from 'firebase-admin/auth';
+import { cert, getApp, getApps, initializeApp, type ServiceAccount as FirebaseServiceAccount } from 'firebase-admin/app';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 declare const Netlify:
   | {
@@ -70,7 +72,7 @@ export const jsonResponse = (data: unknown, status = 200) =>
   });
 
 export const initializeFirebaseAdmin = () => {
-  if (admin.apps.length > 0) return true;
+  if (getApps().length > 0) return true;
 
   const rawKey = getEnv('FIREBASE_SERVICE_ACCOUNT_KEY');
   if (!rawKey) return false;
@@ -80,27 +82,31 @@ export const initializeFirebaseAdmin = () => {
     throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not a valid service account JSON.');
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+  initializeApp({
+    projectId: serviceAccount.project_id,
+    credential: cert(serviceAccount as FirebaseServiceAccount),
   });
 
   return true;
 };
 
-export const getAppDb = () => getFirestore(FIRESTORE_DATABASE_ID);
+export const getAppDb = () => getFirestore(
+  process.env.FIRESTORE_EMULATOR_HOST && getApp().options.projectId?.startsWith('demo-')
+    ? '(default)' : FIRESTORE_DATABASE_ID,
+);
 
 export const verifyRequestUser = async (req: Request) => {
   const authHeader = req.headers.get('authorization') || '';
   const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   if (!idToken) return null;
-  return admin.auth().verifyIdToken(idToken);
+  return getAuth().verifyIdToken(idToken, true);
 };
 
 export const requireAdmin = async (req: Request) => {
   const decoded = await verifyRequestUser(req);
   if (!decoded) return { response: jsonResponse({ error: 'Authentication required' }, 401) };
 
-  if (decoded.email === ADMIN_EMAIL) {
+  if (decoded.email === ADMIN_EMAIL && decoded.email_verified === true) {
     return { decoded };
   }
 
@@ -165,7 +171,7 @@ export const sendMulticastInChunks = async (baseMessage: any, tokens: string[]) 
   let failureCount = 0;
 
   for (let i = 0; i < uniqueTokens.length; i += FCM_MULTICAST_LIMIT) {
-    const response = await admin.messaging().sendEachForMulticast({
+    const response = await getMessaging().sendEachForMulticast({
       ...baseMessage,
       tokens: uniqueTokens.slice(i, i + FCM_MULTICAST_LIMIT),
     });
@@ -189,12 +195,10 @@ export const createInAppNotifications = async (uids: string[], message: string) 
         uid,
         type: 'announcement',
         message,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         isRead: false,
       });
     }
     await batch.commit();
   }
 };
-
-export { admin };

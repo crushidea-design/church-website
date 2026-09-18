@@ -237,7 +237,7 @@ export function AttendanceTab({
         }}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px),minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
         <div className={shell.panel + ' p-4'}>
         <h2 className="text-lg font-semibold">출석 설정</h2>
         <div className="mt-4 space-y-3">
@@ -301,7 +301,7 @@ export function AttendanceTab({
           ) : (
             records.map((record) => (
               <div key={record.memberId} className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-2.5">
-                <div className="grid grid-cols-[minmax(0,1fr),54px,54px] items-center gap-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_54px_54px] items-center gap-2">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{record.memberName}</p>
                     <p className="mt-1 text-xs text-[#607080]">{record.attended ? '출석' : '미출석'}{record.communionParticipated ? ' · 성찬' : ''}</p>

@@ -322,7 +322,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           setUploadProgress(20);
           
           const fileRef = ref(storage, `pdfs/${Date.now()}_${pdfFile.name}`);
-          await uploadBytes(fileRef, pdfFile);
+          await uploadBytes(fileRef, pdfFile, { customMetadata: { ownerUid: user.uid } });
           setUploadProgress(60);
           
           pdfUrl = await getDownloadURL(fileRef);

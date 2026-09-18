@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { generateRaahVisitationDraft } from '../features/pastoral-notes/aiApi';
 import { createRaahNote, getRaahNoteDetail, listRaahNotes, updateRaahNote } from '../features/pastoral-notes/api';
 import {
   completeRaahMinistryScheduleItem,
@@ -493,6 +492,13 @@ export default function AdminPastoralNotes() {
   };
 
   const openLogFormForEdit = (log: RaahVisitationLog) => {
+    if (storageMode === 'supabase') {
+      if (isDetailLoading || decryptedLog?.id !== log.id) {
+        toast.error('기록 본문을 아직 불러오지 못해 수정할 수 없습니다. 다른 기록을 선택한 뒤 다시 열어 주세요.');
+        return;
+      }
+      log = decryptedLog;
+    }
     setEditingLogId(log.id);
     setDecryptedLog(log);
     setLogForm({
@@ -557,6 +563,13 @@ export default function AdminPastoralNotes() {
   };
 
   const openLegacyFormForEdit = (note: PastoralNote) => {
+    if (storageMode === 'supabase') {
+      if (decryptedLegacyNote?.id !== note.id) {
+        toast.error('기록 본문을 아직 불러오지 못해 수정할 수 없습니다. 다른 기록을 선택한 뒤 다시 열어 주세요.');
+        return;
+      }
+      note = decryptedLegacyNote;
+    }
     setEditingLegacyNoteId(note.id);
     setLegacyForm({
       memberName: note.memberName,
@@ -578,39 +591,19 @@ export default function AdminPastoralNotes() {
     setIsLegacyFormOpen(true);
   };
 
-  const handleGenerateAiDraft = async () => {
-    if (!user || isAiDrafting) return;
-    if (!rawAiMemo.trim() || rawAiMemo.trim().length < 10) {
-      toast.error('AI로 정리할 긴 메모를 먼저 입력해 주세요.');
+  const handleGenerateAiDraft = () => {
+    const memo = rawAiMemo.trim();
+    if (!memo) return;
+    if ([logForm.innerNote.trim(), memo].filter(Boolean).join('\n\n').length > 5000) {
+      toast.error('내밀한 기록은 5,000자까지 저장할 수 있습니다. 메모를 나누어 옮겨 주세요.');
       return;
     }
-
-    setIsAiDrafting(true);
-    try {
-      const draft = await generateRaahVisitationDraft(
-        {
-          rawMemo: rawAiMemo,
-          memberName: logForm.memberName,
-          logType: logForm.logType,
-          date: logForm.date,
-        },
-        user
-      );
-      setLogForm((prev) => ({
-        ...prev,
-        publicSummary: draft.publicSummary || prev.publicSummary,
-        innerNote: draft.innerNote || prev.innerNote,
-        prayerTopics: draft.prayerTopics || prev.prayerTopics,
-        nextSteps: draft.nextSteps || prev.nextSteps,
-        privateRemarks: draft.privateRemarks || prev.privateRemarks,
-      }));
-      setAiSuggestion(draft.recommendedAction);
-      toast.success('AI가 기록 초안을 정리했습니다. 저장 전 내용을 확인해 주세요.');
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'AI 기록 정리에 실패했습니다.'));
-    } finally {
-      setIsAiDrafting(false);
-    }
+    setLogForm((prev) => ({
+      ...prev,
+      innerNote: [prev.innerNote.trim(), memo].filter(Boolean).join('\n\n'),
+    }));
+    setRawAiMemo('');
+    toast.success('메모를 내밀한 기록에 옮겼습니다. 아래 양식에서 정리한 뒤 저장해 주세요.');
   };
 
   const handleMemberSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1542,7 +1535,7 @@ function DashboardScheduleMini({
             className={shell.input}
             placeholder="일정 제목"
           />
-          <div className="grid grid-cols-[minmax(0,1fr),96px] gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
             <input
               type="date"
               value={form.date}

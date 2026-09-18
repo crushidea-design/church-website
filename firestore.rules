@@ -78,13 +78,13 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (request.auth.token.email == "crushidea@gmail.com" ||
+        ((request.auth.token.get('email_verified', false) == true && request.auth.token.get('email', '') == "crushidea@gmail.com") ||
          currentUserData().role == 'admin');
     }
 
     function isRegularMember() {
       return isAuthenticated() &&
-        (request.auth.token.email == "crushidea@gmail.com" ||
+        ((request.auth.token.get('email_verified', false) == true && request.auth.token.get('email', '') == "crushidea@gmail.com") ||
          currentUserData().role in ['admin', 'regular']);
     }
 
@@ -306,12 +306,11 @@ service cloud.firestore {
       allow read: if canReadPostData(resource.data);
       allow create: if isAuthenticated() && isValidPost(request.resource.data) &&
                     request.resource.data.authorId == request.auth.uid &&
+                    request.resource.data.get('commentCount', 0) == 0 &&
                     (request.resource.data.category in ['community', 'next_generation'] || isAdmin());
       allow update: if isAuthenticated() && isValidPost(request.resource.data) &&
-                    // Allow if owner/admin OR if only incrementing commentCount
-                    ((isDocOwner() || isAdmin()) || 
-                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']) &&
-                      math.abs(request.resource.data.commentCount - (('commentCount' in resource.data) ? resource.data.commentCount : 0)) == 1)) &&
+                    (isDocOwner() || isAdmin()) &&
+                    request.resource.data.get('commentCount', 0) == resource.data.get('commentCount', 0) &&
                     request.resource.data.authorId == resource.data.authorId &&
                     request.resource.data.createdAt == resource.data.createdAt &&
                     // Ensure non-admins cannot change category
@@ -350,13 +349,14 @@ service cloud.firestore {
                      (('postCategory' in resource.data)
                        ? (resource.data.postCategory != 'sermon' || isRegularMember())
                        : canReadPostData(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data));
-      allow create: if isAuthenticated() && isValidComment(request.resource.data);
+      // Mutations and count updates are atomic in /api/post-comments.
+      allow create: if false;
       allow update: if isAuthenticated() && isDocOwner() && isValidComment(request.resource.data) &&
                     request.resource.data.authorId == resource.data.authorId &&
                     request.resource.data.postId == resource.data.postId &&
                     request.resource.data.postCategory == resource.data.postCategory &&
                     request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow delete: if false;
     }
 
     match /contacts/{contactId} {

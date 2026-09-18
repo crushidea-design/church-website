@@ -38,3 +38,15 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Java for security rules tests
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Security rules and comment transaction tests
+        run: npx --yes --package firebase-tools@15.25.1 firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only firestore,storage "npx vitest run tests/security.rules.test.ts"

@@ -21,36 +21,53 @@ service firebase.storage {
 
     // 20MB cap matches MAX_MATERIAL_FILE_SIZE (src/lib/attachments.ts).
     function isWithinDocSizeLimit() {
-      return request.resource != null && request.resource.size < 20 * 1024 * 1024;
+      return request.resource != null && request.resource.size <= 20 * 1024 * 1024;
     }
 
     function isWithinFamilyWorshipPhotoSizeLimit() {
-      return request.resource != null && request.resource.size < 10 * 1024 * 1024;
+      return request.resource != null && request.resource.size <= 10 * 1024 * 1024;
     }
 
     function isAuthed() {
       return request.auth != null;
     }
 
+    function ownsFile() {
+      return isAuthed() && resource != null && 'ownerUid' in resource.metadata &&
+        resource.metadata.ownerUid == request.auth.uid;
+    }
+
+    function verifiedOwnerAdmin() {
+      return isAuthed() && 'email_verified' in request.auth.token && request.auth.token.email_verified == true &&
+        request.auth.token.email == 'crushidea@gmail.com';
+    }
+
+    function validUploadOwner() {
+      return isAuthed() && request.resource.metadata.ownerUid == request.auth.uid;
+    }
+
     // Post attachment uploads from CreatePost / EditPost / uploadMaterialFiles.
     // Reads stay public because download URLs are tokenized and shared on posts.
     match /pdfs/{allPaths=**} {
       allow read: if true;
-      allow create, update: if isAuthed() && isAllowedDocType() && isWithinDocSizeLimit();
-      allow delete: if isAuthed();
+      allow create: if resource == null && validUploadOwner() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow update: if ownsFile() && validUploadOwner() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow delete: if ownsFile() || verifiedOwnerAdmin();
     }
 
     // Legacy paths kept for older attachments stored under these prefixes.
     match /materials/{allPaths=**} {
       allow read: if true;
-      allow create, update: if isAuthed() && isAllowedDocType() && isWithinDocSizeLimit();
-      allow delete: if isAuthed();
+      allow create: if resource == null && validUploadOwner() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow update: if ownsFile() && validUploadOwner() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow delete: if ownsFile() || verifiedOwnerAdmin();
     }
 
     match /sermons/{allPaths=**} {
       allow read: if true;
-      allow create, update: if isAuthed() && isAllowedDocType() && isWithinDocSizeLimit();
-      allow delete: if isAuthed();
+      allow create: if resource == null && validUploadOwner() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow update: if ownsFile() && validUploadOwner() && isAllowedDocType() && isWithinDocSizeLimit();
+      allow delete: if ownsFile() || verifiedOwnerAdmin();
     }
 
     match /family-worship/{parentUid}/{allPaths=**} {

@@ -1,6 +1,6 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import type { Config } from '@netlify/functions';
 import {
-  admin,
   getAppDb,
   initializeFirebaseAdmin,
   jsonResponse,
@@ -99,7 +99,7 @@ const runTick = async (now = new Date()): Promise<TickResult> => {
     aggregateTotal: total,
     aggregateCompleted: completed,
     aggregateGrowing: growing,
-    aggregateUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    aggregateUpdatedAt: FieldValue.serverTimestamp(),
   };
   if (!fruit.aggregateMessage || typeof fruit.aggregateMessage !== 'string' || !fruit.aggregateMessage.trim()) {
     updates.aggregateMessage = placeholder;

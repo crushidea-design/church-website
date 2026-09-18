@@ -1,6 +1,6 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import type { Config } from '@netlify/functions';
 import {
-  admin,
   createInAppNotifications,
   getAppDb,
   initializeFirebaseAdmin,
@@ -308,11 +308,11 @@ const runAutoDraft = async (now = new Date()): Promise<RunResult> => {
     recommendedPractices,
     cards,
     autoDraftSourcePostId: manuscript.postId,
-    autoDraftedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    autoDraftedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
   if (isCreate) {
-    docPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+    docPayload.createdAt = FieldValue.serverTimestamp();
   }
 
   await fruitRef.set(docPayload, { merge: true });

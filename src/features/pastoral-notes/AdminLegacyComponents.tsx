@@ -42,7 +42,7 @@ export function LegacyTab({
   canEdit: boolean;
 }) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <div className={shell.panel + ' p-5'}>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">기존 RAAH 기록</h2>
@@ -62,6 +62,7 @@ export function LegacyTab({
                 key={note.id}
                 type="button"
                 onClick={() => {
+                  if (selectedNoteId === note.id) return;
                   setSelectedNoteId(note.id);
                   clearDecrypted();
                 }}

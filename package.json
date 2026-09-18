@@ -15,7 +15,9 @@
     "test:watch": "vitest",
     "raah:migrate:dry-run": "node scripts/migrate-raah-notes-to-supabase.mjs",
     "raah:migrate:sql": "node scripts/migrate-raah-notes-to-supabase.mjs --sql",
-    "raah:migrate": "node scripts/migrate-raah-notes-to-supabase.mjs --apply"
+    "raah:migrate": "node scripts/migrate-raah-notes-to-supabase.mjs --apply",
+    "test:rules": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only firestore,storage \"vitest run tests/security.rules.test.ts\"",
+    "test:roles": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only auth,firestore,storage \"node --import tsx tests/support/role-preview.ts\""
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -23,7 +25,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.11.0",
-    "firebase-admin": "^13.7.0",
+    "firebase-admin": "^14.4.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "pdfjs-dist": "^4.0.379",
@@ -36,6 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@netlify/functions": "^5.2.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/express": "^4.17.21",
@@ -58,5 +61,13 @@
     "typescript-eslint": "^8.60.0",
     "vite": "^6.2.0",
     "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "gaxios@6.7.1": {
+      "uuid": "11.1.1"
+    }
   }
 }

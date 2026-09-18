@@ -1,6 +1,7 @@
+import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { admin, getAppDb, initializeFirebaseAdmin, jsonResponse } from './_shared/firebase-admin.mjs';
+import { requireRaahAdmin } from './_shared/raah-auth.mjs';
 
 declare const Netlify:
   | {
@@ -168,7 +169,6 @@ type SupabaseScheduleItemRow = {
   updated_at?: string;
 };
 
-const ADMIN_EMAIL = 'crushidea@gmail.com';
 const ENCRYPTION_VERSION = 1;
 const SCHEDULE_SELECT = 'id,title,date,end_date,starts_at,ends_at,item_type,member_id,member_name,status,source,external_id,memo,created_at,updated_at';
 
@@ -192,64 +192,6 @@ const validDate = (value?: string) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value
 const isAttendanceEventType = (value: string): value is AttendanceEventType =>
   ['sunday_morning', 'sunday_afternoon', 'young_adults', 'wednesday_prayer', 'other'].includes(value);
 const followUpCandidateKey = (sourceType: FollowUpResolutionInput['sourceType'], sourceId: string) => `${sourceType}:${sourceId}`;
-
-const getBearerToken = (req: Request) => {
-  const authHeader = req.headers.get('authorization') || '';
-  return authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
-};
-
-const getSupabaseAuthUser = async (token: string) => {
-  const url = getEnv('SUPABASE_URL');
-  const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
-  if (!url || !serviceKey) return null;
-
-  const response = await fetch(`${url.replace(/\/$/, '')}/auth/v1/user`, {
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) return null;
-
-  const data = await response.json();
-  const appRole = data?.app_metadata?.role;
-  const userRole = data?.user_metadata?.role;
-  const isAdmin = data?.email === ADMIN_EMAIL || appRole === 'admin' || userRole === 'admin';
-  return {
-    id: String(data?.id || ''),
-    email: typeof data?.email === 'string' ? data.email : undefined,
-    name: typeof data?.user_metadata?.name === 'string' ? data.user_metadata.name : undefined,
-    isAdmin,
-  };
-};
-
-const requireRaahAdmin = async (req: Request): Promise<{ user?: RaahUser; response?: Response }> => {
-  const token = getBearerToken(req);
-  if (!token) return { response: jsonResponse({ error: 'Authentication required' }, 401) };
-
-  if (initializeFirebaseAdmin()) {
-    try {
-      const decoded = await admin.auth().verifyIdToken(token);
-      if (decoded.email === ADMIN_EMAIL) {
-        return { user: { uid: decoded.uid, email: decoded.email, name: decoded.name || decoded.email || 'Admin' } };
-      }
-
-      const userDoc = await getAppDb().collection('users').doc(decoded.uid).get();
-      if (userDoc.exists && userDoc.data()?.role === 'admin') {
-        return { user: { uid: decoded.uid, email: decoded.email, name: decoded.name || decoded.email || 'Admin' } };
-      }
-    } catch {
-      // Supabase Auth tokens are allowed during the transition period.
-    }
-  }
-
-  const supabaseUser = await getSupabaseAuthUser(token);
-  if (supabaseUser?.isAdmin) {
-    return { user: { uid: supabaseUser.id, email: supabaseUser.email, name: supabaseUser.name || supabaseUser.email || 'Admin' } };
-  }
-
-  return { response: jsonResponse({ error: 'Admin permission required' }, 403) };
-};
 
 const getSupabaseConfig = () => {
   const url = getEnv('SUPABASE_URL')?.replace(/\/$/, '');
@@ -275,7 +217,7 @@ const supabaseFetch = async (path: string, init: RequestInit = {}) => {
     };
   }
 
-  const response = await fetch(`${config.url}/rest/v1/${path}`, {
+  const response = await supabaseRequest(`${config.url}/rest/v1/${path}`, {
     ...init,
     headers: {
       apikey: config.anonKey,
@@ -288,7 +230,7 @@ const supabaseFetch = async (path: string, init: RequestInit = {}) => {
   return { config, supabaseResponse: response };
 };
 
-const encryptPayload = (payload: LogSensitivePayload, secret: string): EncryptedPayload => {
+export const encryptPayload = (payload: LogSensitivePayload, secret: string): EncryptedPayload => {
   const key = createHash('sha256').update(secret).digest();
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
@@ -302,7 +244,7 @@ const encryptPayload = (payload: LogSensitivePayload, secret: string): Encrypted
   };
 };
 
-const decryptPayload = (payload: EncryptedPayload | string | null | undefined, secret: string): LogSensitivePayload => {
+export const decryptPayload = (payload: EncryptedPayload | string | null | undefined, secret: string): LogSensitivePayload => {
   const encrypted = typeof payload === 'string' ? (JSON.parse(payload) as EncryptedPayload) : payload;
   if (!encrypted?.iv || !encrypted.tag || !encrypted.ciphertext) throw new Error('Encrypted payload is missing or invalid.');
 
@@ -639,8 +581,8 @@ const handleBootstrap = async (req: Request) => {
     ),
     loadAttendanceEventsForDate(date),
     supabaseFetch('raah_attendance_records?select=member_id,attended,communion_participated,raah_attendance_events!inner(date,event_type,service_type)'),
-    supabaseFetch('raah_follow_up_resolutions?select=id,source_type,source_id,candidate_key,member_id,member_name,memo,completed_by,completed_at,created_at,updated_at&order=completed_at.desc&limit=200'),
-    supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&order=date.asc&order=starts_at.asc&limit=100`),
+    supabaseFetch('raah_follow_up_resolutions?select=id,source_type,source_id,candidate_key,member_id,member_name,memo,completed_by,completed_at,created_at,updated_at&order=completed_at.desc'),
+    supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&order=date.asc&order=starts_at.asc`),
   ]);
 
   if ('response' in membersResult && membersResult.response) return membersResult.response;

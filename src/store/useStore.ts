@@ -160,11 +160,14 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'built-together-storage',
+      version: 1,
+      // Old versions persisted personal meditation text. Do not rehydrate it.
+      migrate: () => ({}),
+
       partialize: (state) => ({
         sermonCategories: state.sermonCategories,
         researchCategories: state.researchCategories,
         todayWords: state.todayWords,
-        todayWordProgress: state.todayWordProgress,
         homeLatestPosts: state.homeLatestPosts,
         homeLatestPostsFetched: state.homeLatestPostsFetched,
         introFetched: state.introFetched,

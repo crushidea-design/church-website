@@ -83,7 +83,7 @@ export default tseslint.config(
 
   // Node-side: dev server, netlify functions, server scripts
   {
-    files: ['server.ts', 'netlify/functions/**/*.{ts,mts,js,mjs}'],
+    files: ['server.ts', 'netlify/functions/**/*.{ts,mts,js,mjs}', 'tests/support/**/*.{ts,mts}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

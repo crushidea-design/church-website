@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserRole } from '../types';
+import { useStore } from '../store/useStore';
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
@@ -26,45 +27,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        try {
-          const isAdminEmail = currentUser.email === ADMIN_EMAIL;
-          
-          // Check session storage first to save read units
-          const cachedRole = sessionStorage.getItem(`user_role_${currentUser.uid}`);
-          if (cachedRole) {
-            setRole(isAdminEmail ? 'admin' : cachedRole as UserRole);
-            setLoading(false);
-            return;
-          }
-
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          let finalRole: UserRole = 'user';
-          
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            finalRole = isAdminEmail ? 'admin' : (data.role as UserRole || 'user');
-          } else if (isAdminEmail) {
-            finalRole = 'admin';
-          }
-          
-          setRole(finalRole);
-          sessionStorage.setItem(`user_role_${currentUser.uid}`, finalRole);
-        } catch (error: any) {
-          console.error("AuthProvider: Error fetching user role:", error);
-          const isAdminEmail = currentUser.email === ADMIN_EMAIL;
-          setRole(isAdminEmail ? 'admin' : 'user');
-        }
-      } else {
-        setRole(null);
-        // We don't necessarily need to clear session storage here as it's per-user
+    let roleUnsubscribe: (() => void) | undefined;
+    let generation = 0;
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      const currentGeneration = ++generation;
+      roleUnsubscribe?.();
+      roleUnsubscribe = undefined;
+      useStore.getState().clearCache();
+      // Remove roles cached by earlier app versions. Roles now follow the server document.
+      for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith('user_role_')) sessionStorage.removeItem(key);
       }
-      setLoading(false);
+      setUser(currentUser);
+      setRole(null);
+      setLoading(Boolean(currentUser));
+      if (!currentUser) return;
+
+      const owner = currentUser.email === ADMIN_EMAIL && currentUser.emailVerified;
+      roleUnsubscribe = onSnapshot(doc(db, 'users', currentUser.uid), (snapshot) => {
+        if (generation !== currentGeneration) return;
+        const value = snapshot.data()?.role;
+        const role: UserRole = ['admin', 'regular', 'student', 'user'].includes(value) ? value : 'user';
+        setRole(owner ? 'admin' : role);
+        setLoading(false);
+      }, () => {
+        if (generation !== currentGeneration) return;
+        setRole(owner ? 'admin' : 'user');
+        setLoading(false);
+      });
     });
 
-    return () => unsubscribe();
+    return () => {
+      generation += 1;
+      unsubscribe();
+      roleUnsubscribe?.();
+    };
   }, []);
 
   const authValue = React.useMemo(() => ({ user, role, loading }), [user, role, loading]);
