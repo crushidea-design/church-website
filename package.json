@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-jwks-rsa.cjs",
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
