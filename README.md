@@ -81,3 +81,7 @@ node --import tsx tests/support/external-readiness.ts --read-only-production
 ```
 
 2026-09-18 기준 Supabase는 일시정지 상태로 확인되었습니다. 프로젝트를 재개한 뒤 위 검사를 다시 실행해야 합니다. Google Calendar 클라이언트 설정도 아직 없어 해당 연동은 검증하지 못했습니다. Netlify의 `NODE_VERSION`·`AWS_LAMBDA_JS_RUNTIME` override는 점검 당시 없었으므로 다음 빌드에서는 `.nvmrc`의 Node 22 설정을 따릅니다. 운영 설정에 별도 override를 추가한다면 Node 22 이상이어야 합니다.
+
+### RAAH 함수 런타임 호환 패치
+
+Firebase Admin 인증 의존성의 CommonJS/ESM 충돌은 `postinstall`에서 실행하는 `scripts/patch-jwks-rsa.cjs`로 해결합니다. `NODE_OPTIONS=--experimental-require-module` 설정은 이번 운영 장애를 해결하지 못했으며, 최종 패치는 이 옵션 없이 동작합니다. 상세 원인·검증·배포 결과는 [RAAH 운영 502 복구 기록](docs/2026-09-27-raah-runtime-fix.md)을 참고하세요.
