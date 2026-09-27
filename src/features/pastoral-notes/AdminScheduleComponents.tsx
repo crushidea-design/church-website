@@ -54,6 +54,7 @@ export function ScheduleTab({
   onSyncCalendar,
   copiedScheduleItem,
   onCopySchedule,
+  onCancelCopy,
   onSelectDate,
 }: {
   scheduleItems: RaahMinistryScheduleItem[];
@@ -72,6 +73,7 @@ export function ScheduleTab({
   onSyncCalendar: () => void;
   copiedScheduleItem: RaahMinistryScheduleItem | null;
   onCopySchedule: (item: RaahMinistryScheduleItem) => void;
+  onCancelCopy: () => void;
   onSelectDate: (dateIso: string) => void;
 }) {
   const todayIso = getTodayIso();
@@ -107,7 +109,16 @@ export function ScheduleTab({
               Google 연결
             </button>
           )}
-          {copiedScheduleItem && <span className={shell.badge}>복사됨 · {copiedScheduleItem.title}</span>}
+          {copiedScheduleItem && (
+            <div className="flex min-w-0 flex-wrap items-center gap-2" role="status">
+              <span className={shell.badge + ' max-w-full'}>
+                <span className="truncate">복사 대기 · {copiedScheduleItem.title}</span>
+              </span>
+              <button type="button" onClick={onCancelCopy} className={shell.ghostButton}>
+                복사 취소
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -472,9 +483,9 @@ export function SchedulePopupForm({
       </div>
       <div className="grid gap-2">
         <TextInput label="제목" value={form.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} placeholder="심방, 연락, 설교 준비" />
-        <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
-          <TextInput label="날짜" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
-          <TextInput label="시간" type="time" value={form.startsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, startsAt: value }))} />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <TextInput label="시작일" type="date" value={form.date} onChange={(value) => setForm((prev) => ({ ...prev, date: value }))} />
+          <TextInput label="시작 시간" type="time" value={form.startsAt || ''} onChange={(value) => setForm((prev) => ({ ...prev, startsAt: value }))} />
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <TextInput label="종료일" type="date" value={form.endDate || form.date} onChange={(value) => setForm((prev) => ({ ...prev, endDate: value || prev.date }))} />
