@@ -4,7 +4,7 @@ create table if not exists public.raah_attendance_events (
   id uuid primary key default gen_random_uuid(),
   date date not null,
   event_type text not null default 'sunday_morning' check (event_type in ('sunday_morning', 'sunday_afternoon', 'young_adults', 'wednesday_prayer', 'other')),
-  service_type text not null default '주일?�배',
+  service_type text not null default '주일예배',
   includes_communion boolean not null default true,
   memo text,
   created_by jsonb,

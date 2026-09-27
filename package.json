@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "node scripts/test-db.mjs",
     "raah:migrate:dry-run": "node scripts/migrate-raah-notes-to-supabase.mjs",
     "raah:migrate:sql": "node scripts/migrate-raah-notes-to-supabase.mjs --sql",
     "raah:migrate": "node scripts/migrate-raah-notes-to-supabase.mjs --apply",
