@@ -30,7 +30,6 @@ import {
   getPostAttachments,
   getInlinePreviewAttachments,
 } from '../../lib/attachments';
-import PdfCanvasViewer from '../../components/PdfCanvasViewer';
 import { formatDate } from '../../lib/utils';
 import {
   DepartmentCardItem,
@@ -45,6 +44,8 @@ import {
   youngAdultResourceTabs,
 } from './sharedConstants';
 
+const PdfCanvasViewer = React.lazy(() => import('../../components/PdfCanvasViewer'));
+
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 
 export default function NextGenerationPostDetail({ id }: { id: string }) {
@@ -56,6 +57,9 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
   const { tabs: cmsTabs, departments: cmsDepartments, topics: cmsTopics } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
   const isAdmin = role === 'admin';
   const downloadBlockedNotice = (ngUser && (isPending || isRejected))
@@ -63,12 +67,18 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     : '\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.';
 
   useEffect(() => {
+    let cancelled = false;
     const fetchPost = async () => {
       setLoading(true);
+      setPost(null);
+      setDetailError(null);
+      setContentLoading(false);
+      setFilesLoading(false);
 
       try {
         const postRef = doc(db, 'posts', id);
         const snapshot = await getDoc(postRef);
+        if (cancelled) return;
 
         if (!snapshot.exists()) {
           navigate(`${NEXT_GENERATION_PATH}/elementary`, { replace: true });
@@ -89,49 +99,64 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
           }
         }
 
-        if (data.isLongContent) {
-          const chunksQuery = query(
-            collection(db, 'post_contents'),
-            where('postId', '==', id),
-            orderBy('index', 'asc')
-          );
-          const chunksSnap = await getDocs(chunksQuery);
-          if (!chunksSnap.empty) {
-            data.content = chunksSnap.docs.map((chunkDoc) => chunkDoc.data().content).join('');
-          }
-        }
-
-        // Load restricted download file metadata only if the user is an approved
-        // member or pastor. Firestore rules block this read for others, so we
-        // guard here to avoid surfacing a permission error in the console.
-        if (true) {
-          try {
-            const fileSnap = await getDoc(doc(db, 'next_generation_post_files', id));
-            if (fileSnap.exists()) {
-              const fileData = fileSnap.data() as any;
-              if (fileData.pdfUrl) (data as any).pdfUrl = fileData.pdfUrl;
-              if (fileData.pdfName) (data as any).pdfName = fileData.pdfName;
-              if (fileData.pdfBase64) (data as any).pdfBase64 = fileData.pdfBase64;
-              if (fileData.attachments) (data as any).attachments = fileData.attachments;
-            }
-          } catch (e) {
-            // Silent — rule may block for pending/rejected; badge still reflects count
-          }
-        }
-
         setPost(data);
+        setLoading(false);
+        setContentLoading(!!data.isLongContent);
+        setFilesLoading(true);
+
+        // The article is visible now; remaining reads run independently.
+        const loadContent = async () => {
+          if (!data.isLongContent) return;
+          try {
+            const chunksSnap = await getDocs(query(
+              collection(db, 'post_contents'),
+              where('postId', '==', id),
+              orderBy('index', 'asc'),
+            ));
+            if (cancelled) return;
+            if (chunksSnap.empty) throw new Error('Missing content');
+            const content = chunksSnap.docs.map((chunkDoc) => chunkDoc.data().content).join('');
+            setPost((current) => current ? { ...current, content } : current);
+          } catch {
+            if (!cancelled) setDetailError('본문 전체를 불러오지 못했습니다. 새로고침해 주세요.');
+          } finally {
+            if (!cancelled) setContentLoading(false);
+          }
+        };
+        const loadFiles = async () => {
+          try {
+            // Public metadata is also used for guest previews; download controls
+            // continue to follow membership status below.
+            const fileSnap = await getDoc(doc(db, 'next_generation_post_files', id));
+            if (cancelled || !fileSnap.exists()) return;
+            const fileData = fileSnap.data();
+            const files: Partial<NextGenerationPost> = {};
+            for (const key of ['pdfUrl', 'pdfName', 'pdfBase64', 'attachments'] as const) {
+              if (fileData[key]) files[key] = fileData[key];
+            }
+            setPost((current) => current ? { ...current, ...files } : current);
+          } catch {
+            if (!cancelled) setDetailError((current) => current || '첨부 자료를 불러오지 못했습니다. 새로고침해 주세요.');
+          } finally {
+            if (!cancelled) setFilesLoading(false);
+          }
+        };
+        await Promise.all([loadContent(), loadFiles()]);
       } catch (err: any) {
+        if (cancelled) return;
+        setDetailError('자료를 불러오지 못했습니다. 새로고침해 주세요.');
         console.error('Error fetching next generation post:', err);
         try {
           handleFirestoreError(err, OperationType.GET, `posts/${id}`);
         } catch (e) {}
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    fetchPost();
-  }, [id, navigate, ngAccess, isRestricted, isAdmin]);
+    void fetchPost();
+    return () => { cancelled = true; };
+  }, [id, navigate, isRestricted, isAdmin]);
 
   if (loading) {
     return (
@@ -141,7 +166,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     );
   }
 
-  if (!post) return null;
+  if (!post) return <p role="alert" className="p-8 text-center">{detailError}</p>;
 
   const mergedTabs: ResourceTabItem[] = (cmsTabs.length > 0 ? cmsTabs : (allResourceTabs as any)).map((tab: any) => ({
     id: tab.slug || tab.id,
@@ -258,6 +283,10 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
             {post.content}
           </div>
 
+          {contentLoading && <p role="status" className="mt-4 text-sm text-slate-500">본문 전체를 불러오는 중입니다.</p>}
+          {filesLoading && <p role="status" className="mt-4 text-sm text-slate-500">첨부 자료를 불러오는 중입니다.</p>}
+          {detailError && <p role="alert" className="mt-4 text-sm text-amber-800">{detailError}</p>}
+
           {attachments.length > 0 && (
             <div className="mt-10 border-t border-sky-100 pt-8">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -325,15 +354,17 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
                     {inlinePreviewAttachments.some((preview) => preview.url === attachment.url) && (
                       attachment.type === 'pdf' ? (
                         <div className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-white">
-                          <PdfCanvasViewer
-                            url={attachment.url}
-                            onDownload={
-                              ngAccess
-                                ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
-                                : () =>
-                                    setAccessNotice(downloadBlockedNotice)
-                            }
-                          />
+                          <React.Suspense fallback={<p role="status" className="p-4 text-sm text-slate-500">PDF 미리보기를 준비하는 중입니다.</p>}>
+                            <PdfCanvasViewer
+                              url={attachment.url}
+                              onDownload={
+                                ngAccess
+                                  ? () => window.open(attachment.url, '_blank', 'noopener,noreferrer')
+                                  : () =>
+                                      setAccessNotice(downloadBlockedNotice)
+                              }
+                            />
+                          </React.Suspense>
                         </div>
                       ) : (
                         <figure className="mt-4 overflow-hidden rounded-lg border border-sky-100 bg-slate-50">

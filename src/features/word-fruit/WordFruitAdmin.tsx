@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Loader2, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Sparkles, Megaphone, FileUp,
 } from 'lucide-react';
-import { extractPdfText } from './pdfText';
 import { useNextGenerationAuth } from '../../lib/nextGenerationAuth';
 import {
   fetchElementaryStudents,
@@ -119,6 +118,7 @@ export default function WordFruitAdmin({ weekId, existingFruit, allProgress }: P
     setFruitMsg(null);
     setPdfFileName(file.name);
     try {
+      const { extractPdfText } = await import('./pdfText');
       const text = await extractPdfText(file);
       if (text.length < 30) {
         setFruitMsg({
@@ -792,4 +792,3 @@ function Stat({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

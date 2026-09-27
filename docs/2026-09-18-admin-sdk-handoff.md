@@ -59,3 +59,11 @@ node --import tsx tests/support/external-readiness.ts --read-only-production
 - [Firebase Admin 릴리스 노트](https://firebase.google.com/support/release-notes/admin/node): 14의 namespace 제거 및 Node 22 이상 요구, 14.4 저장소 의존성 갱신.
 - [uuid 11 문서](https://github.com/uuidjs/uuid/blob/v11.1.0/README.md): CommonJS와 v4 API 지원.
 - [Netlify 함수 런타임](https://docs.netlify.com/build/functions/configuration/): 기본 런타임은 빌드 Node 버전과 연동하며 별도 환경변수 override 확인 필요.
+
+## 2026-09-27 운영 복구 결과
+
+Firebase Admin 14의 `jwks-rsa@4`가 ESM인 `jose`를 동기 `require()`로 읽어 Lambda에서 `ERR_REQUIRE_ESM`과 HTTP 502가 발생했다. `NODE_OPTIONS=--experimental-require-module` 설정 후에도 운영 장애가 지속되어 실행 옵션만으로는 해결되지 않았다.
+
+최종 해결은 `postinstall`의 `scripts/patch-jwks-rsa.cjs`가 해당 의존성의 두 경로를 비동기 `import()`로 바꾸는 방식이다. 이번에 추가한 `NODE_OPTIONS`는 제거했으며, 새 배포에서도 설치 패치가 실행되어야 한다. 회귀 테스트는 ESM 동기 로드를 비활성화한 순수 Node 프로세스에서 Firebase Admin 로딩과 토큰 서명 검증을 확인한다.
+
+배포 후 RAAH API의 인증 없는 요청이 JSON 401을 반환하는지, 로그인 후 데이터가 정상적으로 표시되는지를 확인한다. 자세한 경과와 검증 범위는 [운영 502 복구 기록](2026-09-27-raah-runtime-fix.md)을 따른다.
