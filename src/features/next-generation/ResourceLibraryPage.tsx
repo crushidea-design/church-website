@@ -1,9 +1,8 @@
 // Resource library page extracted from NextGeneration.tsx. Renders a
 // department's tabbed material list (weekly groups, downloads, topic
 // filters). Receives department-specific config via props.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import {
   ArrowDown01,
   ArrowUp10,
@@ -16,7 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../lib/auth';
 import {
   STUDENT_ACCESSIBLE_TAB_SLUGS,
@@ -45,8 +44,10 @@ import { getPostAttachments } from '../../lib/attachments';
 import { fruitWeekIdFromSundayKey } from '../word-fruit/api';
 import { formatDate } from '../../lib/utils';
 import { NextGenerationPost, ResourceTabItem } from './sharedConstants';
+import { fetchResourcePosts } from '../../lib/nextGenerationPostQuery';
 
-const NEXT_GENERATION_CATEGORY = 'next_generation';
+const EMPTY_RESOURCE_IDS: string[] = [];
+const RESOURCE_CACHE_MS = 60_000;
 const RESOURCE_PAGE_SIZE = 12;
 
 interface ResourceLibraryPageProps {
@@ -78,7 +79,7 @@ export default function ResourceLibraryPage({
   description,
   tabs,
   midSection,
-  weeklyResourceIds = [],
+  weeklyResourceIds = EMPTY_RESOURCE_IDS,
   guestTabId,
   guestPostLimit,
 }: ResourceLibraryPageProps) {
@@ -103,6 +104,7 @@ export default function ResourceLibraryPage({
   const visibleTabs = allowedTabs;
   const requestedTopic = searchParams.get('topic');
   const isFromDemo = searchParams.get('fromDemo') === '1';
+  const postCache = useRef(new Map<string, { posts: NextGenerationPost[]; expiresAt: number }>());
   const [posts, setPosts] = useState<NextGenerationPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +158,7 @@ export default function ResourceLibraryPage({
   }, [activeTab.id, selectedWeekKey, sortDir]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchPosts = async () => {
       if (!activeTab.id) {
         setPosts([]);
@@ -163,15 +166,20 @@ export default function ResourceLibraryPage({
         return;
       }
 
-      setLoading(true);
+      const resourceIds = isWeeklyTab ? weeklyResourceIds : [activeTab.id];
+      const cacheKey = JSON.stringify([ngUser?.uid, departmentSlug, resourceIds]);
+      const cached = postCache.current.get(cacheKey);
       setError(null);
+      if (cached && cached.expiresAt > Date.now()) {
+        setPosts(cached.posts);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
 
       try {
-        const constraints = [where('category', '==', NEXT_GENERATION_CATEGORY)];
-        const q = query(collection(db, 'posts'), ...constraints, orderBy('createdAt', 'desc'), limit(300));
-        const snapshot = await getDocs(q);
-        const raw = snapshot.docs
-          .map((postDoc) => ({ id: postDoc.id, ...(postDoc.data() as object) }) as NextGenerationPost);
+        const raw = await fetchResourcePosts(resourceIds);
+        if (cancelled) return;
         const data = raw.filter((post) => {
           if (post.isArchived === true) return false;
           const postDepartmentSlug = post.nextGenerationDepartmentSlug || getResourceDepartmentPath(post.subCategory).replace(`${NEXT_GENERATION_PATH}/`, '');
@@ -182,20 +190,23 @@ export default function ResourceLibraryPage({
           }
           return postTabSlug === activeTab.id;
         });
+        postCache.current.set(cacheKey, { posts: data, expiresAt: Date.now() + RESOURCE_CACHE_MS });
         setPosts(data);
       } catch (err: any) {
+        if (cancelled) return;
         console.error('Error fetching next generation posts:', err);
         setError('자료를 불러오는 중 오류가 발생했습니다.');
         try {
           handleFirestoreError(err, OperationType.GET, 'posts');
         } catch (e) {}
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    fetchPosts();
-  }, [activeTab.id, departmentSlug, isWeeklyTab, weeklyResourceIds]);
+    void fetchPosts();
+    return () => { cancelled = true; };
+  }, [activeTab.id, departmentSlug, isWeeklyTab, weeklyResourceIds, ngUser?.uid]);
 
   const topicOptions = useMemo(() => {
     if (!usesTopicFolders) return [];
