@@ -353,10 +353,6 @@ export default function AdminPastoralNotes() {
   const communionCount = attendanceRecords.filter((record) => record.communionParticipated).length;
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
-  const filteredMembers = members.filter((member) => {
-    const text = [member.searchName, member.position, member.district, member.phone].join(' ').toLocaleLowerCase('ko-KR');
-    return !normalizedSearch || text.includes(normalizedSearch);
-  });
   const filteredLogs = logs.filter((log) => {
     const text = [log.memberSearchName, log.logType, log.publicSummary].join(' ').toLocaleLowerCase('ko-KR');
     return !normalizedSearch || text.includes(normalizedSearch);
@@ -906,10 +902,10 @@ export default function AdminPastoralNotes() {
               ))}
             </nav>
 
-            <label className="relative w-64 shrink-0 xl:w-80">
+            {activeTab !== 'members' && (<label className="relative w-64 shrink-0 xl:w-80">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2e6b5f]" />
               <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-10 bg-[#ffffff] pl-9`} />
-            </label>
+            </label>)}
 
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
               <Lock size={12} />
@@ -966,7 +962,7 @@ export default function AdminPastoralNotes() {
           </div>
 
           <div className="border-t border-white/10 p-4">
-            <label className="relative block">
+            {activeTab !== 'members' && (<label className="relative block">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#adcacd]" />
               <input
                 value={searchTerm}
@@ -974,7 +970,7 @@ export default function AdminPastoralNotes() {
                 placeholder={TEXT.search[activeTab]}
                 className="h-11 w-full rounded-md border border-white/10 bg-white/10 px-3 pl-9 text-sm text-white outline-none placeholder:text-white/45 transition focus:border-[#adcacd] focus:ring-2 focus:ring-[#adcacd]/20"
               />
-            </label>
+            </label>)}
             <div className="mt-3 flex items-center gap-2">
               {!subdomainMode && (
                 <button type="button" onClick={() => navigate('/admin')} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
@@ -1010,10 +1006,10 @@ export default function AdminPastoralNotes() {
                   <p className="mt-1 text-sm text-[#607080]">찾고, 체크하고, 기록하는 목양 관리 앱</p>
                 </div>
               </div>
-              <label className="relative w-full xl:w-80">
+              {activeTab !== 'members' && (<label className="relative w-full xl:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2e6b5f]" />
                 <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} pl-9`} />
-              </label>
+              </label>)}
             </div>
           </header>
 
@@ -1029,10 +1025,10 @@ export default function AdminPastoralNotes() {
                 </div>
                 <p className="mt-1 text-sm text-[#607080]">성도 돌봄, 심방 일정, 목양 노트, 후속 계획을 전문적으로 관리합니다.</p>
               </div>
-              <label className="relative w-[360px] shrink-0">
+              {activeTab !== 'members' && (<label className="relative w-[360px] shrink-0">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8b9a]" />
                 <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-11 pl-9`} />
-              </label>
+              </label>)}
             </div>
           </header>
 
@@ -1072,7 +1068,17 @@ export default function AdminPastoralNotes() {
 
             {activeTab === 'members' && (
               <MembersTab
-                members={filteredMembers}
+                members={members}
+                search={searchTerm}
+                onSearch={setSearchTerm}
+                logs={logs}
+                attendanceHistory={attendanceHistory}
+                onNewSchedule={(member) => {
+                  openNewScheduleForm();
+                  setScheduleForm((previous) => ({ ...previous, memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
+                  setSearchTerm('');
+                  setActiveTab('schedule');
+                }}
                 selectedMember={selectedMember}
                 selectedMemberLogs={selectedMemberLogs}
                 selectedMemberAttendance={selectedMemberAttendance}
@@ -1144,8 +1150,9 @@ export default function AdminPastoralNotes() {
                 copiedScheduleItem={copiedScheduleItem}
                 onCopySchedule={(item) => {
                   setCopiedScheduleItem(item);
-                  toast.success('일정을 복사했습니다. 원하는 날짜를 눌러 붙여넣을 수 있습니다.');
+                  toast.success('원하는 날짜에 여러 번 붙여넣을 수 있습니다. 마치면 복사 취소를 눌러 주세요.');
                 }}
+                onCancelCopy={() => setCopiedScheduleItem(null)}
                 onSelectDate={(dateIso) => {
                   openNewScheduleForm(dateIso, copiedScheduleItem);
                   if (copiedScheduleItem) toast.success('복사한 일정 내용을 새 날짜에 붙여넣었습니다.');

@@ -229,14 +229,6 @@ export function AttendanceTab({
 
   return (
     <section className="space-y-4">
-      <AttendanceFlowPanel
-        flow={attendanceFlow}
-        onSelectEvent={(event) => {
-          setDate(event.date);
-          onEventTypeChange(event.eventType, event.date);
-        }}
-      />
-
       <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
         <div className={shell.panel + ' p-4'}>
         <h2 className="text-lg font-semibold">출석 설정</h2>
@@ -323,6 +315,13 @@ export function AttendanceTab({
         </div>
       </div>
       </div>
+      <AttendanceFlowPanel
+        flow={attendanceFlow}
+        onSelectEvent={(event) => {
+          setDate(event.date);
+          onEventTypeChange(event.eventType, event.date);
+        }}
+      />
     </section>
   );
 }
@@ -334,9 +333,11 @@ export function AttendanceFlowPanel({
   flow: ReturnType<typeof buildRaahAttendanceFlow>;
   onSelectEvent: (event: RaahAttendanceFlowEvent) => void;
 }) {
-  const visibleRows = flow.rows.slice(0, 12);
-  const currentAbsences = flow.rows.filter((row) => row.currentAbsent).length;
-  const repeatedAbsences = flow.rows.filter((row) => row.consecutiveAbsences >= 2 || row.requiredAbsenceCount >= 2).length;
+  const visibleRows = flow.rows;
+  const sundayEvents = flow.events.filter((event) => event.eventType === 'sunday_morning').sort((a, b) => a.date.localeCompare(b.date));
+  const latestSunday = sundayEvents.at(-1);
+  const currentAbsences = flow.rows.filter((row) => row.cells.find((cell) => cell.eventKey === latestSunday?.key)?.attended === false).length;
+  const repeatedAbsences = flow.rows.filter((row) => row.requiredAbsenceCount >= 2).length;
   const steadyRows = flow.rows.filter((row) => row.requiredRecordedCount > 0 && row.requiredAbsenceCount === 0).length;
 
   return (
@@ -344,11 +345,11 @@ export function AttendanceFlowPanel({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-lg font-semibold">출석 흐름</h2>
-          <p className="mt-1 text-sm text-[#607080]">주일 오전을 필수 출석 기준으로 보고, 다른 모임은 흐름 확인용으로 함께 봅니다.</p>
+          <p className="mt-1 text-sm text-[#607080]">주일 오전 출석을 한눈에 비교합니다. 왼쪽은 과거, 오른쪽은 최근 기록입니다.</p>
         </div>
         <div className="grid grid-cols-3 gap-2 lg:min-w-[360px]">
-          <MiniCount label="최근 결석" value={currentAbsences} />
-          <MiniCount label="반복 결석" value={repeatedAbsences} />
+          <MiniCount label="가장 최근 주 결석" value={currentAbsences} />
+          <MiniCount label="기간 내 2회 이상 결석" value={repeatedAbsences} />
           <MiniCount label="꾸준 출석" value={steadyRows} />
         </div>
       </div>
@@ -359,6 +360,52 @@ export function AttendanceFlowPanel({
         </div>
       ) : (
         <>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[#607080]">
+            <p>기록이 있는 최근 {flow.weeks.length}개 주간 · 기록이 없는 주간은 생략됩니다.</p>
+            <p><span className="font-semibold text-[#2e6b5f]">✓ 출석</span> · <span className="font-semibold text-[#9a4b34]">× 결석</span> · — 미기록 · ◆ 성찬 참여</p>
+          </div>
+          <div className="mt-3 overflow-x-auto rounded-lg border border-[#dbe3e8]">
+            <table className="w-full min-w-[480px] border-collapse bg-white text-sm">
+              <caption className="sr-only">주일 오전 출석 흐름. 날짜를 누르면 해당 주의 출석 체크로 전환합니다.</caption>
+              <thead className="bg-[#f8fafb] text-xs text-[#607080]">
+                <tr>
+                  <th scope="col" className="sticky left-0 z-10 bg-[#f8fafb] px-3 py-3 text-left">성도</th>
+                  {sundayEvents.map((event) => (
+                    <th key={event.key} scope="col" className={`px-1 py-2 text-center ${event.key === latestSunday?.key ? 'bg-[#e7f2ed] text-[#245b51]' : ''}`}>
+                      <button type="button" onClick={() => onSelectEvent(event)} title={`${event.date} 주일 오전 출석 체크`} className="rounded-md px-2 py-1 hover:bg-[#dcece4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2e6b5f]">
+                        <span className="block">{event.date.slice(5).replace('-', '.')}</span>
+                        <span className="mt-1 block text-[10px] font-normal">{event.key === latestSunday?.key ? '최근' : event.date.slice(0, 4)}</span>
+                      </button>
+                    </th>
+                  ))}
+                  <th scope="col" className="px-3 py-3 text-right">출석 / 기록</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => (
+                  <tr key={row.memberId} className="border-t border-[#e7edf1]">
+                    <th scope="row" className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-3 text-left font-semibold">{row.memberName}</th>
+                    {sundayEvents.map((event) => {
+                      const cell = row.cells.find((entry) => entry.eventKey === event.key);
+                      const attended = cell?.attended;
+                      const status = attended === true ? (cell?.communionParticipated ? '출석, 성찬 참여' : '출석') : attended === false ? '결석' : '미기록';
+                      return (
+                        <td key={event.key} className={`px-1 py-2 text-center ${event.key === latestSunday?.key ? 'bg-[#f3f8f5]' : ''}`}>
+                          <span aria-label={`${event.date} ${status}`} title={`${event.date} ${status}`} className={`inline-flex h-9 w-10 items-center justify-center gap-0.5 rounded-md text-lg font-semibold ${attended === true ? 'bg-[#dceee5] text-[#245b51]' : attended === false ? 'bg-[#fbe6dd] text-[#9a4b34]' : 'bg-[#f4f6f8] text-[#8a97a3]'}`}>
+                            <span aria-hidden="true">{attended === true ? '✓' : attended === false ? '×' : '—'}</span>
+                            {attended === true && cell?.communionParticipated && <span aria-hidden="true" className="text-[9px]">◆</span>}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="whitespace-nowrap px-3 py-3 text-right text-xs text-[#607080]">{row.requiredRecordedCount ? <><strong className="text-sm text-[#17202b]">{row.requiredAttendedCount}</strong> / {row.requiredRecordedCount}회</> : '미기록'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <details className="mt-4 rounded-lg border border-[#dbe3e8] p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-[#28415b]">다른 모임까지 자세히 보기</summary>
           <div className="mt-4">
             <div className="block max-lg:hidden overflow-x-auto rounded-md border border-[#dbe3e8]">
               <table className="min-w-[980px] w-full border-collapse bg-white text-sm">
@@ -435,6 +482,7 @@ export function AttendanceFlowPanel({
               </div>
             ))}
           </div>
+          </details>
         </>
       )}
     </div>
