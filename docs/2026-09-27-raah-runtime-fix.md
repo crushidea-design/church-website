@@ -8,7 +8,8 @@ Firebase Admin 14가 사용하는 `jwks-rsa@4.1.0`이 ESM인 `jose`를
 Node 22의 `--no-experimental-require-module` 옵션으로 같은 장애를 재현했다.
 
 `postinstall`에서 `scripts/patch-jwks-rsa.cjs`를 실행해 이 모듈의
-기존 비동기 `retrieveSigningKeys` 함수 안에서 `await import('jose')`로 읽도록 한다.
+`retrieveSigningKeys`와 Passport의 `secretProvider` 안에서 `await import('jose')`로 읽도록 한다.
+Passport 콜백 계약과 기존 오류 처리는 유지한다.
 라이브러리 버전과 서명 검증·키 필터·관리자 검사·AES-GCM 암호화 로직은 유지한다.
 패치는 반복 실행해도 안전하며, 예상 소스 구조가 달라지면 설치를 실패시켜 검토를 요구한다.
 상위 라이브러리에서 수정되면 패치와 postinstall을 제거하고 아래 검증을 다시 실행한다.
@@ -16,7 +17,9 @@ Node 22의 `--no-experimental-require-module` 옵션으로 같은 장애를 재�
 ## 검증
 
 `tests/raah-runtime.test.ts`는 Lambda와 같이 `require(esm)`을 끈 별도 Node 프로세스에서
-실제 Firebase Admin 의존성과 RAAH 관리·목양노트·캘린더 함수를 읽는다.
+실제 Firebase Admin 의존성을 읽는다. 이 검사는 tsx 없이 순수 Node로 실행해
+TypeScript 로더가 ESM 호환 문제를 가리지 못하게 한다. Passport의 정상/잘못된 토큰 콜백도 확인한다.
+별도 테스트에서 RAAH 관리·목양노트·캘린더 함수를 읽는다.
 인증 없는 요청에 JSON 401을 반환하고, 로컬 RSA 공개키를 변환해 정상 서명은 통과시키며
 변조된 메시지와 없는 키 ID는 거부하는지 확인한다.
 외부 네트워크·운영 자격증명·목양 데이터를 사용하지 않는다.
