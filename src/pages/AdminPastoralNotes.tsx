@@ -49,7 +49,14 @@ import {
   updateRaahMinistryScheduleItem,
   updateRaahVisitationLog,
 } from '../features/pastoral-notes/managementApi';
-import { buildAttendanceRecordsForEvent, filterResolvedFollowUps, selectAttendanceEvent } from '../features/pastoral-notes/raahWorkflow';
+import {
+  buildAttendanceRecordsForEvent,
+  filterResolvedFollowUps,
+  RaahAttendanceSummary,
+  RaahDataStatus,
+  selectAttendanceEvent,
+  summarizeSavedAttendance,
+} from '../features/pastoral-notes/raahWorkflow';
 import { buildRaahAttendanceFlow, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
@@ -351,6 +358,14 @@ export default function AdminPastoralNotes() {
     : [];
   const attendanceCount = attendanceRecords.filter((record) => record.attended).length;
   const communionCount = attendanceRecords.filter((record) => record.communionParticipated).length;
+  const dataStatus: RaahDataStatus = isLoading
+    ? 'loading'
+    : storageMode === 'supabase'
+      ? 'ready'
+      : storageMode === 'firestore'
+        ? 'legacy'
+        : 'error';
+  const savedAttendanceSummary = summarizeSavedAttendance(dataStatus, members, attendance);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
   const filteredLogs = logs.filter((log) => {
@@ -1036,12 +1051,12 @@ export default function AdminPastoralNotes() {
             {activeTab === 'dashboard' && (
               <DashboardTab
                 isLoading={isLoading}
+                dataStatus={dataStatus}
                 summary={summary}
                 members={members}
                 logs={logs}
                 attendanceDate={attendanceDate}
-                attendanceCount={attendanceCount}
-                communionCount={communionCount}
+                attendanceSummary={savedAttendanceSummary}
                 attendanceHistory={attendanceHistory}
                 pendingFollowUps={pendingFollowUps}
                 scheduleItems={ministryScheduleItems}
@@ -1251,12 +1266,12 @@ export default function AdminPastoralNotes() {
 
 function DashboardTab({
   isLoading,
+  dataStatus,
   summary,
   members,
   logs,
   attendanceDate,
-  attendanceCount,
-  communionCount,
+  attendanceSummary,
   attendanceHistory,
   pendingFollowUps,
   scheduleItems,
@@ -1277,12 +1292,12 @@ function DashboardTab({
   onCompleteScheduleItem,
 }: {
   isLoading: boolean;
+  dataStatus: RaahDataStatus;
   summary: RaahDashboardSummary;
   members: RaahMember[];
   logs: RaahVisitationLog[];
   attendanceDate: string;
-  attendanceCount: number;
-  communionCount: number;
+  attendanceSummary: RaahAttendanceSummary;
   attendanceHistory: RaahAttendanceHistoryRecord[];
   pendingFollowUps: RaahVisitationLog[];
   scheduleItems: RaahMinistryScheduleItem[];
@@ -1302,9 +1317,9 @@ function DashboardTab({
   onCreateScheduleItem: (event: React.FormEvent<HTMLFormElement>) => void;
   onCompleteScheduleItem: (itemId: string) => void;
 }) {
+  const isReady = dataStatus === 'ready';
   const activeMemberCount = summary.activeMemberCount || members.filter((member) => member.status === 'active').length;
-  const absentCount = Math.max(activeMemberCount - attendanceCount, 0);
-  const attendanceRate = percent(attendanceCount, activeMemberCount);
+  const attendanceStatus = describeAttendanceSummary(attendanceSummary);
   const dashboardAttendanceFlow = React.useMemo(
     () => buildRaahAttendanceFlow({ members, history: attendanceHistory, limit: 1 }),
     [attendanceHistory, members]
@@ -1321,10 +1336,19 @@ function DashboardTab({
   return (
     <section className="space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-        <FocusCard label="활성 성도" value={activeMemberCount} icon={<Users size={20} />} />
-        <FocusCard label="주일 출석" value={attendanceCount} helper={`성찬 ${communionCount} · 미출석 ${absentCount}`} icon={<CheckSquare size={20} />} />
-        <FocusCard label="이번 주 기록" value={summary.thisWeekLogCount} icon={<ClipboardList size={20} />} />
-        <FocusCard label="암호화 기록" value={summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length} icon={<Lock size={20} />} />
+        <FocusCard label="활성 성도" value={isReady ? activeMemberCount : null} icon={<Users size={20} />} />
+        <FocusCard
+          label="주일 출석"
+          value={attendanceSummary.status === 'recorded' ? attendanceSummary.attendedCount : null}
+          helper={attendanceStatus.detail}
+          icon={<CheckSquare size={20} />}
+        />
+        <FocusCard label="이번 주 기록" value={isReady ? summary.thisWeekLogCount : null} icon={<ClipboardList size={20} />} />
+        <FocusCard
+          label="암호화 기록"
+          value={isReady ? summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length : null}
+          icon={<Lock size={20} />}
+        />
       </div>
 
       <div className={shell.panel + ' p-3'}>
@@ -1345,15 +1369,7 @@ function DashboardTab({
       </div>
 
       <div className="grid gap-3 xl:grid-cols-4">
-        <DashboardAttendanceMini
-          date={attendanceDate}
-          activeMemberCount={activeMemberCount}
-          attendanceCount={attendanceCount}
-          communionCount={communionCount}
-          absentCount={absentCount}
-          attendanceRate={attendanceRate}
-          onOpenAttendance={onOpenAttendance}
-        />
+        <DashboardAttendanceMini date={attendanceDate} summary={attendanceSummary} onOpenAttendance={onOpenAttendance} />
         <DashboardTasksMini
           tasks={todayTasks.slice(0, 3)}
           members={members}
@@ -1384,23 +1400,43 @@ function DashboardTab({
   );
 }
 
+// Home copy for the saved attendance summary. Counts appear only when the
+// event was actually saved; loading, failures and unsaved Sundays say so.
+function describeAttendanceSummary(summary: RaahAttendanceSummary) {
+  switch (summary.status) {
+    case 'loading':
+      return { headline: '…', detail: '불러오는 중' };
+    case 'error':
+      return { headline: '—', detail: '출석을 불러오지 못했습니다' };
+    case 'legacy':
+      return { headline: '—', detail: '호환 모드에서는 출석을 표시하지 않습니다' };
+    case 'not_recorded':
+      return { headline: '—', detail: '아직 저장된 출석부가 없습니다' };
+    case 'recorded': {
+      const parts = [
+        summary.communionCount === null ? '성찬 없음' : `성찬 ${summary.communionCount}`,
+        `미출석 ${summary.absentCount}`,
+      ];
+      if (summary.unrecordedCount > 0) parts.push(`미기록 ${summary.unrecordedCount}`);
+      return { headline: '', detail: parts.join(' · ') };
+    }
+  }
+}
+
 function DashboardAttendanceMini({
   date,
-  activeMemberCount,
-  attendanceCount,
-  communionCount,
-  absentCount,
-  attendanceRate,
+  summary,
   onOpenAttendance,
 }: {
   date: string;
-  activeMemberCount: number;
-  attendanceCount: number;
-  communionCount: number;
-  absentCount: number;
-  attendanceRate: number;
+  summary: RaahAttendanceSummary;
   onOpenAttendance: () => void;
 }) {
+  const { headline, detail } = describeAttendanceSummary(summary);
+  const recorded = summary.status === 'recorded' ? summary : null;
+  // The rate covers members with a saved yes/no only; unrecorded members stay out of the denominator.
+  const checkedCount = recorded ? recorded.attendedCount + recorded.absentCount : 0;
+  const attendanceRate = recorded ? percent(recorded.attendedCount, checkedCount) : 0;
   return (
     <div className={shell.panel + ' p-4'}>
       <div className="flex items-start justify-between gap-2">
@@ -1412,19 +1448,25 @@ function DashboardAttendanceMini({
           체크
         </button>
       </div>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-3xl font-semibold tracking-tight text-[#17202b]">{attendanceRate}%</p>
-          <p className="mt-1 text-xs text-[#607080]">출석 {attendanceCount}/{activeMemberCount}</p>
+      {recorded ? (
+        <>
+          <div className="mt-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="text-3xl font-semibold tracking-tight text-[#17202b]">{attendanceRate}%</p>
+              <p className="mt-1 text-xs text-[#607080]">출석 {recorded.attendedCount}/{checkedCount}</p>
+            </div>
+            <p className="text-right text-xs leading-5 text-[#607080]">{detail}</p>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dbe3e8]">
+            <div className="h-full rounded-full bg-[#2e6b5f]" style={{ width: `${attendanceRate}%` }} />
+          </div>
+        </>
+      ) : (
+        <div className="mt-3">
+          <p className="text-3xl font-semibold tracking-tight text-[#9aa8b4]">{headline}</p>
+          <p className="mt-1 text-xs text-[#607080]" role="status">{detail}</p>
         </div>
-        <div className="text-right text-xs leading-5 text-[#607080]">
-          <p>성찬 {communionCount}</p>
-          <p>미출석 {absentCount}</p>
-        </div>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dbe3e8]">
-        <div className="h-full rounded-full bg-[#2e6b5f]" style={{ width: `${attendanceRate}%` }} />
-      </div>
+      )}
     </div>
   );
 }

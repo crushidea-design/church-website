@@ -5,6 +5,7 @@ import {
   filterResolvedFollowUps,
   groupMinistryScheduleItems,
   selectAttendanceEvent,
+  summarizeSavedAttendance,
 } from './raahWorkflow';
 import { RaahAttendanceEvent, RaahMember, RaahMinistryScheduleItem, RaahVisitationLog } from './managementApi';
 
@@ -83,5 +84,49 @@ describe('RAAH workflow helpers', () => {
       today: [items[0]],
       thisWeek: [items[1]],
     });
+  });
+});
+
+describe('summarizeSavedAttendance', () => {
+  const members = [member('a', '가'), member('b', '나'), member('c', '다'), member('x', '비활성', 'inactive')];
+  const record = (memberId: string, attended: boolean, communionParticipated = false) => ({
+    memberId,
+    memberName: memberId,
+    memberSearchName: memberId,
+    attended,
+    communionParticipated,
+  });
+  const event = (records: ReturnType<typeof record>[], includesCommunion = true): RaahAttendanceEvent => ({
+    id: 'event-1',
+    date: '2026-09-27',
+    eventType: 'sunday_morning',
+    serviceType: '주일예배',
+    includesCommunion,
+    records,
+  });
+
+  it.each(['loading', 'legacy', 'error'] as const)('reports %s without inventing counts', (status) => {
+    expect(summarizeSavedAttendance(status, members, event([record('a', true)]))).toEqual({ status });
+  });
+
+  it('treats a missing event as not recorded instead of everyone absent', () => {
+    expect(summarizeSavedAttendance('ready', members, null)).toEqual({ status: 'not_recorded', activeMemberCount: 3 });
+  });
+
+  it('separates attended, explicitly absent and unrecorded members', () => {
+    const summary = summarizeSavedAttendance('ready', members, event([record('a', true, true), record('b', false), record('x', true)]));
+    expect(summary).toEqual({
+      status: 'recorded',
+      activeMemberCount: 3,
+      attendedCount: 1,
+      absentCount: 1,
+      unrecordedCount: 1,
+      communionCount: 1,
+    });
+  });
+
+  it('reports no communion count when the service had no communion', () => {
+    const summary = summarizeSavedAttendance('ready', members, event([record('a', true, true)], false));
+    expect(summary).toMatchObject({ status: 'recorded', communionCount: null });
   });
 });
