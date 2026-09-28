@@ -241,7 +241,7 @@ type ApiBootstrap = {
   ministryScheduleItems?: ApiScheduleItem[];
 };
 
-async function getAuthHeaders(user: User) {
+export async function getAuthHeaders(user: User) {
   const token = await user.getIdToken();
   return {
     Authorization: `Bearer ${token}`,
@@ -249,7 +249,7 @@ async function getAuthHeaders(user: User) {
   };
 }
 
-async function readJsonResponse<T>(response: Response): Promise<T> {
+export async function readJsonResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = typeof data?.error === 'string' ? data.error : 'RAAH API request failed.';

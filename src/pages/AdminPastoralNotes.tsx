@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarDays,
   CheckSquare,
+  Church,
   ClipboardList,
   FileText,
   Lock,
@@ -98,6 +99,8 @@ import {
 } from '../features/pastoral-notes/AdminVisitationComponents';
 import { LegacyTab } from '../features/pastoral-notes/AdminLegacyComponents';
 import { MembersTab } from '../features/pastoral-notes/AdminMemberComponents';
+import { CommunionTab } from '../features/pastoral-notes/communion/CommunionTab';
+import { probeCommunionAvailability, type CommunionAvailability } from '../features/pastoral-notes/communion/api';
 import { hasAttendanceDraftChanges, hasFormChanges } from '../features/pastoral-notes/formChanges';
 import { useDecryptedDetail } from '../features/pastoral-notes/hooks/useDecryptedDetail';
 import { confirmDiscardChanges, useBeforeUnloadWarning } from '../features/pastoral-notes/hooks/useUnsavedChanges';
@@ -105,13 +108,14 @@ import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
 type StorageMode = 'loading' | 'supabase' | 'firestore';
-type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
+type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
 type ScheduleViewMode = 'week' | 'month';
 
 const TEXT = {
   tabs: {
     dashboard: '홈',
     members: '성도',
+    communion: '성찬',
     attendance: '출석',
     schedule: '사역일정',
     visitation: '기록',
@@ -120,6 +124,7 @@ const TEXT = {
   search: {
     dashboard: '성도, 기록, 구역 검색',
     members: '이름, 구역, 직분, 연락처 검색',
+    communion: '',
     attendance: '출석 체크할 성도 검색',
     schedule: '일정 제목, 성도, 메모 검색',
     visitation: '성도, 기록 유형, 요약 검색',
@@ -133,6 +138,7 @@ export default function AdminPastoralNotes() {
   const subdomainMode = isRaahSubdomain();
 
   const [activeTab, setActiveTab] = React.useState<ActiveTab>('dashboard');
+  const [communionAvailability, setCommunionAvailability] = React.useState<CommunionAvailability>('checking');
   const [storageMode, setStorageMode] = React.useState<StorageMode>('loading');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -300,6 +306,21 @@ export default function AdminPastoralNotes() {
       toast.error(getErrorMessage(error, '기존 RAAH 기록을 불러오지 못했습니다.'));
     });
   }, [activeTab, isLegacyLoading, legacyLoaded, loadLegacyNotes, storageMode]);
+
+  // The communion menu exists only when its API answers for this account (plan 5.1).
+  React.useEffect(() => {
+    if (!user || storageMode !== 'supabase') {
+      setCommunionAvailability('hidden');
+      return;
+    }
+    let cancelled = false;
+    probeCommunionAvailability(user).then((availability) => {
+      if (!cancelled) setCommunionAvailability(availability);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageMode, user]);
 
   const canDecrypt = Boolean(user) && storageMode === 'supabase';
   const loadLogDetail = React.useCallback((logId: string) => getRaahVisitationLogDetail(logId, user!), [user]);
@@ -909,9 +930,12 @@ export default function AdminPastoralNotes() {
     );
   }
 
+  // Tabs with their own search box hide the shared one.
+  const hasGlobalSearch = activeTab !== 'members' && activeTab !== 'communion';
   const tabs: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
     { id: 'dashboard', label: TEXT.tabs.dashboard, icon: <BarChart3 size={18} /> },
     { id: 'members', label: TEXT.tabs.members, icon: <Users size={18} /> },
+    ...(communionAvailability === 'available' ? [{ id: 'communion' as const, label: TEXT.tabs.communion, icon: <Church size={18} /> }] : []),
     { id: 'attendance', label: TEXT.tabs.attendance, icon: <CheckSquare size={18} /> },
     { id: 'schedule', label: TEXT.tabs.schedule, icon: <CalendarDays size={18} /> },
     { id: 'visitation', label: TEXT.tabs.visitation, icon: <ClipboardList size={18} /> },
@@ -954,7 +978,7 @@ export default function AdminPastoralNotes() {
               ))}
             </nav>
 
-            {activeTab !== 'members' && (<label className="relative w-64 shrink-0 xl:w-80">
+            {hasGlobalSearch && (<label className="relative w-64 shrink-0 xl:w-80">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2e6b5f]" />
               <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-10 bg-[#ffffff] pl-9`} />
             </label>)}
@@ -1014,7 +1038,7 @@ export default function AdminPastoralNotes() {
           </div>
 
           <div className="border-t border-white/10 p-4">
-            {activeTab !== 'members' && (<label className="relative block">
+            {hasGlobalSearch && (<label className="relative block">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#adcacd]" />
               <input
                 value={searchTerm}
@@ -1058,7 +1082,7 @@ export default function AdminPastoralNotes() {
                   <p className="mt-1 text-sm text-[#607080]">찾고, 체크하고, 기록하는 목양 관리 앱</p>
                 </div>
               </div>
-              {activeTab !== 'members' && (<label className="relative w-full xl:w-80">
+              {hasGlobalSearch && (<label className="relative w-full xl:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2e6b5f]" />
                 <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} pl-9`} />
               </label>)}
@@ -1077,7 +1101,7 @@ export default function AdminPastoralNotes() {
                 </div>
                 <p className="mt-1 text-sm text-[#607080]">성도 돌봄, 심방 일정, 목양 노트, 후속 계획을 전문적으로 관리합니다.</p>
               </div>
-              {activeTab !== 'members' && (<label className="relative w-[360px] shrink-0">
+              {hasGlobalSearch && (<label className="relative w-[360px] shrink-0">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8b9a]" />
                 <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-11 pl-9`} />
               </label>)}
@@ -1148,6 +1172,18 @@ export default function AdminPastoralNotes() {
                 setForm={setMemberForm}
                 onSubmit={handleMemberSubmit}
                 onCloseForm={closeMemberForm}
+              />
+            )}
+
+            {activeTab === 'communion' && user && communionAvailability === 'available' && (
+              <CommunionTab
+                user={user}
+                logs={logs}
+                attendanceHistory={attendanceHistory}
+                onOpenLog={(logId) => {
+                  setSelectedLogId(logId);
+                  setActiveTab('visitation');
+                }}
               />
             )}
 
@@ -1271,7 +1307,7 @@ export default function AdminPastoralNotes() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#dbe3e8] bg-white/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(21,38,57,0.08)] lg:hidden">
-        <div className="grid grid-cols-6 gap-1">
+        <div className={`grid gap-1 ${tabs.length > 6 ? 'grid-cols-7' : 'grid-cols-6'}`}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
