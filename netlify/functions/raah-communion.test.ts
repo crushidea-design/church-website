@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ requireRaahAccess: vi.fn() }));
 vi.mock('./_shared/raah-access.mjs', () => ({ requireRaahAccess: mocks.requireRaahAccess }));
-import handler, { mapUpstreamError } from './raah-communion.mjs';
+import handler from './raah-communion.mjs';
+import { mapUpstreamError } from './_shared/raah-rpc.mjs';
 
 describe('raah-communion handler', () => {
   afterEach(() => {
@@ -34,7 +35,7 @@ describe('raah-communion handler', () => {
     const unknown = mapUpstreamError('XX000');
     expect(unknown.status).toBe(502);
     expect(await unknown.json()).toEqual({ error: '저장소 요청을 처리하지 못했습니다.', code: 'RAAH_UPSTREAM_ERROR' });
-    expect(errorSpy).toHaveBeenCalledWith('RAAH communion upstream error', 'XX000');
+    expect(errorSpy).toHaveBeenCalledWith('RAAH upstream error', 'XX000');
     errorSpy.mockRestore();
   });
 });

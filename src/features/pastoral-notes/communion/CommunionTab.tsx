@@ -10,6 +10,7 @@ import { EmptyState, MiniCount } from '../AdminPrimitives';
 import { formatDisplayDate } from '../utils';
 import { getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
 import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
+import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import {
   DEFAULT_REVIEW_FILTER,
@@ -362,6 +363,26 @@ function PersonPanel({
     onChanged();
   };
   const editable = !periodClosed && review.rosterState === 'included';
+  // Two drafts can be open at once (conversation, new task); either one counts as unsaved.
+  const [dirtyDrafts, setDirtyDrafts] = React.useState({ conversation: false, task: false });
+  const setConversationDirty = React.useCallback((dirty: boolean) => setDirtyDrafts((prev) => ({ ...prev, conversation: dirty })), []);
+  const setTaskDirty = React.useCallback((dirty: boolean) => setDirtyDrafts((prev) => ({ ...prev, task: dirty })), []);
+  const anyDraftDirty = dirtyDrafts.conversation || dirtyDrafts.task;
+  React.useEffect(() => onDraftDirtyChange(anyDraftDirty), [anyDraftDirty, onDraftDirtyChange]);
+  React.useEffect(() => () => onDraftDirtyChange(false), [onDraftDirtyChange]);
+  const taskSources: SourceOption[] =
+    detail.result.state === 'ready'
+      ? [
+        { value: 'review', label: '이번 성찬 목양', sourceType: 'communion_review', sourceId: review.id },
+        ...detail.result.data.logs.map((log) => ({
+          value: `log:${log.id}`,
+          label: `기록 ${formatDisplayDate(log.date)} · ${log.logType}`,
+          sourceType: 'visitation_log' as const,
+          sourceId: log.id,
+        })),
+        { value: 'manual', label: '연결 없음', sourceType: 'manual', sourceId: null },
+      ]
+      : [];
   const memberLogs = logs.filter((log) => log.memberId === review.memberId).sort((a, b) => b.date.localeCompare(a.date));
   const sundays = attendanceHistory
     .filter((record) => record.memberId === review.memberId && (!record.eventType || record.eventType === 'sunday_morning'))
@@ -406,6 +427,7 @@ function PersonPanel({
             onOpenLog={onOpenLog}
             onChanged={refreshAll}
           />
+          <CareTasksSection memberId={review.memberId} sources={taskSources} user={user} disabled={!editable} onDirtyChange={setTaskDirty} />
         </>
       )}
       {!editable && <p className="mt-2 text-xs text-[#607080]">마감된 주기이거나 명부에서 제외된 성도라 변경할 수 없습니다.</p>}
@@ -440,7 +462,7 @@ function PersonPanel({
       )}
 
       {detail.result.state === 'ready' && editable && (
-        <ConversationForm detail={detail.result.data} user={user} disabled={!editable} onDirtyChange={onDraftDirtyChange} onSaved={refreshAll} />
+        <ConversationForm detail={detail.result.data} user={user} disabled={!editable} onDirtyChange={setConversationDirty} onSaved={refreshAll} />
       )}
     </aside>
   );
