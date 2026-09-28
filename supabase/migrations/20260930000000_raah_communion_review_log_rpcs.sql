@@ -5,7 +5,8 @@
 -- working. The server encrypts the body before calling; these functions only
 -- ever see ciphertext. Creating the log, linking it to the review, moving the
 -- review into "대화 진행 중", the idempotency record and the audit event happen
--- in one transaction.
+-- in one transaction. Conversations are accepted only while the care is open
+-- (미확인 / 심방 예정 / 대화 진행 중).
 begin;
 
 create or replace function public.raah_rpc_create_review_log(
@@ -35,6 +36,9 @@ declare
   v_revision integer;
 begin
   perform public.raah_rpc_assert_access(p_workspace, p_actor);
+  -- Serialise retries of the same key: without this, two overlapping requests
+  -- both miss the key below and one of them fails on its unique insert.
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace || ':' || p_actor || ':' || p_idempotency_key, 0));
 
   select * into v_existing
   from public.raah_idempotency_keys
@@ -64,6 +68,12 @@ begin
   if v_period_status = 'closed' then
     raise exception using errcode = 'P0422', message = 'period is closed';
   end if;
+  -- A confirmed or closed-without-contact review must be reopened (with a
+  -- reason) before new conversations are added; otherwise the status would
+  -- contradict the record.
+  if v_review.status not in ('not_started', 'scheduled', 'in_progress') then
+    raise exception using errcode = 'P0422', message = 'review must be reopened first';
+  end if;
 
   -- Ciphertext only: the three AES-GCM fields the server produces.
   if jsonb_typeof(p_encrypted_payload) <> 'object'
@@ -92,8 +102,8 @@ begin
   -- A recorded conversation means the care is under way; it never marks the
   -- review as confirmed — that stays an explicit step.
   update public.raah_communion_reviews
-  set status = case when status in ('not_started', 'scheduled') then 'in_progress' else status end,
-      status_reason = case when status in ('not_started', 'scheduled') then null else status_reason end,
+  set status = 'in_progress',
+      status_reason = case when status = 'in_progress' then status_reason else null end,
       revision = revision + 1,
       updated_at = now()
   where id = v_review.id
@@ -135,6 +145,15 @@ begin
   for update;
   if not found then
     raise exception using errcode = 'P0404', message = 'review not found';
+  end if;
+
+  -- Same immutability rules as the other writes: no changes to excluded
+  -- reviews or closed periods, even from a stale page.
+  if v_review.roster_state <> 'included' then
+    raise exception using errcode = 'P0422', message = 'review is not on the roster';
+  end if;
+  if (select status from public.raah_communion_periods where workspace_id = p_workspace and id = v_review.period_id) = 'closed' then
+    raise exception using errcode = 'P0422', message = 'period is closed';
   end if;
 
   select member_id into v_log_member from public.raah_visitation_logs where id = p_visitation_log_id;

@@ -37,10 +37,14 @@ function errorMessage(status?: number) {
 function useLoad<T>(key: string | null, load: () => Promise<T>) {
   const [result, setResult] = React.useState<Load<T>>({ state: 'loading' });
   const [attempt, setAttempt] = React.useState(0);
+  const loadedKey = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (key === null) return;
     let cancelled = false;
-    setResult({ state: 'loading' });
+    // A refresh of the same thing keeps showing what is loaded, so forms below
+    // (and their unsaved drafts) stay mounted. A different key starts clean.
+    if (loadedKey.current !== key) setResult({ state: 'loading' });
+    loadedKey.current = key;
     load()
       .then((data) => !cancelled && setResult({ state: 'ready', data }))
       .catch((error: { status?: number }) => !cancelled && setResult({ state: 'error', status: error?.status }));
@@ -411,10 +415,9 @@ function PersonPanel({
   onChanged: () => void;
   onDraftDirtyChange: (dirty: boolean) => void;
 }) {
-  const [refresh, setRefresh] = React.useState(0);
-  const detail = useLoad(`${review.id}:${refresh}`, () => getCommunionReview(review.id, user));
+  const detail = useLoad(review.id, () => getCommunionReview(review.id, user));
   const refreshAll = () => {
-    setRefresh((value) => value + 1);
+    detail.reload();
     onChanged();
   };
   const editable = !periodClosed && review.rosterState === 'included';
@@ -470,7 +473,7 @@ function PersonPanel({
       </dl>
 
       {detail.result.state !== 'ready' ? (
-        <LoadState result={detail.result} onRetry={() => setRefresh((value) => value + 1)} />
+        <LoadState result={detail.result} onRetry={detail.reload} />
       ) : (
         <>
           <ReviewStatusControl detail={detail.result.data} user={user} disabled={!editable} onChanged={refreshAll} />
@@ -517,7 +520,14 @@ function PersonPanel({
       )}
 
       {detail.result.state === 'ready' && editable && (
-        <ConversationForm detail={detail.result.data} user={user} disabled={!editable} onDirtyChange={setConversationDirty} onSaved={refreshAll} />
+        // Conversations go on open care only; a confirmed or closed review is reopened first (with a reason).
+        ['not_started', 'scheduled', 'in_progress'].includes(detail.result.data.review.status) ? (
+          <ConversationForm detail={detail.result.data} user={user} disabled={!editable} onDirtyChange={setConversationDirty} onSaved={refreshAll} />
+        ) : (
+          <p className="mt-4 border-t border-[#e6edf2] pt-4 text-xs text-[#607080]">
+            새 대화를 기록하려면 먼저 위에서 ‘대화 진행 중으로’ 다시 열고 사유를 남겨 주세요.
+          </p>
+        )
       )}
     </aside>
   );

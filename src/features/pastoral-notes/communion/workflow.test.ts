@@ -114,3 +114,14 @@ describe('validatePeriodDraft', () => {
     expect(validatePeriodDraft({ ...draft, ...change })).toBe(message);
   });
 });
+
+describe('availabilityFromProbeError', () => {
+  it('hides the tab only when the feature is off or the account has no grant', async () => {
+    const { availabilityFromProbeError } = await import('./api');
+    expect(availabilityFromProbeError({ status: 404 })).toBe('hidden');
+    expect(availabilityFromProbeError({ status: 403 })).toBe('hidden');
+    expect(availabilityFromProbeError({ status: 503 })).toBe('available');
+    expect(availabilityFromProbeError({ status: 502 })).toBe('available');
+    expect(availabilityFromProbeError(new TypeError('Failed to fetch'))).toBe('available');
+  });
+});

@@ -43,16 +43,22 @@ export async function getCommunionPeriod(periodId: string, user: User) {
 export type CommunionAvailability = 'checking' | 'available' | 'hidden';
 
 /**
- * The menu appears only when the API answers: 404 means the feature flag is
- * off and 403 means this account has no RAAH grant — both keep it hidden
- * rather than showing an empty or locked menu (plan 5.1).
+ * 404 means the feature flag is off and 403 means this account has no RAAH
+ * grant: both keep the menu hidden rather than empty or locked (plan 5.1).
+ * Any other failure (outage, network) is temporary, so the tab stays and shows
+ * its own error with a retry instead of vanishing for the session.
  */
+export function availabilityFromProbeError(error: unknown): CommunionAvailability {
+  const status = (error as { status?: number } | null)?.status;
+  return status === 403 || status === 404 ? 'hidden' : 'available';
+}
+
 export async function probeCommunionAvailability(user: User): Promise<CommunionAvailability> {
   try {
     await listCommunionPeriods(user);
     return 'available';
-  } catch {
-    return 'hidden';
+  } catch (error) {
+    return availabilityFromProbeError(error);
   }
 }
 

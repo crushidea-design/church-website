@@ -93,6 +93,9 @@ describe('RAAH workspace access', () => {
     ['missing configuration', () => vi.stubEnv('SUPABASE_URL', '')],
   ])('fails closed with 503 on %s', async (_label, arrange) => {
     arrange();
-    expect((await requireRaahAccess(request())).response?.status).toBe(503);
+    const response = (await requireRaahAccess(request())).response;
+    expect(response?.status).toBe(503);
+    // A distinct code so the client never mistakes it for "Supabase not configured".
+    expect(await response?.json()).toMatchObject({ code: 'RAAH_ACCESS_UNAVAILABLE' });
   });
 });

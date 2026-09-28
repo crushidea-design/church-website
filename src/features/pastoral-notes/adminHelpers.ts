@@ -260,6 +260,15 @@ export function percent(value: number, total: number) {
   return Math.min(100, Math.round((value / total) * 100));
 }
 
+/**
+ * The legacy Firestore mode is only for a deployment where Supabase was never
+ * configured. Any other failure (auth, access-grant lookup, outage) must fail
+ * closed rather than open a plaintext path to pastoral notes.
+ */
+export function shouldUseLegacyFirestore(error: unknown) {
+  return (error as { code?: string } | null)?.code === 'RAAH_SUPABASE_NOT_CONFIGURED';
+}
+
 export function getErrorMessage(error: unknown, fallback: string) {
   if (!error || typeof error !== 'object') return fallback;
   const typed = error as { message?: string; code?: string };

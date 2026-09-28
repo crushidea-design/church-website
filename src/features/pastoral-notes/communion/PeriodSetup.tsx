@@ -142,8 +142,8 @@ export function RosterEditor({
 
   const save = async () => {
     setIsSaving(true);
-    let applied = 0;
     try {
+      let applied = 0;
       for (const batch of chunk(changes, ROSTER_BATCH_SIZE)) {
         applied += (await updateCommunionRoster(periodId, batch, user)).applied;
       }
@@ -151,9 +151,10 @@ export function RosterEditor({
       onDirtyChange(false);
       onSaved();
     } catch (error) {
-      // Each entry is its own transaction; resending the same selection is safe.
-      toast.error(`${getErrorMessage(error, '명부를 저장하지 못했습니다.')} 반영된 변경 ${applied}명 · 다시 저장하면 남은 변경만 적용됩니다.`);
-      onSaved();
+      // Keep the editor and the selection as they are: every entry is its own
+      // transaction and resending one that already went through is a no-op, so
+      // saving again finishes the job without losing any choice.
+      toast.error(`${getErrorMessage(error, '명부를 저장하지 못했습니다.')} 일부만 반영되었을 수 있습니다. 선택은 그대로 두었으니 다시 저장해 주세요.`);
     } finally {
       setIsSaving(false);
     }

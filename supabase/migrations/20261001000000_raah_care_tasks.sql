@@ -68,6 +68,9 @@ declare
   v_task_id uuid;
 begin
   perform public.raah_rpc_assert_access(p_workspace, p_actor);
+  -- Serialise retries of the same key: without this, two overlapping requests
+  -- both miss the key below and one of them fails on its unique insert.
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace || ':' || p_actor || ':' || p_idempotency_key, 0));
 
   select * into v_existing
   from public.raah_idempotency_keys

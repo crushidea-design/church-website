@@ -75,7 +75,7 @@ export async function requireRaahAccess(
   }
 
   const grant = await findActiveGrant(user.uid);
-  if (grant === 'unavailable') return failure(503, 'Access service unavailable');
+  if (grant === 'unavailable') return failure(503, '접근 권한을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.', 'RAAH_ACCESS_UNAVAILABLE');
   if (!grant || !isGrantUsable(grant, Date.now())) {
     return failure(403, '라아 목양 접근 권한이 없습니다. 관리자에게 접근 승인을 요청해 주세요.', 'RAAH_ACCESS_NOT_GRANTED');
   }

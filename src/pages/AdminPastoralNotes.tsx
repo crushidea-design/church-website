@@ -71,6 +71,7 @@ import {
   emptySummary,
   formatScheduleDateRange,
   getAttendanceOption,
+  shouldUseLegacyFirestore,
   getDateForAttendanceEventType,
   getDateSpanDays,
   getErrorMessage,
@@ -267,8 +268,7 @@ export default function AdminPastoralNotes() {
         await loadCalendarStatus();
         if (!cancelled) setStorageMode('supabase');
       } catch (error) {
-        const apiError = error as { status?: number; code?: string };
-        if (apiError.status === 503 || apiError.status === 404 || apiError.code === 'RAAH_SUPABASE_NOT_CONFIGURED') {
+        if (shouldUseLegacyFirestore(error)) {
           setStorageMode('firestore');
           setLegacyLoaded(true);
           toast.info('Supabase 설정 전입니다. 기존 Firestore 호환 모드로 기록을 불러옵니다.');
