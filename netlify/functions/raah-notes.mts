@@ -1,7 +1,7 @@
 import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { requireRaahAdmin } from './_shared/raah-auth.mjs';
+import { requireRaahAccess } from './_shared/raah-access.mjs';
 
 declare const Netlify:
   | {
@@ -332,14 +332,14 @@ const handleDelete = async (noteId: string) => {
 };
 
 export default async (req: Request, context: Context) => {
-  const adminCheck = await requireRaahAdmin(req);
-  if (adminCheck.response) return adminCheck.response;
+  const accessCheck = await requireRaahAccess(req);
+  if (accessCheck.response || !accessCheck.access) return accessCheck.response;
 
   const noteId = context.params?.id;
 
   if (req.method === 'GET' && noteId) return handleDetail(noteId);
   if (req.method === 'GET') return handleList();
-  if (req.method === 'POST' && !noteId) return handleCreate(req, adminCheck.user);
+  if (req.method === 'POST' && !noteId) return handleCreate(req, accessCheck.access.user);
   if (req.method === 'PATCH' && noteId) return handleUpdate(req, noteId);
   if (req.method === 'DELETE' && noteId) return handleDelete(noteId);
 

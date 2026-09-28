@@ -1,6 +1,6 @@
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
-import { requireRaahAdmin } from './_shared/raah-auth.mjs';
+import { requireRaahAccess } from './_shared/raah-access.mjs';
 
 declare const Netlify:
   | {
@@ -533,12 +533,12 @@ const handleCreateEvent = async (req: Request) => {
 };
 
 export default async (req: Request, _context: Context) => {
-  const adminCheck = await requireRaahAdmin(req);
-  if (adminCheck.response || !adminCheck.user) return adminCheck.response;
+  const accessCheck = await requireRaahAccess(req);
+  if (accessCheck.response || !accessCheck.access) return accessCheck.response;
   const pathname = new URL(req.url).pathname;
 
   if (req.method === 'GET' && pathname.endsWith('/status')) return handleStatus();
-  if (req.method === 'GET' && pathname.endsWith('/auth-url')) return handleAuthUrl(req, adminCheck.user);
+  if (req.method === 'GET' && pathname.endsWith('/auth-url')) return handleAuthUrl(req, accessCheck.access.user);
   if (req.method === 'POST' && pathname.endsWith('/sync')) return handleSync();
   if (req.method === 'POST' && pathname.endsWith('/events')) return handleCreateEvent(req);
 
