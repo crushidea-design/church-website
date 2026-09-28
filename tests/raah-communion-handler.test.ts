@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ requireRaahAccess: vi.fn() }));
-vi.mock('./_shared/raah-access.mjs', () => ({ requireRaahAccess: mocks.requireRaahAccess }));
-import handler from './raah-communion.mjs';
-import { mapUpstreamError } from './_shared/raah-rpc.mjs';
+vi.mock('../netlify/functions/_shared/raah-access.mjs', () => ({ requireRaahAccess: mocks.requireRaahAccess }));
+import handler from '../netlify/functions/raah-communion.mjs';
+import { mapUpstreamError } from '../netlify/functions/_shared/raah-rpc.mjs';
 
 describe('raah-communion handler', () => {
   afterEach(() => {
