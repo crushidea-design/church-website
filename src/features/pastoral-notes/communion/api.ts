@@ -55,3 +55,54 @@ export async function probeCommunionAvailability(user: User): Promise<CommunionA
     return 'hidden';
   }
 }
+
+export type CommunionReviewDetail = {
+  review: CommunionReview & { statusReason: string };
+  logs: Array<{ id: string; date: string; logType: string; publicSummary: string; linkedAt: string }>;
+};
+
+export async function getCommunionReview(reviewId: string, user: User) {
+  const response = await fetch(`/api/raah/communion/reviews/${encodeURIComponent(reviewId)}`, { headers: await getAuthHeaders(user) });
+  return readJsonResponse<CommunionReviewDetail>(response);
+}
+
+export async function transitionCommunionReview(
+  reviewId: string,
+  input: { status: CommunionReviewStatus; expectedRevision: number; reason?: string },
+  user: User
+) {
+  const response = await fetch(`/api/raah/communion/reviews/${encodeURIComponent(reviewId)}`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ id: string; status: CommunionReviewStatus; revision: number }>(response);
+}
+
+export type CommunionLogInput = {
+  expectedRevision: number;
+  date: string;
+  publicSummary: string;
+  innerNote: string;
+  prayerTopics: string;
+  nextSteps: string;
+};
+
+/** `idempotencyKey` stays the same for retries of one save so a timeout cannot create two records. */
+export async function createCommunionLog(reviewId: string, input: CommunionLogInput, idempotencyKey: string, user: User) {
+  const response = await fetch(`/api/raah/communion/reviews/${encodeURIComponent(reviewId)}/logs`, {
+    method: 'POST',
+    headers: { ...(await getAuthHeaders(user)), 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ logId: string; revision: number }>(response);
+}
+
+export async function linkCommunionLog(reviewId: string, visitationLogId: string, user: User) {
+  const response = await fetch(`/api/raah/communion/reviews/${encodeURIComponent(reviewId)}/logs`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ visitationLogId }),
+  });
+  return readJsonResponse<{ linked: boolean }>(response);
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommunionReview } from './api';
-import { DEFAULT_REVIEW_FILTER, describePeriodProgress, filterReviews } from './workflow';
+import { ALLOWED_TRANSITIONS, DEFAULT_REVIEW_FILTER, describePeriodProgress, filterReviews, transitionNeedsReason } from './workflow';
 
 const review = (id: string, memberName: string, overrides: Partial<CommunionReview> = {}): CommunionReview => ({
   id,
@@ -45,5 +45,20 @@ describe('describePeriodProgress', () => {
     });
     expect(text).toBe('목양 확인 8명 / 대상 10명');
     expect(text).not.toContain('%');
+  });
+});
+
+describe('review transitions', () => {
+  it('only reopens a confirmed review, and asks why', () => {
+    expect(ALLOWED_TRANSITIONS.reviewed).toEqual(['in_progress']);
+    expect(transitionNeedsReason('reviewed', 'in_progress')).toBe(true);
+    expect(transitionNeedsReason('in_progress', 'closed_without_contact')).toBe(true);
+    expect(transitionNeedsReason('not_started', 'scheduled')).toBe(false);
+  });
+
+  it('never offers a transition to the same status', () => {
+    for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
+      expect(targets).not.toContain(from);
+    }
   });
 });

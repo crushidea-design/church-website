@@ -1,6 +1,6 @@
-// Communion care, read-only (plan 9.1–9.3, PR-7). Owns its own loading state;
-// writes (roster, status, conversation records) arrive in later PRs.
-// Shows progress metadata only: no pastoral bodies are requested here.
+// Communion care (plan 9.1–9.4). Owns its own loading state. Lists show
+// progress metadata only; conversation bodies are written through the
+// encrypted path and read back only via the existing visitation log view.
 import React from 'react';
 import type { User } from 'firebase/auth';
 import { ArrowLeft, CalendarDays, Info, RefreshCw } from 'lucide-react';
@@ -8,7 +8,9 @@ import type { RaahAttendanceHistoryRecord, RaahVisitationLog } from '../manageme
 import { shell } from '../adminShell';
 import { EmptyState, MiniCount } from '../AdminPrimitives';
 import { formatDisplayDate } from '../utils';
-import { getCommunionPeriod, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
+import { getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
+import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
+import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import {
   DEFAULT_REVIEW_FILTER,
   PROGRESS_DISCLAIMER,
@@ -70,19 +72,35 @@ export function CommunionTab({
   logs,
   attendanceHistory,
   onOpenLog,
+  onDraftDirtyChange,
 }: {
   user: User;
   logs: RaahVisitationLog[];
   attendanceHistory: RaahAttendanceHistoryRecord[];
   onOpenLog: (logId: string) => void;
+  onDraftDirtyChange: (dirty: boolean) => void;
 }) {
   const periods = useLoad('periods', () => listCommunionPeriods(user));
+  const [draftDirty, setDraftDirty] = React.useState(false);
+  const reportDraftDirty = React.useCallback(
+    (dirty: boolean) => {
+      setDraftDirty(dirty);
+      onDraftDirtyChange(dirty);
+    },
+    [onDraftDirtyChange]
+  );
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<string | null>(null);
   const detail = useLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<ReviewFilter>(DEFAULT_REVIEW_FILTER);
 
+  const selectReview = (reviewId: string | null) => {
+    if (reviewId === selectedReviewId || !confirmDiscardChanges(draftDirty)) return;
+    setSelectedReviewId(reviewId);
+  };
+
   const selectPeriod = (periodId: string | null) => {
+    if (!confirmDiscardChanges(draftDirty)) return;
     setSelectedPeriodId(periodId);
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
@@ -151,16 +169,24 @@ export function CommunionTab({
               <EmptyState>{reviews.length === 0 ? '명부에 등록된 성도가 없습니다.' : '조건에 맞는 성도가 없습니다.'}</EmptyState>
             </div>
           ) : (
-            <ReviewTable reviews={visibleReviews} logs={logs} selectedReviewId={selectedReviewId} onSelect={setSelectedReviewId} />
+            <ReviewTable reviews={visibleReviews} logs={logs} selectedReviewId={selectedReviewId} onSelect={selectReview} />
           )}
         </div>
         {selectedReview ? (
           <PersonPanel
+            // Remounting per person drops the previous person's draft and detail at once.
+            key={selectedReview.id}
             review={selectedReview}
+            user={user}
+            periodClosed={period.status === 'closed'}
             logs={logs}
             attendanceHistory={attendanceHistory}
-            onBack={() => setSelectedReviewId(null)}
-            onOpenLog={onOpenLog}
+            onBack={() => selectReview(null)}
+            onOpenLog={(logId) => {
+              if (confirmDiscardChanges(draftDirty)) onOpenLog(logId);
+            }}
+            onChanged={detail.reload}
+            onDraftDirtyChange={reportDraftDirty}
           />
         ) : (
           <aside className={`${shell.mutedPanel} p-4 text-sm text-[#607080] max-xl:hidden`}>성도를 선택하면 목양 정보를 봅니다.</aside>
@@ -310,18 +336,33 @@ function ReviewTable({
 
 function PersonPanel({
   review,
+  user,
+  periodClosed,
   logs,
   attendanceHistory,
   onBack,
   onOpenLog,
+  onChanged,
+  onDraftDirtyChange,
 }: {
   review: CommunionReview;
+  user: User;
+  periodClosed: boolean;
   logs: RaahVisitationLog[];
   attendanceHistory: RaahAttendanceHistoryRecord[];
   onBack: () => void;
   onOpenLog: (logId: string) => void;
+  onChanged: () => void;
+  onDraftDirtyChange: (dirty: boolean) => void;
 }) {
-  const memberLogs = logs.filter((log) => log.memberId === review.memberId).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const [refresh, setRefresh] = React.useState(0);
+  const detail = useLoad(`${review.id}:${refresh}`, () => getCommunionReview(review.id, user));
+  const refreshAll = () => {
+    setRefresh((value) => value + 1);
+    onChanged();
+  };
+  const editable = !periodClosed && review.rosterState === 'included';
+  const memberLogs = logs.filter((log) => log.memberId === review.memberId).sort((a, b) => b.date.localeCompare(a.date));
   const sundays = attendanceHistory
     .filter((record) => record.memberId === review.memberId && (!record.eventType || record.eventType === 'sunday_morning'))
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -341,7 +382,10 @@ function PersonPanel({
       <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <div>
           <dt className="text-xs text-[#607080]">이번 목양</dt>
-          <dd className="font-semibold">{REVIEW_STATUS_LABELS[review.status]}</dd>
+          <dd className="font-semibold">{REVIEW_STATUS_LABELS[detail.result.state === 'ready' ? detail.result.data.review.status : review.status]}</dd>
+          {detail.result.state === 'ready' && detail.result.data.review.statusReason && (
+            <dd className="text-xs text-[#607080]">사유: {detail.result.data.review.statusReason}</dd>
+          )}
         </div>
         <div>
           <dt className="text-xs text-[#607080]">명부</dt>
@@ -349,12 +393,29 @@ function PersonPanel({
         </div>
       </dl>
 
+      {detail.result.state !== 'ready' ? (
+        <LoadState result={detail.result} onRetry={() => setRefresh((value) => value + 1)} />
+      ) : (
+        <>
+          <ReviewStatusControl detail={detail.result.data} user={user} disabled={!editable} onChanged={refreshAll} />
+          <LinkedLogs
+            detail={detail.result.data}
+            memberLogs={memberLogs}
+            user={user}
+            disabled={!editable}
+            onOpenLog={onOpenLog}
+            onChanged={refreshAll}
+          />
+        </>
+      )}
+      {!editable && <p className="mt-2 text-xs text-[#607080]">마감된 주기이거나 명부에서 제외된 성도라 변경할 수 없습니다.</p>}
+
       <h4 className="mt-4 text-sm font-semibold">최근 심방 기록</h4>
       {memberLogs.length === 0 ? (
         <p className="mt-1 text-sm text-[#607080]">연결된 성도의 심방 기록이 없습니다.</p>
       ) : (
         <ul className="mt-1 space-y-1">
-          {memberLogs.map((log) => (
+          {memberLogs.slice(0, 5).map((log) => (
             <li key={log.id}>
               <button type="button" onClick={() => onOpenLog(log.id)} className="text-sm text-[#12345a] underline decoration-[#b8ccc8] underline-offset-4">
                 {formatDisplayDate(log.date)} · {log.logType}
@@ -378,7 +439,9 @@ function PersonPanel({
         </ul>
       )}
 
-      <p className="mt-4 text-xs text-[#607080]">대화 기록과 진행 상태 변경은 다음 단계에서 제공됩니다.</p>
+      {detail.result.state === 'ready' && editable && (
+        <ConversationForm detail={detail.result.data} user={user} disabled={!editable} onDirtyChange={onDraftDirtyChange} onSaved={refreshAll} />
+      )}
     </aside>
   );
 }

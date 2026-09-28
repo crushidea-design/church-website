@@ -139,6 +139,7 @@ export default function AdminPastoralNotes() {
 
   const [activeTab, setActiveTab] = React.useState<ActiveTab>('dashboard');
   const [communionAvailability, setCommunionAvailability] = React.useState<CommunionAvailability>('checking');
+  const [isCommunionDraftDirty, setIsCommunionDraftDirty] = React.useState(false);
   const [storageMode, setStorageMode] = React.useState<StorageMode>('loading');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -372,7 +373,7 @@ export default function AdminPastoralNotes() {
         memo: attendance?.memo || '',
       }
     );
-  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isLegacyFormDirty || isAttendanceDirty;
+  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isLegacyFormDirty || isAttendanceDirty || isCommunionDraftDirty;
   useBeforeUnloadWarning(hasUnsavedChanges);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
@@ -943,6 +944,8 @@ export default function AdminPastoralNotes() {
   ];
 
   const switchTab = (tabId: ActiveTab) => {
+    // Other tabs keep their drafts in this component; the communion draft lives in the tab and is lost on leaving it.
+    if (activeTab === 'communion' && tabId !== 'communion' && !confirmDiscardChanges(isCommunionDraftDirty)) return;
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
@@ -1184,6 +1187,7 @@ export default function AdminPastoralNotes() {
                   setSelectedLogId(logId);
                   setActiveTab('visitation');
                 }}
+                onDraftDirtyChange={setIsCommunionDraftDirty}
               />
             )}
 

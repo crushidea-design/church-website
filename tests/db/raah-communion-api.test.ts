@@ -14,6 +14,7 @@ vi.mock('../../netlify/functions/_shared/raah-auth.mjs', () => ({
       : { response: new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 }) },
 }));
 import handler from '../../netlify/functions/raah-communion.mts';
+import { decryptPayload } from '../../netlify/functions/raah-management.mts';
 
 const BASE = 'https://raah.test/api/raah/communion';
 
@@ -46,6 +47,7 @@ describe.skipIf(!enabled)('raah-communion API against local Supabase', () => {
     vi.stubEnv('SUPABASE_URL', url!);
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', serviceKey!);
     vi.stubEnv('RAAH_COMMUNION_ENABLED', 'true');
+    vi.stubEnv('RAAH_ENCRYPTION_SECRET', 'local-test-secret-not-used-anywhere-else');
     await insert('raah_workspace_access', { firebase_uid: 'uid-api-pastor', access_role: 'pastor' });
     memberA = (await insert('raah_members', { name: '가상 나성도', search_name: '가상나성도' })).id;
     memberB = (await insert('raah_members', { name: '가상 가성도', search_name: '가상가성도' })).id;
@@ -140,5 +142,89 @@ describe.skipIf(!enabled)('raah-communion API against local Supabase', () => {
     const missing = '00000000-0000-4000-8000-000000000000';
     expect((await call(`/periods/${missing}`, { params: { id: missing } })).status).toBe(404);
     expect((await call('/periods/not-a-uuid', { params: { id: 'not-a-uuid' } })).status).toBe(404);
+  });
+
+  describe('conversation records', () => {
+    const conversation = {
+      date: '2026-12-06',
+      publicSummary: '후속 면담',
+      innerNote: '[복음과 그리스도] 다룸\nPRIVATE_MARKER_복음의 약속을 함께 확인함',
+      prayerTopics: '가정의 평안',
+      nextSteps: '다음 주 다시 만나기',
+      privateRemarks: '',
+    };
+    let periodId: string;
+    let reviewId: string;
+
+    beforeAll(async () => {
+      ({ id: periodId } = await (await call('/periods', {
+        method: 'POST', headers: { 'Idempotency-Key': 'api-log-period-01' }, body: JSON.stringify(periodBody),
+      })).json());
+      ({ reviewIds: [reviewId] } = await (await call(`/periods/${periodId}/roster`, {
+        method: 'POST', params: { id: periodId }, body: JSON.stringify({ entries: [{ memberId: memberA, included: true }] }),
+      })).json());
+    });
+
+    const postLog = (key: string, body: Record<string, unknown>) =>
+      call(`/reviews/${reviewId}/logs`, { method: 'POST', params: { id: reviewId }, headers: { 'Idempotency-Key': key }, body: JSON.stringify(body) });
+
+    it('stores the conversation encrypted, links it and moves the review into progress', async () => {
+      const created = await postLog('api-log-key-001', { ...conversation, expectedRevision: 1 });
+      expect(created.status).toBe(201);
+      const { logId, revision } = await created.json();
+      expect(revision).toBe(2);
+
+      const rows = await (await fetch(`${url}/rest/v1/raah_visitation_logs?id=eq.${logId}&select=*`, {
+        headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}` },
+      })).json();
+      expect(rows[0]).toMatchObject({ member_id: memberA, log_type: '성찬 목양', is_encrypted: true, public_summary: '후속 면담' });
+      expect(JSON.stringify(rows[0])).not.toContain('PRIVATE_MARKER');
+      expect(decryptPayload(rows[0].encrypted_payload, 'local-test-secret-not-used-anywhere-else')).toEqual({
+        innerNote: conversation.innerNote,
+        prayerTopics: conversation.prayerTopics,
+        nextSteps: conversation.nextSteps,
+        privateRemarks: '',
+      });
+
+      const detail = await (await call(`/reviews/${reviewId}`, { params: { id: reviewId } })).json();
+      expect(detail.review).toMatchObject({ status: 'in_progress', revision: 2 });
+      expect(detail.logs).toEqual([expect.objectContaining({ id: logId, logType: '성찬 목양', publicSummary: '후속 면담' })]);
+      expect(JSON.stringify(detail)).not.toContain('PRIVATE_MARKER');
+    });
+
+    it('returns the same record for a retried request and rejects a stale revision', async () => {
+      const first = await (await postLog('api-log-key-001', { ...conversation, expectedRevision: 1 })).json();
+      const detail = await (await call(`/reviews/${reviewId}`, { params: { id: reviewId } })).json();
+      expect(detail.logs.map((log: { id: string }) => log.id)).toEqual([first.logId]);
+
+      const stale = await postLog('api-log-key-002', { ...conversation, date: '2026-12-07', expectedRevision: 1 });
+      expect(stale.status).toBe(409);
+    });
+
+    it('requires an idempotency key, a date and a note', async () => {
+      expect((await call(`/reviews/${reviewId}/logs`, { method: 'POST', params: { id: reviewId }, body: JSON.stringify({ ...conversation, expectedRevision: 2 }) })).status).toBe(422);
+      expect((await postLog('api-log-key-003', { ...conversation, innerNote: '  ', expectedRevision: 2 })).status).toBe(422);
+      expect((await postLog('api-log-key-004', { ...conversation, date: 'yesterday', expectedRevision: 2 })).status).toBe(422);
+    });
+
+    it('links an existing record of the same member once, and refuses another member\'s record', async () => {
+      const own = await insert('raah_visitation_logs', {
+        member_id: memberA, member_name: '가상 나성도', member_search_name: '가상나성도', date: '2026-11-01', log_type: '심방', encrypted_payload: { iv: 'x', tag: 'y', ciphertext: 'z' },
+      });
+      const other = await insert('raah_visitation_logs', {
+        member_id: memberB, member_name: '가상 가성도', member_search_name: '가상가성도', date: '2026-11-01', log_type: '심방', encrypted_payload: { iv: 'x', tag: 'y', ciphertext: 'z' },
+      });
+      const link = (logId: string) => call(`/reviews/${reviewId}/logs`, { method: 'POST', params: { id: reviewId }, body: JSON.stringify({ visitationLogId: logId }) });
+
+      expect(await (await link(own.id)).json()).toEqual({ linked: true });
+      expect(await (await link(own.id)).json()).toEqual({ linked: false });
+      expect((await link(other.id)).status).toBe(422);
+    });
+
+    it('refuses to store a conversation when encryption is not configured', async () => {
+      vi.stubEnv('RAAH_ENCRYPTION_SECRET', '');
+      expect((await postLog('api-log-key-005', { ...conversation, expectedRevision: 2 })).status).toBe(503);
+      vi.stubEnv('RAAH_ENCRYPTION_SECRET', 'local-test-secret-not-used-anywhere-else');
+    });
   });
 });

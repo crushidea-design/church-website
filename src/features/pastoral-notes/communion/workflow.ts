@@ -43,3 +43,26 @@ export function filterReviews(reviews: CommunionReview[], filter: ReviewFilter) 
 export function describePeriodProgress(counts: { included: number; byStatus: Record<CommunionReviewStatus, number> }) {
   return `목양 확인 ${counts.byStatus.reviewed}명 / 대상 ${counts.included}명`;
 }
+
+// Mirrors raah_rpc_transition_review (plan 8.1). The database remains the
+// authority; this only decides which buttons to offer.
+export const ALLOWED_TRANSITIONS: Record<CommunionReviewStatus, CommunionReviewStatus[]> = {
+  not_started: ['scheduled', 'in_progress', 'reviewed', 'closed_without_contact'],
+  scheduled: ['not_started', 'in_progress', 'reviewed', 'closed_without_contact'],
+  in_progress: ['scheduled', 'reviewed', 'closed_without_contact'],
+  reviewed: ['in_progress'],
+  closed_without_contact: ['not_started', 'in_progress'],
+};
+
+/** Reopening a finished review or closing without contact needs a short reason. */
+export function transitionNeedsReason(from: CommunionReviewStatus, to: CommunionReviewStatus) {
+  return from === 'reviewed' || from === 'closed_without_contact' || to === 'closed_without_contact';
+}
+
+export const TRANSITION_ACTION_LABELS: Partial<Record<CommunionReviewStatus, string>> = {
+  scheduled: '심방 예정으로',
+  in_progress: '대화 진행 중으로',
+  reviewed: '목양 확인',
+  closed_without_contact: '연락 미성사로 종료',
+  not_started: '미확인으로 되돌리기',
+};

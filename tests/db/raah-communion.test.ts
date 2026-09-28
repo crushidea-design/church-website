@@ -231,6 +231,11 @@ describe.skipIf(!enabled)('RAAH communion schema and RPCs (local Supabase only)'
       expect(create.status).not.toBe(200);
       expect(await count('raah_idempotency_keys', 'key=eq.anon-attempt-01')).toBe(0);
     });
+
+    it.each(['raah_rpc_create_review_log', 'raah_rpc_link_review_log'])('cannot call %s', async (name) => {
+      const result = await rpc(name, { p_workspace: WS, p_actor: PASTOR }, anonKey!);
+      expect(result.status).not.toBe(200);
+    });
   });
 
   describe('constraints', () => {
