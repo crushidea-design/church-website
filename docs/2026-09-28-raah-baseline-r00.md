@@ -13,10 +13,18 @@
 | 정적 검증(typecheck·lint·test·build) | 통과 | 아래 3절 |
 | 로컬 DB에 기존 스키마 재현 | 통과 | 빈 DB에 마이그레이션 4개 적용, 4절 |
 | 로컬 DB 권한 스모크(anon 차단) | 통과 | `npm run test:db` 16건 |
-| 운영 API 익명 요청 거절(401) | **미확인** | 운영 사이트 주소 확인 후 기록 |
+| 운영 API 익명 요청 거절(401) | 통과 | 2026-09-28, `raah.builttogether.church`, 아래 표 |
 | 운영에서 로그인 후 조회·복호화 | **미확인** | 목양자 본인 계정으로만 확인 가능, 결과만 기록 |
 
-익명 401 확인은 인증 계층이 살아 있다는 뜻일 뿐, DB 연결·복호화가 정상이라는 뜻이 아니다. 두 항목을 섞어 기록하지 않는다.
+운영 익명 확인 결과(인증 헤더 없는 GET):
+
+| 경로 | 응답 |
+| --- | --- |
+| `/api/raah/bootstrap`, `/summary`, `/members`, `/visitation-logs`, `/attendance`, `/schedule` | 401 `application/json` `{"error":"Authentication required"}` |
+| `/api/raah/notes`, `/api/raah/calendar/status` | 401 `application/json`, 동일 본문 |
+| `/` (앱 페이지) | 200 |
+
+함수가 기동되고 인증 검사가 JSON으로 응답한다(2026-09-27 런타임 장애 이후 복구 상태 유지). 익명 401 확인은 인증 계층이 살아 있다는 뜻일 뿐, DB 연결·복호화가 정상이라는 뜻이 아니다. 두 항목을 섞어 기록하지 않는다.
 
 ## 2. 코드 기준선
 
