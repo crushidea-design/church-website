@@ -46,6 +46,14 @@ describe('RAAH workspace access', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('still requires a grant for grant-only features while enforcement is off', async () => {
+    vi.stubEnv('RAAH_ACCESS_ENFORCED', '');
+    fetchSpy.mockResolvedValue(grantResponse([]));
+    expect((await requireRaahAccess(request(), { requireGrant: true })).response?.status).toBe(403);
+    fetchSpy.mockResolvedValue(grantResponse([grant()]));
+    expect((await requireRaahAccess(request(), { requireGrant: true })).access?.accessRole).toBe('pastor');
+  });
+
   it('rejects a homepage admin without a RAAH grant', async () => {
     fetchSpy.mockResolvedValue(grantResponse([]));
     const result = await requireRaahAccess(request());

@@ -3,6 +3,7 @@ import type { Context } from '@netlify/functions';
 import * as notes from '../raah-notes.mts';
 import * as management from '../raah-management.mts';
 import * as calendar from '../raah-calendar.mts';
+import * as communion from '../raah-communion.mts';
 import * as calendarCallback from '../raah-calendar-callback.mts';
 import * as ai from '../raah-ai-assist.mts';
 import * as comments from '../post-comments.mts';
@@ -10,7 +11,7 @@ import * as attachments from '../delete-attachment.mts';
 
 /** Use the production handlers locally, including their path params and authorization. */
 export function registerLocalRoutes(app: Express) {
-  const modules = [notes, management, calendar, calendarCallback, ai, comments, attachments];
+  const modules = [notes, management, calendar, communion, calendarCallback, ai, comments, attachments];
   for (const module of modules) {
     const paths = module.config.path;
     for (const path of (Array.isArray(paths) ? paths : [paths])) {

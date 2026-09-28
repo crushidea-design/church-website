@@ -58,14 +58,19 @@ const isGrantUsable = (row: AccessRow, now: number) =>
 /**
  * RAAH access = Firebase identity + homepage admin role (legacy check) and,
  * when RAAH_ACCESS_ENFORCED=true, an active grant in raah_workspace_access.
+ * New features that never had a legacy admin path (communion care) pass
+ * `requireGrant` so they need a grant even while the global flag is off.
  * The grant is re-read on every request so revocation applies immediately.
  */
-export async function requireRaahAccess(req: Request): Promise<{ access?: RaahAccess; response?: Response }> {
+export async function requireRaahAccess(
+  req: Request,
+  options: { requireGrant?: boolean } = {}
+): Promise<{ access?: RaahAccess; response?: Response }> {
   const adminCheck = await requireRaahAdmin(req);
   if (adminCheck.response || !adminCheck.user) return { response: adminCheck.response };
   const user = adminCheck.user;
 
-  if (!isRaahAccessEnforced()) {
+  if (!options.requireGrant && !isRaahAccessEnforced()) {
     return { access: { user, workspaceId: RAAH_WORKSPACE_ID, accessRole: null } };
   }
 

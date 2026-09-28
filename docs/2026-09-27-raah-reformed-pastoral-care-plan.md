@@ -576,6 +576,14 @@ PR-2와 PR-4는 R00 이후 R01과 독립적으로 진행할 수 있다. 각 PR�
 | PR-3 | 완료 | `raah_workspace_access`, `requireRaahAccess`, 플래그 `RAAH_ACCESS_ENFORCED` (운영 미적용) |
 | PR-4 | 완료 | 복호화 훅, 미저장 보호, #100 Codex 리뷰 4건 수정 |
 | PR-5 | 완료 | 아래 참고 |
+| PR-6 | 완료 | `raah-communion.mts` 주기·명부·상태 전이 API, 플래그 `RAAH_COMMUNION_ENABLED`(기본 꺼짐, 꺼지면 404) |
+
+PR-6 API(`netlify/functions/raah-communion.mts`):
+
+- `GET/POST /api/raah/communion/periods`, `GET /api/raah/communion/periods/:id`, `POST /api/raah/communion/periods/:id/roster`(최대 200명, 항목별 트랜잭션·재전송 안전), `PATCH /api/raah/communion/reviews/:id`.
+- 전역 `RAAH_ACCESS_ENFORCED`와 무관하게 접근 승인이 있어야 한다(`requireRaahAccess(req, { requireGrant: true })`). 주기 생성은 `Idempotency-Key` 헤더가 필수다.
+- DB 오류는 SQLSTATE 코드만 보고 403/404/409/422로 바꾸며, 상위 메시지는 응답·로그에 넣지 않는다. 목록 응답에는 진행 수치만, 상세 응답에는 성도 이름과 진행 상태만 담는다.
+- 검증: `netlify/functions/raah-communion.test.ts`(플래그 꺼짐, 승인 요구, 오류 매핑)와 `tests/db/raah-communion-api.test.ts`(실제 핸들러를 로컬 Supabase에 연결해 주기→명부→상태 전이, 재시도, 충돌, 404).
 
 PR-5에서 만든 것(`supabase/migrations/20260929000000_raah_communion_schema.sql`):
 
