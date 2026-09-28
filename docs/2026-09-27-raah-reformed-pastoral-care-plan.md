@@ -567,6 +567,25 @@ P1A에서 제외할 것은 다중 목양자 협업 UI, 공식 성찬 제한 결�
 
 PR-2와 PR-4는 R00 이후 R01과 독립적으로 진행할 수 있다. 각 PR의 배포(main 병합)는 사용자의 명시적 요청이 있을 때만 한다.
 
+### 16.2 진행 현황 (2026-09-28, `claude/work`, 모두 main 미병합)
+
+| PR | 상태 | 비고 |
+| --- | --- | --- |
+| PR-1 | 완료 | 로컬 Supabase·`npm run test:db`, 기준선 기록, SQL 인코딩 복구 |
+| PR-2 | 완료 | 홈 출석 집계의 미조회·미기록·미출석 분리 |
+| PR-3 | 완료 | `raah_workspace_access`, `requireRaahAccess`, 플래그 `RAAH_ACCESS_ENFORCED` (운영 미적용) |
+| PR-4 | 완료 | 복호화 훅, 미저장 보호, #100 Codex 리뷰 4건 수정 |
+| PR-5 | 완료 | 아래 참고 |
+
+PR-5에서 만든 것(`supabase/migrations/20260929000000_raah_communion_schema.sql`):
+
+- 테이블: `raah_member_ecclesial_profiles`, `raah_communion_periods`, `raah_communion_occasions`, `raah_communion_reviews`, `raah_communion_review_logs`, `raah_audit_events`, `raah_idempotency_keys`. 모두 `service_role` 전용이다. `raah_care_tasks`는 PR-9에서 만든다.
+- RPC: `raah_rpc_create_communion_period`(주기+시행+멱등 키+감사), `raah_rpc_set_roster_entry`(명부 추가·제외, 재실행 무해), `raah_rpc_transition_review`(8.1 상태 전이, 낙관적 잠금, 재개·연락 미성사 사유 필수).
+- 모든 RPC는 `raah_workspace_access`를 다시 확인한다. 따라서 성찬 기능은 레거시 관리자 경로 없이 **승인 행이 있어야만** 동작하며, 운영에서 쓰기 전 PR-3 적용 절차를 먼저 마쳐야 한다.
+- 성도·심방 기록 삭제 API가 없으므로 새 테이블은 `on delete restrict`로 목양 이력이 함께 지워지지 않게 했다.
+- 감사 테이블은 `service_role`의 수정·삭제 권한을 회수했다(DB 소유자는 여전히 변경 가능하므로 변조 불가라고 표현하지 않는다). 감사에는 사유 문구를 넣지 않는다.
+- 검증: `tests/db/raah-communion.test.ts` 23건(멱등 재시도, 롤백, 권한 거절, 다른 범위 조회 불가, 명부 중복 방지·제외 이력, 상태 전이·버전 충돌, 브라우저 키 차단, 삭제 제한).
+
 ## 17. 테스트 시나리오와 합격 기준
 
 ### 17.1 목양·교회론 관련 필수 시나리오
