@@ -98,6 +98,9 @@ import {
 } from '../features/pastoral-notes/AdminVisitationComponents';
 import { LegacyTab } from '../features/pastoral-notes/AdminLegacyComponents';
 import { MembersTab } from '../features/pastoral-notes/AdminMemberComponents';
+import { hasAttendanceDraftChanges, hasFormChanges } from '../features/pastoral-notes/formChanges';
+import { useDecryptedDetail } from '../features/pastoral-notes/hooks/useDecryptedDetail';
+import { confirmDiscardChanges, useBeforeUnloadWarning } from '../features/pastoral-notes/hooks/useUnsavedChanges';
 import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
@@ -155,9 +158,7 @@ export default function AdminPastoralNotes() {
   const [logForm, setLogForm] = React.useState<RaahVisitationLogInput>(emptyLogForm());
   const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
   const [editingLogId, setEditingLogId] = React.useState<string | null>(null);
-  const [decryptedLog, setDecryptedLog] = React.useState<RaahVisitationLog | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = React.useState(false);
-  const [isDetailLoading, setIsDetailLoading] = React.useState(false);
   const [rawAiMemo, setRawAiMemo] = React.useState('');
   const [aiSuggestion, setAiSuggestion] = React.useState('');
   const [isAiDrafting, setIsAiDrafting] = React.useState(false);
@@ -178,9 +179,12 @@ export default function AdminPastoralNotes() {
   const [isCalendarEventFormOpen, setIsCalendarEventFormOpen] = React.useState(false);
 
   const [legacyForm, setLegacyForm] = React.useState<PastoralNoteInput>(createEmptyPastoralNoteInput);
+  // Snapshots taken when each form opens, so closing or replacing it can warn about unsaved edits.
+  const [logFormBaseline, setLogFormBaseline] = React.useState<RaahVisitationLogInput>(logForm);
+  const [memberFormBaseline, setMemberFormBaseline] = React.useState<RaahMemberInput>(memberForm);
+  const [legacyFormBaseline, setLegacyFormBaseline] = React.useState<PastoralNoteInput>(legacyForm);
   const [selectedLegacyNoteId, setSelectedLegacyNoteId] = React.useState<string | null>(null);
   const [editingLegacyNoteId, setEditingLegacyNoteId] = React.useState<string | null>(null);
-  const [decryptedLegacyNote, setDecryptedLegacyNote] = React.useState<PastoralNote | null>(null);
   const [isLegacyFormOpen, setIsLegacyFormOpen] = React.useState(false);
 
   const loadManagementData = React.useCallback(async () => {
@@ -287,8 +291,6 @@ export default function AdminPastoralNotes() {
     return () => {
       cancelled = true;
       unsubscribe?.();
-      setDecryptedLog(null);
-      setDecryptedLegacyNote(null);
     };
   }, [authLoading, loadCalendarStatus, loadManagementData, role, user]);
 
@@ -299,52 +301,20 @@ export default function AdminPastoralNotes() {
     });
   }, [activeTab, isLegacyLoading, legacyLoaded, loadLegacyNotes, storageMode]);
 
-  React.useEffect(() => {
-    if (!selectedLogId || !user || storageMode !== 'supabase') return;
-
-    let cancelled = false;
-    setDecryptedLog(null);
-    setIsDetailLoading(true);
-    getRaahVisitationLogDetail(selectedLogId, user)
-      .then((log) => {
-        if (!cancelled) setDecryptedLog(log);
-      })
-      .catch((error) => {
-        if (!cancelled) toast.error(getErrorMessage(error, '선택한 기록을 복호화하지 못했습니다.'));
-      })
-      .finally(() => {
-        if (!cancelled) setIsDetailLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      setDecryptedLog(null);
-    };
-  }, [selectedLogId, storageMode, user]);
-
-  React.useEffect(() => {
-    if (!selectedLegacyNoteId || !user || storageMode !== 'supabase') return;
-
-    let cancelled = false;
-    setDecryptedLegacyNote(null);
-    getRaahNoteDetail(selectedLegacyNoteId, user)
-      .then((note) => {
-        if (!cancelled) setDecryptedLegacyNote(note);
-      })
-      .catch((error) => {
-        if (!cancelled) toast.error(getErrorMessage(error, '기존 기록을 복호화하지 못했습니다.'));
-      });
-
-    return () => {
-      cancelled = true;
-      setDecryptedLegacyNote(null);
-    };
-  }, [selectedLegacyNoteId, storageMode, user]);
-
-  React.useEffect(() => () => {
-    setDecryptedLog(null);
-    setDecryptedLegacyNote(null);
-  }, []);
+  const canDecrypt = Boolean(user) && storageMode === 'supabase';
+  const loadLogDetail = React.useCallback((logId: string) => getRaahVisitationLogDetail(logId, user!), [user]);
+  const loadLegacyNoteDetail = React.useCallback((noteId: string) => getRaahNoteDetail(noteId, user!), [user]);
+  const {
+    value: decryptedLog,
+    setValue: setDecryptedLog,
+    isLoading: isDetailLoading,
+  } = useDecryptedDetail<RaahVisitationLog>(selectedLogId, canDecrypt, loadLogDetail, '선택한 기록을 복호화하지 못했습니다.');
+  const { value: decryptedLegacyNote, setValue: setDecryptedLegacyNote } = useDecryptedDetail<PastoralNote>(
+    selectedLegacyNoteId,
+    canDecrypt,
+    loadLegacyNoteDetail,
+    '기존 기록을 복호화하지 못했습니다.'
+  );
 
   const normalizedSearch = normalizeMemberName(searchTerm);
   const selectedMember = members.find((member) => member.id === selectedMemberId) || null;
@@ -366,6 +336,23 @@ export default function AdminPastoralNotes() {
         ? 'legacy'
         : 'error';
   const savedAttendanceSummary = summarizeSavedAttendance(dataStatus, members, attendance);
+  const activeAttendanceOption = getAttendanceOption(activeAttendanceEventType);
+  const isLogFormDirty = isLogFormOpen && (hasFormChanges(logForm, logFormBaseline) || rawAiMemo.trim() !== '');
+  const isMemberFormDirty = isMemberFormOpen && hasFormChanges(memberForm, memberFormBaseline);
+  const isLegacyFormDirty = isLegacyFormOpen && hasFormChanges(legacyForm, legacyFormBaseline);
+  const isAttendanceDirty =
+    dataStatus === 'ready' &&
+    hasAttendanceDraftChanges(
+      { records: attendanceRecords, serviceType: attendanceServiceType, includesCommunion: attendanceIncludesCommunion, memo: attendanceMemo },
+      {
+        records: buildAttendanceRecordsForEvent(members, attendance),
+        serviceType: attendance?.serviceType || activeAttendanceOption.serviceType,
+        includesCommunion: attendance?.includesCommunion ?? activeAttendanceOption.includesCommunion,
+        memo: attendance?.memo || '',
+      }
+    );
+  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isLegacyFormDirty || isAttendanceDirty;
+  useBeforeUnloadWarning(hasUnsavedChanges);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
   const filteredLogs = logs.filter((log) => {
@@ -471,9 +458,9 @@ export default function AdminPastoralNotes() {
   };
 
   const openMemberForm = (member?: RaahMember) => {
-    if (member) {
-      setEditingMemberId(member.id);
-      setMemberForm({
+    if (!confirmDiscardChanges(isMemberFormDirty)) return;
+    const nextForm: RaahMemberInput = member
+      ? {
         name: member.name,
         birthDate: member.birthDate || '',
         phone: member.phone || '',
@@ -483,19 +470,22 @@ export default function AdminPastoralNotes() {
         registeredAt: member.registeredAt || '',
         status: member.status,
         publicNote: member.publicNote || '',
-      });
-    } else {
-      setEditingMemberId(null);
-      setMemberForm(emptyMemberForm);
-    }
+      }
+      : emptyMemberForm;
+    setEditingMemberId(member ? member.id : null);
+    setMemberForm(nextForm);
+    setMemberFormBaseline(nextForm);
     setIsMemberFormOpen(true);
     setActiveTab('members');
   };
 
   const openLogForm = (member?: RaahMember) => {
+    if (!confirmDiscardChanges(isLogFormDirty)) return;
+    const nextForm = emptyLogForm(member);
     setEditingLogId(null);
     setDecryptedLog(null);
-    setLogForm(emptyLogForm(member));
+    setLogForm(nextForm);
+    setLogFormBaseline(nextForm);
     setRawAiMemo('');
     setAiSuggestion('');
     setIsLogFormOpen(true);
@@ -510,9 +500,8 @@ export default function AdminPastoralNotes() {
       }
       log = decryptedLog;
     }
-    setEditingLogId(log.id);
-    setDecryptedLog(log);
-    setLogForm({
+    if (!confirmDiscardChanges(isLogFormDirty)) return;
+    const nextForm: RaahVisitationLogInput = {
       memberId: log.memberId || '',
       memberName: log.memberName,
       date: log.date,
@@ -522,7 +511,11 @@ export default function AdminPastoralNotes() {
       prayerTopics: log.prayerTopics || '',
       nextSteps: log.nextSteps || '',
       privateRemarks: log.privateRemarks || '',
-    });
+    };
+    setEditingLogId(log.id);
+    setDecryptedLog(log);
+    setLogForm(nextForm);
+    setLogFormBaseline(nextForm);
     setRawAiMemo('');
     setAiSuggestion('');
     setIsLogFormOpen(true);
@@ -581,8 +574,8 @@ export default function AdminPastoralNotes() {
       }
       note = decryptedLegacyNote;
     }
-    setEditingLegacyNoteId(note.id);
-    setLegacyForm({
+    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
+    const nextForm: PastoralNoteInput = {
       memberName: note.memberName,
       date: note.date,
       meetingType: note.meetingType,
@@ -591,15 +584,58 @@ export default function AdminPastoralNotes() {
       prayerTopics: note.prayerTopics || '',
       nextFollowUpDate: note.nextFollowUpDate || '',
       remarks: note.remarks || '',
-    });
+    };
+    setEditingLegacyNoteId(note.id);
+    setLegacyForm(nextForm);
+    setLegacyFormBaseline(nextForm);
     setIsLegacyFormOpen(true);
     setActiveTab('legacy');
   };
 
   const openNewLegacyForm = () => {
+    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
+    const nextForm = createEmptyPastoralNoteInput();
+    setEditingLegacyNoteId(null);
+    setLegacyForm(nextForm);
+    setLegacyFormBaseline(nextForm);
+    setIsLegacyFormOpen(true);
+  };
+
+  const closeLogForm = () => {
+    if (!confirmDiscardChanges(isLogFormDirty)) return;
+    setIsLogFormOpen(false);
+    setEditingLogId(null);
+    setRawAiMemo('');
+    setAiSuggestion('');
+  };
+
+  const closeMemberForm = () => {
+    if (!confirmDiscardChanges(isMemberFormDirty)) return false;
+    setIsMemberFormOpen(false);
+    return true;
+  };
+
+  // Selecting another member closes an open edit form, so unsaved edits are confirmed first.
+  const selectMember = (memberId: string | null) => {
+    if (isMemberFormOpen && !closeMemberForm()) return;
+    setSelectedMemberId(memberId);
+  };
+
+  const closeLegacyForm = () => {
+    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
+    setIsLegacyFormOpen(false);
     setEditingLegacyNoteId(null);
     setLegacyForm(createEmptyPastoralNoteInput());
-    setIsLegacyFormOpen(true);
+  };
+
+  const changeAttendanceDate = (date: string) => {
+    if (!confirmDiscardChanges(isAttendanceDirty)) return;
+    setAttendanceDate(date);
+  };
+
+  const leaveWorkspace = (leave: () => void) => {
+    if (!confirmDiscardChanges(hasUnsavedChanges)) return;
+    leave();
   };
 
   const handleGenerateAiDraft = () => {
@@ -689,6 +725,7 @@ export default function AdminPastoralNotes() {
   };
 
   const switchAttendanceEventType = (eventType: RaahAttendanceEventType, dateOverride?: string) => {
+    if (!confirmDiscardChanges(isAttendanceDirty)) return;
     const nextDate = getDateForAttendanceEventType(dateOverride || attendanceDate, eventType);
     const nextAttendance = selectAttendanceEvent(attendanceEvents, eventType);
     const option = getAttendanceOption(eventType);
@@ -928,11 +965,11 @@ export default function AdminPastoralNotes() {
             </span>
 
             {!subdomainMode && (
-              <button type="button" onClick={() => navigate('/admin')} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="관리자 대시보드로 돌아가기">
+              <button type="button" onClick={() => leaveWorkspace(() => navigate('/admin'))} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="관리자 대시보드로 돌아가기">
                 <ArrowLeft size={18} />
               </button>
             )}
-            <button type="button" onClick={() => logout()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="로그아웃">
+            <button type="button" onClick={() => leaveWorkspace(() => logout())} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="로그아웃">
               <LogOut size={17} />
             </button>
           </div>
@@ -988,12 +1025,12 @@ export default function AdminPastoralNotes() {
             </label>)}
             <div className="mt-3 flex items-center gap-2">
               {!subdomainMode && (
-                <button type="button" onClick={() => navigate('/admin')} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
+                <button type="button" onClick={() => leaveWorkspace(() => navigate('/admin'))} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
                   <ArrowLeft size={16} />
                   Admin
                 </button>
               )}
-              <button type="button" onClick={() => logout()} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
+              <button type="button" onClick={() => leaveWorkspace(() => logout())} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
                 <LogOut size={16} />
                 Logout
               </button>
@@ -1006,7 +1043,7 @@ export default function AdminPastoralNotes() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-center gap-3">
                 {!subdomainMode && (
-                  <button type="button" onClick={() => navigate('/admin')} className="rounded-md border border-[#d5dee5] bg-[#ffffff] p-2 text-[#28415b]" aria-label="관리자 대시보드로 돌아가기">
+                  <button type="button" onClick={() => leaveWorkspace(() => navigate('/admin'))} className="rounded-md border border-[#d5dee5] bg-[#ffffff] p-2 text-[#28415b]" aria-label="관리자 대시보드로 돌아가기">
                     <ArrowLeft size={18} />
                   </button>
                 )}
@@ -1090,7 +1127,7 @@ export default function AdminPastoralNotes() {
                 attendanceHistory={attendanceHistory}
                 onNewSchedule={(member) => {
                   openNewScheduleForm();
-                  setScheduleForm((previous) => ({ ...previous, memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
+                  setScheduleForm((previous) => ({ ...previous, itemType: 'visitation', memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
                   setSearchTerm('');
                   setActiveTab('schedule');
                 }}
@@ -1100,7 +1137,7 @@ export default function AdminPastoralNotes() {
                 selectedMemberAttendanceHistory={selectedMemberAttendanceHistory}
                 attendanceDate={attendanceDate}
                 hasAttendanceEvent={Boolean(attendance)}
-                onSelectMember={setSelectedMemberId}
+                onSelectMember={selectMember}
                 onEditMember={openMemberForm}
                 onNewMember={() => openMemberForm()}
                 onNewLog={(member) => openLogForm(member)}
@@ -1110,7 +1147,7 @@ export default function AdminPastoralNotes() {
                 form={memberForm}
                 setForm={setMemberForm}
                 onSubmit={handleMemberSubmit}
-                onCloseForm={() => setIsMemberFormOpen(false)}
+                onCloseForm={closeMemberForm}
               />
             )}
 
@@ -1121,7 +1158,7 @@ export default function AdminPastoralNotes() {
                 activeEventType={activeAttendanceEventType}
                 onEventTypeChange={switchAttendanceEventType}
                 date={attendanceDate}
-                setDate={setAttendanceDate}
+                setDate={changeAttendanceDate}
                 serviceType={attendanceServiceType}
                 setServiceType={setAttendanceServiceType}
                 includesCommunion={attendanceIncludesCommunion}
@@ -1203,12 +1240,7 @@ export default function AdminPastoralNotes() {
                 onCreateCalendarEvent={handleCreateCalendarEvent}
                 onOpenCalendarEvent={openCalendarEventForm}
                 onEdit={openLogFormForEdit}
-                onCloseForm={() => {
-                  setIsLogFormOpen(false);
-                  setEditingLogId(null);
-                  setRawAiMemo('');
-                  setAiSuggestion('');
-                }}
+                onCloseForm={closeLogForm}
                 onNew={() => openLogForm(selectedMember || undefined)}
                 onMemberSelect={handleMemberSelectForLog}
               />
@@ -1228,11 +1260,7 @@ export default function AdminPastoralNotes() {
                 setForm={setLegacyForm}
                 editing={Boolean(editingLegacyNoteId)}
                 onSubmit={handleLegacySubmit}
-                onCloseForm={() => {
-                  setIsLegacyFormOpen(false);
-                  setEditingLegacyNoteId(null);
-                  setLegacyForm(createEmptyPastoralNoteInput());
-                }}
+                onCloseForm={closeLegacyForm}
                 onNew={openNewLegacyForm}
                 onEdit={openLegacyFormForEdit}
                 canEdit={storageMode === 'supabase'}

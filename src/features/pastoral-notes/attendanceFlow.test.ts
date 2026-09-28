@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRaahAttendanceFlow } from './attendanceFlow';
+import { buildRaahAttendanceFlow, summarizeLatestRecordedSunday } from './attendanceFlow';
 import { RaahAttendanceHistoryRecord, RaahMember } from './managementApi';
 
 const member = (id: string, name: string): RaahMember => ({
@@ -136,5 +136,26 @@ describe('buildRaahAttendanceFlow', () => {
       currentAbsent: true,
       consecutiveAbsences: 1,
     });
+  });
+});
+
+describe('summarizeLatestRecordedSunday', () => {
+  const members = [member('kim', '김가나'), member('park', '박다윗')];
+
+  it('skips a newer week that only recorded another service', () => {
+    const flow = buildRaahAttendanceFlow({
+      members,
+      history: [
+        history('kim', '2026-05-24', false),
+        history('park', '2026-05-24', true),
+        history('kim', '2026-06-03', true, 'wednesday_prayer'),
+      ],
+    });
+    expect(summarizeLatestRecordedSunday(flow)).toMatchObject({ date: '2026-05-24', absences: 1 });
+  });
+
+  it('reports nothing instead of zero when no Sunday has been recorded', () => {
+    const flow = buildRaahAttendanceFlow({ members, history: [history('kim', '2026-06-03', true, 'wednesday_prayer')] });
+    expect(summarizeLatestRecordedSunday(flow)).toBeNull();
   });
 });

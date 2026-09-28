@@ -29,11 +29,11 @@ export function FocusCard({
   );
 }
 
-export function MiniCount({ label, value }: { label: string; value: number }) {
+export function MiniCount({ label, value }: { label: string; value: number | null }) {
   return (
     <div className={shell.mutedPanel + ' p-3'}>
       <p className="text-xs font-semibold text-[#607080]">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-[#17202b]">{value}</p>
+      <p className={`mt-1 text-xl font-semibold ${value === null ? 'text-[#9aa8b4]' : 'text-[#17202b]'}`}>{value ?? '—'}</p>
     </div>
   );
 }
