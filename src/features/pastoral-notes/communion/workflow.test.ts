@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { CommunionReview } from './api';
-import { ALLOWED_TRANSITIONS, DEFAULT_REVIEW_FILTER, describePeriodProgress, filterReviews, transitionNeedsReason } from './workflow';
+import {
+  ALLOWED_TRANSITIONS,
+  DEFAULT_REVIEW_FILTER,
+  chunk,
+  computeRosterChanges,
+  describePeriodProgress,
+  filterReviews,
+  transitionNeedsReason,
+  validatePeriodDraft,
+} from './workflow';
 
 const review = (id: string, memberName: string, overrides: Partial<CommunionReview> = {}): CommunionReview => ({
   id,
@@ -60,5 +69,48 @@ describe('review transitions', () => {
     for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
       expect(targets).not.toContain(from);
     }
+  });
+});
+
+describe('computeRosterChanges', () => {
+  const roster = [
+    { memberId: 'in', rosterState: 'included' as const },
+    { memberId: 'out', rosterState: 'excluded' as const },
+  ];
+
+  it('sends nothing when the selection matches the roster', () => {
+    expect(computeRosterChanges(roster, new Set(['in']))).toEqual([]);
+  });
+
+  it('adds new members, re-includes excluded ones and excludes unchecked ones', () => {
+    expect(computeRosterChanges(roster, new Set(['new', 'out']))).toEqual([
+      { memberId: 'new', included: true },
+      { memberId: 'out', included: true },
+      { memberId: 'in', included: false },
+    ]);
+  });
+});
+
+describe('chunk', () => {
+  it('splits into batches of at most the given size', () => {
+    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(chunk([], 200)).toEqual([]);
+  });
+});
+
+describe('validatePeriodDraft', () => {
+  const draft = { name: '가을 목양', startsOn: '2026-10-01', endsOn: '2026-10-25', serviceDate: '2026-10-25' };
+
+  it('accepts a service date on the last day and no service date at all', () => {
+    expect(validatePeriodDraft(draft)).toBeNull();
+    expect(validatePeriodDraft({ ...draft, serviceDate: '' })).toBeNull();
+  });
+
+  it.each([
+    [{ name: '  ' }, '주기 이름을 적어 주세요.'],
+    [{ endsOn: '2026-09-30' }, '종료일은 시작일보다 빠를 수 없습니다.'],
+    [{ serviceDate: '2026-11-01' }, '성찬 시행일은 주기 기간 안에 있어야 합니다.'],
+  ])('rejects %o', (change, message) => {
+    expect(validatePeriodDraft({ ...draft, ...change })).toBe(message);
   });
 });

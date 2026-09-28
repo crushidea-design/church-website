@@ -1181,6 +1181,7 @@ export default function AdminPastoralNotes() {
             {activeTab === 'communion' && user && communionAvailability === 'available' && (
               <CommunionTab
                 user={user}
+                members={members}
                 logs={logs}
                 attendanceHistory={attendanceHistory}
                 onOpenLog={(logId) => {

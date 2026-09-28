@@ -66,3 +66,44 @@ export const TRANSITION_ACTION_LABELS: Partial<Record<CommunionReviewStatus, str
   closed_without_contact: '연락 미성사로 종료',
   not_started: '미확인으로 되돌리기',
 };
+
+// ───── Period setup (plan 6.1–6.2) ─────
+
+export const ROSTER_BATCH_SIZE = 200;
+
+/**
+ * Turns the editor's selection into roster changes. Newly checked members are
+ * added (or re-included); unchecked members who were included are excluded,
+ * which keeps their history. Untouched members produce no request.
+ */
+export function computeRosterChanges(reviews: Array<Pick<CommunionReview, 'memberId' | 'rosterState'>>, selected: Set<string>) {
+  const current = new Map(reviews.map((review) => [review.memberId, review.rosterState]));
+  const changes: Array<{ memberId: string; included: boolean }> = [];
+  for (const memberId of selected) {
+    if (current.get(memberId) !== 'included') changes.push({ memberId, included: true });
+  }
+  for (const [memberId, state] of current) {
+    if (state === 'included' && !selected.has(memberId)) changes.push({ memberId, included: false });
+  }
+  return changes;
+}
+
+export function chunk<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
+}
+
+export type PeriodDraft = { name: string; startsOn: string; endsOn: string; serviceDate: string };
+
+/** Returns a message for the first problem, or null. Dates are ISO strings, so text comparison is date order. */
+export function validatePeriodDraft(draft: PeriodDraft) {
+  if (!draft.name.trim()) return '주기 이름을 적어 주세요.';
+  if (draft.name.trim().length > 80) return '주기 이름은 80자까지 쓸 수 있습니다.';
+  if (!draft.startsOn || !draft.endsOn) return '시작일과 종료일을 골라 주세요.';
+  if (draft.endsOn < draft.startsOn) return '종료일은 시작일보다 빠를 수 없습니다.';
+  if (draft.serviceDate && (draft.serviceDate < draft.startsOn || draft.serviceDate > draft.endsOn)) {
+    return '성찬 시행일은 주기 기간 안에 있어야 합니다.';
+  }
+  return null;
+}

@@ -106,3 +106,26 @@ export async function linkCommunionLog(reviewId: string, visitationLogId: string
   });
   return readJsonResponse<{ linked: boolean }>(response);
 }
+
+export type CommunionPeriodInput = { name: string; startsOn: string; endsOn: string; guideVersion: string; serviceDate: string | null };
+
+export async function createCommunionPeriod(input: CommunionPeriodInput, idempotencyKey: string, user: User) {
+  const response = await fetch('/api/raah/communion/periods', {
+    method: 'POST',
+    headers: { ...(await getAuthHeaders(user)), 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ id: string }>(response);
+}
+
+export type RosterEntry = { memberId: string; included: boolean };
+
+/** Each entry is applied in its own transaction and is safe to resend. */
+export async function updateCommunionRoster(periodId: string, entries: RosterEntry[], user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/roster`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ entries }),
+  });
+  return readJsonResponse<{ applied: number; reviewIds: string[] }>(response);
+}

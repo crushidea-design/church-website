@@ -3,13 +3,14 @@
 // encrypted path and read back only via the existing visitation log view.
 import React from 'react';
 import type { User } from 'firebase/auth';
-import { ArrowLeft, CalendarDays, Info, RefreshCw } from 'lucide-react';
-import type { RaahAttendanceHistoryRecord, RaahVisitationLog } from '../managementApi';
+import { ArrowLeft, CalendarDays, Info, ListChecks, Plus, RefreshCw } from 'lucide-react';
+import type { RaahAttendanceHistoryRecord, RaahMember, RaahVisitationLog } from '../managementApi';
 import { shell } from '../adminShell';
 import { EmptyState, MiniCount } from '../AdminPrimitives';
 import { formatDisplayDate } from '../utils';
 import { getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
 import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
+import { CreatePeriodForm, RosterEditor } from './PeriodSetup';
 import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import {
@@ -70,26 +71,30 @@ function LoadState({ result, onRetry }: { result: Load<unknown>; onRetry: () => 
 
 export function CommunionTab({
   user,
+  members,
   logs,
   attendanceHistory,
   onOpenLog,
   onDraftDirtyChange,
 }: {
   user: User;
+  members: RaahMember[];
   logs: RaahVisitationLog[];
   attendanceHistory: RaahAttendanceHistoryRecord[];
   onOpenLog: (logId: string) => void;
   onDraftDirtyChange: (dirty: boolean) => void;
 }) {
   const periods = useLoad('periods', () => listCommunionPeriods(user));
-  const [draftDirty, setDraftDirty] = React.useState(false);
-  const reportDraftDirty = React.useCallback(
-    (dirty: boolean) => {
-      setDraftDirty(dirty);
-      onDraftDirtyChange(dirty);
-    },
-    [onDraftDirtyChange]
-  );
+  // Unsaved work can sit in the person panel, the roster editor or the new-period form.
+  const [dirtyParts, setDirtyParts] = React.useState({ panel: false, roster: false, create: false });
+  const markDirty = React.useCallback((part: keyof typeof dirtyParts) => (dirty: boolean) => setDirtyParts((prev) => (prev[part] === dirty ? prev : { ...prev, [part]: dirty })), []);
+  const setPanelDirty = React.useMemo(() => markDirty('panel'), [markDirty]);
+  const setRosterDirty = React.useMemo(() => markDirty('roster'), [markDirty]);
+  const setCreateDirty = React.useMemo(() => markDirty('create'), [markDirty]);
+  const draftDirty = dirtyParts.panel || dirtyParts.roster || dirtyParts.create;
+  React.useEffect(() => onDraftDirtyChange(draftDirty), [draftDirty, onDraftDirtyChange]);
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [isEditingRoster, setIsEditingRoster] = React.useState(false);
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<string | null>(null);
   const detail = useLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
@@ -105,20 +110,39 @@ export function CommunionTab({
     setSelectedPeriodId(periodId);
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
+    setIsEditingRoster(false);
+  };
+
+  const openCreatedPeriod = (periodId: string) => {
+    setIsCreating(false);
+    periods.reload();
+    setSelectedPeriodId(periodId);
+    setSelectedReviewId(null);
+    setFilter(DEFAULT_REVIEW_FILTER);
+    // A fresh period has nobody on it yet; go straight to choosing the roster.
+    setIsEditingRoster(true);
   };
 
   if (!selectedPeriodId) {
     return (
       <section className={shell.panel}>
-        <header className="border-b border-[#e6edf2] p-4">
-          <h2 className="text-lg font-semibold">성찬 목양</h2>
-          <p className="mt-1 text-sm text-[#607080]">목양 주기를 선택하면 대상과 진행 상황을 봅니다.</p>
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e6edf2] p-4">
+          <div>
+            <h2 className="text-lg font-semibold">성찬 목양</h2>
+            <p className="mt-1 text-sm text-[#607080]">목양 주기를 선택하면 대상과 진행 상황을 봅니다.</p>
+          </div>
+          {!isCreating && (
+            <button type="button" onClick={() => setIsCreating(true)} className={shell.button}>
+              <Plus size={16} />새 목양 주기
+            </button>
+          )}
         </header>
+        {isCreating && <CreatePeriodForm user={user} onCreated={openCreatedPeriod} onCancel={() => setIsCreating(false)} onDirtyChange={setCreateDirty} />}
         {periods.result.state !== 'ready' ? (
           <LoadState result={periods.result} onRetry={periods.reload} />
         ) : periods.result.data.length === 0 ? (
           <div className="p-4">
-            <EmptyState>아직 만든 목양 주기가 없습니다.</EmptyState>
+            <EmptyState>아직 만든 목양 주기가 없습니다. ‘새 목양 주기’로 시작하세요.</EmptyState>
           </div>
         ) : (
           <PeriodList periods={periods.result.data} onSelect={selectPeriod} />
@@ -164,16 +188,47 @@ export function CommunionTab({
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className={`${shell.panel} min-w-0 p-4 ${selectedReview ? 'max-xl:hidden' : ''}`}>
-          <ReviewFilters filter={filter} setFilter={setFilter} />
-          {visibleReviews.length === 0 ? (
-            <div className="mt-3">
-              <EmptyState>{reviews.length === 0 ? '명부에 등록된 성도가 없습니다.' : '조건에 맞는 성도가 없습니다.'}</EmptyState>
-            </div>
+          {isEditingRoster ? (
+            <RosterEditor
+              periodId={period.id}
+              members={members}
+              reviews={reviews}
+              user={user}
+              onSaved={detail.reload}
+              onClose={() => setIsEditingRoster(false)}
+              onDirtyChange={setRosterDirty}
+            />
           ) : (
-            <ReviewTable reviews={visibleReviews} logs={logs} selectedReviewId={selectedReviewId} onSelect={selectReview} />
+            <>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">명부</h3>
+                {period.status !== 'closed' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedReviewId && !confirmDiscardChanges(dirtyParts.panel)) return;
+                      setSelectedReviewId(null);
+                      setIsEditingRoster(true);
+                    }}
+                    className={shell.ghostButton + ' px-3 py-1.5 text-xs'}
+                  >
+                    <ListChecks size={14} />
+                    명부 편집
+                  </button>
+                )}
+              </div>
+              <ReviewFilters filter={filter} setFilter={setFilter} />
+              {visibleReviews.length === 0 ? (
+                <div className="mt-3">
+                  <EmptyState>{reviews.length === 0 ? '명부에 등록된 성도가 없습니다. ‘명부 편집’에서 대상을 정해 주세요.' : '조건에 맞는 성도가 없습니다.'}</EmptyState>
+                </div>
+              ) : (
+                <ReviewTable reviews={visibleReviews} logs={logs} selectedReviewId={selectedReviewId} onSelect={selectReview} />
+              )}
+            </>
           )}
         </div>
-        {selectedReview ? (
+        {selectedReview && !isEditingRoster ? (
           <PersonPanel
             // Remounting per person drops the previous person's draft and detail at once.
             key={selectedReview.id}
@@ -187,7 +242,7 @@ export function CommunionTab({
               if (confirmDiscardChanges(draftDirty)) onOpenLog(logId);
             }}
             onChanged={detail.reload}
-            onDraftDirtyChange={reportDraftDirty}
+            onDraftDirtyChange={setPanelDirty}
           />
         ) : (
           <aside className={`${shell.mutedPanel} p-4 text-sm text-[#607080] max-xl:hidden`}>성도를 선택하면 목양 정보를 봅니다.</aside>
