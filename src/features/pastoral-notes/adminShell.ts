@@ -13,5 +13,7 @@ export const shell = {
     'inline-flex items-center justify-center gap-2 rounded-lg bg-[#12345a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0c2745] disabled:cursor-not-allowed disabled:opacity-60',
   ghostButton:
     'inline-flex items-center justify-center gap-2 rounded-lg border border-[#d5dee5] bg-white px-4 py-2.5 text-sm font-semibold text-[#28415b] transition hover:border-[#b7c6d2] hover:bg-[#f7faf9]',
+  dangerGhostButton:
+    'inline-flex items-center justify-center gap-2 rounded-lg border border-[#e3c5bb] bg-white px-4 py-2.5 text-sm font-semibold text-[#9a3b26] transition hover:border-[#d19c8c] hover:bg-[#fbf1ed] disabled:cursor-not-allowed disabled:opacity-60',
   badge: 'inline-flex items-center gap-1.5 rounded-full border border-[#cfddd8] bg-[#eef7f3] px-2.5 py-1 text-xs font-semibold text-[#2e6b5f]',
 };

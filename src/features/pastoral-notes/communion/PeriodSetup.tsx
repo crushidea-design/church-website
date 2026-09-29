@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Plus, Save, X } from 'lucide-react';
 import type { RaahMember } from '../managementApi';
 import { shell } from '../adminShell';
-import { TextInput } from '../AdminPrimitives';
+import { SyntheticBadge, TextInput } from '../AdminPrimitives';
 import { getErrorMessage } from '../adminHelpers';
 import { confirmDiscardChanges, useBeforeUnloadWarning } from '../hooks/useUnsavedChanges';
 import { hasFormChanges } from '../formChanges';
@@ -191,7 +191,7 @@ export function RosterEditor({
           <li key={member.id}>
             <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-[#f8fafb]">
               <input type="checkbox" checked={selected.has(member.id)} onChange={() => toggle(member.id)} />
-              <span className="font-semibold">{member.name}</span>
+              <span className="font-semibold">{member.name}{member.isSynthetic && <SyntheticBadge />}</span>
               <span className="text-xs text-[#607080]">{[member.district, member.position, member.status === 'inactive' ? '비활성' : ''].filter(Boolean).join(' · ')}</span>
             </label>
           </li>

@@ -239,6 +239,7 @@ export const emptyMemberForm: RaahMemberInput = {
   registeredAt: new Date().toISOString().slice(0, 10),
   status: 'active',
   publicNote: '',
+  isSynthetic: false,
 };
 
 export const emptySummary: RaahDashboardSummary = {

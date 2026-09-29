@@ -6,9 +6,12 @@ import type { User } from 'firebase/auth';
 import { ArrowLeft, CalendarDays, Info, ListChecks, Plus, RefreshCw } from 'lucide-react';
 import type { RaahAttendanceHistoryRecord, RaahMember, RaahVisitationLog } from '../managementApi';
 import { shell } from '../adminShell';
-import { EmptyState, MiniCount } from '../AdminPrimitives';
+import { toast } from 'sonner';
+import { EmptyState, MiniCount, SyntheticBadge } from '../AdminPrimitives';
+import { getErrorMessage } from '../adminHelpers';
+import { REAL_MEMBERS_IN_PERIOD_MESSAGE, TEST_PERIOD_DELETE_CONFIRM, canDeleteTestPeriod } from '../syntheticCleanup';
 import { formatDisplayDate } from '../utils';
-import { getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
+import { deleteCommunionPeriod, getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
 import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
 import { CreatePeriodForm, RosterEditor } from './PeriodSetup';
 import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
@@ -106,6 +109,7 @@ export function CommunionTab({
   const detail = useLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<ReviewFilter>(DEFAULT_REVIEW_FILTER);
+  const [isDeletingPeriod, setIsDeletingPeriod] = React.useState(false);
 
   const selectReview = (reviewId: string | null) => {
     if (reviewId === selectedReviewId || !confirmDiscardChanges(draftDirty)) return;
@@ -170,6 +174,29 @@ export function CommunionTab({
   const { period, reviews } = detail.result.data;
   const visibleReviews = filterReviews(reviews, filter);
   const selectedReview = reviews.find((review) => review.id === selectedReviewId) || null;
+  const syntheticIds = new Set(members.filter((member) => member.isSynthetic).map((member) => member.id));
+  // The server checks again; this only decides whether to offer the button.
+  const canDeletePeriod = canDeleteTestPeriod(reviews, members);
+
+  const handleDeletePeriod = async () => {
+    if (isDeletingPeriod || !window.confirm(TEST_PERIOD_DELETE_CONFIRM)) return;
+    setIsDeletingPeriod(true);
+    try {
+      await deleteCommunionPeriod(period.id, user);
+      toast.success('목양 주기를 삭제했습니다.');
+      setDirtyParts({ panel: false, roster: false, create: false });
+      setSelectedPeriodId(null);
+      setSelectedReviewId(null);
+      setFilter(DEFAULT_REVIEW_FILTER);
+      setIsEditingRoster(false);
+      periods.reload();
+      onWorkspaceDataChanged();
+    } catch (error) {
+      toast.error((error as { status?: number })?.status === 409 ? REAL_MEMBERS_IN_PERIOD_MESSAGE : getErrorMessage(error, '목양 주기를 삭제하지 못했습니다.'));
+    } finally {
+      setIsDeletingPeriod(false);
+    }
+  };
 
   return (
     <section className="space-y-3">
@@ -179,6 +206,11 @@ export function CommunionTab({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{period.name}</h2>
             <span className={shell.badge}>{PERIOD_STATUS_LABELS[period.status]}</span>
+            {canDeletePeriod && (
+              <button type="button" disabled={isDeletingPeriod} onClick={handleDeletePeriod} className={shell.dangerGhostButton + ' ml-auto px-3 py-1.5 text-xs'}>
+                주기 삭제
+              </button>
+            )}
           </div>
           <p className="text-sm text-[#607080]">
             {formatDisplayDate(period.startsOn)} – {formatDisplayDate(period.endsOn)}
@@ -230,7 +262,7 @@ export function CommunionTab({
                   <EmptyState>{reviews.length === 0 ? '명부에 등록된 성도가 없습니다. ‘명부 편집’에서 대상을 정해 주세요.' : '조건에 맞는 성도가 없습니다.'}</EmptyState>
                 </div>
               ) : (
-                <ReviewTable reviews={visibleReviews} logs={logs} selectedReviewId={selectedReviewId} onSelect={selectReview} />
+                <ReviewTable reviews={visibleReviews} logs={logs} syntheticIds={syntheticIds} selectedReviewId={selectedReviewId} onSelect={selectReview} />
               )}
             </>
           )}
@@ -353,11 +385,13 @@ const latestLogFor = (logs: RaahVisitationLog[], memberId: string) =>
 function ReviewTable({
   reviews,
   logs,
+  syntheticIds,
   selectedReviewId,
   onSelect,
 }: {
   reviews: CommunionReview[];
   logs: RaahVisitationLog[];
+  syntheticIds: Set<string>;
   selectedReviewId: string | null;
   onSelect: (reviewId: string) => void;
 }) {
@@ -385,6 +419,7 @@ function ReviewTable({
                   >
                     {review.memberName || '이름 없음'}
                   </button>
+                  {syntheticIds.has(review.memberId) && <SyntheticBadge />}
                   {review.rosterState === 'excluded' && <span className="ml-2 text-xs font-normal text-[#607080]">명부 제외</span>}
                 </th>
                 <td className="px-3 py-2">{REVIEW_STATUS_LABELS[review.status]}</td>

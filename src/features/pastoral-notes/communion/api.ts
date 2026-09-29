@@ -128,6 +128,15 @@ export async function createCommunionPeriod(input: CommunionPeriodInput, idempot
   return readJsonResponse<{ id: string }>(response);
 }
 
+/** Test periods only: the server refuses a period that has a real member's review. */
+export async function deleteCommunionPeriod(periodId: string, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}`, {
+    method: 'DELETE',
+    headers: await getAuthHeaders(user),
+  });
+  return readJsonResponse<{ reviews: number; careTasks: number; scheduleItems: number }>(response);
+}
+
 export type RosterEntry = { memberId: string; included: boolean };
 
 /** Each entry is applied in its own transaction and is safe to resend. */

@@ -29,6 +29,15 @@ export function FocusCard({
   );
 }
 
+/** Marks test ("시범") members so they are never mistaken for real people. */
+export function SyntheticBadge() {
+  return (
+    <span className="ml-1.5 inline-flex shrink-0 items-center rounded-full border border-[#e3c5bb] bg-[#fbf1ed] px-1.5 py-0.5 align-middle text-[10px] font-semibold text-[#9a3b26]">
+      시범
+    </span>
+  );
+}
+
 export function MiniCount({ label, value }: { label: string; value: number | null }) {
   return (
     <div className={shell.mutedPanel + ' p-3'}>

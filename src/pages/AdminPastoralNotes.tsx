@@ -22,6 +22,7 @@ import {
   completeRaahMinistryScheduleItem,
   createRaahGoogleCalendarEvent,
   createRaahMember,
+  deleteRaahSyntheticMember,
   createRaahMinistryScheduleItem,
   createRaahVisitationLog,
   getRaahBootstrap,
@@ -58,6 +59,7 @@ import {
   selectAttendanceEvent,
   summarizeSavedAttendance,
 } from '../features/pastoral-notes/raahWorkflow';
+import { SYNTHETIC_MEMBER_DELETE_CONFIRM, describeSyntheticDelete } from '../features/pastoral-notes/syntheticCleanup';
 import { buildRaahAttendanceFlow, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
@@ -704,6 +706,22 @@ export default function AdminPastoralNotes() {
     }
   };
 
+  const handleDeleteSyntheticMember = async (member: RaahMember) => {
+    if (!user || isSaving || !member.isSynthetic) return;
+    if (!window.confirm(SYNTHETIC_MEMBER_DELETE_CONFIRM)) return;
+    setIsSaving(true);
+    try {
+      const counts = await deleteRaahSyntheticMember(member.id, user);
+      setSelectedMemberId(null);
+      toast.success(describeSyntheticDelete(counts));
+      await loadManagementData();
+    } catch (error) {
+      toast.error(getErrorMessage(error, '시범 자료를 삭제하지 못했습니다.'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleMemberSelectForLog = (memberId: string) => {
     const member = members.find((item) => item.id === memberId);
     setLogForm((prev) => ({ ...prev, memberId, memberName: member?.name || prev.memberName }));
@@ -1178,6 +1196,7 @@ export default function AdminPastoralNotes() {
                 onEditMember={openMemberForm}
                 onNewMember={() => openMemberForm()}
                 onNewLog={(member) => openLogForm(member)}
+                onDeleteSynthetic={handleDeleteSyntheticMember}
                 isFormOpen={isMemberFormOpen}
                 isSaving={isSaving}
                 editing={Boolean(editingMemberId)}
