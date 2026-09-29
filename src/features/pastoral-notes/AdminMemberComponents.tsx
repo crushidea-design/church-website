@@ -3,6 +3,7 @@
 // panel rendering the selected member's summary; MemberForm is the
 // edit form. All take data and callbacks via props.
 import React from 'react';
+import type { User } from 'firebase/auth';
 import { Plus, Phone, Search, X } from 'lucide-react';
 import {
   RaahAttendanceHistoryRecord,
@@ -19,6 +20,16 @@ import { getAttendanceOption } from './adminHelpers';
 import { DetailBlock, EmptyState, MiniCount, SyntheticBadge, TextArea, TextInput } from './AdminPrimitives';
 import { StatusMetric } from './AdminAttendanceComponents';
 import { CompactLog } from './AdminVisitationComponents';
+import { CareTasksSection, type SourceOption } from './care-tasks/CareTasksSection';
+
+export type MemberCareTasksConfig = {
+  user: User;
+  onDirtyChange: (dirty: boolean) => void;
+  onScheduleCreated: () => void;
+};
+
+// A member's care tasks can start from nothing else here; the review/log sources live in the communion tab.
+const MANUAL_TASK_SOURCES: SourceOption[] = [{ value: 'manual', label: '직접 추가', sourceType: 'manual', sourceId: null }];
 
 export function MembersTab({
   members,
@@ -50,6 +61,7 @@ export function MembersTab({
   setScheduleForm,
   onSubmitSchedule,
   onCloseScheduleForm,
+  careTasks,
 }: {
   members: RaahMember[];
   search: string;
@@ -80,6 +92,8 @@ export function MembersTab({
   setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
   onSubmitSchedule: (event: React.FormEvent<HTMLFormElement>) => void;
   onCloseScheduleForm: () => void;
+  /** Present only when communion features are available; renders the member's follow-up care in the card. */
+  careTasks?: MemberCareTasksConfig;
 }) {
   const [isDesktop, setIsDesktop] = React.useState(() => window.matchMedia('(min-width: 1280px)').matches);
   React.useEffect(() => {
@@ -180,7 +194,7 @@ export function MembersTab({
       </div>
       <aside ref={panelRef} role={!isDesktop && isPanelOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isPanelOpen ? true : undefined} aria-label="성도 상세" onKeyDown={(event) => { if (event.key === 'Escape') closePanel(); }} className={isPanelOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-[#f3f6f8] p-4 xl:sticky xl:top-4 xl:z-auto xl:overflow-visible xl:bg-transparent xl:p-0' : 'hidden xl:block'}>
         {isPanelOpen ? <>
-          {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} closeButton={closeButton} /> : selectedMember && <MemberHub closeButton={closeButton} member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} isSaving={isSaving} onDeleteSynthetic={() => onDeleteSynthetic(selectedMember)} />}
+          {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} closeButton={closeButton} /> : selectedMember && <MemberHub closeButton={closeButton} member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} isSaving={isSaving} onDeleteSynthetic={() => onDeleteSynthetic(selectedMember)} careTasks={careTasks} />}
           {/* Inside the panel so the mobile dialog's focus handling covers it too. */}
           {isScheduleFormOpen && !isFormOpen && (
             <SchedulePopupForm form={scheduleForm} setForm={setScheduleForm} editingItemId={null} isSaving={isSaving} onSubmit={onSubmitSchedule} onClose={onCloseScheduleForm} />
@@ -204,6 +218,7 @@ export function MemberHub({
   onNewSchedule,
   isSaving,
   onDeleteSynthetic,
+  careTasks,
 }: {
   closeButton?: React.ReactNode;
   member: RaahMember;
@@ -217,6 +232,7 @@ export function MemberHub({
   onNewSchedule: () => void;
   isSaving: boolean;
   onDeleteSynthetic: () => void;
+  careTasks?: MemberCareTasksConfig;
 }) {
   const weeklyAttendanceLabel = !hasAttendanceEvent || !attendance ? '미기록' : attendance?.attended ? '출석' : '미출석';
   const weeklyAttendanceTone = !hasAttendanceEvent || !attendance ? 'neutral' : attendance?.attended ? 'good' : 'alert';
@@ -282,6 +298,18 @@ export function MemberHub({
           <DetailBlock label="공개 메모" value={member.publicNote || '-'} />
         </div>
       </div>
+
+      {careTasks && (
+        <CareTasksSection
+          key={member.id}
+          memberId={member.id}
+          sources={MANUAL_TASK_SOURCES}
+          user={careTasks.user}
+          disabled={false}
+          onDirtyChange={careTasks.onDirtyChange}
+          onScheduleCreated={careTasks.onScheduleCreated}
+        />
+      )}
 
       {member.isSynthetic && (
         <div className="mt-5 border-t border-[#e6edf2] pt-4">

@@ -75,11 +75,13 @@ async function listTasks(req: Request, access: RaahAccess) {
   const params = new URL(req.url).searchParams;
   const memberId = params.get('memberId');
   const scope = params.get('scope') || 'active';
-  if ((memberId && !UUID.test(memberId)) || !['active', 'all'].includes(scope)) {
+  const assignee = params.get('assignee');
+  if ((memberId && !UUID.test(memberId)) || !['active', 'all'].includes(scope) || (assignee !== null && assignee !== 'me')) {
     return fail(422, '조회 조건을 확인해 주세요.', 'RAAH_INVALID_INPUT');
   }
   const query = new URLSearchParams({ select: TASK_SELECT, workspace_id: `eq.${access.workspaceId}`, order: 'due_on.asc.nullslast' });
   if (memberId) query.set('member_id', `eq.${memberId}`);
+  if (assignee === 'me') query.set('assignee_uid', `eq.${access.user.uid}`);
   if (scope === 'active') query.set('status', 'in.(open,deferred)');
   const result = await upstream(`raah_care_tasks?${query}`);
   if (result.response) return result.response;

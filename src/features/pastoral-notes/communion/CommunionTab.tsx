@@ -84,6 +84,7 @@ export function CommunionTab({
   onOpenLog,
   onDraftDirtyChange,
   onWorkspaceDataChanged,
+  requestedPeriod,
 }: {
   user: User;
   members: RaahMember[];
@@ -93,6 +94,8 @@ export function CommunionTab({
   onDraftDirtyChange: (dirty: boolean) => void;
   /** New records and schedule slots made here live in the page's shared lists; reload them. */
   onWorkspaceDataChanged: () => void;
+  /** Opens this period (e.g. from the home panel). A new nonce makes a repeated request for the same period work. */
+  requestedPeriod?: { periodId: string; nonce: number } | null;
 }) {
   const periods = useLoad('periods', () => listCommunionPeriods(user));
   // Unsaved work can sit in the person panel, the roster editor or the new-period form.
@@ -123,6 +126,15 @@ export function CommunionTab({
     setFilter(DEFAULT_REVIEW_FILTER);
     setIsEditingRoster(false);
   };
+
+  const handledRequestNonce = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!requestedPeriod || handledRequestNonce.current === requestedPeriod.nonce) return;
+    handledRequestNonce.current = requestedPeriod.nonce;
+    selectPeriod(requestedPeriod.periodId);
+    // selectPeriod is recreated each render; the request's nonce decides when to act.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPeriod]);
 
   const openCreatedPeriod = (periodId: string) => {
     setIsCreating(false);

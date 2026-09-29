@@ -1,4 +1,5 @@
 import React from 'react';
+import type { User } from 'firebase/auth';
 import {
   ArrowLeft,
   BarChart3,
@@ -96,6 +97,7 @@ import {
   VisitationTab,
 } from '../features/pastoral-notes/AdminVisitationComponents';
 import { MembersTab } from '../features/pastoral-notes/AdminMemberComponents';
+import { HomeCarePanels } from '../features/pastoral-notes/HomeCarePanels';
 import { CommunionTab } from '../features/pastoral-notes/communion/CommunionTab';
 import { probeCommunionAvailability, type CommunionAvailability } from '../features/pastoral-notes/communion/api';
 import { hasAttendanceDraftChanges, hasFormChanges } from '../features/pastoral-notes/formChanges';
@@ -135,6 +137,9 @@ export default function AdminPastoralNotes() {
   const [activeTab, setActiveTab] = React.useState<ActiveTab>('dashboard');
   const [communionAvailability, setCommunionAvailability] = React.useState<CommunionAvailability>('checking');
   const [isCommunionDraftDirty, setIsCommunionDraftDirty] = React.useState(false);
+  // The new-care-task draft in the member card; it is lost when the card closes or another member opens.
+  const [isMemberTaskDirty, setIsMemberTaskDirty] = React.useState(false);
+  const [communionPeriodRequest, setCommunionPeriodRequest] = React.useState<{ periodId: string; nonce: number } | null>(null);
   const [storageMode, setStorageMode] = React.useState<StorageMode>('loading');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -311,7 +316,7 @@ export default function AdminPastoralNotes() {
         memo: attendance?.memo || '',
       }
     );
-  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isAttendanceDirty || isCommunionDraftDirty;
+  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isAttendanceDirty || isCommunionDraftDirty || isMemberTaskDirty;
   useBeforeUnloadWarning(hasUnsavedChanges);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
@@ -533,11 +538,14 @@ export default function AdminPastoralNotes() {
   };
 
   // Selecting another member closes an open edit form, so unsaved edits are confirmed first.
+  /** False when the user kept unsaved work, so callers can stay where they are. */
   const selectMember = (memberId: string | null) => {
-    if (isMemberFormOpen && !closeMemberForm()) return;
+    if (isMemberFormOpen && !closeMemberForm()) return false;
+    if (memberId !== selectedMemberId && !confirmDiscardChanges(isMemberTaskDirty)) return false;
     // A visit form prefilled for one member must not stay open for another.
     if (isMemberScheduleForm && memberId !== selectedMemberId) closeScheduleForm();
     setSelectedMemberId(memberId);
+    return true;
   };
 
   const changeAttendanceDate = (date: string) => {
@@ -803,10 +811,25 @@ export default function AdminPastoralNotes() {
   const switchTab = (tabId: ActiveTab) => {
     // Other tabs keep their drafts in this component; the communion draft lives in the tab and is lost on leaving it.
     if (activeTab === 'communion' && tabId !== 'communion' && !confirmDiscardChanges(isCommunionDraftDirty)) return;
+    if (activeTab === 'members' && tabId !== 'members' && !confirmDiscardChanges(isMemberTaskDirty)) return;
+    setCommunionPeriodRequest(null);
     if (isMemberScheduleForm && tabId !== 'members') closeScheduleForm();
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
+  };
+
+  const reloadManagementDataQuietly = () => {
+    loadManagementData().catch(() => undefined);
+  };
+
+  const openMemberFromHome = (memberId: string) => {
+    if (selectMember(memberId)) switchTab('members');
+  };
+
+  const openCommunionFromHome = (periodId?: string) => {
+    switchTab('communion');
+    if (periodId) setCommunionPeriodRequest({ periodId, nonce: Date.now() });
   };
 
   return (
@@ -999,6 +1022,7 @@ export default function AdminPastoralNotes() {
                 onNewLogForMember={(member) => openLogForm(member)}
                 onCreateScheduleItem={handleCreateScheduleItem}
                 onCompleteScheduleItem={handleCompleteScheduleItem}
+                careHome={user && communionAvailability === 'available' ? { user, onOpenMember: openMemberFromHome, onOpenPeriod: openCommunionFromHome, onOpenCommunionTab: () => openCommunionFromHome() } : null}
               />
             )}
 
@@ -1037,6 +1061,7 @@ export default function AdminPastoralNotes() {
                 setForm={setMemberForm}
                 onSubmit={handleMemberSubmit}
                 onCloseForm={closeMemberForm}
+                careTasks={user && communionAvailability === 'available' ? { user, onDirtyChange: setIsMemberTaskDirty, onScheduleCreated: reloadManagementDataQuietly } : undefined}
               />
             )}
 
@@ -1051,9 +1076,8 @@ export default function AdminPastoralNotes() {
                   setActiveTab('visitation');
                 }}
                 onDraftDirtyChange={setIsCommunionDraftDirty}
-                onWorkspaceDataChanged={() => {
-                  loadManagementData().catch(() => undefined);
-                }}
+                onWorkspaceDataChanged={reloadManagementDataQuietly}
+                requestedPeriod={communionPeriodRequest}
               />
             )}
 
@@ -1199,6 +1223,7 @@ function DashboardTab({
   onNewLogForMember,
   onCreateScheduleItem,
   onCompleteScheduleItem,
+  careHome,
 }: {
   isLoading: boolean;
   dataStatus: RaahDataStatus;
@@ -1225,6 +1250,8 @@ function DashboardTab({
   onNewLogForMember: (member: RaahMember) => void;
   onCreateScheduleItem: (event: React.FormEvent<HTMLFormElement>) => void;
   onCompleteScheduleItem: (itemId: string) => void;
+  /** Present only when communion features are available (the care APIs answer 404 otherwise). */
+  careHome: { user: User; onOpenMember: (memberId: string) => void; onOpenPeriod: (periodId: string) => void; onOpenCommunionTab: () => void } | null;
 }) {
   const isReady = dataStatus === 'ready';
   const activeMemberCount = summary.activeMemberCount || members.filter((member) => member.status === 'active').length;
@@ -1276,6 +1303,8 @@ function DashboardTab({
           </button>
         </div>
       </div>
+
+      {careHome && <HomeCarePanels {...careHome} />}
 
       <div className="grid gap-3 xl:grid-cols-4">
         <DashboardAttendanceMini date={attendanceDate} summary={attendanceSummary} onOpenAttendance={onOpenAttendance} />
