@@ -163,7 +163,7 @@ export function MembersTab({
   });
   const attendanceLabel = (record?: RaahAttendanceHistoryRecord) => record ? record.attended ? '출석' : '결석' : '미기록';
   return (
-    <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,440px)]">
       <div inert={isPanelOpen && !isDesktop ? true : undefined} className={shell.panel + ' min-w-0 p-4'}>
         <div className="flex items-center justify-between gap-3">
           <div><h2 className="text-lg font-semibold">성도 명부</h2><p className="mt-1 text-xs text-[#607080]">{rows.length}명 표시 · 전체 {members.length}명</p></div>
@@ -195,7 +195,7 @@ export function MembersTab({
           </table>
         </div>}
       </div>
-      <aside ref={panelRef} role={!isDesktop && isPanelOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isPanelOpen ? true : undefined} aria-label="성도 상세" onKeyDown={(event) => { if (event.key === 'Escape') closePanel(); }} className={isPanelOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-[#f3f6f8] p-4 xl:sticky xl:top-4 xl:z-auto xl:overflow-visible xl:bg-transparent xl:p-0' : 'hidden xl:block'}>
+      <aside ref={panelRef} role={!isDesktop && isPanelOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isPanelOpen ? true : undefined} aria-label="성도 상세" onKeyDown={(event) => { if (event.key === 'Escape') closePanel(); }} className={isPanelOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-[#f3f6f8] p-4 xl:sticky xl:top-4 xl:z-auto xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:overscroll-contain xl:bg-transparent xl:p-0' : 'hidden xl:block'}>
         {isPanelOpen ? <>
           {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} closeButton={closeButton} /> : selectedMember && <MemberHub closeButton={closeButton} member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} isSaving={isSaving} onDeleteSynthetic={() => onDeleteSynthetic(selectedMember)} careTasks={careTasks} />}
           {/* Inside the panel so the mobile dialog's focus handling covers it too. */}

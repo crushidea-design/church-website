@@ -390,7 +390,7 @@ export function CommunionTab({
         </div>
       </div>
 
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(400px,480px)]">
         <div className={`${shell.panel} min-w-0 p-4 ${selectedReview ? 'max-xl:hidden' : ''}`}>
           {isEditingRoster ? (
             <RosterEditor
@@ -659,7 +659,7 @@ function PersonPanel({
     .slice(0, 6);
 
   return (
-    <aside className={shell.panel + ' p-4'} aria-label={`${review.memberName} 목양 정보`}>
+    <aside className={shell.panel + ' p-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:overscroll-contain'} aria-label={`${review.memberName} 목양 정보`}>
       <button type="button" onClick={onBack} className={shell.ghostButton + ' mb-3 px-3 py-1.5 text-xs xl:hidden'}>
         <ArrowLeft size={14} />
         명부로 돌아가기
