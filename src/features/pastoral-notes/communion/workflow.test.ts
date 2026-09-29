@@ -6,7 +6,12 @@ import {
   buildCloseConfirmMessage,
   buildClosedSummaryLine,
   buildReopenedLine,
+  OCCASION_CANCEL_CONFIRM,
   chunk,
+  describeOccasion,
+  describeParticipation,
+  formatLongDate,
+  occasionActions,
   carryOverRoster,
   computeRosterChanges,
   describePreviousReview,
@@ -245,5 +250,48 @@ describe('describePreviousReview', () => {
     expect(describePreviousReview({ periodName: '2026년 10월 성찬 목양', status: 'reviewed', statusChangedAt: '2026-10-01T03:00:00Z' })).toBe(
       '2026년 10월 성찬 목양 · 목양 확인 (2026-10-01)'
     );
+  });
+});
+
+describe('communion services', () => {
+  it('formats the date and status without timezone drift', () => {
+    expect(formatLongDate('2026-10-04')).toBe('2026년 10월 4일');
+    expect(describeOccasion({ serviceDate: '2026-10-13', status: 'scheduled' })).toBe('2026년 10월 13일 · 예정');
+    expect(describeOccasion({ serviceDate: '2026-10-13', status: 'held' })).toBe('2026년 10월 13일 · 시행됨');
+    expect(describeOccasion({ serviceDate: '2026-10-13', status: 'cancelled' })).toBe('2026년 10월 13일 · 취소됨');
+  });
+
+  it('offers actions by status and none once the period is closed', () => {
+    expect(occasionActions('scheduled', false)).toEqual(['held', 'move', 'cancel']);
+    expect(occasionActions('held', false)).toEqual(['undo']);
+    expect(occasionActions('cancelled', false)).toEqual(['undo']);
+    for (const status of ['scheduled', 'held', 'cancelled'] as const) expect(occasionActions(status, true)).toEqual([]);
+  });
+
+  it('says that cancelling keeps pastoral records and follow-up care', () => {
+    expect(OCCASION_CANCEL_CONFIRM).toContain('목양 기록과 후속 돌봄은 그대로 남습니다');
+  });
+
+  it('keeps the next-period suggestion on the first non-cancelled service', () => {
+    const suggestion = suggestNextPeriod({
+      endsOn: '2026-10-25',
+      occasions: [
+        { serviceDate: '2026-10-04', status: 'cancelled' },
+        { serviceDate: '2026-10-25', status: 'scheduled' },
+      ],
+    });
+    expect(suggestion.serviceDate).toBe('2026-12-27');
+  });
+});
+
+describe('describeParticipation', () => {
+  it('states the fact plainly, without judgement wording', () => {
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'participated' })).toBe('10월 13일 · 참여');
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'not_recorded' })).toBe('10월 13일 · 참여 기록 없음');
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'no_attendance_event' })).toBe('10월 13일 · 그날 출석 기록이 없습니다');
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'upcoming' })).toBe('10월 13일 · 예정');
+    for (const fact of ['participated', 'not_recorded', 'no_attendance_event', 'upcoming'] as const) {
+      expect(describeParticipation({ serviceDate: '2026-10-13', fact })).not.toMatch(/불참|결석|미참여|부적격/);
+    }
   });
 });

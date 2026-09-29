@@ -12,6 +12,10 @@ export type CommunionClosingSummary = {
   openCareTasks: number;
 };
 
+export type CommunionOccasionStatus = 'scheduled' | 'held' | 'cancelled';
+
+export type CommunionOccasion = { id: string; serviceDate: string; status: CommunionOccasionStatus; revision: number };
+
 export type CommunionPeriod = {
   id: string;
   name: string;
@@ -26,7 +30,7 @@ export type CommunionPeriod = {
   closingSummary: CommunionClosingSummary | null;
   reopenedAt: string | null;
   reopenReason: string | null;
-  occasions: Array<{ id: string; serviceDate: string; status: 'scheduled' | 'held' | 'cancelled' }>;
+  occasions: CommunionOccasion[];
   counts: CommunionCounts;
 };
 
@@ -83,7 +87,13 @@ export type CommunionReviewDetail = {
   logs: Array<{ id: string; date: string; logType: string; publicSummary: string; linkedAt: string }>;
   /** Same member's earlier periods, newest first (max 3). Reference only: status and time, no content. */
   previousReviews: CommunionPreviousReview[];
+  /** Attendance facts per non-cancelled service. Context only; never tied to the review status. */
+  participation?: CommunionParticipation[];
 };
+
+export type ParticipationFact = 'participated' | 'not_recorded' | 'no_attendance_event' | 'upcoming';
+
+export type CommunionParticipation = { serviceDate: string; occasionStatus: CommunionOccasionStatus; fact: ParticipationFact };
 
 export type CommunionPreviousReview = {
   periodName: string;
@@ -182,6 +192,29 @@ export async function closeCommunionPeriod(periodId: string, expectedRevision: n
 export async function reopenCommunionPeriod(periodId: string, input: { expectedRevision: number; reason: string }, user: User) {
   const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/reopen`, {
     method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ revision: number }>(response);
+}
+
+export async function addCommunionOccasion(periodId: string, serviceDate: string, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/occasions`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ serviceDate }),
+  });
+  return readJsonResponse<{ id: string; revision: number }>(response);
+}
+
+/** One change per call: a new date (while scheduled) or a status change. */
+export async function updateCommunionOccasion(
+  occasionId: string,
+  input: { expectedRevision: number; status?: CommunionOccasionStatus; serviceDate?: string },
+  user: User
+) {
+  const response = await fetch(`/api/raah/communion/occasions/${encodeURIComponent(occasionId)}`, {
+    method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(input),
   });

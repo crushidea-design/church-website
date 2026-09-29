@@ -1,4 +1,4 @@
-import type { CommunionClosingSummary, CommunionReview, CommunionReviewStatus } from './api';
+import type { CommunionClosingSummary, CommunionOccasionStatus, CommunionReview, CommunionReviewStatus, ParticipationFact } from './api';
 
 // Screen names for pastoral progress (plan 8.1). These describe the care
 // conversation only — never readiness or admission to the Lord's Supper.
@@ -206,4 +206,45 @@ export function carryOverRoster(
 export function describePreviousReview(entry: { periodName: string; status: CommunionReviewStatus; statusChangedAt: string }) {
   const date = toSeoulDate(entry.statusChangedAt);
   return `${entry.periodName} · ${REVIEW_STATUS_LABELS[entry.status]}${date ? ` (${date})` : ''}`;
+}
+
+// ───── Communion services and participation facts (plan 6, 7.6, 16.3) ─────
+
+export const OCCASION_STATUS_LABELS: Record<CommunionOccasionStatus, string> = { scheduled: '예정', held: '시행됨', cancelled: '취소됨' };
+
+export const OCCASION_CANCEL_CONFIRM = '이 성찬 시행을 취소합니다. 목양 기록과 후속 돌봄은 그대로 남습니다.';
+
+/** "2026년 10월 13일" from YYYY-MM-DD, without a Date (no timezone drift). */
+export function formatLongDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${Number(match[1])}년 ${Number(match[2])}월 ${Number(match[3])}일` : value;
+}
+
+/** "2026년 10월 13일 · 예정" */
+export function describeOccasion(occasion: { serviceDate: string; status: CommunionOccasionStatus }) {
+  return `${formatLongDate(occasion.serviceDate)} · ${OCCASION_STATUS_LABELS[occasion.status]}`;
+}
+
+/** Which actions to offer; the database decides what is allowed. Closed periods are read-only. */
+export function occasionActions(status: CommunionOccasionStatus, periodClosed: boolean): Array<'held' | 'move' | 'cancel' | 'undo'> {
+  if (periodClosed) return [];
+  return status === 'scheduled' ? ['held', 'move', 'cancel'] : ['undo'];
+}
+
+export const PARTICIPATION_TITLE = '성찬 참여 (출석 기록 기준)';
+export const PARTICIPATION_HINT =
+  '사실 확인용이며 목양 진행 상태와 연결되지 않습니다. 참여 기록이 없어도 사정 확인이 필요할 뿐 판단 근거가 아닙니다.';
+
+const PARTICIPATION_FACT_LABELS: Record<ParticipationFact, string> = {
+  participated: '참여',
+  not_recorded: '참여 기록 없음',
+  no_attendance_event: '그날 출석 기록이 없습니다',
+  upcoming: '예정',
+};
+
+/** "10월 13일 · 참여" */
+export function describeParticipation(entry: { serviceDate: string; fact: ParticipationFact }) {
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(entry.serviceDate);
+  const day = match ? `${Number(match[1])}월 ${Number(match[2])}일` : entry.serviceDate;
+  return `${day} · ${PARTICIPATION_FACT_LABELS[entry.fact]}`;
 }

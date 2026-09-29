@@ -14,6 +14,7 @@ import {
   rpc,
   upstream,
 } from './_shared/raah-rpc.mjs';
+import { buildParticipation, seoulToday, type AttendanceEventInput, type AttendanceRecordInput } from './_shared/raah-participation.mjs';
 // The one encryption contract for visitation bodies; reused, never re-implemented.
 import { encryptPayload } from './raah-management.mjs';
 
@@ -44,7 +45,7 @@ type PeriodRow = {
   closing_summary: unknown;
   reopened_at: string | null;
   reopen_reason: string | null;
-  raah_communion_occasions?: Array<{ id: string; service_date: string; status: string }>;
+  raah_communion_occasions?: Array<{ id: string; service_date: string; status: string; revision: number }>;
   raah_communion_reviews?: Array<{ status: ReviewStatus; roster_state: string }>;
 };
 
@@ -61,7 +62,7 @@ type ReviewRow = {
 
 const PERIOD_SELECT =
   'id,name,starts_on,ends_on,status,guide_version,owner_uid,revision,closed_at,closing_summary,reopened_at,reopen_reason,' +
-  'raah_communion_occasions(id,service_date,status)';
+  'raah_communion_occasions(id,service_date,status,revision)';
 
 function countReviews(reviews: Array<{ status: ReviewStatus; roster_state: string }> = []) {
   const counts = Object.fromEntries(REVIEW_STATUSES.map((status) => [status, 0])) as Record<ReviewStatus, number>;
@@ -88,7 +89,7 @@ const toPeriod = (row: PeriodRow) => ({
   reopenedAt: row.reopened_at,
   reopenReason: row.reopen_reason,
   occasions: (row.raah_communion_occasions || [])
-    .map((occasion) => ({ id: occasion.id, serviceDate: occasion.service_date, status: occasion.status }))
+    .map((occasion) => ({ id: occasion.id, serviceDate: occasion.service_date, status: occasion.status, revision: occasion.revision }))
     .sort((a, b) => a.serviceDate.localeCompare(b.serviceDate)),
 });
 
@@ -257,6 +258,47 @@ async function updateRoster(req: Request, access: RaahAccess, periodId: string) 
   return json({ applied: reviewIds.length, reviewIds });
 }
 
+// A period's services (plan 6, R11). Closed periods are frozen by the RPCs.
+async function addOccasion(req: Request, access: RaahAccess, periodId: string) {
+  const body = await readJson(req);
+  if (!isValidDate(body?.serviceDate)) return fail(422, '성찬 시행일을 확인해 주세요.', 'RAAH_INVALID_INPUT');
+  const result = await rpc('raah_rpc_add_occasion', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_period_id: periodId,
+    p_service_date: body.serviceDate,
+  });
+  if (result.response) return result.response;
+  return json(result.data, 201);
+}
+
+const OCCASION_STATUSES = ['scheduled', 'held', 'cancelled'];
+
+async function updateOccasion(req: Request, access: RaahAccess, occasionId: string) {
+  const body = await readJson(req);
+  const expectedRevision = body?.expectedRevision;
+  const status = body?.status ?? null;
+  const serviceDate = body?.serviceDate ?? null;
+  if (
+    !Number.isInteger(expectedRevision) || (expectedRevision as number) < 1 ||
+    (status === null && serviceDate === null) ||
+    (status !== null && (typeof status !== 'string' || !OCCASION_STATUSES.includes(status))) ||
+    (serviceDate !== null && !isValidDate(serviceDate))
+  ) {
+    return fail(422, '변경할 내용과 기준 버전을 확인해 주세요.', 'RAAH_INVALID_INPUT');
+  }
+  const result = await rpc('raah_rpc_update_occasion', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_occasion_id: occasionId,
+    p_expected_revision: expectedRevision,
+    p_status: status,
+    p_service_date: serviceDate,
+  });
+  if (result.response) return result.response;
+  return json(result.data);
+}
+
 async function transitionReview(req: Request, access: RaahAccess, reviewId: string) {
   const body = await readJson(req);
   const status = body?.status;
@@ -291,7 +333,10 @@ type ReviewDetailRow = {
   updated_at: string;
   raah_members?: { name: string } | null;
   period_id: string;
-  raah_communion_periods?: { starts_on: string } | null;
+  raah_communion_periods?: {
+    starts_on: string;
+    raah_communion_occasions?: Array<{ service_date: string; status: string; attendance_event_id: string | null }>;
+  } | null;
   raah_communion_review_logs?: Array<{
     linked_at: string;
     raah_visitation_logs?: { id: string; date: string; log_type: string; public_summary: string | null } | null;
@@ -311,7 +356,7 @@ type PreviousReviewRow = {
 async function getReview(access: RaahAccess, reviewId: string) {
   const query = new URLSearchParams({
     select:
-      'id,member_id,period_id,status,roster_state,status_reason,revision,updated_at,raah_members(name),raah_communion_periods(starts_on),' +
+      'id,member_id,period_id,status,roster_state,status_reason,revision,updated_at,raah_members(name),raah_communion_periods(starts_on,raah_communion_occasions(service_date,status,attendance_event_id)),' +
       'raah_communion_review_logs(linked_at,raah_visitation_logs(id,date,log_type,public_summary))',
     workspace_id: `eq.${access.workspaceId}`,
     id: `eq.${reviewId}`,
@@ -363,6 +408,8 @@ async function getReview(access: RaahAccess, reviewId: string) {
         };
       });
   }
+  const participation = await loadParticipation(access, row.member_id, row.raah_communion_periods?.raah_communion_occasions || []);
+  if ('response' in participation) return participation.response;
   return json({
     review: {
       id: row.id,
@@ -376,7 +423,33 @@ async function getReview(access: RaahAccess, reviewId: string) {
     },
     logs,
     previousReviews,
+    participation: participation.data,
   });
+}
+
+// Context only: derived from attendance at read time, enum facts only.
+async function loadParticipation(access: RaahAccess, memberId: string, occasions: Array<{ service_date: string; status: string; attendance_event_id: string | null }>) {
+  const open = occasions.filter((occasion) => occasion.status !== 'cancelled');
+  if (open.length === 0) return { data: [] as ReturnType<typeof buildParticipation> };
+  const dates = [...new Set(open.map((occasion) => occasion.service_date))];
+  const linkedIds = [...new Set(open.map((occasion) => occasion.attendance_event_id).filter((value): value is string => Boolean(value)))];
+  const filters = [`date.in.(${dates.join(',')})`, ...(linkedIds.length ? [`id.in.(${linkedIds.join(',')})`] : [])];
+  const events = await upstream(`raah_attendance_events?${new URLSearchParams({ select: 'id,date,event_type,includes_communion', or: `(${filters.join(',')})` })}`);
+  if (events.response) return { response: events.response };
+  const eventRows = events.data as AttendanceEventInput[];
+  let recordRows: AttendanceRecordInput[] = [];
+  if (eventRows.length > 0) {
+    const records = await upstream(
+      `raah_attendance_records?${new URLSearchParams({
+        select: 'event_id,communion_participated',
+        member_id: `eq.${memberId}`,
+        event_id: `in.(${eventRows.map((event) => event.id).join(',')})`,
+      })}`
+    );
+    if (records.response) return { response: records.response };
+    recordRows = records.data as AttendanceRecordInput[];
+  }
+  return { data: buildParticipation(open, eventRows, recordRows, seoulToday()) };
 }
 
 const textField = (value: unknown, max: number) => {
@@ -459,13 +532,15 @@ export default async (req: Request, context: Context) => {
     if (req.method === 'GET') return getReview(access, id);
     if (req.method === 'PATCH') return transitionReview(req, access, id);
   }
+  if (pathname.includes('/communion/occasions/') && id && req.method === 'PATCH') return updateOccasion(req, access, id);
+  if (pathname.endsWith('/occasions') && id && req.method === 'POST') return addOccasion(req, access, id);
   if (pathname.endsWith('/roster') && id && req.method === 'POST') return updateRoster(req, access, id);
   if (pathname.endsWith('/close') && id && req.method === 'POST') return closePeriod(req, access, id);
   if (pathname.endsWith('/reopen') && id && req.method === 'POST') return reopenPeriod(req, access, id);
   if (pathname.includes('/communion/periods')) {
     if (!id && req.method === 'GET') return listPeriods(access);
     if (!id && req.method === 'POST') return createPeriod(req, access);
-    const isPeriodItself = !/\/(roster|close|reopen)$/.test(pathname);
+    const isPeriodItself = !/\/(roster|close|reopen|occasions)$/.test(pathname);
     if (id && req.method === 'GET' && isPeriodItself) return getPeriod(access, id);
     if (id && req.method === 'DELETE' && isPeriodItself) return deletePeriod(access, id);
   }
@@ -479,6 +554,8 @@ export const config: Config = {
     '/api/raah/communion/periods/:id/roster',
     '/api/raah/communion/periods/:id/close',
     '/api/raah/communion/periods/:id/reopen',
+    '/api/raah/communion/periods/:id/occasions',
+    '/api/raah/communion/occasions/:id',
     '/api/raah/communion/reviews/:id',
     '/api/raah/communion/reviews/:id/logs',
   ],

@@ -12,6 +12,7 @@ import { getErrorMessage } from '../adminHelpers';
 import { REAL_MEMBERS_IN_PERIOD_MESSAGE, TEST_PERIOD_DELETE_CONFIRM, canDeleteTestPeriod } from '../syntheticCleanup';
 import { formatDisplayDate } from '../utils';
 import { closeCommunionPeriod, deleteCommunionPeriod, getCommunionPeriod, getCommunionReview, listCommunionPeriods, reopenCommunionPeriod, type CommunionPeriod, type CommunionReview } from './api';
+import { OccasionList } from './OccasionList';
 import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
 import { CreatePeriodForm, RosterEditor } from './PeriodSetup';
 import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
@@ -27,6 +28,9 @@ import {
   buildReopenedLine,
   carryOverRoster,
   describePeriodProgress,
+  PARTICIPATION_HINT,
+  PARTICIPATION_TITLE,
+  describeParticipation,
   describePreviousReview,
   filterReviews,
   suggestNextPeriod,
@@ -329,8 +333,17 @@ export function CommunionTab({
           </div>
           <p className="text-sm text-[#607080]">
             {formatDisplayDate(period.startsOn)} – {formatDisplayDate(period.endsOn)}
-            {period.occasions.length > 0 && ` · 성찬 ${period.occasions.map((occasion) => formatDisplayDate(occasion.serviceDate)).join(', ')}`}
           </p>
+          <OccasionList
+            periodId={period.id}
+            occasions={period.occasions}
+            periodClosed={isClosed}
+            user={user}
+            onChanged={() => {
+              detail.reload();
+              periods.reload();
+            }}
+          />
           {isClosed && <p className="text-sm text-[#607080]">{buildClosedSummaryLine(closedDate, period.closingSummary)}</p>}
           {period.reopenReason && period.reopenedAt && (
             <p className="text-xs text-[#607080]">{buildReopenedLine(formatDisplayDate(toSeoulDate(period.reopenedAt)), period.reopenReason)}</p>
@@ -474,10 +487,14 @@ function PeriodList({ periods, onSelect }: { periods: CommunionPeriod[]; onSelec
                     <p className="mt-1 text-xs text-[#607080]">
                       {formatDisplayDate(period.startsOn)} – {formatDisplayDate(period.endsOn)}
                     </p>
-                    {period.occasions.length > 0 && (
+                    {period.occasions.some((occasion) => occasion.status !== 'cancelled') && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-[#607080]">
                         <CalendarDays size={12} />
-                        성찬 {period.occasions.map((occasion) => formatDisplayDate(occasion.serviceDate)).join(', ')}
+                        성찬{' '}
+                        {period.occasions
+                          .filter((occasion) => occasion.status !== 'cancelled')
+                          .map((occasion) => formatDisplayDate(occasion.serviceDate))
+                          .join(', ')}
                       </p>
                     )}
                     <p className="mt-2 text-sm text-[#17202b]">{describePeriodProgress(period.counts)}</p>
@@ -692,6 +709,20 @@ function PersonPanel({
             {(detail.result.data.previousReviews ?? []).map((entry, index) => (
               <li key={index} className="text-xs text-[#4b5d6d]">
                 {describePreviousReview(entry)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {detail.result.state === 'ready' && (detail.result.data.participation ?? []).length > 0 && (
+        <div className="mt-4 rounded-md bg-[#f3f6f8] p-2">
+          <h4 className="text-xs font-semibold text-[#4b5d6d]">{PARTICIPATION_TITLE}</h4>
+          <p className="text-xs text-[#607080]">{PARTICIPATION_HINT}</p>
+          <ul className="mt-1 space-y-0.5">
+            {(detail.result.data.participation ?? []).map((entry) => (
+              <li key={entry.serviceDate} className="text-xs text-[#4b5d6d]">
+                {describeParticipation(entry)}
               </li>
             ))}
           </ul>
