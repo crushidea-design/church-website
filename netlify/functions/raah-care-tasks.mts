@@ -1,3 +1,4 @@
+import { withServerTiming } from './_shared/server-timing.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createHmac } from 'crypto';
 import { requireRaahAccess, type RaahAccess } from './_shared/raah-access.mjs';
@@ -186,7 +187,7 @@ async function setTaskStatus(req: Request, access: RaahAccess, taskId: string) {
   return json({ id: taskId, status, revision: result.data });
 }
 
-export default async (req: Request, context: Context) => {
+export default withServerTiming(async (req: Request, context: Context) => {
   if (!isCommunionEnabled()) return fail(404, 'Not found', 'RAAH_COMMUNION_DISABLED');
 
   const accessCheck = await requireRaahAccess(req, { requireGrant: true });
@@ -201,7 +202,7 @@ export default async (req: Request, context: Context) => {
   if (id && req.method === 'GET') return getTask(access, id);
   if (id && req.method === 'PATCH') return setTaskStatus(req, access, id);
   return fail(405, 'Method not allowed', 'RAAH_METHOD_NOT_ALLOWED');
-};
+});
 
 export const config: Config = {
   path: ['/api/raah/care-tasks', '/api/raah/care-tasks/:id'],

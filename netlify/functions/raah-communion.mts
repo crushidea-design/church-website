@@ -1,3 +1,4 @@
+import { withServerTiming } from './_shared/server-timing.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createHash, createHmac } from 'crypto';
 import { requireRaahAccess, type RaahAccess } from './_shared/raah-access.mjs';
@@ -627,7 +628,7 @@ async function addReviewLog(req: Request, access: RaahAccess, reviewId: string) 
   return json(result.data, 201);
 }
 
-export default async (req: Request, context: Context) => {
+export default withServerTiming(async (req: Request, context: Context) => {
   // Hidden until the pastoral guide and pilot are approved; see plan 16.1.
   if (!isCommunionEnabled()) return fail(404, 'Not found', 'RAAH_COMMUNION_DISABLED');
 
@@ -662,7 +663,7 @@ export default async (req: Request, context: Context) => {
     if (id && req.method === 'DELETE' && isPeriodItself) return deletePeriod(access, id);
   }
   return fail(405, 'Method not allowed', 'RAAH_METHOD_NOT_ALLOWED');
-};
+});
 
 export const config: Config = {
   path: [

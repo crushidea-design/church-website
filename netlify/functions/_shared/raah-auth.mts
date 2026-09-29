@@ -1,5 +1,6 @@
 import { getAuth } from 'firebase-admin/auth';
 import { getAppDb, initializeFirebaseAdmin } from './firebase-admin.mjs';
+import { timed } from './server-timing.mjs';
 
 export type RaahUser = { uid: string; email?: string; name: string };
 
@@ -25,7 +26,7 @@ export async function requireRaahAdmin(req: Request): Promise<{ user?: RaahUser;
   let decoded;
   try {
     // Revoked sessions and disabled accounts must not retain access to pastoral notes.
-    decoded = await getAuth().verifyIdToken(token, true);
+    decoded = await timed('auth', () => getAuth().verifyIdToken(token, true));
   } catch {
     return failure(401, 'Invalid or expired session');
   }
@@ -33,7 +34,7 @@ export async function requireRaahAdmin(req: Request): Promise<{ user?: RaahUser;
   const ownerEmail = decoded.email === 'crushidea@gmail.com' && decoded.email_verified === true;
   if (!ownerEmail) {
     try {
-      const member = await getAppDb().collection('users').doc(decoded.uid).get();
+      const member = await timed('role', () => getAppDb().collection('users').doc(decoded.uid).get());
       if (!member.exists || member.data()?.role !== 'admin') return failure(403, 'Admin permission required');
     } catch {
       return failure(503, 'Permission service unavailable');
