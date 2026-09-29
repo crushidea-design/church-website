@@ -83,7 +83,44 @@
 
 ### 4.1 사전 준비
 
-1. ☐ **암호화 키와 DB 백업 복구 시험.** Netlify의 `RAAH_ENCRYPTION_SECRET` 값이 안전한 곳에 따로 보관되어 있는지, Supabase 백업에서 복원했을 때 기존 기록이 그 키로 복호화되는지 확인한다(계획서 14.3·18). 이 확인 전에는 실제 목양 자료를 새로 넣지 않는다.
+1. ☐ **암호화 키와 DB 백업 복구 시험.** Netlify의 `RAAH_ENCRYPTION_SECRET` 값이 안전한 곳에 따로 보관되어 있는지, Supabase 백업에서 복원했을 때 기존 기록이 그 키로 복호화되는지 확인한다(계획서 14.3·18). 이 확인 전에는 실제 목양 자료를 새로 넣지 않는다. 절차는 4.1.1.
+
+#### 4.1.1 키 보관·백업·복구 시험 절차
+
+모든 명령은 사용자의 터미널에서 직접 실행한다. 키·DB 비밀번호·백업 내용은 채팅이나 저장소에 붙이지 않는다.
+
+1. **키 보관.** Netlify → Site configuration → Environment variables → `RAAH_ENCRYPTION_SECRET` 값을 비밀번호 관리자(예: 1Password·iCloud 키체인)에 "RAAH 암호화 키"로 저장한다. 값이 가려져 확인할 수 없으면, 처음 이 값을 만든 곳에서 찾아 보관한다. 이 키를 잃으면 암호화된 목양 기록은 복구할 수 없다.
+2. **백업 폴더.** 저장소 밖에 만든다.
+   ```bash
+   mkdir -p ~/RAAH-backups && chmod 700 ~/RAAH-backups
+   ```
+3. **운영 DB 접속 주소.** Supabase 대시보드 → Connect → Session pooler 연결 문자열(`postgresql://...`)을 복사하고 `[YOUR-PASSWORD]`를 DB 비밀번호로 바꾼다. 셸 기록에 남지 않도록 숨김 입력으로 변수에 넣는다.
+   ```bash
+   read -s RAAH_DB_URL && export RAAH_DB_URL
+   ```
+4. **백업 받기** (OrbStack이 켜져 있어야 한다).
+   ```bash
+   supabase db dump --db-url "$RAAH_DB_URL" --schema public -f ~/RAAH-backups/raah-schema-$(date +%F).sql
+   supabase db dump --db-url "$RAAH_DB_URL" --schema public --data-only -f ~/RAAH-backups/raah-data-$(date +%F).sql
+   chmod 600 ~/RAAH-backups/*.sql
+   ```
+   데이터 백업에는 성도 이름·연락처 등 평문 정보가 들어 있다. FileVault가 켜진 Mac에만 두고 메신저·메일로 보내지 않는다.
+5. **로컬에 복원.** 로컬 Supabase를 비우고 운영 데이터만 넣는다(로컬 스키마는 새 테이블까지 포함한 상위 집합).
+   ```bash
+   supabase db reset
+   docker exec -i supabase_db_church-website psql -U postgres -v ON_ERROR_STOP=1 < ~/RAAH-backups/raah-data-$(date +%F).sql
+   ```
+   여기서 오류가 나면 운영 스키마가 저장소와 다르다는 뜻이므로 오류 문구(데이터 제외)를 공유한다.
+6. **복호화 확인.** 키는 숨김 입력으로 묻고, 결과는 표별 건수만 나온다.
+   ```bash
+   npx tsx scripts/verify-backup-decrypt.ts
+   ```
+   `결과: 통과`가 나오면 이 단계 완료. `확인 불가`는 복원된 자료가 없다는 뜻, `실패`는 키가 다르거나 자료가 손상되었다는 뜻이다.
+7. **정리.** 로컬 복원본을 지운다. 백업 파일은 보관 정책을 정할 때까지 `~/RAAH-backups`에 둔다.
+   ```bash
+   supabase db reset
+   unset RAAH_DB_URL
+   ```
 2. ☐ 3.1~3.3 검토 완료.
 
 ### 4.2 코드 병합 (PR-2·PR-4 화면 변화가 즉시 배포됨)
@@ -115,10 +152,14 @@
 
 ### 4.5 성찬 목양 켜기 (합성 자료 시범)
 
-13. ☐ Netlify에 `RAAH_COMMUNION_ENABLED=true` 추가 후 재배포. 목양자 계정에만 `성찬` 탭이 보이는지 확인.
-14. ☐ 합성 성도(예: `시범 성도 A`)를 만들어 주기 생성 → 명부 → 대화 기록 → 기존 기록 연결 → 목양 확인 → 후속 돌봄·일정까지 한 바퀴 진행. 모바일(360px 전후)과 데스크톱에서 각각.
+13. ☑ (2026-09-29) Netlify에 `RAAH_COMMUNION_ENABLED=true` 추가 후 재배포. 목양자 계정에만 `성찬` 탭이 보이는지 확인.
+14. ☑ (2026-09-29, 데스크톱·아이폰) 합성 성도(예: `시범 성도 A`)를 만들어 주기 생성 → 명부 → 대화 기록 → 기존 기록 연결 → 목양 확인 → 후속 돌봄·일정까지 한 바퀴 진행. 모바일(360px 전후)과 데스크톱에서 각각.
     - 성찬 탭의 `새 목양 주기`로 주기를 만들면 곧바로 `명부 편집`이 열린다. 후보는 활성 성도이며(성찬회원 입력 화면은 아직 없음), 선택 해제한 성도는 이력을 남긴 채 제외된다.
-15. ☐ 시범 뒤 합성 자료 정리 방법 결정: 삭제 API가 없고 목양 이력은 `on delete restrict`로 보호되므로, 합성 자료는 이름으로 구분해 두거나 SQL로 명시적으로 지운다.
+15. ☐ 시범 자료 정리. 실제 목양 이력은 계속 `on delete restrict`로 보호하고, 시험 자료만 화면에서 지운다(`20261002000000_raah_synthetic_cleanup.sql`).
+    - 성도 등록 때 `시범 자료로 등록`을 체크한 성도만 성도 카드의 `시범 자료 삭제`로 기록·성찬 대화·후속 돌봄·일정까지 한꺼번에 지운다. 표시는 등록 때만 정할 수 있고 수정으로 바꿀 수 없다.
+    - 목양 주기는 실제 성도가 한 명도 없을 때만(빈 주기 포함) `주기 삭제`가 보인다. 서버가 같은 조건을 다시 확인한다.
+    - **적용 순서: 이 마이그레이션을 운영 SQL Editor에서 먼저 적용한 뒤 코드를 병합한다.** 코드가 `is_synthetic` 칸을 읽으므로 반대 순서면 성도 목록을 불러오지 못한다.
+    - 이미 만든 시험 성도는 적용 뒤 `update public.raah_members set is_synthetic = true where name = '시범 성도 A';`처럼 한 번 표시한 다음 화면에서 지운다. Google 캘린더로 이미 내보낸 일정은 캘린더 쪽에서 따로 지운다.
 16. ☐ 실제 성도 자료 입력은 교회가 허용한 범위에서, 3절 검토가 끝난 뒤에만.
 
 ## 5. 되돌리기

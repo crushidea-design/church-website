@@ -32,7 +32,11 @@ export type CommunionReview = {
 
 export async function listCommunionPeriods(user: User) {
   const response = await fetch('/api/raah/communion/periods', { headers: await getAuthHeaders(user) });
-  return (await readJsonResponse<{ periods: CommunionPeriod[] }>(response)).periods;
+  const { periods } = await readJsonResponse<{ periods?: CommunionPeriod[] }>(response);
+  // Without the function deployed, the site answers with its HTML page (200).
+  // Treat that as "not available" rather than as an empty feature.
+  if (!Array.isArray(periods)) throw Object.assign(new Error('RAAH communion API is not available.'), { status: 404 });
+  return periods;
 }
 
 export async function getCommunionPeriod(periodId: string, user: User) {
@@ -122,6 +126,15 @@ export async function createCommunionPeriod(input: CommunionPeriodInput, idempot
     body: JSON.stringify(input),
   });
   return readJsonResponse<{ id: string }>(response);
+}
+
+/** Test periods only: the server refuses a period that has a real member's review. */
+export async function deleteCommunionPeriod(periodId: string, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}`, {
+    method: 'DELETE',
+    headers: await getAuthHeaders(user),
+  });
+  return readJsonResponse<{ reviews: number; careTasks: number; scheduleItems: number }>(response);
 }
 
 export type RosterEntry = { memberId: string; included: boolean };

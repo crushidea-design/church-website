@@ -131,6 +131,17 @@ async function getPeriod(access: RaahAccess, periodId: string) {
   });
 }
 
+// Test periods only: the RPC refuses any period with a real member's review.
+async function deletePeriod(access: RaahAccess, periodId: string) {
+  const result = await rpc('raah_rpc_delete_test_period', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_period_id: periodId,
+  });
+  if (result.response) return result.response;
+  return json(result.data);
+}
+
 async function createPeriod(req: Request, access: RaahAccess) {
   const idempotencyKey = req.headers.get('idempotency-key') || '';
   if (!IDEMPOTENCY_KEY.test(idempotencyKey)) return fail(422, 'Idempotency-Key 헤더가 필요합니다.', 'RAAH_IDEMPOTENCY_KEY_REQUIRED');
@@ -364,6 +375,7 @@ export default async (req: Request, context: Context) => {
     if (!id && req.method === 'GET') return listPeriods(access);
     if (!id && req.method === 'POST') return createPeriod(req, access);
     if (id && req.method === 'GET' && !pathname.endsWith('/roster')) return getPeriod(access, id);
+    if (id && req.method === 'DELETE' && !pathname.endsWith('/roster')) return deletePeriod(access, id);
   }
   return fail(405, 'Method not allowed', 'RAAH_METHOD_NOT_ALLOWED');
 };

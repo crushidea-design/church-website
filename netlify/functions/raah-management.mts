@@ -1,7 +1,8 @@
 import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { requireRaahAccess } from './_shared/raah-access.mjs';
+import { requireRaahAccess, type RaahAccess } from './_shared/raah-access.mjs';
+import { UUID, fail, json, rpc } from './_shared/raah-rpc.mjs';
 
 declare const Netlify:
   | {
@@ -23,6 +24,7 @@ type MemberInput = {
   registeredAt?: string;
   status: 'active' | 'inactive';
   publicNote?: string;
+  isSynthetic?: boolean;
 };
 
 type LogSensitivePayload = {
@@ -95,6 +97,7 @@ type SupabaseMemberRow = {
   registered_at?: string | null;
   status?: 'active' | 'inactive' | null;
   public_note?: string | null;
+  is_synthetic?: boolean | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -268,6 +271,8 @@ const parseMemberInput = (raw: unknown): MemberInput | null => {
     registeredAt: cleanText(data.registeredAt),
     status: data.status === 'inactive' ? 'inactive' : 'active',
     publicNote: cleanText(data.publicNote),
+    // Honoured on create only; the PATCH handler never writes it.
+    isSynthetic: data.isSynthetic === true,
   };
 
   if (!input.name || input.name.length > 100 || !validDate(input.birthDate) || !validDate(input.registeredAt)) return null;
@@ -376,6 +381,7 @@ const rowToMember = (row: SupabaseMemberRow) => ({
   registeredAt: row.registered_at || '',
   status: row.status || 'active',
   publicNote: row.public_note || '',
+  isSynthetic: row.is_synthetic === true,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -574,7 +580,7 @@ const handleBootstrap = async (req: Request) => {
 
   const [membersResult, logsResult, attendanceResult, attendanceSummaryResult, followUpsResult, scheduleResult] = await Promise.all([
     supabaseFetch(
-      'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at&order=name.asc'
+      'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,is_synthetic,created_at,updated_at&order=name.asc'
     ),
     supabaseFetch(
       'raah_visitation_logs?select=id,member_id,member_name,member_search_name,date,log_type,public_summary,encrypted_payload,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
@@ -637,7 +643,7 @@ const handleBootstrap = async (req: Request) => {
 
 const handleListMembers = async () => {
   const result = await supabaseFetch(
-    'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at&order=name.asc'
+    'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,is_synthetic,created_at,updated_at&order=name.asc'
   );
   if (result.response) return result.response;
 
@@ -651,7 +657,7 @@ const handleCreateMember = async (req: Request, user: RaahUser) => {
   if (!input) return noStoreJson({ error: 'Invalid RAAH member input.' }, 400);
 
   const result = await supabaseFetch(
-    'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at',
+    'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,is_synthetic,created_at,updated_at',
     {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
@@ -666,6 +672,7 @@ const handleCreateMember = async (req: Request, user: RaahUser) => {
         registered_at: input.registeredAt || null,
         status: input.status,
         public_note: input.publicNote || null,
+        is_synthetic: input.isSynthetic === true,
         created_by: { uid: user.uid, email: user.email || '', name: user.name },
       }),
     }
@@ -682,7 +689,7 @@ const handleUpdateMember = async (req: Request, memberId: string) => {
   if (!input) return noStoreJson({ error: 'Invalid RAAH member input.' }, 400);
 
   const result = await supabaseFetch(
-    `raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,created_at,updated_at&id=eq.${encodeURIComponent(memberId)}`,
+    `raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,is_synthetic,created_at,updated_at&id=eq.${encodeURIComponent(memberId)}`,
     {
       method: 'PATCH',
       headers: { Prefer: 'return=representation' },
@@ -706,6 +713,18 @@ const handleUpdateMember = async (req: Request, memberId: string) => {
   if (!result.supabaseResponse.ok) return noStoreJson({ error: 'Failed to update RAAH member.' }, result.supabaseResponse.status);
   if (!rows[0]) return noStoreJson({ error: 'RAAH member not found.' }, 404);
   return noStoreJson({ member: rowToMember(rows[0]) });
+};
+
+// Test ("시범") members only: the RPC refuses real members and audits by id.
+const handleDeleteSyntheticMember = async (access: RaahAccess, memberId: string) => {
+  if (!UUID.test(memberId)) return fail(404, '대상을 찾을 수 없습니다.', 'RAAH_NOT_FOUND');
+  const result = await rpc('raah_rpc_delete_synthetic_member', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_member_id: memberId,
+  });
+  if (result.response) return result.response;
+  return json(result.data);
 };
 
 const handleListLogs = async () => {
@@ -1022,7 +1041,8 @@ const handleCompleteScheduleItem = async (itemId: string, user: RaahUser) => {
 };
 
 export default async (req: Request, context: Context) => {
-  const accessCheck = await requireRaahAccess(req);
+  // Destructive test-data cleanup always needs an explicit grant, even while the global flag is off.
+  const accessCheck = await requireRaahAccess(req, { requireGrant: req.method === 'DELETE' });
   if (accessCheck.response || !accessCheck.access) return accessCheck.response;
 
   const pathname = new URL(req.url).pathname;
@@ -1054,6 +1074,7 @@ export default async (req: Request, context: Context) => {
   if (route === 'members' && req.method === 'GET' && !id) return handleListMembers();
   if (route === 'members' && req.method === 'POST' && !id) return handleCreateMember(req, accessCheck.access.user);
   if (route === 'members' && req.method === 'PATCH' && id) return handleUpdateMember(req, id);
+  if (route === 'members' && req.method === 'DELETE' && id) return handleDeleteSyntheticMember(accessCheck.access, id);
   if (route === 'visitation-logs' && req.method === 'GET' && !id) return handleListLogs();
   if (route === 'visitation-logs' && req.method === 'GET' && id) return handleLogDetail(id);
   if (route === 'visitation-logs' && req.method === 'POST' && !id) return handleCreateLog(req, accessCheck.access.user);

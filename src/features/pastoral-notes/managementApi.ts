@@ -14,6 +14,7 @@ export type RaahMember = {
   registeredAt?: string;
   status: RaahMemberStatus;
   publicNote?: string;
+  isSynthetic?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -28,6 +29,8 @@ export type RaahMemberInput = {
   registeredAt?: string;
   status: RaahMemberStatus;
   publicNote?: string;
+  /** Test data flag; honoured only when the member is created. */
+  isSynthetic?: boolean;
 };
 
 export type RaahVisitationSensitiveFields = {
@@ -205,6 +208,7 @@ type ApiMember = {
   registeredAt?: string;
   status: RaahMemberStatus;
   publicNote?: string;
+  isSynthetic?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -339,6 +343,17 @@ export async function updateRaahMember(memberId: string, input: RaahMemberInput,
   });
   const data = await readJsonResponse<{ member: ApiMember }>(response);
   return toMember(data.member);
+}
+
+export type RaahSyntheticDeleteCounts = { visitationLogs: number; reviews: number; careTasks: number; scheduleItems: number };
+
+/** Permanently deletes a test ("시범") member and everything attached; the server refuses real members. */
+export async function deleteRaahSyntheticMember(memberId: string, user: User) {
+  const response = await fetch(`/api/raah/members/${encodeURIComponent(memberId)}`, {
+    method: 'DELETE',
+    headers: await getAuthHeaders(user),
+  });
+  return readJsonResponse<RaahSyntheticDeleteCounts>(response);
 }
 
 export async function listRaahVisitationLogs(user: User) {

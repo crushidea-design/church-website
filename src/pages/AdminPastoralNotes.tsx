@@ -22,6 +22,7 @@ import {
   completeRaahMinistryScheduleItem,
   createRaahGoogleCalendarEvent,
   createRaahMember,
+  deleteRaahSyntheticMember,
   createRaahMinistryScheduleItem,
   createRaahVisitationLog,
   getRaahBootstrap,
@@ -58,6 +59,7 @@ import {
   selectAttendanceEvent,
   summarizeSavedAttendance,
 } from '../features/pastoral-notes/raahWorkflow';
+import { SYNTHETIC_MEMBER_DELETE_CONFIRM, describeSyntheticDelete } from '../features/pastoral-notes/syntheticCleanup';
 import { buildRaahAttendanceFlow, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
@@ -181,6 +183,8 @@ export default function AdminPastoralNotes() {
   const [scheduleForm, setScheduleForm] = React.useState<RaahMinistryScheduleItemInput>(emptyScheduleForm);
   const [editingScheduleItemId, setEditingScheduleItemId] = React.useState<string | null>(null);
   const [isScheduleFormOpen, setIsScheduleFormOpen] = React.useState(false);
+  // A visit booked from a member's panel is edited right there, without leaving the member tab.
+  const [isMemberScheduleForm, setIsMemberScheduleForm] = React.useState(false);
   const [copiedScheduleItem, setCopiedScheduleItem] = React.useState<RaahMinistryScheduleItem | null>(null);
   const [calendarStatus, setCalendarStatus] = React.useState<RaahCalendarStatus | null>(null);
   const [calendarEventForm, setCalendarEventForm] = React.useState<RaahGoogleCalendarEventInput>(emptyCalendarEventForm);
@@ -583,6 +587,7 @@ export default function AdminPastoralNotes() {
   };
 
   const closeScheduleForm = () => {
+    setIsMemberScheduleForm(false);
     setEditingScheduleItemId(null);
     setScheduleForm(emptyScheduleForm());
     setIsScheduleFormOpen(false);
@@ -640,6 +645,8 @@ export default function AdminPastoralNotes() {
   // Selecting another member closes an open edit form, so unsaved edits are confirmed first.
   const selectMember = (memberId: string | null) => {
     if (isMemberFormOpen && !closeMemberForm()) return;
+    // A visit form prefilled for one member must not stay open for another.
+    if (isMemberScheduleForm && memberId !== selectedMemberId) closeScheduleForm();
     setSelectedMemberId(memberId);
   };
 
@@ -694,6 +701,22 @@ export default function AdminPastoralNotes() {
       await refreshSupabase();
     } catch (error) {
       toast.error(getErrorMessage(error, '성도 정보를 저장하지 못했습니다.'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteSyntheticMember = async (member: RaahMember) => {
+    if (!user || isSaving || !member.isSynthetic) return;
+    if (!window.confirm(SYNTHETIC_MEMBER_DELETE_CONFIRM)) return;
+    setIsSaving(true);
+    try {
+      const counts = await deleteRaahSyntheticMember(member.id, user);
+      setSelectedMemberId(null);
+      toast.success(describeSyntheticDelete(counts));
+      await loadManagementData();
+    } catch (error) {
+      toast.error(getErrorMessage(error, '시범 자료를 삭제하지 못했습니다.'));
     } finally {
       setIsSaving(false);
     }
@@ -946,6 +969,7 @@ export default function AdminPastoralNotes() {
   const switchTab = (tabId: ActiveTab) => {
     // Other tabs keep their drafts in this component; the communion draft lives in the tab and is lost on leaving it.
     if (activeTab === 'communion' && tabId !== 'communion' && !confirmDiscardChanges(isCommunionDraftDirty)) return;
+    if (isMemberScheduleForm && tabId !== 'members') closeScheduleForm();
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
@@ -1155,9 +1179,13 @@ export default function AdminPastoralNotes() {
                 onNewSchedule={(member) => {
                   openNewScheduleForm();
                   setScheduleForm((previous) => ({ ...previous, itemType: 'visitation', memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
-                  setSearchTerm('');
-                  setActiveTab('schedule');
+                  setIsMemberScheduleForm(true);
                 }}
+                isScheduleFormOpen={isScheduleFormOpen && isMemberScheduleForm}
+                scheduleForm={scheduleForm}
+                setScheduleForm={setScheduleForm}
+                onSubmitSchedule={handleCreateScheduleItem}
+                onCloseScheduleForm={closeScheduleForm}
                 selectedMember={selectedMember}
                 selectedMemberLogs={selectedMemberLogs}
                 selectedMemberAttendance={selectedMemberAttendance}
@@ -1168,6 +1196,7 @@ export default function AdminPastoralNotes() {
                 onEditMember={openMemberForm}
                 onNewMember={() => openMemberForm()}
                 onNewLog={(member) => openLogForm(member)}
+                onDeleteSynthetic={handleDeleteSyntheticMember}
                 isFormOpen={isMemberFormOpen}
                 isSaving={isSaving}
                 editing={Boolean(editingMemberId)}
@@ -1189,6 +1218,9 @@ export default function AdminPastoralNotes() {
                   setActiveTab('visitation');
                 }}
                 onDraftDirtyChange={setIsCommunionDraftDirty}
+                onWorkspaceDataChanged={() => {
+                  loadManagementData().catch(() => undefined);
+                }}
               />
             )}
 

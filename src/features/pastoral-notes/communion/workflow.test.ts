@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CommunionReview } from './api';
 import {
   ALLOWED_TRANSITIONS,
@@ -123,5 +123,19 @@ describe('availabilityFromProbeError', () => {
     expect(availabilityFromProbeError({ status: 503 })).toBe('available');
     expect(availabilityFromProbeError({ status: 502 })).toBe('available');
     expect(availabilityFromProbeError(new TypeError('Failed to fetch'))).toBe('available');
+  });
+});
+
+describe('listCommunionPeriods', () => {
+  it('treats an HTML page answer (function not deployed) as not available', async () => {
+    const { listCommunionPeriods, probeCommunionAvailability } = await import('./api');
+    const user = { getIdToken: async () => 'token' } as never;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('<!doctype html><html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } }));
+    try {
+      await expect(listCommunionPeriods(user)).rejects.toMatchObject({ status: 404 });
+      expect(await probeCommunionAvailability(user)).toBe('hidden');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

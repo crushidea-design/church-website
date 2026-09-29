@@ -9,12 +9,14 @@ import {
   RaahAttendanceRecord,
   RaahMember,
   RaahMemberInput,
+  RaahMinistryScheduleItemInput,
   RaahVisitationLog,
 } from './managementApi';
+import { SchedulePopupForm } from './AdminScheduleComponents';
 import { formatDisplayDate } from './utils';
 import { shell } from './adminShell';
 import { getAttendanceOption } from './adminHelpers';
-import { DetailBlock, EmptyState, MiniCount, TextArea, TextInput } from './AdminPrimitives';
+import { DetailBlock, EmptyState, MiniCount, SyntheticBadge, TextArea, TextInput } from './AdminPrimitives';
 import { StatusMetric } from './AdminAttendanceComponents';
 import { CompactLog } from './AdminVisitationComponents';
 
@@ -35,6 +37,7 @@ export function MembersTab({
   onEditMember,
   onNewMember,
   onNewLog,
+  onDeleteSynthetic,
   isFormOpen,
   isSaving,
   editing,
@@ -42,6 +45,11 @@ export function MembersTab({
   setForm,
   onSubmit,
   onCloseForm,
+  isScheduleFormOpen,
+  scheduleForm,
+  setScheduleForm,
+  onSubmitSchedule,
+  onCloseScheduleForm,
 }: {
   members: RaahMember[];
   search: string;
@@ -59,6 +67,7 @@ export function MembersTab({
   onEditMember: (member?: RaahMember) => void;
   onNewMember: () => void;
   onNewLog: (member: RaahMember) => void;
+  onDeleteSynthetic: (member: RaahMember) => void;
   isFormOpen: boolean;
   isSaving: boolean;
   editing: boolean;
@@ -66,6 +75,11 @@ export function MembersTab({
   setForm: React.Dispatch<React.SetStateAction<RaahMemberInput>>;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCloseForm: () => void | boolean;
+  isScheduleFormOpen: boolean;
+  scheduleForm: RaahMinistryScheduleItemInput;
+  setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  onSubmitSchedule: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCloseScheduleForm: () => void;
 }) {
   const [isDesktop, setIsDesktop] = React.useState(() => window.matchMedia('(min-width: 1280px)').matches);
   React.useEffect(() => {
@@ -81,7 +95,17 @@ export function MembersTab({
   const closeRef = React.useRef<HTMLButtonElement>(null);
   const isPanelOpen = Boolean(selectedMember || isFormOpen);
   // onSelectMember closes an open form itself (after confirming unsaved edits).
-  const closePanel = () => onSelectMember(null);
+  const closePanel = () => {
+    if (isScheduleFormOpen) onCloseScheduleForm();
+    onSelectMember(null);
+  };
+  // Sits inside the card header rather than floating above it.
+  const closeButton = (
+    <button ref={closeRef} type="button" onClick={closePanel} className={shell.ghostButton + ' shrink-0 px-2.5 py-1.5 text-xs'}>
+      <X size={14} />
+      닫기
+    </button>
+  );
   React.useEffect(() => {
     if (!isPanelOpen || isDesktop) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -139,14 +163,14 @@ export function MembersTab({
         <p className="my-3 text-xs text-[#607080]">최근 출석: {latestDate ? `${formatDisplayDate(latestDate)} 주일 오전 기준` : '미기록'} · 심방 미기록은 오래된 순에서 먼저 표시합니다.</p>
         {rows.length === 0 ? <EmptyState>조건에 맞는 성도가 없습니다.</EmptyState> : <div className="overflow-x-auto rounded-lg border border-[#dbe3e8]">
           <div className="divide-y divide-[#e6edf2] md:hidden">{rows.map(({ member, attendance: record, visit }) => <div key={member.id} className={`p-3 ${selectedMember?.id === member.id ? 'bg-[#e8f2ef]' : ''}`}>
-            <div className="flex items-center justify-between gap-2"><button type="button" aria-pressed={selectedMember?.id === member.id} onClick={() => onSelectMember(member.id)} className="font-semibold text-[#12345a] underline underline-offset-4">{member.name}</button>{member.phone && <a href={`tel:${member.phone}`} aria-label={`${member.name} 전화`} className="p-2 text-[#2e6b5f]"><Phone size={16} /></a>}</div>
+            <div className="flex items-center justify-between gap-2"><button type="button" aria-pressed={selectedMember?.id === member.id} onClick={() => onSelectMember(member.id)} className="font-semibold text-[#12345a] underline underline-offset-4">{member.name}</button>{member.isSynthetic && <SyntheticBadge />}{member.phone && <a href={`tel:${member.phone}`} aria-label={`${member.name} 전화`} className="p-2 text-[#2e6b5f]"><Phone size={16} /></a>}</div>
             <p className="mt-1 text-xs text-[#607080]">{[member.district, member.position, member.status === 'inactive' ? '비활성' : ''].filter(Boolean).join(' · ') || '구역·직분 미등록'}</p>
             <p className="mt-2 text-xs"><span className={record?.attended === false ? 'font-semibold text-[#9a4d35]' : 'text-[#2e6b5f]'}>최근 출석 {attendanceLabel(record)}</span><span className="ml-3 text-[#607080]">최근 심방 {visit ? formatDisplayDate(visit.date) : '미기록'}</span></p>
           </div>)}</div>
           <table className="hidden w-full min-w-[530px] md:table border-collapse text-sm">
             <thead className="bg-[#eef3f6] text-left text-xs text-[#607080]"><tr>{['이름', '구역', '직분·신급', '최근 출석', '최근 심방'].map((label) => <th key={label} className="px-2 py-3">{label}</th>)}</tr></thead>
             <tbody>{rows.map(({ member, attendance: record, visit }) => <tr key={member.id} className={`border-t border-[#e6edf2] ${selectedMember?.id === member.id ? 'bg-[#e8f2ef]' : 'hover:bg-[#f8fafb]'}`}>
-              <th scope="row" className="px-2 py-3 text-left"><div className="flex items-center gap-2"><button type="button" aria-pressed={selectedMember?.id === member.id} onClick={() => onSelectMember(member.id)} className="whitespace-nowrap font-semibold text-[#12345a] underline decoration-[#b8ccc8] underline-offset-4">{member.name}</button>{member.phone && <a href={`tel:${member.phone}`} aria-label={`${member.name} 전화`} className="p-1 text-[#2e6b5f]"><Phone size={14} /></a>}</div>{member.status === 'inactive' && <span className="text-xs font-normal text-[#607080]">비활성</span>}</th>
+              <th scope="row" className="px-2 py-3 text-left"><div className="flex items-center gap-2"><button type="button" aria-pressed={selectedMember?.id === member.id} onClick={() => onSelectMember(member.id)} className="whitespace-nowrap font-semibold text-[#12345a] underline decoration-[#b8ccc8] underline-offset-4">{member.name}</button>{member.isSynthetic && <SyntheticBadge />}{member.phone && <a href={`tel:${member.phone}`} aria-label={`${member.name} 전화`} className="p-1 text-[#2e6b5f]"><Phone size={14} /></a>}</div>{member.status === 'inactive' && <span className="text-xs font-normal text-[#607080]">비활성</span>}</th>
               <td className="px-2 py-3 text-xs">{member.district || '미등록'}</td><td className="max-w-36 px-2 py-3 text-xs">{member.position || '미등록'}</td>
               <td className="whitespace-nowrap px-2 py-3"><span className={`rounded px-2 py-1 text-xs font-semibold ${!record ? 'bg-[#f3f6f8] text-[#607080]' : record.attended ? 'bg-[#e1efe9] text-[#2e6b5f]' : 'bg-[#fbe8df] text-[#9a4d35]'}`}>{attendanceLabel(record)}</span></td>
               <td className="whitespace-nowrap px-2 py-3 text-xs text-[#607080]">{visit ? formatDisplayDate(visit.date) : '미기록'}</td>
@@ -155,8 +179,12 @@ export function MembersTab({
         </div>}
       </div>
       <aside ref={panelRef} role={!isDesktop && isPanelOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isPanelOpen ? true : undefined} aria-label="성도 상세" onKeyDown={(event) => { if (event.key === 'Escape') closePanel(); }} className={isPanelOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-[#f3f6f8] p-4 xl:sticky xl:top-4 xl:z-auto xl:overflow-visible xl:bg-transparent xl:p-0' : 'hidden xl:block'}>
-        {isPanelOpen ? <><div className="mb-3 flex justify-end"><button ref={closeRef} type="button" onClick={closePanel} className={shell.ghostButton}><X size={16} />닫기</button></div>
-          {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} /> : selectedMember && <MemberHub member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} />}
+        {isPanelOpen ? <>
+          {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} closeButton={closeButton} /> : selectedMember && <MemberHub closeButton={closeButton} member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} isSaving={isSaving} onDeleteSynthetic={() => onDeleteSynthetic(selectedMember)} />}
+          {/* Inside the panel so the mobile dialog's focus handling covers it too. */}
+          {isScheduleFormOpen && !isFormOpen && (
+            <SchedulePopupForm form={scheduleForm} setForm={setScheduleForm} editingItemId={null} isSaving={isSaving} onSubmit={onSubmitSchedule} onClose={onCloseScheduleForm} />
+          )}
         </> : <div className={shell.panel + ' p-6 text-sm text-[#607080]'}>성도 이름을 누르면 이곳에서 정보와 기록을 확인할 수 있습니다.</div>}
       </aside>
     </section>
@@ -164,6 +192,7 @@ export function MembersTab({
 }
 
 export function MemberHub({
+  closeButton,
   member,
   logs,
   attendance,
@@ -173,7 +202,10 @@ export function MemberHub({
   onEdit,
   onNewLog,
   onNewSchedule,
+  isSaving,
+  onDeleteSynthetic,
 }: {
+  closeButton?: React.ReactNode;
   member: RaahMember;
   logs: RaahVisitationLog[];
   attendance?: RaahAttendanceRecord | null;
@@ -183,6 +215,8 @@ export function MemberHub({
   onEdit: () => void;
   onNewLog: () => void;
   onNewSchedule: () => void;
+  isSaving: boolean;
+  onDeleteSynthetic: () => void;
 }) {
   const weeklyAttendanceLabel = !hasAttendanceEvent || !attendance ? '미기록' : attendance?.attended ? '출석' : '미출석';
   const weeklyAttendanceTone = !hasAttendanceEvent || !attendance ? 'neutral' : attendance?.attended ? 'good' : 'alert';
@@ -191,10 +225,13 @@ export function MemberHub({
 
   return (
     <div className={shell.panel + ' p-5'}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[#607080]">성도 상세</p>
+        {closeButton}
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[#607080]">성도 상세</p>
-          <h2 className="mt-2 text-2xl font-semibold">{member.name}</h2>
+          <h2 className="mt-1 text-2xl font-semibold">{member.name}{member.isSynthetic && <SyntheticBadge />}</h2>
           <p className="mt-1 text-sm text-[#607080]">{[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -246,6 +283,14 @@ export function MemberHub({
         </div>
       </div>
 
+      {member.isSynthetic && (
+        <div className="mt-5 border-t border-[#e6edf2] pt-4">
+          <button type="button" disabled={isSaving} onClick={onDeleteSynthetic} className={shell.dangerGhostButton + ' w-full'}>
+            시범 자료 삭제
+          </button>
+        </div>
+      )}
+
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-[#17202b]">최근 기록</h3>
         <div className="mt-3 space-y-2">
@@ -259,6 +304,7 @@ export function MemberHub({
 
 
 export function MemberForm({
+  closeButton,
   isSaving,
   editing,
   form,
@@ -266,6 +312,7 @@ export function MemberForm({
   onSubmit,
   onClose,
 }: {
+  closeButton?: React.ReactNode;
   isSaving: boolean;
   editing: boolean;
   form: RaahMemberInput;
@@ -275,7 +322,10 @@ export function MemberForm({
 }) {
   return (
     <div className="mt-4 rounded-md border border-[#dbe3e8] bg-[#f8fafb] p-4">
-      <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
+        {closeButton}
+      </div>
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
         <TextInput label="이름" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
         <div className="grid gap-3 sm:grid-cols-2">
@@ -296,6 +346,13 @@ export function MemberForm({
           </select>
         </label>
         <TextArea label="공개 메모" value={form.publicNote || ''} onChange={(value) => setForm((prev) => ({ ...prev, publicNote: value }))} rows={3} />
+        {/* Only settable at creation, so a real member can never be flipped into deletable test data. */}
+        {!editing && (
+          <label className="flex items-start gap-2 text-sm text-[#28415b]">
+            <input type="checkbox" checked={Boolean(form.isSynthetic)} onChange={(event) => setForm((prev) => ({ ...prev, isSynthetic: event.target.checked }))} className="mt-0.5" />
+            <span>시범 자료로 등록 (시험용 — 나중에 한 번에 지울 수 있습니다)</span>
+          </label>
+        )}
         <div className="flex flex-wrap gap-2">
           <button type="submit" disabled={isSaving} className={shell.button}>{isSaving ? '저장 중...' : '저장'}</button>
           <button type="button" onClick={onClose} className={shell.ghostButton}>닫기</button>
