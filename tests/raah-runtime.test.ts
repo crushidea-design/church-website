@@ -57,7 +57,6 @@ it('starts real RAAH handlers and rejects anonymous requests', () => {
     globalThis.fetch = async () => { throw new Error('Unexpected network access'); };
     for (const [name, path] of [
       ['raah-management', '/api/raah/bootstrap'],
-      ['raah-notes', '/api/raah/notes'],
       ['raah-calendar', '/api/raah/calendar/status'],
     ]) {
       const { default: handler } = await import('./netlify/functions/' + name + '.mts');

@@ -42,10 +42,10 @@ export function buildAttendanceRecordsForEvent(members: RaahMember[], event: Raa
     });
 }
 
-export type RaahDataStatus = 'loading' | 'ready' | 'legacy' | 'error';
+export type RaahDataStatus = 'loading' | 'ready' | 'error';
 
 export type RaahAttendanceSummary =
-  | { status: 'loading' | 'legacy' | 'error' }
+  | { status: 'loading' | 'error' }
   | { status: 'not_recorded'; activeMemberCount: number }
   | {
       status: 'recorded';

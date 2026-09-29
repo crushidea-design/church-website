@@ -15,9 +15,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "node scripts/test-db.mjs",
-    "raah:migrate:dry-run": "node scripts/migrate-raah-notes-to-supabase.mjs",
-    "raah:migrate:sql": "node scripts/migrate-raah-notes-to-supabase.mjs --sql",
-    "raah:migrate": "node scripts/migrate-raah-notes-to-supabase.mjs --apply",
     "test:rules": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only firestore,storage \"vitest run tests/security.rules.test.ts\"",
     "test:roles": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only auth,firestore,storage \"node --import tsx tests/support/role-preview.ts\""
   },

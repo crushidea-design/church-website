@@ -6,7 +6,6 @@ import {
   CheckSquare,
   Church,
   ClipboardList,
-  FileText,
   Lock,
   LogIn,
   LogOut,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { createRaahNote, getRaahNoteDetail, listRaahNotes, migrateRaahNotesBatch, updateRaahNote } from '../features/pastoral-notes/api';
 import {
   completeRaahMinistryScheduleItem,
   createRaahGoogleCalendarEvent,
@@ -61,9 +59,7 @@ import {
 } from '../features/pastoral-notes/raahWorkflow';
 import { SYNTHETIC_MEMBER_DELETE_CONFIRM, describeSyntheticDelete } from '../features/pastoral-notes/syntheticCleanup';
 import { buildRaahAttendanceFlow, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
-import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
-import { PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
-import { createEmptyPastoralNoteInput, formatDisplayDate, normalizeMemberName, sortNotesByDate } from '../features/pastoral-notes/utils';
+import { formatDisplayDate, normalizeMemberName } from '../features/pastoral-notes/utils';
 import {
   addDaysIso,
   emptyCalendarEventForm,
@@ -73,7 +69,6 @@ import {
   emptySummary,
   formatScheduleDateRange,
   getAttendanceOption,
-  shouldUseLegacyFirestore,
   getDateForAttendanceEventType,
   getDateSpanDays,
   getErrorMessage,
@@ -100,7 +95,6 @@ import {
   LogRow,
   VisitationTab,
 } from '../features/pastoral-notes/AdminVisitationComponents';
-import { LegacyTab } from '../features/pastoral-notes/AdminLegacyComponents';
 import { MembersTab } from '../features/pastoral-notes/AdminMemberComponents';
 import { CommunionTab } from '../features/pastoral-notes/communion/CommunionTab';
 import { probeCommunionAvailability, type CommunionAvailability } from '../features/pastoral-notes/communion/api';
@@ -110,8 +104,8 @@ import { confirmDiscardChanges, useBeforeUnloadWarning } from '../features/pasto
 import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
-type StorageMode = 'loading' | 'supabase' | 'firestore';
-type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
+type StorageMode = 'loading' | 'supabase';
+type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation';
 type ScheduleViewMode = 'week' | 'month';
 
 const TEXT = {
@@ -122,7 +116,6 @@ const TEXT = {
     attendance: '출석',
     schedule: '사역일정',
     visitation: '기록',
-    legacy: '이전',
   },
   search: {
     dashboard: '성도, 기록, 구역 검색',
@@ -131,7 +124,6 @@ const TEXT = {
     attendance: '출석 체크할 성도 검색',
     schedule: '일정 제목, 성도, 메모 검색',
     visitation: '성도, 기록 유형, 요약 검색',
-    legacy: '기존 기록 성도 검색',
   },
 };
 
@@ -155,13 +147,6 @@ export default function AdminPastoralNotes() {
   const [attendanceHistory, setAttendanceHistory] = React.useState<RaahAttendanceHistoryRecord[]>([]);
   const [followUpResolutions, setFollowUpResolutions] = React.useState<RaahFollowUpResolution[]>([]);
   const [ministryScheduleItems, setMinistryScheduleItems] = React.useState<RaahMinistryScheduleItem[]>([]);
-  const [legacyNotes, setLegacyNotes] = React.useState<PastoralNote[]>([]);
-  const [legacyLoaded, setLegacyLoaded] = React.useState(false);
-  const [isLegacyLoading, setIsLegacyLoading] = React.useState(false);
-  // Notes still waiting to move into 기록 (null = unknown); the 이전 tab disappears at 0.
-  const [legacyPendingCount, setLegacyPendingCount] = React.useState<number | null>(null);
-  // Notes moved so far while a migration runs; null when idle.
-  const [legacyMigrationProgress, setLegacyMigrationProgress] = React.useState<number | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
@@ -191,14 +176,9 @@ export default function AdminPastoralNotes() {
   const [calendarEventForm, setCalendarEventForm] = React.useState<RaahGoogleCalendarEventInput>(emptyCalendarEventForm);
   const [isCalendarEventFormOpen, setIsCalendarEventFormOpen] = React.useState(false);
 
-  const [legacyForm, setLegacyForm] = React.useState<PastoralNoteInput>(createEmptyPastoralNoteInput);
   // Snapshots taken when each form opens, so closing or replacing it can warn about unsaved edits.
   const [logFormBaseline, setLogFormBaseline] = React.useState<RaahVisitationLogInput>(logForm);
   const [memberFormBaseline, setMemberFormBaseline] = React.useState<RaahMemberInput>(memberForm);
-  const [legacyFormBaseline, setLegacyFormBaseline] = React.useState<PastoralNoteInput>(legacyForm);
-  const [selectedLegacyNoteId, setSelectedLegacyNoteId] = React.useState<string | null>(null);
-  const [editingLegacyNoteId, setEditingLegacyNoteId] = React.useState<string | null>(null);
-  const [isLegacyFormOpen, setIsLegacyFormOpen] = React.useState(false);
 
   const loadManagementData = React.useCallback(async () => {
     if (!user) return;
@@ -210,7 +190,6 @@ export default function AdminPastoralNotes() {
       attendanceHistory: nextAttendanceHistory,
       followUpResolutions: nextFollowUpResolutions,
       ministryScheduleItems: nextScheduleItems,
-      legacyPendingCount: nextLegacyPendingCount,
     } = await getRaahBootstrap(attendanceDate, user);
     const nextAttendance = selectAttendanceEvent(nextAttendanceEvents, activeAttendanceEventType);
     const attendanceOption = getAttendanceOption(activeAttendanceEventType);
@@ -222,7 +201,6 @@ export default function AdminPastoralNotes() {
     setAttendanceHistory(nextAttendanceHistory);
     setFollowUpResolutions(nextFollowUpResolutions);
     setMinistryScheduleItems(nextScheduleItems);
-    setLegacyPendingCount(nextLegacyPendingCount);
     setAttendanceServiceType(nextAttendance?.serviceType || attendanceOption.serviceType);
     setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? attendanceOption.includesCommunion);
     setAttendanceMemo(nextAttendance?.memo || '');
@@ -242,20 +220,6 @@ export default function AdminPastoralNotes() {
     }
   }, [user]);
 
-  const loadLegacyNotes = React.useCallback(async () => {
-    if (!user) return [];
-    setIsLegacyLoading(true);
-    try {
-      const nextNotes = sortNotesByDate(await listRaahNotes(user));
-      setLegacyNotes(nextNotes);
-      setSelectedLegacyNoteId((currentId) => (currentId && nextNotes.some((note) => note.id === currentId) ? currentId : null));
-      setLegacyLoaded(true);
-      return nextNotes;
-    } finally {
-      setIsLegacyLoading(false);
-    }
-  }, [user]);
-
   React.useEffect(() => {
     if (authLoading) return;
     if (role !== 'admin' || !user) {
@@ -265,7 +229,6 @@ export default function AdminPastoralNotes() {
     }
 
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
 
     const start = async () => {
       setIsLoading(true);
@@ -275,26 +238,12 @@ export default function AdminPastoralNotes() {
         await loadCalendarStatus();
         if (!cancelled) setStorageMode('supabase');
       } catch (error) {
-        if (shouldUseLegacyFirestore(error)) {
-          setStorageMode('firestore');
-          setLegacyLoaded(true);
-          toast.info('Supabase 설정 전입니다. 기존 Firestore 호환 모드로 기록을 불러옵니다.');
-          unsubscribe = subscribePastoralNotes(
-            (nextNotes) => {
-              if (cancelled) return;
-              const sorted = sortNotesByDate(nextNotes);
-              setLegacyNotes(sorted);
-              setSelectedLegacyNoteId((currentId) => (currentId && sorted.some((note) => note.id === currentId) ? currentId : null));
-            },
-            (firestoreError) => {
-              console.error('Error loading pastoral notes:', firestoreError);
-              toast.error(getErrorMessage(firestoreError, '기존 RAAH 기록을 불러오지 못했습니다.'));
-            }
-          );
-        } else {
-          console.error('Error loading RAAH data:', error);
-          toast.error(getErrorMessage(error, 'RAAH 데이터를 불러오지 못했습니다.'));
-        }
+        console.error('Error loading RAAH data:', error);
+        toast.error(
+          (error as { code?: string } | null)?.code === 'RAAH_SUPABASE_NOT_CONFIGURED'
+            ? '목양 저장소가 설정되지 않았습니다.'
+            : getErrorMessage(error, 'RAAH 데이터를 불러오지 못했습니다.')
+        );
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -304,22 +253,8 @@ export default function AdminPastoralNotes() {
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
     };
   }, [authLoading, loadCalendarStatus, loadManagementData, role, user]);
-
-  React.useEffect(() => {
-    if (activeTab !== 'legacy' || legacyLoaded || isLegacyLoading || storageMode !== 'supabase') return;
-    loadLegacyNotes().catch((error) => {
-      toast.error(getErrorMessage(error, '기존 RAAH 기록을 불러오지 못했습니다.'));
-    });
-  }, [activeTab, isLegacyLoading, legacyLoaded, loadLegacyNotes, storageMode]);
-
-  // Hide 이전 once nothing is left to move; unknown (null) and the Firestore fallback keep it.
-  const showLegacyTab = storageMode !== 'supabase' || legacyPendingCount === null || legacyPendingCount > 0;
-  React.useEffect(() => {
-    if (!showLegacyTab && activeTab === 'legacy') setActiveTab('visitation');
-  }, [activeTab, showLegacyTab]);
 
   // The communion menu exists only when its API answers for this account (plan 5.1).
   React.useEffect(() => {
@@ -338,18 +273,11 @@ export default function AdminPastoralNotes() {
 
   const canDecrypt = Boolean(user) && storageMode === 'supabase';
   const loadLogDetail = React.useCallback((logId: string) => getRaahVisitationLogDetail(logId, user!), [user]);
-  const loadLegacyNoteDetail = React.useCallback((noteId: string) => getRaahNoteDetail(noteId, user!), [user]);
   const {
     value: decryptedLog,
     setValue: setDecryptedLog,
     isLoading: isDetailLoading,
   } = useDecryptedDetail<RaahVisitationLog>(selectedLogId, canDecrypt, loadLogDetail, '선택한 기록을 복호화하지 못했습니다.');
-  const { value: decryptedLegacyNote, setValue: setDecryptedLegacyNote } = useDecryptedDetail<PastoralNote>(
-    selectedLegacyNoteId,
-    canDecrypt,
-    loadLegacyNoteDetail,
-    '기존 기록을 복호화하지 못했습니다.'
-  );
 
   const normalizedSearch = normalizeMemberName(searchTerm);
   const selectedMember = members.find((member) => member.id === selectedMemberId) || null;
@@ -367,14 +295,11 @@ export default function AdminPastoralNotes() {
     ? 'loading'
     : storageMode === 'supabase'
       ? 'ready'
-      : storageMode === 'firestore'
-        ? 'legacy'
-        : 'error';
+      : 'error';
   const savedAttendanceSummary = summarizeSavedAttendance(dataStatus, members, attendance);
   const activeAttendanceOption = getAttendanceOption(activeAttendanceEventType);
   const isLogFormDirty = isLogFormOpen && hasFormChanges(logForm, logFormBaseline);
   const isMemberFormDirty = isMemberFormOpen && hasFormChanges(memberForm, memberFormBaseline);
-  const isLegacyFormDirty = isLegacyFormOpen && hasFormChanges(legacyForm, legacyFormBaseline);
   const isAttendanceDirty =
     dataStatus === 'ready' &&
     hasAttendanceDraftChanges(
@@ -386,7 +311,7 @@ export default function AdminPastoralNotes() {
         memo: attendance?.memo || '',
       }
     );
-  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isLegacyFormDirty || isAttendanceDirty || isCommunionDraftDirty;
+  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isAttendanceDirty || isCommunionDraftDirty;
   useBeforeUnloadWarning(hasUnsavedChanges);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
@@ -404,14 +329,11 @@ export default function AdminPastoralNotes() {
     const text = [item.title, getScheduleMemberLabel(item), item.memo, item.itemType, item.date, item.endDate].join(' ').toLocaleLowerCase('ko-KR');
     return !normalizedSearch || text.includes(normalizedSearch);
   });
-  const filteredLegacyNotes = legacyNotes.filter((note) => !normalizedSearch || note.memberSearchName.includes(normalizedSearch));
   const selectedLog = selectedLogId ? (decryptedLog?.id === selectedLogId ? decryptedLog : logs.find((log) => log.id === selectedLogId) ?? null) : null;
-  const selectedLegacyNote =
-    selectedLegacyNoteId ? (decryptedLegacyNote?.id === selectedLegacyNoteId ? decryptedLegacyNote : legacyNotes.find((note) => note.id === selectedLegacyNoteId) ?? null) : null;
 
   const refreshSupabase = async () => {
     if (!user || storageMode !== 'supabase') return;
-    await Promise.all([loadManagementData(), legacyLoaded || activeTab === 'legacy' ? loadLegacyNotes() : Promise.resolve([])]);
+    await loadManagementData();
   };
 
   const handleConnectCalendar = async () => {
@@ -598,41 +520,6 @@ export default function AdminPastoralNotes() {
     setIsScheduleFormOpen(false);
   };
 
-  const openLegacyFormForEdit = (note: PastoralNote) => {
-    if (storageMode === 'supabase') {
-      if (decryptedLegacyNote?.id !== note.id) {
-        toast.error('기록 본문을 아직 불러오지 못해 수정할 수 없습니다. 다른 기록을 선택한 뒤 다시 열어 주세요.');
-        return;
-      }
-      note = decryptedLegacyNote;
-    }
-    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
-    const nextForm: PastoralNoteInput = {
-      memberName: note.memberName,
-      date: note.date,
-      meetingType: note.meetingType,
-      currentSituation: note.currentSituation || '',
-      encouragement: note.encouragement || '',
-      prayerTopics: note.prayerTopics || '',
-      nextFollowUpDate: note.nextFollowUpDate || '',
-      remarks: note.remarks || '',
-    };
-    setEditingLegacyNoteId(note.id);
-    setLegacyForm(nextForm);
-    setLegacyFormBaseline(nextForm);
-    setIsLegacyFormOpen(true);
-    setActiveTab('legacy');
-  };
-
-  const openNewLegacyForm = () => {
-    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
-    const nextForm = createEmptyPastoralNoteInput();
-    setEditingLegacyNoteId(null);
-    setLegacyForm(nextForm);
-    setLegacyFormBaseline(nextForm);
-    setIsLegacyFormOpen(true);
-  };
-
   const closeLogForm = () => {
     if (!confirmDiscardChanges(isLogFormDirty)) return;
     setIsLogFormOpen(false);
@@ -651,13 +538,6 @@ export default function AdminPastoralNotes() {
     // A visit form prefilled for one member must not stay open for another.
     if (isMemberScheduleForm && memberId !== selectedMemberId) closeScheduleForm();
     setSelectedMemberId(memberId);
-  };
-
-  const closeLegacyForm = () => {
-    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
-    setIsLegacyFormOpen(false);
-    setEditingLegacyNoteId(null);
-    setLegacyForm(createEmptyPastoralNoteInput());
   };
 
   const changeAttendanceDate = (date: string) => {
@@ -876,77 +756,6 @@ export default function AdminPastoralNotes() {
     }
   };
 
-  const handleMigrateLegacy = async () => {
-    if (!user || isSaving || legacyMigrationProgress !== null) return;
-    const total = legacyPendingCount ?? legacyNotes.length;
-    if (
-      !window.confirm(
-        `이전 기록 ${total}건을 기록 탭으로 옮길까요?\n\n원본은 지우지 않고 보관합니다. 옮긴 기록은 기록 탭에서 확인하고 수정할 수 있습니다.`
-      )
-    ) {
-      return;
-    }
-
-    let migrated = 0;
-    let skipped = 0;
-    setLegacyMigrationProgress(0);
-    try {
-      // Skipped notes stay pending, so each call steps over them; stop when nothing is left or nothing was processed.
-      for (;;) {
-        const batch = await migrateRaahNotesBatch(skipped, user);
-        migrated += batch.migrated;
-        skipped += batch.skipped.length;
-        setLegacyMigrationProgress(migrated);
-        if (batch.remaining <= 0 || batch.processed === 0) break;
-      }
-      if (migrated > 0) {
-        toast.success(`이전 기록 ${migrated}건을 옮겼습니다.${skipped > 0 ? ` 옮기지 못한 기록 ${skipped}건은 이전 탭에 남아 있습니다.` : ''}`);
-      } else if (skipped > 0) {
-        toast.error(`옮기지 못한 기록 ${skipped}건은 이전 탭에 남아 있습니다.`);
-      }
-    } catch (error) {
-      toast.error(getErrorMessage(error, '이전 기록을 옮기지 못했습니다.'));
-    } finally {
-      setLegacyMigrationProgress(null);
-      try {
-        await Promise.all([loadManagementData(), loadLegacyNotes()]);
-      } catch (error) {
-        toast.error(getErrorMessage(error, 'RAAH 데이터를 다시 불러오지 못했습니다.'));
-      }
-    }
-  };
-
-  const handleLegacySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user || isSaving) return;
-    if (!legacyForm.memberName.trim() || !legacyForm.date || !legacyForm.currentSituation.trim() || !legacyForm.encouragement.trim() || !legacyForm.prayerTopics.trim()) {
-      toast.error('성도 이름, 날짜, 현재 상황, 권면 내용, 기도 제목을 입력해 주세요.');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      if (storageMode === 'firestore') {
-        const created = await createPastoralNote(legacyForm, user);
-        setSelectedLegacyNoteId(created.id);
-        toast.success('기존 Firestore 호환 모드로 저장했습니다.');
-      } else {
-        const created = editingLegacyNoteId ? await updateRaahNote(editingLegacyNoteId, legacyForm, user) : await createRaahNote(legacyForm, user);
-        setSelectedLegacyNoteId(created.id);
-        setDecryptedLegacyNote(created);
-        toast.success(editingLegacyNoteId ? '기존 RAAH 기록을 수정했습니다.' : '기존 RAAH 기록을 Supabase에 암호화해 저장했습니다.');
-        await loadLegacyNotes();
-      }
-      setIsLegacyFormOpen(false);
-      setEditingLegacyNoteId(null);
-      setLegacyForm(createEmptyPastoralNoteInput());
-    } catch (error) {
-      toast.error(getErrorMessage(error, '기존 RAAH 기록을 저장하지 못했습니다.'));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f3f6f8]">
@@ -989,7 +798,6 @@ export default function AdminPastoralNotes() {
     { id: 'attendance', label: TEXT.tabs.attendance, icon: <CheckSquare size={18} /> },
     { id: 'schedule', label: TEXT.tabs.schedule, icon: <CalendarDays size={18} /> },
     { id: 'visitation', label: TEXT.tabs.visitation, icon: <ClipboardList size={18} /> },
-    ...(showLegacyTab ? [{ id: 'legacy' as const, label: TEXT.tabs.legacy, icon: <FileText size={18} /> }] : []),
   ];
 
   const switchTab = (tabId: ActiveTab) => {
@@ -999,7 +807,6 @@ export default function AdminPastoralNotes() {
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
-    setDecryptedLegacyNote(null);
   };
 
   return (
@@ -1038,7 +845,7 @@ export default function AdminPastoralNotes() {
 
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
               <Lock size={12} />
-              {storageMode === 'supabase' ? '암호화 저장' : storageMode === 'firestore' ? 'Firestore 호환' : '저장소 확인 중'}
+              {storageMode === 'supabase' ? '암호화 저장' : '저장소 확인 중'}
             </span>
 
             {!subdomainMode && (
@@ -1067,7 +874,7 @@ export default function AdminPastoralNotes() {
               <p className="mt-2 text-sm leading-5 text-white/75">목양 돌봄 기록과 후속 계획을 한 곳에서 관리합니다.</p>
               <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
                 <Lock size={12} />
-                {storageMode === 'supabase' ? '암호화 저장' : storageMode === 'firestore' ? 'Firestore 호환' : '저장소 확인 중'}
+                {storageMode === 'supabase' ? '암호화 저장' : '저장소 확인 중'}
               </span>
             </div>
 
@@ -1129,7 +936,7 @@ export default function AdminPastoralNotes() {
                     <h1 className="text-xl font-semibold tracking-tight text-[#17202b] sm:text-2xl">RAAH 목양 관리</h1>
                     <span className={shell.badge}>
                       <Lock size={12} />
-                      {storageMode === 'supabase' ? '암호화 저장' : storageMode === 'firestore' ? 'Firestore 호환' : '저장소 확인 중'}
+                      {storageMode === 'supabase' ? '암호화 저장' : '저장소 확인 중'}
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-[#607080]">찾고, 체크하고, 기록하는 목양 관리 앱</p>
@@ -1340,29 +1147,6 @@ export default function AdminPastoralNotes() {
               />
             )}
 
-            {activeTab === 'legacy' && (
-              <LegacyTab
-                notes={filteredLegacyNotes}
-                selectedNote={selectedLegacyNote}
-                selectedNoteId={selectedLegacyNoteId}
-                setSelectedNoteId={setSelectedLegacyNoteId}
-                clearDecrypted={() => setDecryptedLegacyNote(null)}
-                isLoading={isLegacyLoading}
-                isFormOpen={isLegacyFormOpen}
-                isSaving={isSaving}
-                form={legacyForm}
-                setForm={setLegacyForm}
-                editing={Boolean(editingLegacyNoteId)}
-                onSubmit={handleLegacySubmit}
-                onCloseForm={closeLegacyForm}
-                onNew={openNewLegacyForm}
-                onEdit={openLegacyFormForEdit}
-                canEdit={storageMode === 'supabase'}
-                pendingCount={legacyPendingCount}
-                migrationProgress={legacyMigrationProgress}
-                onMigrate={handleMigrateLegacy}
-              />
-            )}
           </div>
         </main>
       </div>
@@ -1533,8 +1317,6 @@ function describeAttendanceSummary(summary: RaahAttendanceSummary) {
       return { headline: '…', detail: '불러오는 중' };
     case 'error':
       return { headline: '—', detail: '출석을 불러오지 못했습니다' };
-    case 'legacy':
-      return { headline: '—', detail: '호환 모드에서는 출석을 표시하지 않습니다' };
     case 'not_recorded':
       return { headline: '—', detail: '아직 저장된 출석부가 없습니다' };
     case 'recorded': {

@@ -105,7 +105,7 @@ describe('summarizeSavedAttendance', () => {
     records,
   });
 
-  it.each(['loading', 'legacy', 'error'] as const)('reports %s without inventing counts', (status) => {
+  it.each(['loading', 'error'] as const)('reports %s without inventing counts', (status) => {
     expect(summarizeSavedAttendance(status, members, event([record('a', true)]))).toEqual({ status });
   });
 

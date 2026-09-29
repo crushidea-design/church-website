@@ -14,7 +14,7 @@ type Encrypted = { iv: string; tag: string; ciphertext: string };
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
-// Same scheme as raah-management / raah-notes / raah-calendar (AES-256-GCM, SHA-256 key).
+// Same scheme as raah-management / raah-calendar (AES-256-GCM, SHA-256 key).
 function canDecrypt(payload: Encrypted | string | null, secret: string) {
   try {
     const encrypted = typeof payload === 'string' ? (JSON.parse(payload) as Encrypted) : payload;
@@ -65,7 +65,6 @@ async function main() {
 
   const tables: Array<{ table: string; column: string; label: string }> = [
     { table: 'raah_visitation_logs', column: 'encrypted_payload', label: '심방·상담 기록' },
-    { table: 'raah_notes', column: 'encrypted_payload', label: '이전 RAAH 기록' },
     { table: 'raah_calendar_connections', column: 'encrypted_token', label: 'Google 캘린더 연결 토큰' },
   ];
 

@@ -177,7 +177,7 @@ P1A에서는 시행 하나와 주기 하나를 연결하는 화면만 먼저 만
 
 목양자는 질문 안내를 참고하되 모든 항목을 기계적으로 완료할 필요가 없다. 대화에서 실제로 들은 내용, 목양자의 해석, 전한 말씀과 권면, 함께 기도한 내용, 다음 돌봄을 구분해 기록한다.
 
-대화 중 입력은 선택이다. 최소 메모 후 나중에 정리하는 사용도 지원한다. 현재 긴 메모 옮기기 흐름을 재사용하되 외부 AI 전송 기능으로 바꾸지 않는다.
+대화 중 입력은 선택이다. 최소 메모 후 나중에 정리하는 사용도 지원한다. 최소한의 메모는 기록 필드에 바로 적고, 외부 AI는 사용하지 않는다.
 
 ### 7.4 정리와 후속 돌봄
 
@@ -580,7 +580,7 @@ Supabase의 `service_role` 권한은 RLS를 우회할 수 있다. 따라서 현 
 
 세례·입교·성찬회원 필드의 초기값은 미확인이다. 과거 성찬 참여 체크나 `직분`으로 채워 넣지 않는다. 교회가 가진 원자료를 근거로 사람이 확인해 입력한다.
 
-이전 RAAH 기록(`raah_notes`, 옛 `이전` 탭)은 2026-09-29 6건 모두 `raah_visitation_logs`로 옮겼다(`20261003000000_raah_legacy_note_migration.sql`, 이전 탭의 옮기기 버튼). 원본은 `migrated_to_log_id`로 표시만 하고 지우지 않았다. 옮긴 기록을 한동안 확인한 뒤 원본 삭제와 남은 이전 코드(`raah-notes.mts`, `AdminLegacyComponents.tsx`, Firestore 호환 모드) 정리를 따로 결정한다.
+이전 RAAH 기록(`raah_notes`, 옛 `이전` 탭)은 2026-09-29 6건 모두 `raah_visitation_logs`로 옮겼다(`20261003000000_raah_legacy_note_migration.sql`, 이전 탭의 옮기기 버튼). 원본은 `migrated_to_log_id`로 표시만 하고 지우지 않았다. 옮긴 기록을 한동안 확인한 뒤 원본 삭제와 남은 이전 코드(`raah-notes.mts`, `AdminLegacyComponents.tsx`, Firestore 호환 모드) 정리를 따로 결정한다. 이후 2026-09-29에 이전 코드(`raah-notes.mts`, `AdminLegacyComponents.tsx`)와 Firestore 호환 모드를 제거했고, `raah_notes` 테이블은 병합 후 `20261004000000_raah_drop_legacy_notes.sql`로 삭제한다.
 
 기존 후속 조치 완료 기록은 보존한다. 새 과제 모델로 옮길 때 `legacy source + id`의 유일성으로 중복을 막는다. 원문을 복제해 여러 군데 저장하지 않고 연결한다. 기존 완료 상태를 다시 미완료로 만드는 일괄 이전은 금지한다.
 
