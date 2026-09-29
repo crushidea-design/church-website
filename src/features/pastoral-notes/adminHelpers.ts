@@ -27,6 +27,19 @@ export function getScheduleTypeLabel(value: RaahMinistryScheduleItemInput['itemT
   return SCHEDULE_TYPES.find((type) => type.value === value)?.label || '기타';
 }
 
+// Calendar cards are tinted by type so filled days stand out from the grey empty cells.
+const SCHEDULE_TYPE_TONES: Record<RaahMinistryScheduleItemInput['itemType'], string> = {
+  visitation: 'border-[#b8dccd] border-l-[#2e6b5f] bg-[#eef7f3]',
+  counseling: 'border-[#d6cfee] border-l-[#6a5aa8] bg-[#f4f1fb]',
+  task: 'border-[#ecd9b4] border-l-[#b7791f] bg-[#fbf4e6]',
+  meeting: 'border-[#c7d8ef] border-l-[#2f5f9e] bg-[#edf3fb]',
+  other: 'border-[#d5dee5] border-l-[#607080] bg-[#f0f3f6]',
+};
+
+export function getScheduleTypeTone(value: RaahMinistryScheduleItemInput['itemType']) {
+  return SCHEDULE_TYPE_TONES[value] || SCHEDULE_TYPE_TONES.other;
+}
+
 export function getScheduleMemberLabel(item: Pick<RaahMinistryScheduleItem, 'itemType' | 'memberName'>) {
   if (item.itemType !== 'visitation' && item.itemType !== 'counseling') return '';
   return item.memberName || '';

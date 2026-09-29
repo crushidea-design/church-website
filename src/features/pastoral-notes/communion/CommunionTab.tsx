@@ -80,6 +80,7 @@ export function CommunionTab({
   attendanceHistory,
   onOpenLog,
   onDraftDirtyChange,
+  onWorkspaceDataChanged,
 }: {
   user: User;
   members: RaahMember[];
@@ -87,6 +88,8 @@ export function CommunionTab({
   attendanceHistory: RaahAttendanceHistoryRecord[];
   onOpenLog: (logId: string) => void;
   onDraftDirtyChange: (dirty: boolean) => void;
+  /** New records and schedule slots made here live in the page's shared lists; reload them. */
+  onWorkspaceDataChanged: () => void;
 }) {
   const periods = useLoad('periods', () => listCommunionPeriods(user));
   // Unsaved work can sit in the person panel, the roster editor or the new-period form.
@@ -246,6 +249,7 @@ export function CommunionTab({
               if (confirmDiscardChanges(draftDirty)) onOpenLog(logId);
             }}
             onChanged={detail.reload}
+            onWorkspaceDataChanged={onWorkspaceDataChanged}
             onDraftDirtyChange={setPanelDirty}
           />
         ) : (
@@ -403,6 +407,7 @@ function PersonPanel({
   onBack,
   onOpenLog,
   onChanged,
+  onWorkspaceDataChanged,
   onDraftDirtyChange,
 }: {
   review: CommunionReview;
@@ -413,6 +418,7 @@ function PersonPanel({
   onBack: () => void;
   onOpenLog: (logId: string) => void;
   onChanged: () => void;
+  onWorkspaceDataChanged: () => void;
   onDraftDirtyChange: (dirty: boolean) => void;
 }) {
   const detail = useLoad(review.id, () => getCommunionReview(review.id, user));
@@ -485,7 +491,7 @@ function PersonPanel({
             onOpenLog={onOpenLog}
             onChanged={refreshAll}
           />
-          <CareTasksSection memberId={review.memberId} sources={taskSources} user={user} disabled={!editable} onDirtyChange={setTaskDirty} />
+          <CareTasksSection memberId={review.memberId} sources={taskSources} user={user} disabled={!editable} onDirtyChange={setTaskDirty} onScheduleCreated={onWorkspaceDataChanged} />
         </>
       )}
       {!editable && <p className="mt-2 text-xs text-[#607080]">마감된 주기이거나 명부에서 제외된 성도라 변경할 수 없습니다.</p>}
@@ -522,7 +528,16 @@ function PersonPanel({
       {detail.result.state === 'ready' && editable && (
         // Conversations go on open care only; a confirmed or closed review is reopened first (with a reason).
         ['not_started', 'scheduled', 'in_progress'].includes(detail.result.data.review.status) ? (
-          <ConversationForm detail={detail.result.data} user={user} disabled={!editable} onDirtyChange={setConversationDirty} onSaved={refreshAll} />
+          <ConversationForm
+            detail={detail.result.data}
+            user={user}
+            disabled={!editable}
+            onDirtyChange={setConversationDirty}
+            onSaved={() => {
+              refreshAll();
+              onWorkspaceDataChanged();
+            }}
+          />
         ) : (
           <p className="mt-4 border-t border-[#e6edf2] pt-4 text-xs text-[#607080]">
             새 대화를 기록하려면 먼저 위에서 ‘대화 진행 중으로’ 다시 열고 사유를 남겨 주세요.

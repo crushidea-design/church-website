@@ -1199,6 +1199,9 @@ export default function AdminPastoralNotes() {
                   setActiveTab('visitation');
                 }}
                 onDraftDirtyChange={setIsCommunionDraftDirty}
+                onWorkspaceDataChanged={() => {
+                  loadManagementData().catch(() => undefined);
+                }}
               />
             )}
 

@@ -34,6 +34,7 @@ export function CareTasksSection({
   user,
   disabled,
   onDirtyChange,
+  onScheduleCreated,
 }: {
   memberId: string;
   /** Where a new task can point: this review, one of its linked records, or nothing. */
@@ -41,6 +42,8 @@ export function CareTasksSection({
   user: User;
   disabled: boolean;
   onDirtyChange: (dirty: boolean) => void;
+  /** A new task can add a calendar slot; the page's schedule list must reload to show it. */
+  onScheduleCreated?: () => void;
 }) {
   const [scope, setScope] = React.useState<'active' | 'all'>('active');
   const [tasks, setTasks] = React.useState<CareTask[] | null>(null);
@@ -174,7 +177,18 @@ export function CareTasksSection({
           })}
         </ul>
       )}
-      {!disabled && <NewTaskForm memberId={memberId} sources={sources} user={user} onDirtyChange={onDirtyChange} onCreated={refresh} />}
+      {!disabled && (
+        <NewTaskForm
+          memberId={memberId}
+          sources={sources}
+          user={user}
+          onDirtyChange={onDirtyChange}
+          onCreated={(withSchedule) => {
+            refresh();
+            if (withSchedule) onScheduleCreated?.();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -190,7 +204,7 @@ function NewTaskForm({
   sources: SourceOption[];
   user: User;
   onDirtyChange: (dirty: boolean) => void;
-  onCreated: () => void;
+  onCreated: (withSchedule: boolean) => void;
 }) {
   const initialSource = sources[0]?.value || 'manual';
   const [open, setOpen] = React.useState(false);
@@ -232,7 +246,7 @@ function NewTaskForm({
       idempotencyKey.current = crypto.randomUUID();
       setDraft(emptyDraft(initialSource));
       setOpen(false);
-      onCreated();
+      onCreated(Boolean(draft.scheduleDate));
     } catch (error) {
       toast.error(getErrorMessage(error, '후속 돌봄을 만들지 못했습니다. 내용은 화면에 남아 있습니다.'));
     } finally {
