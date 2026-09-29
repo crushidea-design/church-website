@@ -83,7 +83,44 @@
 
 ### 4.1 사전 준비
 
-1. ☐ **암호화 키와 DB 백업 복구 시험.** Netlify의 `RAAH_ENCRYPTION_SECRET` 값이 안전한 곳에 따로 보관되어 있는지, Supabase 백업에서 복원했을 때 기존 기록이 그 키로 복호화되는지 확인한다(계획서 14.3·18). 이 확인 전에는 실제 목양 자료를 새로 넣지 않는다.
+1. ☐ **암호화 키와 DB 백업 복구 시험.** Netlify의 `RAAH_ENCRYPTION_SECRET` 값이 안전한 곳에 따로 보관되어 있는지, Supabase 백업에서 복원했을 때 기존 기록이 그 키로 복호화되는지 확인한다(계획서 14.3·18). 이 확인 전에는 실제 목양 자료를 새로 넣지 않는다. 절차는 4.1.1.
+
+#### 4.1.1 키 보관·백업·복구 시험 절차
+
+모든 명령은 사용자의 터미널에서 직접 실행한다. 키·DB 비밀번호·백업 내용은 채팅이나 저장소에 붙이지 않는다.
+
+1. **키 보관.** Netlify → Site configuration → Environment variables → `RAAH_ENCRYPTION_SECRET` 값을 비밀번호 관리자(예: 1Password·iCloud 키체인)에 "RAAH 암호화 키"로 저장한다. 값이 가려져 확인할 수 없으면, 처음 이 값을 만든 곳에서 찾아 보관한다. 이 키를 잃으면 암호화된 목양 기록은 복구할 수 없다.
+2. **백업 폴더.** 저장소 밖에 만든다.
+   ```bash
+   mkdir -p ~/RAAH-backups && chmod 700 ~/RAAH-backups
+   ```
+3. **운영 DB 접속 주소.** Supabase 대시보드 → Connect → Session pooler 연결 문자열(`postgresql://...`)을 복사하고 `[YOUR-PASSWORD]`를 DB 비밀번호로 바꾼다. 셸 기록에 남지 않도록 숨김 입력으로 변수에 넣는다.
+   ```bash
+   read -s RAAH_DB_URL && export RAAH_DB_URL
+   ```
+4. **백업 받기** (OrbStack이 켜져 있어야 한다).
+   ```bash
+   supabase db dump --db-url "$RAAH_DB_URL" --schema public -f ~/RAAH-backups/raah-schema-$(date +%F).sql
+   supabase db dump --db-url "$RAAH_DB_URL" --schema public --data-only -f ~/RAAH-backups/raah-data-$(date +%F).sql
+   chmod 600 ~/RAAH-backups/*.sql
+   ```
+   데이터 백업에는 성도 이름·연락처 등 평문 정보가 들어 있다. FileVault가 켜진 Mac에만 두고 메신저·메일로 보내지 않는다.
+5. **로컬에 복원.** 로컬 Supabase를 비우고 운영 데이터만 넣는다(로컬 스키마는 새 테이블까지 포함한 상위 집합).
+   ```bash
+   supabase db reset
+   docker exec -i supabase_db_church-website psql -U postgres -v ON_ERROR_STOP=1 < ~/RAAH-backups/raah-data-$(date +%F).sql
+   ```
+   여기서 오류가 나면 운영 스키마가 저장소와 다르다는 뜻이므로 오류 문구(데이터 제외)를 공유한다.
+6. **복호화 확인.** 키는 숨김 입력으로 묻고, 결과는 표별 건수만 나온다.
+   ```bash
+   npx tsx scripts/verify-backup-decrypt.ts
+   ```
+   `결과: 통과`가 나오면 이 단계 완료. `확인 불가`는 복원된 자료가 없다는 뜻, `실패`는 키가 다르거나 자료가 손상되었다는 뜻이다.
+7. **정리.** 로컬 복원본을 지운다. 백업 파일은 보관 정책을 정할 때까지 `~/RAAH-backups`에 둔다.
+   ```bash
+   supabase db reset
+   unset RAAH_DB_URL
+   ```
 2. ☐ 3.1~3.3 검토 완료.
 
 ### 4.2 코드 병합 (PR-2·PR-4 화면 변화가 즉시 배포됨)
