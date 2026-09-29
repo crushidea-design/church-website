@@ -23,6 +23,9 @@ export function LegacyTab({
   onNew,
   onEdit,
   canEdit,
+  pendingCount,
+  migrationProgress,
+  onMigrate,
 }: {
   notes: PastoralNote[];
   selectedNote: PastoralNote | null;
@@ -40,8 +43,24 @@ export function LegacyTab({
   onNew: () => void;
   onEdit: (note: PastoralNote) => void;
   canEdit: boolean;
+  /** Notes waiting to move into 기록; null when unknown. */
+  pendingCount: number | null;
+  /** Notes moved so far while a migration runs; null when idle. */
+  migrationProgress: number | null;
+  onMigrate: () => void;
 }) {
+  const isMigrating = migrationProgress !== null;
+  const count = pendingCount ?? notes.length;
   return (
+    <div className="space-y-4">
+      {canEdit && count > 0 && (
+        <div className={shell.panel + ' flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between'}>
+          <p className="text-sm leading-6 text-[#28415b]">이전 기록 {count}건을 기록 탭으로 옮깁니다. 원본은 지우지 않고 보관합니다.</p>
+          <button type="button" onClick={onMigrate} disabled={isMigrating} className={shell.button}>
+            {isMigrating ? `옮기는 중… (${migrationProgress}건 완료)` : '모두 기록 탭으로 옮기기'}
+          </button>
+        </div>
+      )}
     <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <div className={shell.panel + ' p-5'}>
         <div className="flex items-center justify-between">
@@ -82,6 +101,7 @@ export function LegacyTab({
       </div>
       <LegacyPanel isOpen={isFormOpen} isSaving={isSaving} editing={editing} form={form} setForm={setForm} selectedNote={selectedNote} onSubmit={onSubmit} onClose={onCloseForm} onEdit={onEdit} canEdit={canEdit} />
     </section>
+    </div>
   );
 }
 
