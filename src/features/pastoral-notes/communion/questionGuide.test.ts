@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GUIDE_TOPICS, composeConversationNote, emptyConversationDraft, isConversationDraftEmpty } from './questionGuide';
+import { GUIDE_GENERAL_SOURCES, GUIDE_TOPICS, composeConversationNote, emptyConversationDraft, isConversationDraftEmpty, sourcesFor } from './questionGuide';
 
 describe('composeConversationNote', () => {
   it('writes only the topics that were touched, with their scope label', () => {
@@ -29,14 +29,26 @@ describe('composeConversationNote', () => {
 });
 
 describe('GUIDE_TOPICS sources', () => {
-  it('gives every prompt at least one cited source with an https link', () => {
+  it('starts every prompt with Scripture and cites a linked confessional text', () => {
     for (const topic of GUIDE_TOPICS) {
-      expect(topic.sources.length, topic.key).toBeGreaterThan(0);
+      expect(topic.sources[0].scripture, topic.key).toBe(true);
+      const confessional = topic.sources.filter((source) => !source.scripture && !source.polity);
+      expect(confessional.length, topic.key).toBeGreaterThan(0);
+      for (const source of confessional) expect(source.url).toMatch(/^https:\/\//);
       for (const source of topic.sources) {
         expect(source.label.trim()).not.toBe('');
         expect(source.summary.trim()).not.toBe('');
-        expect(source.url).toMatch(/^https:\/\//);
       }
     }
+  });
+
+  it('shows only the configured denomination\'s constitution', () => {
+    for (const topic of GUIDE_TOPICS) {
+      const hapdong = sourcesFor(topic.sources, 'hapdong');
+      expect(hapdong.some((source) => source.polity === 'hapdong'), topic.key).toBe(true);
+      expect(hapdong.some((source) => source.polity === 'kosin')).toBe(false);
+      expect(sourcesFor(topic.sources, 'kosin').some((source) => source.polity === 'hapdong')).toBe(false);
+    }
+    expect(sourcesFor(GUIDE_GENERAL_SOURCES, 'kosin').map((source) => source.label)).toContain('고신 헌법 정치 제66조');
   });
 });
