@@ -37,7 +37,7 @@ export type ConversationDraft = {
 };
 
 export const SAFETY_NOTICE =
-  '화목에 관한 대화로 피해자에게 즉시 대면을 요구하지 않습니다. 안전 문제가 있으면 일반 관계 회복과 별도로 다루고, 필요한 경우 관계 기관과 전문 상담 절차를 따릅니다.';
+  '화목을 권할 때도 피해를 입은 분에게 바로 만나 화해하라고 요구하지 않습니다. 폭력·학대처럼 안전이 걸린 일은 관계 회복과 따로 다루고, 필요하면 관련 기관이나 전문 상담으로 연결합니다.';
 
 export function emptyConversationDraft(date: string): ConversationDraft {
   return {
