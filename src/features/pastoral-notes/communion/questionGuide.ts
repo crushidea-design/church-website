@@ -20,7 +20,7 @@ export const GUIDE_TOPICS: GuideTopic[] = [
 export type TopicCoverage = '' | 'covered' | 'deferred' | 'not_applicable';
 
 export const COVERAGE_LABELS: Record<Exclude<TopicCoverage, ''>, string> = {
-  covered: '다룸',
+  covered: '이번 대화에서 다룸',
   deferred: '다음 대화로 남김',
   not_applicable: '이번 대화에서 해당 없음',
 };
