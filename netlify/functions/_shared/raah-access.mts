@@ -1,4 +1,5 @@
 import { requireRaahAdmin, type RaahUser } from './raah-auth.mjs';
+import { timed } from './server-timing.mjs';
 
 export type RaahAccessRole = 'pastor' | 'elder' | 'clerk';
 
@@ -40,10 +41,10 @@ async function findActiveGrant(uid: string): Promise<AccessRow | null | 'unavail
     limit: '1',
   });
   try {
-    const response = await fetch(`${url}/rest/v1/raah_workspace_access?${query}`, {
+    const response = await timed('grant', () => fetch(`${url}/rest/v1/raah_workspace_access?${query}`, {
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
       signal: AbortSignal.timeout(10000),
-    });
+    }));
     if (!response.ok) return 'unavailable';
     const rows = (await response.json()) as AccessRow[];
     return Array.isArray(rows) && rows[0] ? rows[0] : null;

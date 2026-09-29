@@ -1,4 +1,5 @@
 import { supabaseRequest } from './_shared/supabase-request.mjs';
+import { withServerTiming } from './_shared/server-timing.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { requireRaahAccess, type RaahAccess } from './_shared/raah-access.mjs';
@@ -1040,7 +1041,7 @@ const handleCompleteScheduleItem = async (itemId: string, user: RaahUser) => {
   return noStoreJson({ item: rowToScheduleItem(rows[0]) });
 };
 
-export default async (req: Request, context: Context) => {
+export default withServerTiming(async (req: Request, context: Context) => {
   // Destructive test-data cleanup always needs an explicit grant, even while the global flag is off.
   const accessCheck = await requireRaahAccess(req, { requireGrant: req.method === 'DELETE' });
   if (accessCheck.response || !accessCheck.access) return accessCheck.response;
@@ -1081,7 +1082,7 @@ export default async (req: Request, context: Context) => {
   if (route === 'visitation-logs' && req.method === 'PATCH' && id) return handleUpdateLog(req, id);
 
   return noStoreJson({ error: 'Method not allowed' }, 405);
-};
+});
 
 export const config: Config = {
   path: [

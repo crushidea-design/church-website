@@ -9,6 +9,9 @@ export const shell = {
   // card; dropping the native appearance lets them shrink to the column.
   input:
     'block w-full min-w-0 [&[type=date]]:min-h-[42px] [&[type=date]]:appearance-none [&[type=time]]:min-h-[42px] [&[type=time]]:appearance-none [&::-webkit-date-and-time-value]:text-left rounded-lg border border-[#d5dee5] bg-white px-3 py-2.5 text-sm text-[#17202b] outline-none transition placeholder:text-[#8a97a3] focus:border-[#2e6b5f] focus:ring-2 focus:ring-[#2e6b5f]/15',
+  // Fixed-width field for inline rows (e.g. a date next to its buttons); shell.input is full width.
+  compactInput:
+    'w-40 shrink-0 min-w-0 [&[type=date]]:appearance-none [&::-webkit-date-and-time-value]:text-left rounded-lg border border-[#d5dee5] bg-white px-2 py-1.5 text-xs text-[#17202b] outline-none transition focus:border-[#2e6b5f] focus:ring-2 focus:ring-[#2e6b5f]/15',
   button:
     'inline-flex items-center justify-center gap-2 rounded-lg bg-[#12345a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0c2745] disabled:cursor-not-allowed disabled:opacity-60',
   ghostButton:

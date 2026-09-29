@@ -155,16 +155,19 @@ export function CareTasksSection({
                             다시 진행
                           </button>
                         )}
-                        <input
-                          type="date"
-                          aria-label={`${task.title} 연기할 날짜`}
-                          value={deferDates[task.id] || ''}
-                          onChange={(event) => setDeferDates((prev) => ({ ...prev, [task.id]: event.target.value }))}
-                          className={shell.input + ' w-auto px-2 py-1 text-xs'}
-                        />
-                        <button type="button" disabled={busyTaskId === task.id} onClick={() => changeStatus(task, 'deferred')} className={shell.ghostButton + ' px-2 py-1 text-xs'}>
-                          연기
-                        </button>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-xs text-[#607080]">연기할 날짜</span>
+                          <input
+                            type="date"
+                            aria-label={`${task.title} 연기할 날짜`}
+                            value={deferDates[task.id] || ''}
+                            onChange={(event) => setDeferDates((prev) => ({ ...prev, [task.id]: event.target.value }))}
+                            className={shell.compactInput}
+                          />
+                          <button type="button" disabled={busyTaskId === task.id} onClick={() => changeStatus(task, 'deferred')} className={shell.ghostButton + ' px-2 py-1 text-xs'}>
+                            연기
+                          </button>
+                        </span>
                         <button type="button" disabled={busyTaskId === task.id} onClick={() => changeStatus(task, 'cancelled')} className={shell.ghostButton + ' px-2 py-1 text-xs'}>
                           취소
                         </button>

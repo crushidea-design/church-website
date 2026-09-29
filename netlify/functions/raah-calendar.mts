@@ -1,3 +1,4 @@
+import { withServerTiming } from './_shared/server-timing.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { requireRaahAccess } from './_shared/raah-access.mjs';
@@ -532,7 +533,7 @@ const handleCreateEvent = async (req: Request) => {
   return noStoreJson({ item: upsert.item }, 201);
 };
 
-export default async (req: Request, _context: Context) => {
+export default withServerTiming(async (req: Request, _context: Context) => {
   const accessCheck = await requireRaahAccess(req);
   if (accessCheck.response || !accessCheck.access) return accessCheck.response;
   const pathname = new URL(req.url).pathname;
@@ -543,7 +544,7 @@ export default async (req: Request, _context: Context) => {
   if (req.method === 'POST' && pathname.endsWith('/events')) return handleCreateEvent(req);
 
   return noStoreJson({ error: 'Method not allowed' }, 405);
-};
+});
 
 export const config: Config = {
   path: ['/api/raah/calendar/status', '/api/raah/calendar/auth-url', '/api/raah/calendar/sync', '/api/raah/calendar/events'],
