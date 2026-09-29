@@ -1,5 +1,6 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Config } from '@netlify/functions';
+import { resolveGeminiModel } from './_shared/gemini-model.mjs';
 import {
   createInAppNotifications,
   getAppDb,
@@ -157,7 +158,7 @@ const callGemini = async (manuscript: string): Promise<any> => {
   const { GoogleGenAI } = await import('@google/genai');
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: resolveGeminiModel(getEnv('GEMINI_MODEL')),
     contents: AI_PROMPT_HEADER + manuscript,
     config: { responseMimeType: 'application/json' },
   });
