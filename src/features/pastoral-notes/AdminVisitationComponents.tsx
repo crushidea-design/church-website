@@ -3,7 +3,7 @@
 // editor; LogRow / CompactLog are compact list rows reused by the
 // dashboard, member hub, and visitation tab.
 import React from 'react';
-import { CalendarDays, FileText, Lock, Plus, Sparkles, UserRound } from 'lucide-react';
+import { CalendarDays, FileText, Lock, Plus, UserRound } from 'lucide-react';
 import {
   RaahCalendarStatus,
   RaahGoogleCalendarEventInput,
@@ -28,17 +28,12 @@ export function VisitationTab({
   form,
   setForm,
   editingLogId,
-  rawAiMemo,
-  setRawAiMemo,
-  aiSuggestion,
-  isAiDrafting,
   isDetailLoading,
   calendarStatus,
   calendarEventForm,
   setCalendarEventForm,
   isCalendarEventFormOpen,
   setIsCalendarEventFormOpen,
-  onAiDraft,
   onSubmit,
   onCreateCalendarEvent,
   onOpenCalendarEvent,
@@ -58,17 +53,12 @@ export function VisitationTab({
   form: RaahVisitationLogInput;
   setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
   editingLogId: string | null;
-  rawAiMemo: string;
-  setRawAiMemo: (value: string) => void;
-  aiSuggestion: string;
-  isAiDrafting: boolean;
   isDetailLoading: boolean;
   calendarStatus: RaahCalendarStatus | null;
   calendarEventForm: RaahGoogleCalendarEventInput;
   setCalendarEventForm: React.Dispatch<React.SetStateAction<RaahGoogleCalendarEventInput>>;
   isCalendarEventFormOpen: boolean;
   setIsCalendarEventFormOpen: (value: boolean) => void;
-  onAiDraft: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCreateCalendarEvent: (event: React.FormEvent<HTMLFormElement>) => void;
   onOpenCalendarEvent: (log: RaahVisitationLog) => void;
@@ -99,11 +89,6 @@ export function VisitationTab({
               form={form}
               setForm={setForm}
               editingLogId={editingLogId}
-              rawAiMemo={rawAiMemo}
-              setRawAiMemo={setRawAiMemo}
-              aiSuggestion={aiSuggestion}
-              isAiDrafting={isAiDrafting}
-              onAiDraft={onAiDraft}
               onSubmit={onSubmit}
               onClose={onCloseForm}
               onMemberSelect={onMemberSelect}
@@ -138,10 +123,6 @@ export function VisitationTab({
           form={form}
           setForm={setForm}
           editingLogId={editingLogId}
-          rawAiMemo={rawAiMemo}
-          setRawAiMemo={setRawAiMemo}
-          aiSuggestion={aiSuggestion}
-          isAiDrafting={isAiDrafting}
           selectedLog={selectedLog}
           isDetailLoading={isDetailLoading}
           calendarStatus={calendarStatus}
@@ -149,7 +130,6 @@ export function VisitationTab({
           setCalendarEventForm={setCalendarEventForm}
           isCalendarEventFormOpen={isCalendarEventFormOpen}
           setIsCalendarEventFormOpen={setIsCalendarEventFormOpen}
-          onAiDraft={onAiDraft}
           onSubmit={onSubmit}
           onCreateCalendarEvent={onCreateCalendarEvent}
           onOpenCalendarEvent={onOpenCalendarEvent}
@@ -203,11 +183,6 @@ function LogFormContent({
   form,
   setForm,
   editingLogId,
-  rawAiMemo,
-  setRawAiMemo,
-  aiSuggestion,
-  isAiDrafting,
-  onAiDraft,
   onSubmit,
   onClose,
   onMemberSelect,
@@ -217,11 +192,6 @@ function LogFormContent({
   form: RaahVisitationLogInput;
   setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
   editingLogId: string | null;
-  rawAiMemo: string;
-  setRawAiMemo: (value: string) => void;
-  aiSuggestion: string;
-  isAiDrafting: boolean;
-  onAiDraft: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
   onMemberSelect: (memberId: string) => void;
@@ -231,31 +201,6 @@ function LogFormContent({
       <div className={shell.mutedPanel + ' px-4 py-3 text-sm leading-6 text-[#28415b]'}>
         <span className={shell.badge}><Lock size={12} />보안 저장</span>
         <p className="mt-2">민감 본문은 서버에서 암호화해 저장합니다.</p>
-      </div>
-      <div className="rounded-lg border border-[#dbe3e8] bg-[#f8fafb] p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[#17202b]">긴 메모 옮기기</p>
-            <p className="mt-1 text-xs leading-5 text-[#607080]">메모를 외부로 보내지 않고 아래 내밀한 기록 칸에 옮깁니다. 기도 제목과 다음 단계는 직접 정리해 주세요.</p>
-          </div>
-          <button type="button" onClick={onAiDraft} disabled={isAiDrafting || rawAiMemo.trim().length === 0} className={shell.button + ' shrink-0'}>
-            <Sparkles size={16} />
-            {isAiDrafting ? '옮기는 중...' : '기록으로 옮기기'}
-          </button>
-        </div>
-        <textarea
-          value={rawAiMemo}
-          onChange={(event) => setRawAiMemo(event.target.value)}
-          rows={5}
-          className={`${shell.input} mt-3 leading-6`}
-          placeholder="긴 메모를 붙여넣으세요. 기록으로 옮긴 뒤 내용을 확인하고 저장해 주세요."
-        />
-        {aiSuggestion && (
-          <div className="mt-3 rounded-md border border-[#d5dee5] bg-[#ffffff] p-3 text-sm leading-6 text-[#28415b]">
-            <span className={shell.badge}><Sparkles size={12} />AI 후속 제안</span>
-            <p className="mt-2 whitespace-pre-wrap">{aiSuggestion}</p>
-          </div>
-        )}
       </div>
       <label className="block">
         <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">성도 선택</span>
@@ -294,10 +239,6 @@ export function LogPanel({
   form,
   setForm,
   editingLogId,
-  rawAiMemo,
-  setRawAiMemo,
-  aiSuggestion,
-  isAiDrafting,
   selectedLog,
   isDetailLoading,
   calendarStatus,
@@ -305,7 +246,6 @@ export function LogPanel({
   setCalendarEventForm,
   isCalendarEventFormOpen,
   setIsCalendarEventFormOpen,
-  onAiDraft,
   onSubmit,
   onCreateCalendarEvent,
   onOpenCalendarEvent,
@@ -320,10 +260,6 @@ export function LogPanel({
   form: RaahVisitationLogInput;
   setForm: React.Dispatch<React.SetStateAction<RaahVisitationLogInput>>;
   editingLogId: string | null;
-  rawAiMemo: string;
-  setRawAiMemo: (value: string) => void;
-  aiSuggestion: string;
-  isAiDrafting: boolean;
   selectedLog: RaahVisitationLog | null;
   isDetailLoading: boolean;
   calendarStatus: RaahCalendarStatus | null;
@@ -331,7 +267,6 @@ export function LogPanel({
   setCalendarEventForm: React.Dispatch<React.SetStateAction<RaahGoogleCalendarEventInput>>;
   isCalendarEventFormOpen: boolean;
   setIsCalendarEventFormOpen: (value: boolean) => void;
-  onAiDraft: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCreateCalendarEvent: (event: React.FormEvent<HTMLFormElement>) => void;
   onOpenCalendarEvent: (log: RaahVisitationLog) => void;
@@ -354,11 +289,6 @@ export function LogPanel({
             form={form}
             setForm={setForm}
             editingLogId={editingLogId}
-            rawAiMemo={rawAiMemo}
-            setRawAiMemo={setRawAiMemo}
-            aiSuggestion={aiSuggestion}
-            isAiDrafting={isAiDrafting}
-            onAiDraft={onAiDraft}
             onSubmit={onSubmit}
             onClose={onClose}
             onMemberSelect={onMemberSelect}

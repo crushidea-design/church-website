@@ -169,9 +169,6 @@ export default function AdminPastoralNotes() {
   const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
   const [editingLogId, setEditingLogId] = React.useState<string | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = React.useState(false);
-  const [rawAiMemo, setRawAiMemo] = React.useState('');
-  const [aiSuggestion, setAiSuggestion] = React.useState('');
-  const [isAiDrafting, setIsAiDrafting] = React.useState(false);
 
   const [attendanceDate, setAttendanceDate] = React.useState(getLatestSunday);
   const [attendanceServiceType, setAttendanceServiceType] = React.useState('주일예배');
@@ -363,7 +360,7 @@ export default function AdminPastoralNotes() {
         : 'error';
   const savedAttendanceSummary = summarizeSavedAttendance(dataStatus, members, attendance);
   const activeAttendanceOption = getAttendanceOption(activeAttendanceEventType);
-  const isLogFormDirty = isLogFormOpen && (hasFormChanges(logForm, logFormBaseline) || rawAiMemo.trim() !== '');
+  const isLogFormDirty = isLogFormOpen && hasFormChanges(logForm, logFormBaseline);
   const isMemberFormDirty = isMemberFormOpen && hasFormChanges(memberForm, memberFormBaseline);
   const isLegacyFormDirty = isLegacyFormOpen && hasFormChanges(legacyForm, legacyFormBaseline);
   const isAttendanceDirty =
@@ -512,8 +509,6 @@ export default function AdminPastoralNotes() {
     setDecryptedLog(null);
     setLogForm(nextForm);
     setLogFormBaseline(nextForm);
-    setRawAiMemo('');
-    setAiSuggestion('');
     setIsLogFormOpen(true);
     setActiveTab('visitation');
   };
@@ -542,8 +537,6 @@ export default function AdminPastoralNotes() {
     setDecryptedLog(log);
     setLogForm(nextForm);
     setLogFormBaseline(nextForm);
-    setRawAiMemo('');
-    setAiSuggestion('');
     setIsLogFormOpen(true);
     setActiveTab('visitation');
   };
@@ -632,8 +625,6 @@ export default function AdminPastoralNotes() {
     if (!confirmDiscardChanges(isLogFormDirty)) return;
     setIsLogFormOpen(false);
     setEditingLogId(null);
-    setRawAiMemo('');
-    setAiSuggestion('');
   };
 
   const closeMemberForm = () => {
@@ -665,21 +656,6 @@ export default function AdminPastoralNotes() {
   const leaveWorkspace = (leave: () => void) => {
     if (!confirmDiscardChanges(hasUnsavedChanges)) return;
     leave();
-  };
-
-  const handleGenerateAiDraft = () => {
-    const memo = rawAiMemo.trim();
-    if (!memo) return;
-    if ([logForm.innerNote.trim(), memo].filter(Boolean).join('\n\n').length > 5000) {
-      toast.error('내밀한 기록은 5,000자까지 저장할 수 있습니다. 메모를 나누어 옮겨 주세요.');
-      return;
-    }
-    setLogForm((prev) => ({
-      ...prev,
-      innerNote: [prev.innerNote.trim(), memo].filter(Boolean).join('\n\n'),
-    }));
-    setRawAiMemo('');
-    toast.success('메모를 내밀한 기록에 옮겼습니다. 아래 양식에서 정리한 뒤 저장해 주세요.');
   };
 
   const handleMemberSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -743,8 +719,6 @@ export default function AdminPastoralNotes() {
       setSelectedLogId(created.id);
       setDecryptedLog(created);
       setLogForm(emptyLogForm());
-      setRawAiMemo('');
-      setAiSuggestion('');
       toast.success(editingLogId ? '심방/상담 기록을 수정했습니다.' : '심방/상담 기록을 암호화해 저장했습니다.');
       await refreshSupabase();
     } catch (error) {
@@ -1298,17 +1272,12 @@ export default function AdminPastoralNotes() {
                 form={logForm}
                 setForm={setLogForm}
                 editingLogId={editingLogId}
-                rawAiMemo={rawAiMemo}
-                setRawAiMemo={setRawAiMemo}
-                aiSuggestion={aiSuggestion}
-                isAiDrafting={isAiDrafting}
                 isDetailLoading={isDetailLoading}
                 calendarStatus={calendarStatus}
                 calendarEventForm={calendarEventForm}
                 setCalendarEventForm={setCalendarEventForm}
                 isCalendarEventFormOpen={isCalendarEventFormOpen}
                 setIsCalendarEventFormOpen={setIsCalendarEventFormOpen}
-                onAiDraft={handleGenerateAiDraft}
                 onSubmit={handleLogSubmit}
                 onCreateCalendarEvent={handleCreateCalendarEvent}
                 onOpenCalendarEvent={openCalendarEventForm}
