@@ -25,13 +25,12 @@ const sessions = await Promise.all(['admin', 'member', 'teacher', 'parent'].map(
 
 try {
   const [admin, member, teacher, parent] = sessions;
-  assert.equal((await fetch('http://127.0.0.1:3101/api/raah/notes')).status, 401);
+  assert.equal((await fetch('http://127.0.0.1:3101/api/raah/bootstrap')).status, 401);
   for (const session of sessions) {
     const profileRef = doc(session.db, `users/test-${session.role}`);
     const before = (await getDoc(profileRef)).data();
     await ensureUserProfile(session.db, session.user);
     assert.deepEqual((await getDoc(profileRef)).data(), before);
-    assert.equal((await session.api('raah/notes')).status, session.role === 'admin' ? 200 : 403);
     assert.equal((await session.api('raah/bootstrap')).status, session.role === 'admin' ? 200 : 403);
     if (session.role !== 'admin') await assert.rejects(updateDoc(doc(session.db, `users/test-${session.role}`), { role: 'admin' }));
   }
@@ -55,17 +54,8 @@ try {
   assert.equal((await member.api('attachments', 'DELETE', { path })).status, 200);
   console.info('PASS: authenticated attachment upload and owner-only deletion');
 
-  const note = { memberName: '가상 성도', date: '2026-09-17', meetingType: '방문', currentSituation: '가상 기록', encouragement: '가상 권면', prayerTopics: '가상 기도' };
-  const created = await admin.api('raah/notes', 'POST', note);
-  assert.equal(created.status, 201);
-  const { note: saved } = await created.json();
-  const detail = await admin.api(`raah/notes/${saved.id}`);
-  assert.equal(detail.status, 200);
-  assert.equal((await detail.json()).note.sensitive.currentSituation, note.currentSituation);
-  assert.equal((await admin.api(`raah/notes/${saved.id}`, 'PATCH', { ...note, currentSituation: '수정한 가상 기록' })).status, 200);
-  assert.equal((await admin.api(`raah/notes/${saved.id}`, 'DELETE')).status, 200);
   assert.equal((await admin.api('raah/ai-assist', 'POST', {})).status, 410);
-  console.info('PASS: RAAH encrypted note CRUD through fixture REST, external AI disabled');
+  console.info('PASS: RAAH external AI disabled');
 } finally {
   await Promise.all(sessions.map(({ app }) => deleteApp(app)));
 }

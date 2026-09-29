@@ -144,6 +144,60 @@ describe.skipIf(!enabled)('raah-communion API against local Supabase', () => {
     expect((await call('/periods/not-a-uuid', { params: { id: 'not-a-uuid' } })).status).toBe(404);
   });
 
+  describe('previous reviews for reference', () => {
+    const makePeriod = async (name: string, startsOn: string, serviceDate: string, key: string) =>
+      (await (await call('/periods', {
+        method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify({ ...periodBody, name, startsOn, endsOn: serviceDate, serviceDate }),
+      })).json()).id as string;
+    const enrol = async (periodId: string, memberId: string) =>
+      (await (await call(`/periods/${periodId}/roster`, {
+        method: 'POST', params: { id: periodId }, body: JSON.stringify({ entries: [{ memberId, included: true }] }),
+      })).json()).reviewIds[0] as string;
+    const detailOf = async (reviewId: string) => (await call(`/reviews/${reviewId}`, { params: { id: reviewId } })).json();
+
+    it('lists only the same member\'s earlier periods, newest first, capped at 3, without log content', async () => {
+      const member = (await insert('raah_members', { name: '가상 지난주기성도', search_name: '가상지난주기성도' })).id;
+      const other = (await insert('raah_members', { name: '가상 다른성도', search_name: '가상다른성도' })).id;
+      const p1 = await makePeriod('P1 주기', '2031-01-01', '2031-01-22', 'api-prev-key-01');
+      const p2 = await makePeriod('P2 주기', '2031-03-01', '2031-03-23', 'api-prev-key-02');
+      const p3 = await makePeriod('P3 주기', '2031-05-01', '2031-05-25', 'api-prev-key-03');
+      const p4 = await makePeriod('P4 주기', '2031-07-01', '2031-07-27', 'api-prev-key-04');
+      const p5 = await makePeriod('P5 주기', '2031-09-01', '2031-09-28', 'api-prev-key-05');
+      const reviewIds: string[] = [];
+      for (const periodId of [p1, p2, p3, p4, p5]) reviewIds.push(await enrol(periodId, member));
+      await enrol(p2, other);
+
+      // Reviewed in P4, with a recorded conversation whose text must never surface.
+      await call(`/reviews/${reviewIds[3]}/logs`, {
+        method: 'POST', params: { id: reviewIds[3] }, headers: { 'Idempotency-Key': 'api-prev-log-01' },
+        body: JSON.stringify({ expectedRevision: 1, date: '2031-07-10', publicSummary: '', innerNote: 'PREVIOUS_PRIVATE_MARKER', prayerTopics: '', nextSteps: '' }),
+      });
+      await call(`/reviews/${reviewIds[3]}`, { method: 'PATCH', params: { id: reviewIds[3] }, body: JSON.stringify({ status: 'reviewed', expectedRevision: 2 }) });
+
+      const latest = await detailOf(reviewIds[4]);
+      expect(latest.previousReviews.map((entry: { periodName: string }) => entry.periodName)).toEqual(['P4 주기', 'P3 주기', 'P2 주기']);
+      expect(latest.previousReviews[0]).toMatchObject({ status: 'reviewed', periodServiceDate: '2031-07-27' });
+      expect(Object.keys(latest.previousReviews[0]).sort()).toEqual(['periodName', 'periodServiceDate', 'status', 'statusChangedAt']);
+      expect(JSON.stringify(latest.previousReviews)).not.toContain('PREVIOUS_PRIVATE_MARKER');
+
+      expect((await detailOf(reviewIds[0])).previousReviews).toEqual([]);
+      const otherDetail = await detailOf((await (await call(`/periods/${p2}`, { params: { id: p2 } })).json()).reviews.find((r: { memberId: string }) => r.memberId === other).id);
+      expect(otherDetail.previousReviews).toEqual([]);
+    });
+
+    it('starts a new period at not_started even if the member was reviewed before', async () => {
+      const member = (await insert('raah_members', { name: '가상 재등록성도', search_name: '가상재등록성도' })).id;
+      const a = await makePeriod('A 주기', '2032-01-01', '2032-01-25', 'api-prev-key-11');
+      const reviewA = await enrol(a, member);
+      await call(`/reviews/${reviewA}`, { method: 'PATCH', params: { id: reviewA }, body: JSON.stringify({ status: 'reviewed', expectedRevision: 1 }) });
+      const b = await makePeriod('B 주기', '2032-03-01', '2032-03-28', 'api-prev-key-12');
+      const reviewB = await enrol(b, member);
+      const detail = await detailOf(reviewB);
+      expect(detail.review.status).toBe('not_started');
+      expect(detail.previousReviews).toEqual([expect.objectContaining({ periodName: 'A 주기', status: 'reviewed' })]);
+    });
+  });
+
   describe('conversation records', () => {
     const conversation = {
       date: '2026-12-06',

@@ -3,11 +3,24 @@ import type { CommunionReview } from './api';
 import {
   ALLOWED_TRANSITIONS,
   DEFAULT_REVIEW_FILTER,
+  buildCloseConfirmMessage,
+  buildClosedSummaryLine,
+  buildReopenedLine,
+  OCCASION_CANCEL_CONFIRM,
   chunk,
+  describeOccasion,
+  describeParticipation,
+  formatLongDate,
+  occasionActions,
+  carryOverRoster,
   computeRosterChanges,
+  describePreviousReview,
   describePeriodProgress,
   filterReviews,
+  suggestNextPeriod,
+  toSeoulDate,
   transitionNeedsReason,
+  validateReopenReason,
   validatePeriodDraft,
 } from './workflow';
 
@@ -136,6 +149,149 @@ describe('listCommunionPeriods', () => {
       expect(await probeCommunionAvailability(user)).toBe('hidden');
     } finally {
       fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe('period close and reopen text', () => {
+  const byStatus = { not_started: 2, scheduled: 1, in_progress: 1, reviewed: 8, closed_without_contact: 0 };
+
+  it('states the counts and consequences before closing', () => {
+    const message = buildCloseConfirmMessage({ included: 12, byStatus });
+    expect(message).toContain('목양 확인 8명, 미확인 2명');
+    expect(message).toContain('대상 12명');
+    expect(message).toContain('명부와 진행 상태를 바꿀 수 없고');
+    expect(message).toContain('후속 돌봄은 그대로 남습니다');
+    expect(message).not.toMatch(/%|\d+점/);
+  });
+
+  it('builds the closed summary line from the snapshot, without percentages', () => {
+    const line = buildClosedSummaryLine('2026년 10월 5일', { included: 12, excluded: 1, byStatus, openCareTasks: 3 });
+    expect(line).toBe('마감 2026년 10월 5일 · 목양 확인 8명 / 대상 12명 · 미확인 2명 · 진행 중 후속 돌봄 3건');
+    expect(line).not.toContain('%');
+  });
+
+  it('falls back to the date alone when no snapshot exists', () => {
+    expect(buildClosedSummaryLine('2026년 10월 5일', null)).toBe('마감 2026년 10월 5일');
+  });
+
+  it('builds the reopened line', () => {
+    expect(buildReopenedLine('2026년 10월 12일', '마감 뒤 추가 면담')).toBe('다시 엶: 2026년 10월 12일 · 마감 뒤 추가 면담');
+  });
+
+  it('validates the reopen reason', () => {
+    expect(validateReopenReason('   ')).toBe('다시 여는 이유를 적어 주세요.');
+    expect(validateReopenReason('가'.repeat(201))).toBe('다시 여는 이유는 200자까지 쓸 수 있습니다.');
+    expect(validateReopenReason(' 마감 뒤 추가 면담 ')).toBeNull();
+    expect(validateReopenReason('가'.repeat(200))).toBeNull();
+  });
+
+  it('converts a UTC timestamp to the Seoul calendar date', () => {
+    expect(toSeoulDate('2026-10-05T16:00:00Z')).toBe('2026-10-06');
+    expect(toSeoulDate('2026-10-05T14:59:00Z')).toBe('2026-10-05');
+    expect(toSeoulDate(null)).toBe('');
+    expect(toSeoulDate('nope')).toBe('');
+  });
+});
+
+describe('next period suggestion', () => {
+  const occasion = (serviceDate: string, status = 'held') => ({ serviceDate, status });
+
+  it('adds two months and moves to the following Sunday', () => {
+    // 2026-09-27 + 2 months = 2026-11-27 (Friday) -> Sunday 2026-11-29
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [occasion('2026-09-27')] })).toEqual({
+      name: '2026년 11월 성찬 목양',
+      startsOn: '2026-11-08',
+      endsOn: '2026-11-29',
+      serviceDate: '2026-11-29',
+    });
+  });
+
+  it('keeps a date that is already a Sunday', () => {
+    // 2026-08-04 + 2 months = 2026-10-04, already a Sunday
+    expect(suggestNextPeriod({ endsOn: '', occasions: [occasion('2026-08-04')] }).serviceDate).toBe('2026-10-04');
+  });
+
+  it('clamps at month end', () => {
+    // 2026-12-31 + 2 months -> 2027-02-28 (Sunday)
+    expect(suggestNextPeriod({ endsOn: '2026-12-31', occasions: [occasion('2026-12-31')] }).serviceDate).toBe('2027-02-28');
+    // leap year: 2027-12-31 + 2 months -> 2028-02-29 (Tuesday) -> 2028-03-05
+    expect(suggestNextPeriod({ endsOn: '', occasions: [occasion('2027-12-31')] }).serviceDate).toBe('2028-03-05');
+  });
+
+  it('rolls over the year', () => {
+    const next = suggestNextPeriod({ endsOn: '', occasions: [occasion('2026-11-29')] });
+    // 2027-01-29 (Friday) -> 2027-01-31
+    expect(next).toMatchObject({ name: '2027년 1월 성찬 목양', serviceDate: '2027-01-31', startsOn: '2027-01-10', endsOn: '2027-01-31' });
+  });
+
+  it('ignores cancelled occasions and falls back to the end date without one', () => {
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [occasion('2026-01-04', 'cancelled'), occasion('2026-09-27')] }).serviceDate).toBe('2026-11-29');
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [] }).serviceDate).toBe('2026-11-29');
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [occasion('2026-01-04', 'cancelled')] }).serviceDate).toBe('2026-11-29');
+  });
+});
+
+describe('carry-over roster', () => {
+  it('keeps included members that are still active', () => {
+    const reviews = [
+      { memberId: 'a', rosterState: 'included' as const },
+      { memberId: 'b', rosterState: 'excluded' as const },
+      { memberId: 'c', rosterState: 'included' as const },
+      { memberId: 'gone', rosterState: 'included' as const },
+    ];
+    const members = [{ id: 'a', status: 'active' }, { id: 'b', status: 'active' }, { id: 'c', status: 'inactive' }];
+    expect([...carryOverRoster(reviews, members)]).toEqual(['a']);
+  });
+});
+
+describe('describePreviousReview', () => {
+  it('shows the period, status label and Seoul date', () => {
+    expect(describePreviousReview({ periodName: '2026년 10월 성찬 목양', status: 'reviewed', statusChangedAt: '2026-10-01T03:00:00Z' })).toBe(
+      '2026년 10월 성찬 목양 · 목양 확인 (2026-10-01)'
+    );
+  });
+});
+
+describe('communion services', () => {
+  it('formats the date and status without timezone drift', () => {
+    expect(formatLongDate('2026-10-04')).toBe('2026년 10월 4일');
+    expect(describeOccasion({ serviceDate: '2026-10-13', status: 'scheduled' })).toBe('2026년 10월 13일 · 예정');
+    expect(describeOccasion({ serviceDate: '2026-10-13', status: 'held' })).toBe('2026년 10월 13일 · 시행됨');
+    expect(describeOccasion({ serviceDate: '2026-10-13', status: 'cancelled' })).toBe('2026년 10월 13일 · 취소됨');
+  });
+
+  it('offers actions by status and none once the period is closed', () => {
+    expect(occasionActions('scheduled', false)).toEqual(['held', 'move', 'cancel']);
+    expect(occasionActions('held', false)).toEqual(['undo']);
+    expect(occasionActions('cancelled', false)).toEqual(['undo']);
+    for (const status of ['scheduled', 'held', 'cancelled'] as const) expect(occasionActions(status, true)).toEqual([]);
+  });
+
+  it('says that cancelling keeps pastoral records and follow-up care', () => {
+    expect(OCCASION_CANCEL_CONFIRM).toContain('목양 기록과 후속 돌봄은 그대로 남습니다');
+  });
+
+  it('keeps the next-period suggestion on the first non-cancelled service', () => {
+    const suggestion = suggestNextPeriod({
+      endsOn: '2026-10-25',
+      occasions: [
+        { serviceDate: '2026-10-04', status: 'cancelled' },
+        { serviceDate: '2026-10-25', status: 'scheduled' },
+      ],
+    });
+    expect(suggestion.serviceDate).toBe('2026-12-27');
+  });
+});
+
+describe('describeParticipation', () => {
+  it('states the fact plainly, without judgement wording', () => {
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'participated' })).toBe('10월 13일 · 참여');
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'not_recorded' })).toBe('10월 13일 · 참여 기록 없음');
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'no_attendance_event' })).toBe('10월 13일 · 그날 출석 기록이 없습니다');
+    expect(describeParticipation({ serviceDate: '2026-10-13', fact: 'upcoming' })).toBe('10월 13일 · 예정');
+    for (const fact of ['participated', 'not_recorded', 'no_attendance_event', 'upcoming'] as const) {
+      expect(describeParticipation({ serviceDate: '2026-10-13', fact })).not.toMatch(/불참|결석|미참여|부적격/);
     }
   });
 });

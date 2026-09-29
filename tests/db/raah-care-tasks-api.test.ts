@@ -142,6 +142,28 @@ describe.skipIf(!enabled)('raah-care-tasks API against local Supabase', () => {
     expect(all.tasks.map((task: { id: string }) => task.id)).toContain(created.taskId);
   });
 
+  it('lists only the caller\'s active tasks with the member name for assignee=me, without detail', async () => {
+    await insert('raah_care_tasks', {
+      member_id: otherMember, source_type: 'manual', source_id: null, assignee_uid: 'uid-someone-else', title: '타인 배정 돌봄',
+      status_changed_by: 'uid-someone-else', created_by: 'uid-someone-else',
+    });
+    const response = await call('?assignee=me');
+    expect(response.status).toBe(200);
+    const { tasks } = await response.json();
+    expect(tasks.length).toBeGreaterThan(0);
+    expect(tasks.every((task: { assigneeUid: string }) => task.assigneeUid === 'uid-care-pastor')).toBe(true);
+    expect(tasks.map((task: { title: string }) => task.title)).not.toContain('타인 배정 돌봄');
+    expect(tasks.every((task: { status: string }) => task.status === 'open' || task.status === 'deferred')).toBe(true);
+    expect(tasks).toContainEqual(expect.objectContaining({ memberName: '가상 돌봄성도' }));
+    expect(JSON.stringify(tasks)).not.toContain('PRIVATE_TASK_MARKER');
+    expect(tasks.every((task: Record<string, unknown>) => !('detail' in task))).toBe(true);
+  });
+
+  it('rejects an assignee other than me', async () => {
+    expect((await call('?assignee=uid-someone-else')).status).toBe(422);
+    expect((await call('?assignee=')).status).toBe(422);
+  });
+
   it('is closed to browser keys', async () => {
     expect((await db('raah_care_tasks?select=*', {}, anonKey!)).ok).toBe(false);
     const rpc = await db('rpc/raah_rpc_set_care_task_status', { method: 'POST', body: JSON.stringify({ p_workspace: 'default' }) }, anonKey!);

@@ -8,7 +8,6 @@ const anonKey = process.env.RAAH_TEST_ANON_KEY;
 const enabled = Boolean(url && serviceKey && anonKey);
 
 const RAAH_TABLES = [
-  'raah_notes',
   'raah_members',
   'raah_visitation_logs',
   'raah_attendance_events',
@@ -53,11 +52,10 @@ describe.skipIf(!enabled)('RAAH baseline schema (local Supabase only)', () => {
     expect(response.status).toBe(200);
   });
 
-  it.each(['raah_members', 'raah_visitation_logs', 'raah_notes'])('hides %s rows from the anon key', async (table) => {
+  it.each(['raah_members', 'raah_visitation_logs'])('hides %s rows from the anon key', async (table) => {
     const seed: Record<string, object> = {
       raah_members: { name: '가상 성도', search_name: '가상성도' },
       raah_visitation_logs: { member_name: '가상 성도', member_search_name: '가상성도', date: '2026-01-04', log_type: '심방', encrypted_payload: {} },
-      raah_notes: { member_name: '가상 성도', member_search_name: '가상성도', date: '2026-01-04', meeting_type: '심방', encrypted_payload: {} },
     };
     const insert = await rest(table, serviceKey!, { method: 'POST', body: JSON.stringify(seed[table]) });
     expect(insert.status, await insert.clone().text()).toBe(201);
@@ -67,7 +65,7 @@ describe.skipIf(!enabled)('RAAH baseline schema (local Supabase only)', () => {
     expect(rows).toEqual([]);
   });
 
-  it.each(['raah_members', 'raah_notes'])('rejects anon inserts into %s', async (table) => {
+  it.each(['raah_members', 'raah_visitation_logs'])('rejects anon inserts into %s', async (table) => {
     const response = await rest(table, anonKey!, {
       method: 'POST',
       body: JSON.stringify({ name: '가상', search_name: '가상', member_name: '가상', member_search_name: '가상' }),

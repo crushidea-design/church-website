@@ -1,4 +1,4 @@
-import type { CommunionReview, CommunionReviewStatus } from './api';
+import type { CommunionClosingSummary, CommunionOccasionStatus, CommunionReview, CommunionReviewStatus, ParticipationFact } from './api';
 
 // Screen names for pastoral progress (plan 8.1). These describe the care
 // conversation only — never readiness or admission to the Lord's Supper.
@@ -106,4 +106,145 @@ export function validatePeriodDraft(draft: PeriodDraft) {
     return '성찬 시행일은 주기 기간 안에 있어야 합니다.';
   }
   return null;
+}
+
+// ───── Closing and reopening a period ─────
+
+export const REOPEN_REASON_MAX = 200;
+
+/** Timestamps from the server are UTC; the church works in Seoul time. Returns YYYY-MM-DD, or '' if unreadable. */
+export function toSeoulDate(timestamp: string | null | undefined) {
+  if (!timestamp) return '';
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(parsed);
+}
+
+/** Shown before closing; counts come from the period as currently loaded. */
+export function buildCloseConfirmMessage(counts: { included: number; byStatus: Record<CommunionReviewStatus, number> }) {
+  return (
+    `목양 확인 ${counts.byStatus.reviewed}명, 미확인 ${counts.byStatus.not_started}명 (대상 ${counts.included}명)으로 마감합니다. ` +
+    '마감하면 명부와 진행 상태를 바꿀 수 없고, 진행 중인 후속 돌봄은 그대로 남습니다.'
+  );
+}
+
+/** "마감 10월 5일 · 목양 확인 8명 / 대상 10명 · 미확인 2명 · 진행 중 후속 돌봄 3건" — counts only, no percentages. */
+export function buildClosedSummaryLine(closedDate: string, summary: CommunionClosingSummary | null) {
+  const head = `마감 ${closedDate}`;
+  if (!summary) return head;
+  return (
+    `${head} · ${describePeriodProgress(summary)} · 미확인 ${summary.byStatus.not_started}명` +
+    ` · 진행 중 후속 돌봄 ${summary.openCareTasks}건`
+  );
+}
+
+export function buildReopenedLine(reopenedDate: string, reason: string) {
+  return `다시 엶: ${reopenedDate} · ${reason}`;
+}
+
+/** Returns a message for the reopen reason's first problem, or null. */
+export function validateReopenReason(reason: string) {
+  const trimmed = reason.trim();
+  if (!trimmed) return '다시 여는 이유를 적어 주세요.';
+  if (trimmed.length > REOPEN_REASON_MAX) return `다시 여는 이유는 ${REOPEN_REASON_MAX}자까지 쓸 수 있습니다.`;
+  return null;
+}
+
+// ───── Next period (plan 6, 7.6) ─────
+
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return { year, month, day };
+}
+
+/** Date-only arithmetic on YYYY-MM-DD strings (UTC), so no timezone drift. */
+function addDays(value: string, days: number) {
+  const { year, month, day } = parseIsoDate(value);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}`;
+}
+
+/** Adds calendar months and clamps the day to the target month's end (12-31 + 2 → end of Feb). */
+function addMonths(value: string, months: number) {
+  const { year, month, day } = parseIsoDate(value);
+  const index = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(index / 12);
+  const targetMonth = index % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return `${targetYear}-${pad2(targetMonth + 1)}-${pad2(Math.min(day, lastDay))}`;
+}
+
+function onOrAfterSunday(value: string) {
+  const { year, month, day } = parseIsoDate(value);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return addDays(value, (7 - weekday) % 7);
+}
+
+/**
+ * The next communion is two months later, on a Sunday. Only a suggestion for
+ * the form: the previous period's roster or statuses are not part of it.
+ */
+export function suggestNextPeriod(period: { endsOn: string; occasions: Array<{ serviceDate: string; status: string }> }): PeriodDraft {
+  const occasion = [...period.occasions].filter((entry) => entry.status !== 'cancelled').sort((a, b) => a.serviceDate.localeCompare(b.serviceDate))[0];
+  const serviceDate = onOrAfterSunday(addMonths(occasion?.serviceDate ?? period.endsOn, 2));
+  const { year, month } = parseIsoDate(serviceDate);
+  return { name: `${year}년 ${month}월 성찬 목양`, startsOn: addDays(serviceDate, -21), endsOn: serviceDate, serviceDate };
+}
+
+/** Previous roster as a suggestion: included members who still exist and are active. Nothing is saved from this. */
+export function carryOverRoster(
+  previousReviews: Array<Pick<CommunionReview, 'memberId' | 'rosterState'>>,
+  members: Array<{ id: string; status: string }>
+) {
+  const active = new Set(members.filter((member) => member.status === 'active').map((member) => member.id));
+  return new Set(previousReviews.filter((review) => review.rosterState === 'included' && active.has(review.memberId)).map((review) => review.memberId));
+}
+
+/** "2026년 10월 성찬 목양 · 목양 확인 (2026-10-01)" — reference only, never completes the current review. */
+export function describePreviousReview(entry: { periodName: string; status: CommunionReviewStatus; statusChangedAt: string }) {
+  const date = toSeoulDate(entry.statusChangedAt);
+  return `${entry.periodName} · ${REVIEW_STATUS_LABELS[entry.status]}${date ? ` (${date})` : ''}`;
+}
+
+// ───── Communion services and participation facts (plan 6, 7.6, 16.3) ─────
+
+export const OCCASION_STATUS_LABELS: Record<CommunionOccasionStatus, string> = { scheduled: '예정', held: '시행됨', cancelled: '취소됨' };
+
+export const OCCASION_CANCEL_CONFIRM = '이 성찬 시행을 취소합니다. 목양 기록과 후속 돌봄은 그대로 남습니다.';
+
+/** "2026년 10월 13일" from YYYY-MM-DD, without a Date (no timezone drift). */
+export function formatLongDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${Number(match[1])}년 ${Number(match[2])}월 ${Number(match[3])}일` : value;
+}
+
+/** "2026년 10월 13일 · 예정" */
+export function describeOccasion(occasion: { serviceDate: string; status: CommunionOccasionStatus }) {
+  return `${formatLongDate(occasion.serviceDate)} · ${OCCASION_STATUS_LABELS[occasion.status]}`;
+}
+
+/** Which actions to offer; the database decides what is allowed. Closed periods are read-only. */
+export function occasionActions(status: CommunionOccasionStatus, periodClosed: boolean): Array<'held' | 'move' | 'cancel' | 'undo'> {
+  if (periodClosed) return [];
+  return status === 'scheduled' ? ['held', 'move', 'cancel'] : ['undo'];
+}
+
+export const PARTICIPATION_TITLE = '성찬 참여 (출석 기록 기준)';
+export const PARTICIPATION_HINT =
+  '사실 확인용이며 목양 진행 상태와 연결되지 않습니다. 참여 기록이 없어도 사정 확인이 필요할 뿐 판단 근거가 아닙니다.';
+
+const PARTICIPATION_FACT_LABELS: Record<ParticipationFact, string> = {
+  participated: '참여',
+  not_recorded: '참여 기록 없음',
+  no_attendance_event: '그날 출석 기록이 없습니다',
+  upcoming: '예정',
+};
+
+/** "10월 13일 · 참여" */
+export function describeParticipation(entry: { serviceDate: string; fact: ParticipationFact }) {
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(entry.serviceDate);
+  const day = match ? `${Number(match[1])}월 ${Number(match[2])}일` : entry.serviceDate;
+  return `${day} · ${PARTICIPATION_FACT_LABELS[entry.fact]}`;
 }

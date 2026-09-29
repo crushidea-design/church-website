@@ -11,7 +11,8 @@ import { EmptyState, MiniCount, SyntheticBadge } from '../AdminPrimitives';
 import { getErrorMessage } from '../adminHelpers';
 import { REAL_MEMBERS_IN_PERIOD_MESSAGE, TEST_PERIOD_DELETE_CONFIRM, canDeleteTestPeriod } from '../syntheticCleanup';
 import { formatDisplayDate } from '../utils';
-import { deleteCommunionPeriod, getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
+import { closeCommunionPeriod, deleteCommunionPeriod, getCommunionPeriod, getCommunionReview, listCommunionPeriods, reopenCommunionPeriod, type CommunionPeriod, type CommunionReview } from './api';
+import { OccasionList } from './OccasionList';
 import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
 import { CreatePeriodForm, RosterEditor } from './PeriodSetup';
 import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
@@ -21,8 +22,21 @@ import {
   PROGRESS_DISCLAIMER,
   REVIEW_STATUS_LABELS,
   REVIEW_STATUS_ORDER,
+  REOPEN_REASON_MAX,
+  buildCloseConfirmMessage,
+  buildClosedSummaryLine,
+  buildReopenedLine,
+  carryOverRoster,
   describePeriodProgress,
+  PARTICIPATION_HINT,
+  PARTICIPATION_TITLE,
+  describeParticipation,
+  describePreviousReview,
   filterReviews,
+  suggestNextPeriod,
+  toSeoulDate,
+  validateReopenReason,
+  type PeriodDraft,
   type ReviewFilter,
 } from './workflow';
 
@@ -84,6 +98,7 @@ export function CommunionTab({
   onOpenLog,
   onDraftDirtyChange,
   onWorkspaceDataChanged,
+  requestedPeriod,
 }: {
   user: User;
   members: RaahMember[];
@@ -93,6 +108,8 @@ export function CommunionTab({
   onDraftDirtyChange: (dirty: boolean) => void;
   /** New records and schedule slots made here live in the page's shared lists; reload them. */
   onWorkspaceDataChanged: () => void;
+  /** Opens this period (e.g. from the home panel). A new nonce makes a repeated request for the same period work. */
+  requestedPeriod?: { periodId: string; nonce: number } | null;
 }) {
   const periods = useLoad('periods', () => listCommunionPeriods(user));
   // Unsaved work can sit in the person panel, the roster editor or the new-period form.
@@ -105,11 +122,17 @@ export function CommunionTab({
   React.useEffect(() => onDraftDirtyChange(draftDirty), [draftDirty, onDraftDirtyChange]);
   const [isCreating, setIsCreating] = React.useState(false);
   const [isEditingRoster, setIsEditingRoster] = React.useState(false);
+  // "다음 주기 만들기": the suggested form values and the previous roster to preselect afterwards.
+  const [nextSeed, setNextSeed] = React.useState<{ draft: PeriodDraft; memberIds: Set<string> } | null>(null);
+  const [carryOver, setCarryOver] = React.useState<{ periodId: string; memberIds: Set<string> } | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<string | null>(null);
   const detail = useLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<ReviewFilter>(DEFAULT_REVIEW_FILTER);
   const [isDeletingPeriod, setIsDeletingPeriod] = React.useState(false);
+  const [isChangingPeriod, setIsChangingPeriod] = React.useState(false);
+  // null = the reopen form is closed; a string (even empty) = it is open with that draft.
+  const [reopenDraft, setReopenDraft] = React.useState<string | null>(null);
 
   const selectReview = (reviewId: string | null) => {
     if (reviewId === selectedReviewId || !confirmDiscardChanges(draftDirty)) return;
@@ -122,11 +145,25 @@ export function CommunionTab({
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
     setIsEditingRoster(false);
+    setReopenDraft(null);
+    setNextSeed(null);
+    setCarryOver(null);
   };
+
+  const handledRequestNonce = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!requestedPeriod || handledRequestNonce.current === requestedPeriod.nonce) return;
+    handledRequestNonce.current = requestedPeriod.nonce;
+    selectPeriod(requestedPeriod.periodId);
+    // selectPeriod is recreated each render; the request's nonce decides when to act.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPeriod]);
 
   const openCreatedPeriod = (periodId: string) => {
     setIsCreating(false);
     periods.reload();
+    setCarryOver(nextSeed ? { periodId, memberIds: nextSeed.memberIds } : null);
+    setNextSeed(null);
     setSelectedPeriodId(periodId);
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
@@ -198,6 +235,60 @@ export function CommunionTab({
     }
   };
 
+  const handleClosePeriod = async () => {
+    if (isChangingPeriod || !confirmDiscardChanges(draftDirty)) return;
+    if (!window.confirm(buildCloseConfirmMessage(period.counts))) return;
+    setIsChangingPeriod(true);
+    try {
+      await closeCommunionPeriod(period.id, period.revision, user);
+      toast.success('주기를 마감했습니다.');
+      onWorkspaceDataChanged();
+      setDirtyParts({ panel: false, roster: false, create: false });
+      setIsEditingRoster(false);
+      setReopenDraft(null);
+    } catch (error) {
+      toast.error(
+        (error as { status?: number })?.status === 409
+          ? '다른 곳에서 먼저 변경되었습니다. 최신 내용을 다시 불러옵니다.'
+          : getErrorMessage(error, '주기를 마감하지 못했습니다.')
+      );
+    } finally {
+      // Reload on failure too, so a stale revision or state is replaced by what the server has.
+      detail.reload();
+      periods.reload();
+      setIsChangingPeriod(false);
+    }
+  };
+
+  const handleReopenPeriod = async () => {
+    if (isChangingPeriod || reopenDraft === null) return;
+    const problem = validateReopenReason(reopenDraft);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    setIsChangingPeriod(true);
+    try {
+      await reopenCommunionPeriod(period.id, { expectedRevision: period.revision, reason: reopenDraft.trim() }, user);
+      toast.success('주기를 다시 열었습니다.');
+      onWorkspaceDataChanged();
+      setReopenDraft(null);
+    } catch (error) {
+      toast.error(
+        (error as { status?: number })?.status === 409
+          ? '다른 곳에서 먼저 변경되었습니다. 최신 내용을 다시 불러옵니다.'
+          : getErrorMessage(error, '주기를 다시 열지 못했습니다.')
+      );
+    } finally {
+      detail.reload();
+      periods.reload();
+      setIsChangingPeriod(false);
+    }
+  };
+
+  const isClosed = period.status === 'closed';
+  const closedDate = formatDisplayDate(toSeoulDate(period.closedAt));
+
   return (
     <section className="space-y-3">
       <div className={shell.panel}>
@@ -206,17 +297,91 @@ export function CommunionTab({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{period.name}</h2>
             <span className={shell.badge}>{PERIOD_STATUS_LABELS[period.status]}</span>
-            {canDeletePeriod && (
-              <button type="button" disabled={isDeletingPeriod} onClick={handleDeletePeriod} className={shell.dangerGhostButton + ' ml-auto px-3 py-1.5 text-xs'}>
-                주기 삭제
-              </button>
-            )}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {!nextSeed && (
+                <button
+                  type="button"
+                  disabled={isChangingPeriod}
+                  onClick={() => {
+                    if (!confirmDiscardChanges(draftDirty)) return;
+                    setSelectedReviewId(null);
+                    setIsEditingRoster(false);
+                    setNextSeed({ draft: suggestNextPeriod(period), memberIds: carryOverRoster(reviews, members) });
+                  }}
+                  className={shell.ghostButton + ' px-3 py-1.5 text-xs'}
+                >
+                  다음 주기 만들기
+                </button>
+              )}
+              {isClosed ? (
+                reopenDraft === null && (
+                  <button type="button" disabled={isChangingPeriod} onClick={() => setReopenDraft('')} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+                    다시 열기
+                  </button>
+                )
+              ) : (
+                <button type="button" disabled={isChangingPeriod} onClick={handleClosePeriod} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+                  주기 마감
+                </button>
+              )}
+              {canDeletePeriod && (
+                <button type="button" disabled={isDeletingPeriod} onClick={handleDeletePeriod} className={shell.dangerGhostButton + ' px-3 py-1.5 text-xs'}>
+                  주기 삭제
+                </button>
+              )}
+            </div>
           </div>
           <p className="text-sm text-[#607080]">
             {formatDisplayDate(period.startsOn)} – {formatDisplayDate(period.endsOn)}
-            {period.occasions.length > 0 && ` · 성찬 ${period.occasions.map((occasion) => formatDisplayDate(occasion.serviceDate)).join(', ')}`}
           </p>
+          <OccasionList
+            periodId={period.id}
+            occasions={period.occasions}
+            periodClosed={isClosed}
+            user={user}
+            onChanged={() => {
+              detail.reload();
+              periods.reload();
+            }}
+          />
+          {isClosed && <p className="text-sm text-[#607080]">{buildClosedSummaryLine(closedDate, period.closingSummary)}</p>}
+          {period.reopenReason && period.reopenedAt && (
+            <p className="text-xs text-[#607080]">{buildReopenedLine(formatDisplayDate(toSeoulDate(period.reopenedAt)), period.reopenReason)}</p>
+          )}
+          {isClosed && reopenDraft !== null && (
+            <form
+              className="mt-2 flex flex-wrap items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleReopenPeriod();
+              }}
+            >
+              <input
+                aria-label="다시 여는 이유 (짧고 중립적으로)"
+                placeholder="예: 마감 뒤 추가 면담"
+                value={reopenDraft}
+                maxLength={REOPEN_REASON_MAX}
+                onChange={(event) => setReopenDraft(event.target.value)}
+                className={shell.input + ' min-w-0 flex-1'}
+              />
+              <button type="submit" disabled={isChangingPeriod} className={shell.button + ' px-3 py-1.5 text-xs'}>
+                확인
+              </button>
+              <button type="button" disabled={isChangingPeriod} onClick={() => setReopenDraft(null)} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+                취소
+              </button>
+            </form>
+          )}
         </div>
+        {nextSeed && (
+          <CreatePeriodForm
+            user={user}
+            initial={nextSeed.draft}
+            onCreated={openCreatedPeriod}
+            onCancel={() => setNextSeed(null)}
+            onDirtyChange={setCreateDirty}
+          />
+        )}
         <div className="grid grid-cols-2 gap-2 border-t border-[#e6edf2] p-4 sm:grid-cols-3 lg:grid-cols-6">
           <MiniCount label="대상" value={period.counts.included} />
           {REVIEW_STATUS_ORDER.map((status) => (
@@ -236,12 +401,13 @@ export function CommunionTab({
               onSaved={detail.reload}
               onClose={() => setIsEditingRoster(false)}
               onDirtyChange={setRosterDirty}
+              initialSelection={carryOver?.periodId === period.id ? carryOver.memberIds : undefined}
             />
           ) : (
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">명부</h3>
-                {period.status !== 'closed' && (
+                {!isClosed && (
                   <button
                     type="button"
                     onClick={() => {
@@ -273,7 +439,7 @@ export function CommunionTab({
             key={selectedReview.id}
             review={selectedReview}
             user={user}
-            periodClosed={period.status === 'closed'}
+            periodClosed={isClosed}
             logs={logs}
             attendanceHistory={attendanceHistory}
             onBack={() => selectReview(null)}
@@ -321,10 +487,14 @@ function PeriodList({ periods, onSelect }: { periods: CommunionPeriod[]; onSelec
                     <p className="mt-1 text-xs text-[#607080]">
                       {formatDisplayDate(period.startsOn)} – {formatDisplayDate(period.endsOn)}
                     </p>
-                    {period.occasions.length > 0 && (
+                    {period.occasions.some((occasion) => occasion.status !== 'cancelled') && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-[#607080]">
                         <CalendarDays size={12} />
-                        성찬 {period.occasions.map((occasion) => formatDisplayDate(occasion.serviceDate)).join(', ')}
+                        성찬{' '}
+                        {period.occasions
+                          .filter((occasion) => occasion.status !== 'cancelled')
+                          .map((occasion) => formatDisplayDate(occasion.serviceDate))
+                          .join(', ')}
                       </p>
                     )}
                     <p className="mt-2 text-sm text-[#17202b]">{describePeriodProgress(period.counts)}</p>
@@ -530,6 +700,34 @@ function PersonPanel({
         </>
       )}
       {!editable && <p className="mt-2 text-xs text-[#607080]">마감된 주기이거나 명부에서 제외된 성도라 변경할 수 없습니다.</p>}
+
+      {detail.result.state === 'ready' && (detail.result.data.previousReviews ?? []).length > 0 && (
+        <div className="mt-4 rounded-md bg-[#f3f6f8] p-2">
+          <h4 className="text-xs font-semibold text-[#4b5d6d]">지난 주기</h4>
+          <p className="text-xs text-[#607080]">참고용이며 이번 목양을 대신하지 않습니다.</p>
+          <ul className="mt-1 space-y-0.5">
+            {(detail.result.data.previousReviews ?? []).map((entry, index) => (
+              <li key={index} className="text-xs text-[#4b5d6d]">
+                {describePreviousReview(entry)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {detail.result.state === 'ready' && (detail.result.data.participation ?? []).length > 0 && (
+        <div className="mt-4 rounded-md bg-[#f3f6f8] p-2">
+          <h4 className="text-xs font-semibold text-[#4b5d6d]">{PARTICIPATION_TITLE}</h4>
+          <p className="text-xs text-[#607080]">{PARTICIPATION_HINT}</p>
+          <ul className="mt-1 space-y-0.5">
+            {(detail.result.data.participation ?? []).map((entry) => (
+              <li key={entry.serviceDate} className="text-xs text-[#4b5d6d]">
+                {describeParticipation(entry)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <h4 className="mt-4 text-sm font-semibold">최근 심방 기록</h4>
       {memberLogs.length === 0 ? (

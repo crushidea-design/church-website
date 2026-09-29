@@ -28,6 +28,22 @@ describe('raah-communion handler', () => {
     expect(mocks.requireRaahAccess).toHaveBeenCalledWith(expect.any(Request), { requireGrant: true });
   });
 
+  it('answers 403 on close and reopen without a grant, before touching storage', async () => {
+    vi.stubEnv('RAAH_COMMUNION_ENABLED', 'true');
+    mocks.requireRaahAccess.mockResolvedValue({ response: new Response(null, { status: 403 }) });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const id = '11111111-1111-4111-8111-111111111111';
+    for (const action of ['close', 'reopen']) {
+      const response = await handler(
+        new Request(`https://raah.test/api/raah/communion/periods/${id}/${action}`, { method: 'POST', body: JSON.stringify({ expectedRevision: 1, reason: '이유' }) }),
+        { params: { id } } as never
+      );
+      expect(response?.status).toBe(403);
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
   it('maps known SQLSTATEs and hides unknown upstream errors', async () => {
     expect(mapUpstreamError('P0409').status).toBe(409);
     expect(mapUpstreamError('P0403').status).toBe(403);

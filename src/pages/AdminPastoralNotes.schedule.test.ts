@@ -10,7 +10,7 @@ describe('RAAH dashboard schedule form wiring', () => {
     );
     const source = `${page}\n${schedule}`;
 
-    expect(page).toContain("type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation' | 'legacy'");
+    expect(page).toContain("type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation'");
     expect(page).toContain("schedule: '사역일정'");
     expect(page).toContain("{ id: 'schedule', label: TEXT.tabs.schedule");
     expect(page).toContain("activeTab === 'schedule'");
@@ -77,23 +77,15 @@ describe('RAAH dashboard schedule form wiring', () => {
 });
 
 describe('RAAH record editing wiring', () => {
-  it('updates existing visitation logs and legacy notes instead of only creating new records', () => {
+  it('updates existing visitation logs instead of only creating new records', () => {
     const source = readFileSync(new URL('./AdminPastoralNotes.tsx', import.meta.url), 'utf8');
-    const noteApi = readFileSync(new URL('../features/pastoral-notes/api.ts', import.meta.url), 'utf8');
     const managementApi = readFileSync(new URL('../features/pastoral-notes/managementApi.ts', import.meta.url), 'utf8');
-    const notesServer = readFileSync(new URL('../../netlify/functions/raah-notes.mts', import.meta.url), 'utf8');
     const managementServer = readFileSync(new URL('../../netlify/functions/raah-management.mts', import.meta.url), 'utf8');
 
     expect(source).toContain('editingLogId');
     expect(source).toContain('openLogFormForEdit');
-    expect(source).toContain('editingLegacyNoteId');
-    expect(source).toContain('openLegacyFormForEdit');
     expect(source).toContain('editingLogId ? await updateRaahVisitationLog(editingLogId, logForm, user)');
-    expect(source).toContain('editingLegacyNoteId ? await updateRaahNote(editingLegacyNoteId, legacyForm, user)');
     expect(managementApi).toContain('export async function updateRaahVisitationLog');
-    expect(noteApi).toContain('export async function updateRaahNote');
-    expect(notesServer).toContain('const handleUpdate = async');
-    expect(notesServer).toContain("if (req.method === 'PATCH' && noteId) return handleUpdate(req, noteId);");
     expect(managementServer).toContain('const handleUpdateLog = async');
     expect(managementServer).toContain("if (route === 'visitation-logs' && req.method === 'PATCH' && id) return handleUpdateLog(req, id);");
   });

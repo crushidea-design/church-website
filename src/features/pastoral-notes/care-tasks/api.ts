@@ -36,6 +36,15 @@ export async function listCareTasks(memberId: string, scope: 'active' | 'all', u
   return (await readJsonResponse<{ tasks: CareTask[] }>(response)).tasks;
 }
 
+/** Active (open/deferred) tasks assigned to the signed-in user, across all members. Never carries the detail. */
+export async function listMyActiveCareTasks(user: User) {
+  const query = new URLSearchParams({ assignee: 'me', scope: 'active' });
+  const response = await fetch(`/api/raah/care-tasks?${query}`, { headers: await getAuthHeaders(user) });
+  const { tasks } = await readJsonResponse<{ tasks?: CareTask[] }>(response);
+  if (!Array.isArray(tasks)) throw Object.assign(new Error('RAAH care task API is not available.'), { status: 404 });
+  return tasks;
+}
+
 /** Returns the decrypted detail; the server audits each call. */
 export async function getCareTask(taskId: string, user: User) {
   const response = await fetch(`/api/raah/care-tasks/${encodeURIComponent(taskId)}`, { headers: await getAuthHeaders(user) });

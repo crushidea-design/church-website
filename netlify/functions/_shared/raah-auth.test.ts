@@ -9,7 +9,7 @@ vi.mock('firebase-admin/auth', () => ({ getAuth: () => ({ verifyIdToken: mocks.v
 import { requireRaahAdmin } from './raah-auth.mjs';
 import aiHandler from '../raah-ai-assist.mjs';
 
-const request = (token = 'test-token') => new Request('https://example.test/api/raah/notes', {
+const request = (token = 'test-token') => new Request('https://example.test/api/raah/bootstrap', {
   headers: token ? { Authorization: `Bearer ${token}` } : {},
 });
 

@@ -5,6 +5,17 @@ export type CommunionReviewStatus = 'not_started' | 'scheduled' | 'in_progress' 
 
 export type CommunionCounts = { included: number; byStatus: Record<CommunionReviewStatus, number> };
 
+export type CommunionClosingSummary = {
+  included: number;
+  excluded: number;
+  byStatus: Record<CommunionReviewStatus, number>;
+  openCareTasks: number;
+};
+
+export type CommunionOccasionStatus = 'scheduled' | 'held' | 'cancelled';
+
+export type CommunionOccasion = { id: string; serviceDate: string; status: CommunionOccasionStatus; revision: number };
+
 export type CommunionPeriod = {
   id: string;
   name: string;
@@ -14,7 +25,12 @@ export type CommunionPeriod = {
   guideVersion: string;
   ownerUid: string;
   revision: number;
-  occasions: Array<{ id: string; serviceDate: string; status: 'scheduled' | 'held' | 'cancelled' }>;
+  closedAt: string | null;
+  /** Counts taken when the period was last closed; kept after a reopen. */
+  closingSummary: CommunionClosingSummary | null;
+  reopenedAt: string | null;
+  reopenReason: string | null;
+  occasions: CommunionOccasion[];
   counts: CommunionCounts;
 };
 
@@ -69,6 +85,21 @@ export async function probeCommunionAvailability(user: User): Promise<CommunionA
 export type CommunionReviewDetail = {
   review: CommunionReview & { statusReason: string };
   logs: Array<{ id: string; date: string; logType: string; publicSummary: string; linkedAt: string }>;
+  /** Same member's earlier periods, newest first (max 3). Reference only: status and time, no content. */
+  previousReviews: CommunionPreviousReview[];
+  /** Attendance facts per non-cancelled service. Context only; never tied to the review status. */
+  participation?: CommunionParticipation[];
+};
+
+export type ParticipationFact = 'participated' | 'not_recorded' | 'no_attendance_event' | 'upcoming';
+
+export type CommunionParticipation = { serviceDate: string; occasionStatus: CommunionOccasionStatus; fact: ParticipationFact };
+
+export type CommunionPreviousReview = {
+  periodName: string;
+  periodServiceDate: string | null;
+  status: CommunionReviewStatus;
+  statusChangedAt: string;
 };
 
 export async function getCommunionReview(reviewId: string, user: User) {
@@ -147,4 +178,45 @@ export async function updateCommunionRoster(periodId: string, entries: RosterEnt
     body: JSON.stringify({ entries }),
   });
   return readJsonResponse<{ applied: number; reviewIds: string[] }>(response);
+}
+
+export async function closeCommunionPeriod(periodId: string, expectedRevision: number, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/close`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ expectedRevision }),
+  });
+  return readJsonResponse<{ revision: number; closingSummary: CommunionClosingSummary }>(response);
+}
+
+export async function reopenCommunionPeriod(periodId: string, input: { expectedRevision: number; reason: string }, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/reopen`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ revision: number }>(response);
+}
+
+export async function addCommunionOccasion(periodId: string, serviceDate: string, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/occasions`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ serviceDate }),
+  });
+  return readJsonResponse<{ id: string; revision: number }>(response);
+}
+
+/** One change per call: a new date (while scheduled) or a status change. */
+export async function updateCommunionOccasion(
+  occasionId: string,
+  input: { expectedRevision: number; status?: CommunionOccasionStatus; serviceDate?: string },
+  user: User
+) {
+  const response = await fetch(`/api/raah/communion/occasions/${encodeURIComponent(occasionId)}`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ revision: number }>(response);
 }

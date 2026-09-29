@@ -12,6 +12,8 @@ import { getErrorMessage } from '../adminHelpers';
 import { confirmDiscardChanges, useBeforeUnloadWarning } from '../hooks/useUnsavedChanges';
 import { hasFormChanges } from '../formChanges';
 import { createCommunionPeriod, updateCommunionRoster, type CommunionReview } from './api';
+import { listEcclesialSummaries } from '../ecclesial/api';
+import { communicantBadge, communicantStatusById, passesCommunicantFilter, type CommunicantStatus } from '../ecclesial/helpers';
 import { GUIDE_VERSION } from './questionGuide';
 import { ROSTER_BATCH_SIZE, chunk, computeRosterChanges, validatePeriodDraft, type PeriodDraft } from './workflow';
 
@@ -22,16 +24,20 @@ export function CreatePeriodForm({
   onCreated,
   onCancel,
   onDirtyChange,
+  initial,
 }: {
   user: User;
   onCreated: (periodId: string) => void;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** A suggested starting draft (next period). An untouched prefilled form is not "dirty". */
+  initial?: PeriodDraft;
 }) {
-  const [draft, setDraft] = React.useState<PeriodDraft>(EMPTY_PERIOD);
+  const [baseline] = React.useState<PeriodDraft>(initial ?? EMPTY_PERIOD);
+  const [draft, setDraft] = React.useState<PeriodDraft>(baseline);
   const [isSaving, setIsSaving] = React.useState(false);
   const idempotencyKey = React.useRef(crypto.randomUUID());
-  const dirty = hasFormChanges(draft, EMPTY_PERIOD);
+  const dirty = hasFormChanges(draft, baseline);
   useBeforeUnloadWarning(dirty);
   React.useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
   React.useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
@@ -93,6 +99,7 @@ export function RosterEditor({
   onSaved,
   onClose,
   onDirtyChange,
+  initialSelection,
 }: {
   periodId: string;
   members: RaahMember[];
@@ -101,24 +108,41 @@ export function RosterEditor({
   onSaved: () => void;
   onClose: () => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** Members suggested from the previous period. Not saved until the pastor saves, so it counts as unsaved changes. */
+  initialSelection?: Set<string>;
 }) {
   const [selected, setSelected] = React.useState<Set<string>>(
-    () => new Set(reviews.filter((review) => review.rosterState === 'included').map((review) => review.memberId))
+    () => new Set(initialSelection ?? reviews.filter((review) => review.rosterState === 'included').map((review) => review.memberId))
   );
   const [query, setQuery] = React.useState('');
   const [showInactive, setShowInactive] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [onlyRegistered, setOnlyRegistered] = React.useState(false);
+  // Communicant facts are optional context: the editor works without them.
+  const [communicants, setCommunicants] = React.useState<Map<string, CommunicantStatus> | null>(null);
+  const [profilesFailed, setProfilesFailed] = React.useState(false);
   const changes = computeRosterChanges(reviews, selected);
   const dirty = changes.length > 0;
   useBeforeUnloadWarning(dirty);
   React.useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
   React.useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
+  React.useEffect(() => {
+    let cancelled = false;
+    listEcclesialSummaries(user)
+      .then((profiles) => !cancelled && setCommunicants(communicantStatusById(profiles)))
+      .catch(() => !cancelled && setProfilesFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const onRoster = new Set(reviews.map((review) => review.memberId));
   const needle = query.replace(/\s/g, '').toLocaleLowerCase('ko-KR');
   const candidates = members
     // Inactive members stay visible when they are already on this roster.
     .filter((member) => showInactive || member.status === 'active' || onRoster.has(member.id))
+    .filter((member) => !communicants || passesCommunicantFilter(member.id, communicants, onlyRegistered, onRoster))
     .filter((member) => !needle || member.name.replace(/\s/g, '').toLocaleLowerCase('ko-KR').includes(needle))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
@@ -168,8 +192,9 @@ export function RosterEditor({
           닫기
         </button>
       </div>
+      {initialSelection && dirty && <p className="text-xs text-[#607080]">지난 주기 명부를 불러왔습니다. 확인 후 저장하세요.</p>}
       <p className="rounded-md bg-[#f3f6f8] p-2 text-xs text-[#4b5d6d]">
-        성찬회원 정보를 입력하는 화면이 아직 없어 활성 성도를 후보로 보여 줍니다. 명부에 넣지 않는 것은 성찬 참여 금지를 뜻하지 않으며, 제외한 성도의 목양 이력은 지워지지 않습니다.
+        후보는 활성 성도입니다. 성찬회원 정보는 성도 카드의 교회 기록에서 입력합니다. 명부에 넣지 않는 것은 성찬 참여 금지를 뜻하지 않으며, 제외한 성도의 목양 이력은 지워지지 않습니다.
       </p>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
         <input aria-label="성도 이름 검색" placeholder="이름 검색" value={query} onChange={(event) => setQuery(event.target.value)} className={shell.input} />
@@ -178,6 +203,13 @@ export function RosterEditor({
           비활성 성도도 표시
         </label>
       </div>
+      {profilesFailed && <p className="text-xs text-[#607080]">성찬회원 정보를 불러오지 못해 표시와 필터 없이 편집합니다.</p>}
+      {communicants && (
+        <label className="flex items-center gap-2 text-xs text-[#607080]">
+          <input type="checkbox" checked={onlyRegistered} onChange={(event) => setOnlyRegistered(event.target.checked)} />
+          성찬회원 등록된 성도만 표시
+        </label>
+      )}
       <div className="flex flex-wrap gap-2 text-xs">
         <button type="button" onClick={() => selectShown(true)} className={shell.ghostButton + ' px-2 py-1 text-xs'}>
           표시된 {candidates.length}명 모두 선택
@@ -192,6 +224,7 @@ export function RosterEditor({
             <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-[#f8fafb]">
               <input type="checkbox" checked={selected.has(member.id)} onChange={() => toggle(member.id)} />
               <span className="font-semibold">{member.name}{member.isSynthetic && <SyntheticBadge />}</span>
+              {communicants && <CommunicantBadge status={communicants.get(member.id)} />}
               <span className="text-xs text-[#607080]">{[member.district, member.position, member.status === 'inactive' ? '비활성' : ''].filter(Boolean).join(' · ')}</span>
             </label>
           </li>
@@ -209,4 +242,16 @@ export function RosterEditor({
       </div>
     </div>
   );
+}
+
+const BADGE_TONES = {
+  registered: 'border-[#cfddd8] bg-[#eef7f3] text-[#2e6b5f]',
+  unknown: 'border-[#dbe3e8] bg-[#f3f6f8] text-[#607080]',
+  not_registered: 'border-[#dbe3e8] bg-white text-[#607080]',
+} as const;
+
+// A fact label only: neither "unknown" nor "not registered" is a warning.
+function CommunicantBadge({ status }: { status: CommunicantStatus | undefined }) {
+  const badge = communicantBadge(status);
+  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${BADGE_TONES[badge.tone]}`}>{badge.label}</span>;
 }

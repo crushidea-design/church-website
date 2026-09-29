@@ -89,23 +89,3 @@ export async function upstream(path: string, init: RequestInit = {}): Promise<Up
 
 export const rpc = (name: string, args: Record<string, unknown>) =>
   upstream(`rpc/${name}`, { method: 'POST', body: JSON.stringify(args) });
-
-/**
- * Exact row count for a PostgREST filter (e.g. `migrated_to_log_id=is.null`) via a HEAD request,
- * so no rows are read. Null when it cannot be determined; callers decide whether that is fatal.
- */
-export async function countRows(table: string, filter: string): Promise<number | null> {
-  const config = getConfig();
-  if (!config) return null;
-  try {
-    const response = await supabaseRequest(`${config.url}/rest/v1/${table}?select=id&${filter}&limit=1`, {
-      method: 'HEAD',
-      headers: { apikey: config.serviceKey, Authorization: `Bearer ${config.serviceKey}`, Prefer: 'count=exact' },
-    });
-    if (!response.ok) return null;
-    const total = Number(response.headers.get('content-range')?.split('/')[1]);
-    return Number.isInteger(total) && total >= 0 ? total : null;
-  } catch {
-    return null;
-  }
-}
