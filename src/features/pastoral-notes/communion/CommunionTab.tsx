@@ -11,7 +11,7 @@ import { EmptyState, MiniCount, SyntheticBadge } from '../AdminPrimitives';
 import { getErrorMessage } from '../adminHelpers';
 import { REAL_MEMBERS_IN_PERIOD_MESSAGE, TEST_PERIOD_DELETE_CONFIRM, canDeleteTestPeriod } from '../syntheticCleanup';
 import { formatDisplayDate } from '../utils';
-import { deleteCommunionPeriod, getCommunionPeriod, getCommunionReview, listCommunionPeriods, type CommunionPeriod, type CommunionReview } from './api';
+import { closeCommunionPeriod, deleteCommunionPeriod, getCommunionPeriod, getCommunionReview, listCommunionPeriods, reopenCommunionPeriod, type CommunionPeriod, type CommunionReview } from './api';
 import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorkspace';
 import { CreatePeriodForm, RosterEditor } from './PeriodSetup';
 import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
@@ -21,8 +21,14 @@ import {
   PROGRESS_DISCLAIMER,
   REVIEW_STATUS_LABELS,
   REVIEW_STATUS_ORDER,
+  REOPEN_REASON_MAX,
+  buildCloseConfirmMessage,
+  buildClosedSummaryLine,
+  buildReopenedLine,
   describePeriodProgress,
   filterReviews,
+  toSeoulDate,
+  validateReopenReason,
   type ReviewFilter,
 } from './workflow';
 
@@ -113,6 +119,9 @@ export function CommunionTab({
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<ReviewFilter>(DEFAULT_REVIEW_FILTER);
   const [isDeletingPeriod, setIsDeletingPeriod] = React.useState(false);
+  const [isChangingPeriod, setIsChangingPeriod] = React.useState(false);
+  // null = the reopen form is closed; a string (even empty) = it is open with that draft.
+  const [reopenDraft, setReopenDraft] = React.useState<string | null>(null);
 
   const selectReview = (reviewId: string | null) => {
     if (reviewId === selectedReviewId || !confirmDiscardChanges(draftDirty)) return;
@@ -125,6 +134,7 @@ export function CommunionTab({
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
     setIsEditingRoster(false);
+    setReopenDraft(null);
   };
 
   const handledRequestNonce = React.useRef<number | null>(null);
@@ -210,6 +220,60 @@ export function CommunionTab({
     }
   };
 
+  const handleClosePeriod = async () => {
+    if (isChangingPeriod || !confirmDiscardChanges(draftDirty)) return;
+    if (!window.confirm(buildCloseConfirmMessage(period.counts))) return;
+    setIsChangingPeriod(true);
+    try {
+      await closeCommunionPeriod(period.id, period.revision, user);
+      toast.success('주기를 마감했습니다.');
+      onWorkspaceDataChanged();
+      setDirtyParts({ panel: false, roster: false, create: false });
+      setIsEditingRoster(false);
+      setReopenDraft(null);
+    } catch (error) {
+      toast.error(
+        (error as { status?: number })?.status === 409
+          ? '다른 곳에서 먼저 변경되었습니다. 최신 내용을 다시 불러옵니다.'
+          : getErrorMessage(error, '주기를 마감하지 못했습니다.')
+      );
+    } finally {
+      // Reload on failure too, so a stale revision or state is replaced by what the server has.
+      detail.reload();
+      periods.reload();
+      setIsChangingPeriod(false);
+    }
+  };
+
+  const handleReopenPeriod = async () => {
+    if (isChangingPeriod || reopenDraft === null) return;
+    const problem = validateReopenReason(reopenDraft);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    setIsChangingPeriod(true);
+    try {
+      await reopenCommunionPeriod(period.id, { expectedRevision: period.revision, reason: reopenDraft.trim() }, user);
+      toast.success('주기를 다시 열었습니다.');
+      onWorkspaceDataChanged();
+      setReopenDraft(null);
+    } catch (error) {
+      toast.error(
+        (error as { status?: number })?.status === 409
+          ? '다른 곳에서 먼저 변경되었습니다. 최신 내용을 다시 불러옵니다.'
+          : getErrorMessage(error, '주기를 다시 열지 못했습니다.')
+      );
+    } finally {
+      detail.reload();
+      periods.reload();
+      setIsChangingPeriod(false);
+    }
+  };
+
+  const isClosed = period.status === 'closed';
+  const closedDate = formatDisplayDate(toSeoulDate(period.closedAt));
+
   return (
     <section className="space-y-3">
       <div className={shell.panel}>
@@ -218,16 +282,57 @@ export function CommunionTab({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{period.name}</h2>
             <span className={shell.badge}>{PERIOD_STATUS_LABELS[period.status]}</span>
-            {canDeletePeriod && (
-              <button type="button" disabled={isDeletingPeriod} onClick={handleDeletePeriod} className={shell.dangerGhostButton + ' ml-auto px-3 py-1.5 text-xs'}>
-                주기 삭제
-              </button>
-            )}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {isClosed ? (
+                reopenDraft === null && (
+                  <button type="button" disabled={isChangingPeriod} onClick={() => setReopenDraft('')} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+                    다시 열기
+                  </button>
+                )
+              ) : (
+                <button type="button" disabled={isChangingPeriod} onClick={handleClosePeriod} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+                  주기 마감
+                </button>
+              )}
+              {canDeletePeriod && (
+                <button type="button" disabled={isDeletingPeriod} onClick={handleDeletePeriod} className={shell.dangerGhostButton + ' px-3 py-1.5 text-xs'}>
+                  주기 삭제
+                </button>
+              )}
+            </div>
           </div>
           <p className="text-sm text-[#607080]">
             {formatDisplayDate(period.startsOn)} – {formatDisplayDate(period.endsOn)}
             {period.occasions.length > 0 && ` · 성찬 ${period.occasions.map((occasion) => formatDisplayDate(occasion.serviceDate)).join(', ')}`}
           </p>
+          {isClosed && <p className="text-sm text-[#607080]">{buildClosedSummaryLine(closedDate, period.closingSummary)}</p>}
+          {period.reopenReason && period.reopenedAt && (
+            <p className="text-xs text-[#607080]">{buildReopenedLine(formatDisplayDate(toSeoulDate(period.reopenedAt)), period.reopenReason)}</p>
+          )}
+          {isClosed && reopenDraft !== null && (
+            <form
+              className="mt-2 flex flex-wrap items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleReopenPeriod();
+              }}
+            >
+              <input
+                aria-label="다시 여는 이유 (짧고 중립적으로)"
+                placeholder="예: 마감 뒤 추가 면담"
+                value={reopenDraft}
+                maxLength={REOPEN_REASON_MAX}
+                onChange={(event) => setReopenDraft(event.target.value)}
+                className={shell.input + ' min-w-0 flex-1'}
+              />
+              <button type="submit" disabled={isChangingPeriod} className={shell.button + ' px-3 py-1.5 text-xs'}>
+                확인
+              </button>
+              <button type="button" disabled={isChangingPeriod} onClick={() => setReopenDraft(null)} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
+                취소
+              </button>
+            </form>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2 border-t border-[#e6edf2] p-4 sm:grid-cols-3 lg:grid-cols-6">
           <MiniCount label="대상" value={period.counts.included} />
@@ -253,7 +358,7 @@ export function CommunionTab({
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">명부</h3>
-                {period.status !== 'closed' && (
+                {!isClosed && (
                   <button
                     type="button"
                     onClick={() => {
@@ -285,7 +390,7 @@ export function CommunionTab({
             key={selectedReview.id}
             review={selectedReview}
             user={user}
-            periodClosed={period.status === 'closed'}
+            periodClosed={isClosed}
             logs={logs}
             attendanceHistory={attendanceHistory}
             onBack={() => selectReview(null)}

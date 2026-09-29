@@ -1,4 +1,4 @@
-import type { CommunionReview, CommunionReviewStatus } from './api';
+import type { CommunionClosingSummary, CommunionReview, CommunionReviewStatus } from './api';
 
 // Screen names for pastoral progress (plan 8.1). These describe the care
 // conversation only — never readiness or admission to the Lord's Supper.
@@ -105,5 +105,47 @@ export function validatePeriodDraft(draft: PeriodDraft) {
   if (draft.serviceDate && (draft.serviceDate < draft.startsOn || draft.serviceDate > draft.endsOn)) {
     return '성찬 시행일은 주기 기간 안에 있어야 합니다.';
   }
+  return null;
+}
+
+// ───── Closing and reopening a period ─────
+
+export const REOPEN_REASON_MAX = 200;
+
+/** Timestamps from the server are UTC; the church works in Seoul time. Returns YYYY-MM-DD, or '' if unreadable. */
+export function toSeoulDate(timestamp: string | null | undefined) {
+  if (!timestamp) return '';
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(parsed);
+}
+
+/** Shown before closing; counts come from the period as currently loaded. */
+export function buildCloseConfirmMessage(counts: { included: number; byStatus: Record<CommunionReviewStatus, number> }) {
+  return (
+    `목양 확인 ${counts.byStatus.reviewed}명, 미확인 ${counts.byStatus.not_started}명 (대상 ${counts.included}명)으로 마감합니다. ` +
+    '마감하면 명부와 진행 상태를 바꿀 수 없고, 진행 중인 후속 돌봄은 그대로 남습니다.'
+  );
+}
+
+/** "마감 10월 5일 · 목양 확인 8명 / 대상 10명 · 미확인 2명 · 진행 중 후속 돌봄 3건" — counts only, no percentages. */
+export function buildClosedSummaryLine(closedDate: string, summary: CommunionClosingSummary | null) {
+  const head = `마감 ${closedDate}`;
+  if (!summary) return head;
+  return (
+    `${head} · ${describePeriodProgress(summary)} · 미확인 ${summary.byStatus.not_started}명` +
+    ` · 진행 중 후속 돌봄 ${summary.openCareTasks}건`
+  );
+}
+
+export function buildReopenedLine(reopenedDate: string, reason: string) {
+  return `다시 엶: ${reopenedDate} · ${reason}`;
+}
+
+/** Returns a message for the reopen reason's first problem, or null. */
+export function validateReopenReason(reason: string) {
+  const trimmed = reason.trim();
+  if (!trimmed) return '다시 여는 이유를 적어 주세요.';
+  if (trimmed.length > REOPEN_REASON_MAX) return `다시 여는 이유는 ${REOPEN_REASON_MAX}자까지 쓸 수 있습니다.`;
   return null;
 }

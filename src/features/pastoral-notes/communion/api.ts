@@ -5,6 +5,13 @@ export type CommunionReviewStatus = 'not_started' | 'scheduled' | 'in_progress' 
 
 export type CommunionCounts = { included: number; byStatus: Record<CommunionReviewStatus, number> };
 
+export type CommunionClosingSummary = {
+  included: number;
+  excluded: number;
+  byStatus: Record<CommunionReviewStatus, number>;
+  openCareTasks: number;
+};
+
 export type CommunionPeriod = {
   id: string;
   name: string;
@@ -14,6 +21,11 @@ export type CommunionPeriod = {
   guideVersion: string;
   ownerUid: string;
   revision: number;
+  closedAt: string | null;
+  /** Counts taken when the period was last closed; kept after a reopen. */
+  closingSummary: CommunionClosingSummary | null;
+  reopenedAt: string | null;
+  reopenReason: string | null;
   occasions: Array<{ id: string; serviceDate: string; status: 'scheduled' | 'held' | 'cancelled' }>;
   counts: CommunionCounts;
 };
@@ -147,4 +159,22 @@ export async function updateCommunionRoster(periodId: string, entries: RosterEnt
     body: JSON.stringify({ entries }),
   });
   return readJsonResponse<{ applied: number; reviewIds: string[] }>(response);
+}
+
+export async function closeCommunionPeriod(periodId: string, expectedRevision: number, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/close`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ expectedRevision }),
+  });
+  return readJsonResponse<{ revision: number; closingSummary: CommunionClosingSummary }>(response);
+}
+
+export async function reopenCommunionPeriod(periodId: string, input: { expectedRevision: number; reason: string }, user: User) {
+  const response = await fetch(`/api/raah/communion/periods/${encodeURIComponent(periodId)}/reopen`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  return readJsonResponse<{ revision: number }>(response);
 }

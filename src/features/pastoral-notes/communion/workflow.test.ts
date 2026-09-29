@@ -3,11 +3,16 @@ import type { CommunionReview } from './api';
 import {
   ALLOWED_TRANSITIONS,
   DEFAULT_REVIEW_FILTER,
+  buildCloseConfirmMessage,
+  buildClosedSummaryLine,
+  buildReopenedLine,
   chunk,
   computeRosterChanges,
   describePeriodProgress,
   filterReviews,
+  toSeoulDate,
   transitionNeedsReason,
+  validateReopenReason,
   validatePeriodDraft,
 } from './workflow';
 
@@ -137,5 +142,46 @@ describe('listCommunionPeriods', () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+describe('period close and reopen text', () => {
+  const byStatus = { not_started: 2, scheduled: 1, in_progress: 1, reviewed: 8, closed_without_contact: 0 };
+
+  it('states the counts and consequences before closing', () => {
+    const message = buildCloseConfirmMessage({ included: 12, byStatus });
+    expect(message).toContain('목양 확인 8명, 미확인 2명');
+    expect(message).toContain('대상 12명');
+    expect(message).toContain('명부와 진행 상태를 바꿀 수 없고');
+    expect(message).toContain('후속 돌봄은 그대로 남습니다');
+    expect(message).not.toMatch(/%|\d+점/);
+  });
+
+  it('builds the closed summary line from the snapshot, without percentages', () => {
+    const line = buildClosedSummaryLine('2026년 10월 5일', { included: 12, excluded: 1, byStatus, openCareTasks: 3 });
+    expect(line).toBe('마감 2026년 10월 5일 · 목양 확인 8명 / 대상 12명 · 미확인 2명 · 진행 중 후속 돌봄 3건');
+    expect(line).not.toContain('%');
+  });
+
+  it('falls back to the date alone when no snapshot exists', () => {
+    expect(buildClosedSummaryLine('2026년 10월 5일', null)).toBe('마감 2026년 10월 5일');
+  });
+
+  it('builds the reopened line', () => {
+    expect(buildReopenedLine('2026년 10월 12일', '마감 뒤 추가 면담')).toBe('다시 엶: 2026년 10월 12일 · 마감 뒤 추가 면담');
+  });
+
+  it('validates the reopen reason', () => {
+    expect(validateReopenReason('   ')).toBe('다시 여는 이유를 적어 주세요.');
+    expect(validateReopenReason('가'.repeat(201))).toBe('다시 여는 이유는 200자까지 쓸 수 있습니다.');
+    expect(validateReopenReason(' 마감 뒤 추가 면담 ')).toBeNull();
+    expect(validateReopenReason('가'.repeat(200))).toBeNull();
+  });
+
+  it('converts a UTC timestamp to the Seoul calendar date', () => {
+    expect(toSeoulDate('2026-10-05T16:00:00Z')).toBe('2026-10-06');
+    expect(toSeoulDate('2026-10-05T14:59:00Z')).toBe('2026-10-05');
+    expect(toSeoulDate(null)).toBe('');
+    expect(toSeoulDate('nope')).toBe('');
   });
 });

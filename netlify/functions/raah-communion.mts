@@ -40,6 +40,10 @@ type PeriodRow = {
   guide_version: string;
   owner_uid: string;
   revision: number;
+  closed_at: string | null;
+  closing_summary: unknown;
+  reopened_at: string | null;
+  reopen_reason: string | null;
   raah_communion_occasions?: Array<{ id: string; service_date: string; status: string }>;
   raah_communion_reviews?: Array<{ status: ReviewStatus; roster_state: string }>;
 };
@@ -56,7 +60,8 @@ type ReviewRow = {
 };
 
 const PERIOD_SELECT =
-  'id,name,starts_on,ends_on,status,guide_version,owner_uid,revision,raah_communion_occasions(id,service_date,status)';
+  'id,name,starts_on,ends_on,status,guide_version,owner_uid,revision,closed_at,closing_summary,reopened_at,reopen_reason,' +
+  'raah_communion_occasions(id,service_date,status)';
 
 function countReviews(reviews: Array<{ status: ReviewStatus; roster_state: string }> = []) {
   const counts = Object.fromEntries(REVIEW_STATUSES.map((status) => [status, 0])) as Record<ReviewStatus, number>;
@@ -78,6 +83,10 @@ const toPeriod = (row: PeriodRow) => ({
   guideVersion: row.guide_version,
   ownerUid: row.owner_uid,
   revision: row.revision,
+  closedAt: row.closed_at,
+  closingSummary: row.closing_summary ?? null,
+  reopenedAt: row.reopened_at,
+  reopenReason: row.reopen_reason,
   occasions: (row.raah_communion_occasions || [])
     .map((occasion) => ({ id: occasion.id, serviceDate: occasion.service_date, status: occasion.status }))
     .sort((a, b) => a.serviceDate.localeCompare(b.serviceDate)),
@@ -137,6 +146,41 @@ async function deletePeriod(access: RaahAccess, periodId: string) {
     p_workspace: access.workspaceId,
     p_actor: access.user.uid,
     p_period_id: periodId,
+  });
+  if (result.response) return result.response;
+  return json(result.data);
+}
+
+// Closing freezes roster, statuses and new conversations; care tasks are untouched.
+async function closePeriod(req: Request, access: RaahAccess, periodId: string) {
+  const body = await readJson(req);
+  const expectedRevision = body?.expectedRevision;
+  if (!Number.isInteger(expectedRevision) || (expectedRevision as number) < 1) {
+    return fail(422, '기준 버전을 확인해 주세요.', 'RAAH_INVALID_INPUT');
+  }
+  const result = await rpc('raah_rpc_close_period', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_period_id: periodId,
+    p_expected_revision: expectedRevision,
+  });
+  if (result.response) return result.response;
+  return json(result.data);
+}
+
+async function reopenPeriod(req: Request, access: RaahAccess, periodId: string) {
+  const body = await readJson(req);
+  const expectedRevision = body?.expectedRevision;
+  const reason = cleanText(body?.reason);
+  if (!Number.isInteger(expectedRevision) || (expectedRevision as number) < 1 || !reason || reason.length > 200) {
+    return fail(422, '기준 버전과 다시 여는 이유(200자 이내)를 확인해 주세요.', 'RAAH_INVALID_INPUT');
+  }
+  const result = await rpc('raah_rpc_reopen_period', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_period_id: periodId,
+    p_expected_revision: expectedRevision,
+    p_reason: reason,
   });
   if (result.response) return result.response;
   return json(result.data);
@@ -371,11 +415,14 @@ export default async (req: Request, context: Context) => {
     if (req.method === 'PATCH') return transitionReview(req, access, id);
   }
   if (pathname.endsWith('/roster') && id && req.method === 'POST') return updateRoster(req, access, id);
+  if (pathname.endsWith('/close') && id && req.method === 'POST') return closePeriod(req, access, id);
+  if (pathname.endsWith('/reopen') && id && req.method === 'POST') return reopenPeriod(req, access, id);
   if (pathname.includes('/communion/periods')) {
     if (!id && req.method === 'GET') return listPeriods(access);
     if (!id && req.method === 'POST') return createPeriod(req, access);
-    if (id && req.method === 'GET' && !pathname.endsWith('/roster')) return getPeriod(access, id);
-    if (id && req.method === 'DELETE' && !pathname.endsWith('/roster')) return deletePeriod(access, id);
+    const isPeriodItself = !/\/(roster|close|reopen)$/.test(pathname);
+    if (id && req.method === 'GET' && isPeriodItself) return getPeriod(access, id);
+    if (id && req.method === 'DELETE' && isPeriodItself) return deletePeriod(access, id);
   }
   return fail(405, 'Method not allowed', 'RAAH_METHOD_NOT_ALLOWED');
 };
@@ -385,6 +432,8 @@ export const config: Config = {
     '/api/raah/communion/periods',
     '/api/raah/communion/periods/:id',
     '/api/raah/communion/periods/:id/roster',
+    '/api/raah/communion/periods/:id/close',
+    '/api/raah/communion/periods/:id/reopen',
     '/api/raah/communion/reviews/:id',
     '/api/raah/communion/reviews/:id/logs',
   ],
