@@ -74,7 +74,7 @@ export function OccasionList({
         void submitDate();
       }}
     >
-      <input type="date" aria-label={label} value={dateDraft} onChange={(event) => setDateDraft(event.target.value)} className={shell.input} />
+      <input type="date" aria-label={label} value={dateDraft} onChange={(event) => setDateDraft(event.target.value)} className={shell.compactInput} />
       <button type="submit" disabled={busy} className={shell.button + ' px-3 py-1.5 text-xs'}>
         확인
       </button>
