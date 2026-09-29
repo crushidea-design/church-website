@@ -452,6 +452,118 @@ async function loadParticipation(access: RaahAccess, memberId: string, occasions
   return { data: buildParticipation(open, eventRows, recordRows, seoulToday()) };
 }
 
+// ───── Church-record facts (baptism, profession, communicant registration) ─────
+// Facts as the church's own records state them, with a source. Missing = unknown.
+// Unknown never bars anyone from the Supper or from care; nothing is inferred.
+
+const BAPTISM_STATUSES = ['unknown', 'not_baptized', 'baptized'];
+const PROFESSION_STATUSES = ['unknown', 'preparing', 'confirmed'];
+const COMMUNICANT_STATUSES = ['unknown', 'not_registered', 'registered'];
+
+type ProfileRow = {
+  member_id?: string;
+  baptism_status: string;
+  profession_status: string;
+  communicant_status: string;
+  verified_at: string | null;
+  source_label: string | null;
+  revision: number;
+};
+
+const toProfile = (row: ProfileRow) => ({
+  baptismStatus: row.baptism_status,
+  professionStatus: row.profession_status,
+  communicantStatus: row.communicant_status,
+  verifiedAt: row.verified_at,
+  sourceLabel: row.source_label || '',
+  revision: row.revision,
+});
+
+async function getMemberProfile(access: RaahAccess, memberId: string) {
+  const [member, profile] = await Promise.all([
+    upstream(`raah_members?${new URLSearchParams({ select: 'id', id: `eq.${memberId}`, limit: '1' })}`),
+    upstream(
+      `raah_member_ecclesial_profiles?${new URLSearchParams({
+        select: 'baptism_status,profession_status,communicant_status,verified_at,source_label,revision',
+        workspace_id: `eq.${access.workspaceId}`,
+        member_id: `eq.${memberId}`,
+        limit: '1',
+      })}`
+    ),
+  ]);
+  if (member.response) return member.response;
+  if (profile.response) return profile.response;
+  if ((member.data as unknown[]).length === 0) return fail(404, '대상을 찾을 수 없습니다.', 'RAAH_NOT_FOUND');
+  const row = (profile.data as ProfileRow[])[0];
+  return json({
+    profile: row
+      ? toProfile(row)
+      : { baptismStatus: 'unknown', professionStatus: 'unknown', communicantStatus: 'unknown', verifiedAt: null, sourceLabel: '', revision: 0 },
+  });
+}
+
+async function setMemberProfile(req: Request, access: RaahAccess, memberId: string) {
+  const body = await readJson(req);
+  const expectedRevision = body?.expectedRevision;
+  const { baptismStatus, professionStatus, communicantStatus } = body || {};
+  const sourceLabel = body?.sourceLabel === undefined || body?.sourceLabel === null ? '' : cleanText(body.sourceLabel);
+  const hasFact = baptismStatus !== 'unknown' || professionStatus !== 'unknown' || communicantStatus !== 'unknown';
+  if (
+    !Number.isInteger(expectedRevision) || (expectedRevision as number) < 0 ||
+    typeof baptismStatus !== 'string' || !BAPTISM_STATUSES.includes(baptismStatus) ||
+    typeof professionStatus !== 'string' || !PROFESSION_STATUSES.includes(professionStatus) ||
+    typeof communicantStatus !== 'string' || !COMMUNICANT_STATUSES.includes(communicantStatus) ||
+    sourceLabel.length > 120 ||
+    (hasFact && !sourceLabel)
+  ) {
+    return fail(422, '기록 상태와 출처(120자 이내)를 확인해 주세요. 미확인이 아닌 항목에는 출처가 필요합니다.', 'RAAH_INVALID_INPUT');
+  }
+  const result = await rpc('raah_rpc_set_ecclesial_profile', {
+    p_workspace: access.workspaceId,
+    p_actor: access.user.uid,
+    p_member_id: memberId,
+    p_expected_revision: expectedRevision,
+    p_baptism: baptismStatus,
+    p_profession: professionStatus,
+    p_communicant: communicantStatus,
+    p_source_label: sourceLabel || null,
+  });
+  if (result.response) return result.response;
+  return json(result.data);
+}
+
+// Light list for the roster editor: statuses only, never the source or who verified.
+// This table has no `id` column, so the shared auto-paging (which orders by id)
+// does not apply; pages are fetched here with an explicit key order.
+const PROFILE_PAGE_SIZE = 500;
+
+async function listProfiles(access: RaahAccess) {
+  const rows: ProfileRow[] = [];
+  for (let page = 0; page < 100; page += 1) {
+    const result = await upstream(
+      `raah_member_ecclesial_profiles?${new URLSearchParams({
+        select: 'member_id,baptism_status,profession_status,communicant_status',
+        workspace_id: `eq.${access.workspaceId}`,
+        order: 'member_id.asc',
+        limit: String(PROFILE_PAGE_SIZE),
+        offset: String(rows.length),
+      })}`
+    );
+    if (result.response) return result.response;
+    const batch = result.data as ProfileRow[];
+    rows.push(...batch);
+    if (batch.length < PROFILE_PAGE_SIZE) break;
+  }
+  return json({
+    profiles: rows.map((row) => ({
+      memberId: row.member_id,
+      baptismStatus: row.baptism_status,
+      professionStatus: row.profession_status,
+      communicantStatus: row.communicant_status,
+    })),
+  });
+}
+
 const textField = (value: unknown, max: number) => {
   const text = cleanText(value);
   return text.length <= max ? text : null;
@@ -527,6 +639,11 @@ export default async (req: Request, context: Context) => {
   const id = context.params?.id;
   if (id !== undefined && !UUID.test(id)) return fail(404, '대상을 찾을 수 없습니다.', 'RAAH_NOT_FOUND');
 
+  if (pathname.endsWith('/communion/profiles') && !id && req.method === 'GET') return listProfiles(access);
+  if (pathname.endsWith('/profile') && pathname.includes('/communion/members/') && id) {
+    if (req.method === 'GET') return getMemberProfile(access, id);
+    if (req.method === 'PUT') return setMemberProfile(req, access, id);
+  }
   if (pathname.endsWith('/logs') && id && req.method === 'POST') return addReviewLog(req, access, id);
   if (pathname.includes('/communion/reviews/') && id && !pathname.endsWith('/logs')) {
     if (req.method === 'GET') return getReview(access, id);
@@ -558,5 +675,7 @@ export const config: Config = {
     '/api/raah/communion/occasions/:id',
     '/api/raah/communion/reviews/:id',
     '/api/raah/communion/reviews/:id/logs',
+    '/api/raah/communion/profiles',
+    '/api/raah/communion/members/:id/profile',
   ],
 };

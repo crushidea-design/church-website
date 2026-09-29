@@ -21,10 +21,13 @@ import { DetailBlock, EmptyState, MiniCount, SyntheticBadge, TextArea, TextInput
 import { StatusMetric } from './AdminAttendanceComponents';
 import { CompactLog } from './AdminVisitationComponents';
 import { CareTasksSection, type SourceOption } from './care-tasks/CareTasksSection';
+import { EcclesialProfileSection } from './ecclesial/EcclesialProfileSection';
 
 export type MemberCareTasksConfig = {
   user: User;
   onDirtyChange: (dirty: boolean) => void;
+  /** Unsaved edits in the church-record (교회 기록) section. */
+  onProfileDirtyChange: (dirty: boolean) => void;
   onScheduleCreated: () => void;
 };
 
@@ -298,6 +301,8 @@ export function MemberHub({
           <DetailBlock label="공개 메모" value={member.publicNote || '-'} />
         </div>
       </div>
+
+      {careTasks && <EcclesialProfileSection key={`profile-${member.id}`} memberId={member.id} user={careTasks.user} onDirtyChange={careTasks.onProfileDirtyChange} />}
 
       {careTasks && (
         <CareTasksSection

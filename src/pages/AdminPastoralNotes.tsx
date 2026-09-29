@@ -139,6 +139,7 @@ export default function AdminPastoralNotes() {
   const [isCommunionDraftDirty, setIsCommunionDraftDirty] = React.useState(false);
   // The new-care-task draft in the member card; it is lost when the card closes or another member opens.
   const [isMemberTaskDirty, setIsMemberTaskDirty] = React.useState(false);
+  const [isMemberProfileDirty, setIsMemberProfileDirty] = React.useState(false);
   const [communionPeriodRequest, setCommunionPeriodRequest] = React.useState<{ periodId: string; nonce: number } | null>(null);
   const [storageMode, setStorageMode] = React.useState<StorageMode>('loading');
   const [isLoading, setIsLoading] = React.useState(true);
@@ -316,7 +317,7 @@ export default function AdminPastoralNotes() {
         memo: attendance?.memo || '',
       }
     );
-  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isAttendanceDirty || isCommunionDraftDirty || isMemberTaskDirty;
+  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isAttendanceDirty || isCommunionDraftDirty || isMemberTaskDirty || isMemberProfileDirty;
   useBeforeUnloadWarning(hasUnsavedChanges);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
@@ -541,7 +542,7 @@ export default function AdminPastoralNotes() {
   /** False when the user kept unsaved work, so callers can stay where they are. */
   const selectMember = (memberId: string | null) => {
     if (isMemberFormOpen && !closeMemberForm()) return false;
-    if (memberId !== selectedMemberId && !confirmDiscardChanges(isMemberTaskDirty)) return false;
+    if (memberId !== selectedMemberId && !confirmDiscardChanges(isMemberTaskDirty || isMemberProfileDirty)) return false;
     // A visit form prefilled for one member must not stay open for another.
     if (isMemberScheduleForm && memberId !== selectedMemberId) closeScheduleForm();
     setSelectedMemberId(memberId);
@@ -811,7 +812,7 @@ export default function AdminPastoralNotes() {
   const switchTab = (tabId: ActiveTab) => {
     // Other tabs keep their drafts in this component; the communion draft lives in the tab and is lost on leaving it.
     if (activeTab === 'communion' && tabId !== 'communion' && !confirmDiscardChanges(isCommunionDraftDirty)) return;
-    if (activeTab === 'members' && tabId !== 'members' && !confirmDiscardChanges(isMemberTaskDirty)) return;
+    if (activeTab === 'members' && tabId !== 'members' && !confirmDiscardChanges(isMemberTaskDirty || isMemberProfileDirty)) return;
     setCommunionPeriodRequest(null);
     if (isMemberScheduleForm && tabId !== 'members') closeScheduleForm();
     setActiveTab(tabId);
@@ -1061,7 +1062,7 @@ export default function AdminPastoralNotes() {
                 setForm={setMemberForm}
                 onSubmit={handleMemberSubmit}
                 onCloseForm={closeMemberForm}
-                careTasks={user && communionAvailability === 'available' ? { user, onDirtyChange: setIsMemberTaskDirty, onScheduleCreated: reloadManagementDataQuietly } : undefined}
+                careTasks={user && communionAvailability === 'available' ? { user, onDirtyChange: setIsMemberTaskDirty, onProfileDirtyChange: setIsMemberProfileDirty, onScheduleCreated: reloadManagementDataQuietly } : undefined}
               />
             )}
 
