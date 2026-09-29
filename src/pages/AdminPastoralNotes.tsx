@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarDays,
   CheckSquare,
+  Church,
   ClipboardList,
   FileText,
   Lock,
@@ -49,7 +50,14 @@ import {
   updateRaahMinistryScheduleItem,
   updateRaahVisitationLog,
 } from '../features/pastoral-notes/managementApi';
-import { buildAttendanceRecordsForEvent, filterResolvedFollowUps, selectAttendanceEvent } from '../features/pastoral-notes/raahWorkflow';
+import {
+  buildAttendanceRecordsForEvent,
+  filterResolvedFollowUps,
+  RaahAttendanceSummary,
+  RaahDataStatus,
+  selectAttendanceEvent,
+  summarizeSavedAttendance,
+} from '../features/pastoral-notes/raahWorkflow';
 import { buildRaahAttendanceFlow, RaahAttendanceFlowEvent } from '../features/pastoral-notes/attendanceFlow';
 import { createPastoralNote, subscribePastoralNotes } from '../features/pastoral-notes/firestore';
 import { PastoralNote, PastoralNoteInput } from '../features/pastoral-notes/types';
@@ -63,6 +71,7 @@ import {
   emptySummary,
   formatScheduleDateRange,
   getAttendanceOption,
+  shouldUseLegacyFirestore,
   getDateForAttendanceEventType,
   getDateSpanDays,
   getErrorMessage,
@@ -91,17 +100,23 @@ import {
 } from '../features/pastoral-notes/AdminVisitationComponents';
 import { LegacyTab } from '../features/pastoral-notes/AdminLegacyComponents';
 import { MembersTab } from '../features/pastoral-notes/AdminMemberComponents';
+import { CommunionTab } from '../features/pastoral-notes/communion/CommunionTab';
+import { probeCommunionAvailability, type CommunionAvailability } from '../features/pastoral-notes/communion/api';
+import { hasAttendanceDraftChanges, hasFormChanges } from '../features/pastoral-notes/formChanges';
+import { useDecryptedDetail } from '../features/pastoral-notes/hooks/useDecryptedDetail';
+import { confirmDiscardChanges, useBeforeUnloadWarning } from '../features/pastoral-notes/hooks/useUnsavedChanges';
 import { useAuth } from '../lib/auth';
 import { logout, signInWithGoogle } from '../lib/firebase';
 
 type StorageMode = 'loading' | 'supabase' | 'firestore';
-type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
+type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation' | 'legacy';
 type ScheduleViewMode = 'week' | 'month';
 
 const TEXT = {
   tabs: {
     dashboard: '홈',
     members: '성도',
+    communion: '성찬',
     attendance: '출석',
     schedule: '사역일정',
     visitation: '기록',
@@ -110,6 +125,7 @@ const TEXT = {
   search: {
     dashboard: '성도, 기록, 구역 검색',
     members: '이름, 구역, 직분, 연락처 검색',
+    communion: '',
     attendance: '출석 체크할 성도 검색',
     schedule: '일정 제목, 성도, 메모 검색',
     visitation: '성도, 기록 유형, 요약 검색',
@@ -123,6 +139,8 @@ export default function AdminPastoralNotes() {
   const subdomainMode = isRaahSubdomain();
 
   const [activeTab, setActiveTab] = React.useState<ActiveTab>('dashboard');
+  const [communionAvailability, setCommunionAvailability] = React.useState<CommunionAvailability>('checking');
+  const [isCommunionDraftDirty, setIsCommunionDraftDirty] = React.useState(false);
   const [storageMode, setStorageMode] = React.useState<StorageMode>('loading');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -148,9 +166,7 @@ export default function AdminPastoralNotes() {
   const [logForm, setLogForm] = React.useState<RaahVisitationLogInput>(emptyLogForm());
   const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
   const [editingLogId, setEditingLogId] = React.useState<string | null>(null);
-  const [decryptedLog, setDecryptedLog] = React.useState<RaahVisitationLog | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = React.useState(false);
-  const [isDetailLoading, setIsDetailLoading] = React.useState(false);
   const [rawAiMemo, setRawAiMemo] = React.useState('');
   const [aiSuggestion, setAiSuggestion] = React.useState('');
   const [isAiDrafting, setIsAiDrafting] = React.useState(false);
@@ -171,9 +187,12 @@ export default function AdminPastoralNotes() {
   const [isCalendarEventFormOpen, setIsCalendarEventFormOpen] = React.useState(false);
 
   const [legacyForm, setLegacyForm] = React.useState<PastoralNoteInput>(createEmptyPastoralNoteInput);
+  // Snapshots taken when each form opens, so closing or replacing it can warn about unsaved edits.
+  const [logFormBaseline, setLogFormBaseline] = React.useState<RaahVisitationLogInput>(logForm);
+  const [memberFormBaseline, setMemberFormBaseline] = React.useState<RaahMemberInput>(memberForm);
+  const [legacyFormBaseline, setLegacyFormBaseline] = React.useState<PastoralNoteInput>(legacyForm);
   const [selectedLegacyNoteId, setSelectedLegacyNoteId] = React.useState<string | null>(null);
   const [editingLegacyNoteId, setEditingLegacyNoteId] = React.useState<string | null>(null);
-  const [decryptedLegacyNote, setDecryptedLegacyNote] = React.useState<PastoralNote | null>(null);
   const [isLegacyFormOpen, setIsLegacyFormOpen] = React.useState(false);
 
   const loadManagementData = React.useCallback(async () => {
@@ -249,8 +268,7 @@ export default function AdminPastoralNotes() {
         await loadCalendarStatus();
         if (!cancelled) setStorageMode('supabase');
       } catch (error) {
-        const apiError = error as { status?: number; code?: string };
-        if (apiError.status === 503 || apiError.status === 404 || apiError.code === 'RAAH_SUPABASE_NOT_CONFIGURED') {
+        if (shouldUseLegacyFirestore(error)) {
           setStorageMode('firestore');
           setLegacyLoaded(true);
           toast.info('Supabase 설정 전입니다. 기존 Firestore 호환 모드로 기록을 불러옵니다.');
@@ -280,8 +298,6 @@ export default function AdminPastoralNotes() {
     return () => {
       cancelled = true;
       unsubscribe?.();
-      setDecryptedLog(null);
-      setDecryptedLegacyNote(null);
     };
   }, [authLoading, loadCalendarStatus, loadManagementData, role, user]);
 
@@ -292,52 +308,35 @@ export default function AdminPastoralNotes() {
     });
   }, [activeTab, isLegacyLoading, legacyLoaded, loadLegacyNotes, storageMode]);
 
+  // The communion menu exists only when its API answers for this account (plan 5.1).
   React.useEffect(() => {
-    if (!selectedLogId || !user || storageMode !== 'supabase') return;
-
+    if (!user || storageMode !== 'supabase') {
+      setCommunionAvailability('hidden');
+      return;
+    }
     let cancelled = false;
-    setDecryptedLog(null);
-    setIsDetailLoading(true);
-    getRaahVisitationLogDetail(selectedLogId, user)
-      .then((log) => {
-        if (!cancelled) setDecryptedLog(log);
-      })
-      .catch((error) => {
-        if (!cancelled) toast.error(getErrorMessage(error, '선택한 기록을 복호화하지 못했습니다.'));
-      })
-      .finally(() => {
-        if (!cancelled) setIsDetailLoading(false);
-      });
-
+    probeCommunionAvailability(user).then((availability) => {
+      if (!cancelled) setCommunionAvailability(availability);
+    });
     return () => {
       cancelled = true;
-      setDecryptedLog(null);
     };
-  }, [selectedLogId, storageMode, user]);
+  }, [storageMode, user]);
 
-  React.useEffect(() => {
-    if (!selectedLegacyNoteId || !user || storageMode !== 'supabase') return;
-
-    let cancelled = false;
-    setDecryptedLegacyNote(null);
-    getRaahNoteDetail(selectedLegacyNoteId, user)
-      .then((note) => {
-        if (!cancelled) setDecryptedLegacyNote(note);
-      })
-      .catch((error) => {
-        if (!cancelled) toast.error(getErrorMessage(error, '기존 기록을 복호화하지 못했습니다.'));
-      });
-
-    return () => {
-      cancelled = true;
-      setDecryptedLegacyNote(null);
-    };
-  }, [selectedLegacyNoteId, storageMode, user]);
-
-  React.useEffect(() => () => {
-    setDecryptedLog(null);
-    setDecryptedLegacyNote(null);
-  }, []);
+  const canDecrypt = Boolean(user) && storageMode === 'supabase';
+  const loadLogDetail = React.useCallback((logId: string) => getRaahVisitationLogDetail(logId, user!), [user]);
+  const loadLegacyNoteDetail = React.useCallback((noteId: string) => getRaahNoteDetail(noteId, user!), [user]);
+  const {
+    value: decryptedLog,
+    setValue: setDecryptedLog,
+    isLoading: isDetailLoading,
+  } = useDecryptedDetail<RaahVisitationLog>(selectedLogId, canDecrypt, loadLogDetail, '선택한 기록을 복호화하지 못했습니다.');
+  const { value: decryptedLegacyNote, setValue: setDecryptedLegacyNote } = useDecryptedDetail<PastoralNote>(
+    selectedLegacyNoteId,
+    canDecrypt,
+    loadLegacyNoteDetail,
+    '기존 기록을 복호화하지 못했습니다.'
+  );
 
   const normalizedSearch = normalizeMemberName(searchTerm);
   const selectedMember = members.find((member) => member.id === selectedMemberId) || null;
@@ -351,6 +350,31 @@ export default function AdminPastoralNotes() {
     : [];
   const attendanceCount = attendanceRecords.filter((record) => record.attended).length;
   const communionCount = attendanceRecords.filter((record) => record.communionParticipated).length;
+  const dataStatus: RaahDataStatus = isLoading
+    ? 'loading'
+    : storageMode === 'supabase'
+      ? 'ready'
+      : storageMode === 'firestore'
+        ? 'legacy'
+        : 'error';
+  const savedAttendanceSummary = summarizeSavedAttendance(dataStatus, members, attendance);
+  const activeAttendanceOption = getAttendanceOption(activeAttendanceEventType);
+  const isLogFormDirty = isLogFormOpen && (hasFormChanges(logForm, logFormBaseline) || rawAiMemo.trim() !== '');
+  const isMemberFormDirty = isMemberFormOpen && hasFormChanges(memberForm, memberFormBaseline);
+  const isLegacyFormDirty = isLegacyFormOpen && hasFormChanges(legacyForm, legacyFormBaseline);
+  const isAttendanceDirty =
+    dataStatus === 'ready' &&
+    hasAttendanceDraftChanges(
+      { records: attendanceRecords, serviceType: attendanceServiceType, includesCommunion: attendanceIncludesCommunion, memo: attendanceMemo },
+      {
+        records: buildAttendanceRecordsForEvent(members, attendance),
+        serviceType: attendance?.serviceType || activeAttendanceOption.serviceType,
+        includesCommunion: attendance?.includesCommunion ?? activeAttendanceOption.includesCommunion,
+        memo: attendance?.memo || '',
+      }
+    );
+  const hasUnsavedChanges = isLogFormDirty || isMemberFormDirty || isLegacyFormDirty || isAttendanceDirty || isCommunionDraftDirty;
+  useBeforeUnloadWarning(hasUnsavedChanges);
   const pendingFollowUps = filterResolvedFollowUps(logs, followUpResolutions).slice(0, 5);
 
   const filteredLogs = logs.filter((log) => {
@@ -456,9 +480,9 @@ export default function AdminPastoralNotes() {
   };
 
   const openMemberForm = (member?: RaahMember) => {
-    if (member) {
-      setEditingMemberId(member.id);
-      setMemberForm({
+    if (!confirmDiscardChanges(isMemberFormDirty)) return;
+    const nextForm: RaahMemberInput = member
+      ? {
         name: member.name,
         birthDate: member.birthDate || '',
         phone: member.phone || '',
@@ -468,19 +492,22 @@ export default function AdminPastoralNotes() {
         registeredAt: member.registeredAt || '',
         status: member.status,
         publicNote: member.publicNote || '',
-      });
-    } else {
-      setEditingMemberId(null);
-      setMemberForm(emptyMemberForm);
-    }
+      }
+      : emptyMemberForm;
+    setEditingMemberId(member ? member.id : null);
+    setMemberForm(nextForm);
+    setMemberFormBaseline(nextForm);
     setIsMemberFormOpen(true);
     setActiveTab('members');
   };
 
   const openLogForm = (member?: RaahMember) => {
+    if (!confirmDiscardChanges(isLogFormDirty)) return;
+    const nextForm = emptyLogForm(member);
     setEditingLogId(null);
     setDecryptedLog(null);
-    setLogForm(emptyLogForm(member));
+    setLogForm(nextForm);
+    setLogFormBaseline(nextForm);
     setRawAiMemo('');
     setAiSuggestion('');
     setIsLogFormOpen(true);
@@ -495,9 +522,8 @@ export default function AdminPastoralNotes() {
       }
       log = decryptedLog;
     }
-    setEditingLogId(log.id);
-    setDecryptedLog(log);
-    setLogForm({
+    if (!confirmDiscardChanges(isLogFormDirty)) return;
+    const nextForm: RaahVisitationLogInput = {
       memberId: log.memberId || '',
       memberName: log.memberName,
       date: log.date,
@@ -507,7 +533,11 @@ export default function AdminPastoralNotes() {
       prayerTopics: log.prayerTopics || '',
       nextSteps: log.nextSteps || '',
       privateRemarks: log.privateRemarks || '',
-    });
+    };
+    setEditingLogId(log.id);
+    setDecryptedLog(log);
+    setLogForm(nextForm);
+    setLogFormBaseline(nextForm);
     setRawAiMemo('');
     setAiSuggestion('');
     setIsLogFormOpen(true);
@@ -566,8 +596,8 @@ export default function AdminPastoralNotes() {
       }
       note = decryptedLegacyNote;
     }
-    setEditingLegacyNoteId(note.id);
-    setLegacyForm({
+    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
+    const nextForm: PastoralNoteInput = {
       memberName: note.memberName,
       date: note.date,
       meetingType: note.meetingType,
@@ -576,15 +606,58 @@ export default function AdminPastoralNotes() {
       prayerTopics: note.prayerTopics || '',
       nextFollowUpDate: note.nextFollowUpDate || '',
       remarks: note.remarks || '',
-    });
+    };
+    setEditingLegacyNoteId(note.id);
+    setLegacyForm(nextForm);
+    setLegacyFormBaseline(nextForm);
     setIsLegacyFormOpen(true);
     setActiveTab('legacy');
   };
 
   const openNewLegacyForm = () => {
+    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
+    const nextForm = createEmptyPastoralNoteInput();
+    setEditingLegacyNoteId(null);
+    setLegacyForm(nextForm);
+    setLegacyFormBaseline(nextForm);
+    setIsLegacyFormOpen(true);
+  };
+
+  const closeLogForm = () => {
+    if (!confirmDiscardChanges(isLogFormDirty)) return;
+    setIsLogFormOpen(false);
+    setEditingLogId(null);
+    setRawAiMemo('');
+    setAiSuggestion('');
+  };
+
+  const closeMemberForm = () => {
+    if (!confirmDiscardChanges(isMemberFormDirty)) return false;
+    setIsMemberFormOpen(false);
+    return true;
+  };
+
+  // Selecting another member closes an open edit form, so unsaved edits are confirmed first.
+  const selectMember = (memberId: string | null) => {
+    if (isMemberFormOpen && !closeMemberForm()) return;
+    setSelectedMemberId(memberId);
+  };
+
+  const closeLegacyForm = () => {
+    if (!confirmDiscardChanges(isLegacyFormDirty)) return;
+    setIsLegacyFormOpen(false);
     setEditingLegacyNoteId(null);
     setLegacyForm(createEmptyPastoralNoteInput());
-    setIsLegacyFormOpen(true);
+  };
+
+  const changeAttendanceDate = (date: string) => {
+    if (!confirmDiscardChanges(isAttendanceDirty)) return;
+    setAttendanceDate(date);
+  };
+
+  const leaveWorkspace = (leave: () => void) => {
+    if (!confirmDiscardChanges(hasUnsavedChanges)) return;
+    leave();
   };
 
   const handleGenerateAiDraft = () => {
@@ -674,6 +747,7 @@ export default function AdminPastoralNotes() {
   };
 
   const switchAttendanceEventType = (eventType: RaahAttendanceEventType, dateOverride?: string) => {
+    if (!confirmDiscardChanges(isAttendanceDirty)) return;
     const nextDate = getDateForAttendanceEventType(dateOverride || attendanceDate, eventType);
     const nextAttendance = selectAttendanceEvent(attendanceEvents, eventType);
     const option = getAttendanceOption(eventType);
@@ -857,9 +931,12 @@ export default function AdminPastoralNotes() {
     );
   }
 
+  // Tabs with their own search box hide the shared one.
+  const hasGlobalSearch = activeTab !== 'members' && activeTab !== 'communion';
   const tabs: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
     { id: 'dashboard', label: TEXT.tabs.dashboard, icon: <BarChart3 size={18} /> },
     { id: 'members', label: TEXT.tabs.members, icon: <Users size={18} /> },
+    ...(communionAvailability === 'available' ? [{ id: 'communion' as const, label: TEXT.tabs.communion, icon: <Church size={18} /> }] : []),
     { id: 'attendance', label: TEXT.tabs.attendance, icon: <CheckSquare size={18} /> },
     { id: 'schedule', label: TEXT.tabs.schedule, icon: <CalendarDays size={18} /> },
     { id: 'visitation', label: TEXT.tabs.visitation, icon: <ClipboardList size={18} /> },
@@ -867,6 +944,8 @@ export default function AdminPastoralNotes() {
   ];
 
   const switchTab = (tabId: ActiveTab) => {
+    // Other tabs keep their drafts in this component; the communion draft lives in the tab and is lost on leaving it.
+    if (activeTab === 'communion' && tabId !== 'communion' && !confirmDiscardChanges(isCommunionDraftDirty)) return;
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
@@ -902,7 +981,7 @@ export default function AdminPastoralNotes() {
               ))}
             </nav>
 
-            {activeTab !== 'members' && (<label className="relative w-64 shrink-0 xl:w-80">
+            {hasGlobalSearch && (<label className="relative w-64 shrink-0 xl:w-80">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2e6b5f]" />
               <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-10 bg-[#ffffff] pl-9`} />
             </label>)}
@@ -913,11 +992,11 @@ export default function AdminPastoralNotes() {
             </span>
 
             {!subdomainMode && (
-              <button type="button" onClick={() => navigate('/admin')} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="관리자 대시보드로 돌아가기">
+              <button type="button" onClick={() => leaveWorkspace(() => navigate('/admin'))} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="관리자 대시보드로 돌아가기">
                 <ArrowLeft size={18} />
               </button>
             )}
-            <button type="button" onClick={() => logout()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="로그아웃">
+            <button type="button" onClick={() => leaveWorkspace(() => logout())} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/15 text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="로그아웃">
               <LogOut size={17} />
             </button>
           </div>
@@ -962,7 +1041,7 @@ export default function AdminPastoralNotes() {
           </div>
 
           <div className="border-t border-white/10 p-4">
-            {activeTab !== 'members' && (<label className="relative block">
+            {hasGlobalSearch && (<label className="relative block">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#adcacd]" />
               <input
                 value={searchTerm}
@@ -973,12 +1052,12 @@ export default function AdminPastoralNotes() {
             </label>)}
             <div className="mt-3 flex items-center gap-2">
               {!subdomainMode && (
-                <button type="button" onClick={() => navigate('/admin')} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
+                <button type="button" onClick={() => leaveWorkspace(() => navigate('/admin'))} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
                   <ArrowLeft size={16} />
                   Admin
                 </button>
               )}
-              <button type="button" onClick={() => logout()} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
+              <button type="button" onClick={() => leaveWorkspace(() => logout())} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white">
                 <LogOut size={16} />
                 Logout
               </button>
@@ -991,7 +1070,7 @@ export default function AdminPastoralNotes() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-center gap-3">
                 {!subdomainMode && (
-                  <button type="button" onClick={() => navigate('/admin')} className="rounded-md border border-[#d5dee5] bg-[#ffffff] p-2 text-[#28415b]" aria-label="관리자 대시보드로 돌아가기">
+                  <button type="button" onClick={() => leaveWorkspace(() => navigate('/admin'))} className="rounded-md border border-[#d5dee5] bg-[#ffffff] p-2 text-[#28415b]" aria-label="관리자 대시보드로 돌아가기">
                     <ArrowLeft size={18} />
                   </button>
                 )}
@@ -1006,7 +1085,7 @@ export default function AdminPastoralNotes() {
                   <p className="mt-1 text-sm text-[#607080]">찾고, 체크하고, 기록하는 목양 관리 앱</p>
                 </div>
               </div>
-              {activeTab !== 'members' && (<label className="relative w-full xl:w-80">
+              {hasGlobalSearch && (<label className="relative w-full xl:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2e6b5f]" />
                 <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} pl-9`} />
               </label>)}
@@ -1025,7 +1104,7 @@ export default function AdminPastoralNotes() {
                 </div>
                 <p className="mt-1 text-sm text-[#607080]">성도 돌봄, 심방 일정, 목양 노트, 후속 계획을 전문적으로 관리합니다.</p>
               </div>
-              {activeTab !== 'members' && (<label className="relative w-[360px] shrink-0">
+              {hasGlobalSearch && (<label className="relative w-[360px] shrink-0">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8b9a]" />
                 <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={TEXT.search[activeTab]} className={`${shell.input} h-11 pl-9`} />
               </label>)}
@@ -1036,12 +1115,12 @@ export default function AdminPastoralNotes() {
             {activeTab === 'dashboard' && (
               <DashboardTab
                 isLoading={isLoading}
+                dataStatus={dataStatus}
                 summary={summary}
                 members={members}
                 logs={logs}
                 attendanceDate={attendanceDate}
-                attendanceCount={attendanceCount}
-                communionCount={communionCount}
+                attendanceSummary={savedAttendanceSummary}
                 attendanceHistory={attendanceHistory}
                 pendingFollowUps={pendingFollowUps}
                 scheduleItems={ministryScheduleItems}
@@ -1075,7 +1154,7 @@ export default function AdminPastoralNotes() {
                 attendanceHistory={attendanceHistory}
                 onNewSchedule={(member) => {
                   openNewScheduleForm();
-                  setScheduleForm((previous) => ({ ...previous, memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
+                  setScheduleForm((previous) => ({ ...previous, itemType: 'visitation', memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
                   setSearchTerm('');
                   setActiveTab('schedule');
                 }}
@@ -1085,7 +1164,7 @@ export default function AdminPastoralNotes() {
                 selectedMemberAttendanceHistory={selectedMemberAttendanceHistory}
                 attendanceDate={attendanceDate}
                 hasAttendanceEvent={Boolean(attendance)}
-                onSelectMember={setSelectedMemberId}
+                onSelectMember={selectMember}
                 onEditMember={openMemberForm}
                 onNewMember={() => openMemberForm()}
                 onNewLog={(member) => openLogForm(member)}
@@ -1095,7 +1174,21 @@ export default function AdminPastoralNotes() {
                 form={memberForm}
                 setForm={setMemberForm}
                 onSubmit={handleMemberSubmit}
-                onCloseForm={() => setIsMemberFormOpen(false)}
+                onCloseForm={closeMemberForm}
+              />
+            )}
+
+            {activeTab === 'communion' && user && communionAvailability === 'available' && (
+              <CommunionTab
+                user={user}
+                members={members}
+                logs={logs}
+                attendanceHistory={attendanceHistory}
+                onOpenLog={(logId) => {
+                  setSelectedLogId(logId);
+                  setActiveTab('visitation');
+                }}
+                onDraftDirtyChange={setIsCommunionDraftDirty}
               />
             )}
 
@@ -1106,7 +1199,7 @@ export default function AdminPastoralNotes() {
                 activeEventType={activeAttendanceEventType}
                 onEventTypeChange={switchAttendanceEventType}
                 date={attendanceDate}
-                setDate={setAttendanceDate}
+                setDate={changeAttendanceDate}
                 serviceType={attendanceServiceType}
                 setServiceType={setAttendanceServiceType}
                 includesCommunion={attendanceIncludesCommunion}
@@ -1188,12 +1281,7 @@ export default function AdminPastoralNotes() {
                 onCreateCalendarEvent={handleCreateCalendarEvent}
                 onOpenCalendarEvent={openCalendarEventForm}
                 onEdit={openLogFormForEdit}
-                onCloseForm={() => {
-                  setIsLogFormOpen(false);
-                  setEditingLogId(null);
-                  setRawAiMemo('');
-                  setAiSuggestion('');
-                }}
+                onCloseForm={closeLogForm}
                 onNew={() => openLogForm(selectedMember || undefined)}
                 onMemberSelect={handleMemberSelectForLog}
               />
@@ -1213,11 +1301,7 @@ export default function AdminPastoralNotes() {
                 setForm={setLegacyForm}
                 editing={Boolean(editingLegacyNoteId)}
                 onSubmit={handleLegacySubmit}
-                onCloseForm={() => {
-                  setIsLegacyFormOpen(false);
-                  setEditingLegacyNoteId(null);
-                  setLegacyForm(createEmptyPastoralNoteInput());
-                }}
+                onCloseForm={closeLegacyForm}
                 onNew={openNewLegacyForm}
                 onEdit={openLegacyFormForEdit}
                 canEdit={storageMode === 'supabase'}
@@ -1228,7 +1312,7 @@ export default function AdminPastoralNotes() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#dbe3e8] bg-white/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(21,38,57,0.08)] lg:hidden">
-        <div className="grid grid-cols-6 gap-1">
+        <div className={`grid gap-1 ${tabs.length > 6 ? 'grid-cols-7' : 'grid-cols-6'}`}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -1251,12 +1335,12 @@ export default function AdminPastoralNotes() {
 
 function DashboardTab({
   isLoading,
+  dataStatus,
   summary,
   members,
   logs,
   attendanceDate,
-  attendanceCount,
-  communionCount,
+  attendanceSummary,
   attendanceHistory,
   pendingFollowUps,
   scheduleItems,
@@ -1277,12 +1361,12 @@ function DashboardTab({
   onCompleteScheduleItem,
 }: {
   isLoading: boolean;
+  dataStatus: RaahDataStatus;
   summary: RaahDashboardSummary;
   members: RaahMember[];
   logs: RaahVisitationLog[];
   attendanceDate: string;
-  attendanceCount: number;
-  communionCount: number;
+  attendanceSummary: RaahAttendanceSummary;
   attendanceHistory: RaahAttendanceHistoryRecord[];
   pendingFollowUps: RaahVisitationLog[];
   scheduleItems: RaahMinistryScheduleItem[];
@@ -1302,9 +1386,9 @@ function DashboardTab({
   onCreateScheduleItem: (event: React.FormEvent<HTMLFormElement>) => void;
   onCompleteScheduleItem: (itemId: string) => void;
 }) {
+  const isReady = dataStatus === 'ready';
   const activeMemberCount = summary.activeMemberCount || members.filter((member) => member.status === 'active').length;
-  const absentCount = Math.max(activeMemberCount - attendanceCount, 0);
-  const attendanceRate = percent(attendanceCount, activeMemberCount);
+  const attendanceStatus = describeAttendanceSummary(attendanceSummary);
   const dashboardAttendanceFlow = React.useMemo(
     () => buildRaahAttendanceFlow({ members, history: attendanceHistory, limit: 1 }),
     [attendanceHistory, members]
@@ -1321,10 +1405,19 @@ function DashboardTab({
   return (
     <section className="space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-        <FocusCard label="활성 성도" value={activeMemberCount} icon={<Users size={20} />} />
-        <FocusCard label="주일 출석" value={attendanceCount} helper={`성찬 ${communionCount} · 미출석 ${absentCount}`} icon={<CheckSquare size={20} />} />
-        <FocusCard label="이번 주 기록" value={summary.thisWeekLogCount} icon={<ClipboardList size={20} />} />
-        <FocusCard label="암호화 기록" value={summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length} icon={<Lock size={20} />} />
+        <FocusCard label="활성 성도" value={isReady ? activeMemberCount : null} icon={<Users size={20} />} />
+        <FocusCard
+          label="주일 출석"
+          value={attendanceSummary.status === 'recorded' ? attendanceSummary.attendedCount : null}
+          helper={attendanceStatus.detail}
+          icon={<CheckSquare size={20} />}
+        />
+        <FocusCard label="이번 주 기록" value={isReady ? summary.thisWeekLogCount : null} icon={<ClipboardList size={20} />} />
+        <FocusCard
+          label="암호화 기록"
+          value={isReady ? summary.encryptedLogCount || logs.filter((log) => log.isEncrypted).length : null}
+          icon={<Lock size={20} />}
+        />
       </div>
 
       <div className={shell.panel + ' p-3'}>
@@ -1345,15 +1438,7 @@ function DashboardTab({
       </div>
 
       <div className="grid gap-3 xl:grid-cols-4">
-        <DashboardAttendanceMini
-          date={attendanceDate}
-          activeMemberCount={activeMemberCount}
-          attendanceCount={attendanceCount}
-          communionCount={communionCount}
-          absentCount={absentCount}
-          attendanceRate={attendanceRate}
-          onOpenAttendance={onOpenAttendance}
-        />
+        <DashboardAttendanceMini date={attendanceDate} summary={attendanceSummary} onOpenAttendance={onOpenAttendance} />
         <DashboardTasksMini
           tasks={todayTasks.slice(0, 3)}
           members={members}
@@ -1384,23 +1469,43 @@ function DashboardTab({
   );
 }
 
+// Home copy for the saved attendance summary. Counts appear only when the
+// event was actually saved; loading, failures and unsaved Sundays say so.
+function describeAttendanceSummary(summary: RaahAttendanceSummary) {
+  switch (summary.status) {
+    case 'loading':
+      return { headline: '…', detail: '불러오는 중' };
+    case 'error':
+      return { headline: '—', detail: '출석을 불러오지 못했습니다' };
+    case 'legacy':
+      return { headline: '—', detail: '호환 모드에서는 출석을 표시하지 않습니다' };
+    case 'not_recorded':
+      return { headline: '—', detail: '아직 저장된 출석부가 없습니다' };
+    case 'recorded': {
+      const parts = [
+        summary.communionCount === null ? '성찬 없음' : `성찬 ${summary.communionCount}`,
+        `미출석 ${summary.absentCount}`,
+      ];
+      if (summary.unrecordedCount > 0) parts.push(`미기록 ${summary.unrecordedCount}`);
+      return { headline: '', detail: parts.join(' · ') };
+    }
+  }
+}
+
 function DashboardAttendanceMini({
   date,
-  activeMemberCount,
-  attendanceCount,
-  communionCount,
-  absentCount,
-  attendanceRate,
+  summary,
   onOpenAttendance,
 }: {
   date: string;
-  activeMemberCount: number;
-  attendanceCount: number;
-  communionCount: number;
-  absentCount: number;
-  attendanceRate: number;
+  summary: RaahAttendanceSummary;
   onOpenAttendance: () => void;
 }) {
+  const { headline, detail } = describeAttendanceSummary(summary);
+  const recorded = summary.status === 'recorded' ? summary : null;
+  // The rate covers members with a saved yes/no only; unrecorded members stay out of the denominator.
+  const checkedCount = recorded ? recorded.attendedCount + recorded.absentCount : 0;
+  const attendanceRate = recorded ? percent(recorded.attendedCount, checkedCount) : 0;
   return (
     <div className={shell.panel + ' p-4'}>
       <div className="flex items-start justify-between gap-2">
@@ -1412,19 +1517,25 @@ function DashboardAttendanceMini({
           체크
         </button>
       </div>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-3xl font-semibold tracking-tight text-[#17202b]">{attendanceRate}%</p>
-          <p className="mt-1 text-xs text-[#607080]">출석 {attendanceCount}/{activeMemberCount}</p>
+      {recorded ? (
+        <>
+          <div className="mt-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="text-3xl font-semibold tracking-tight text-[#17202b]">{attendanceRate}%</p>
+              <p className="mt-1 text-xs text-[#607080]">출석 {recorded.attendedCount}/{checkedCount}</p>
+            </div>
+            <p className="text-right text-xs leading-5 text-[#607080]">{detail}</p>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dbe3e8]">
+            <div className="h-full rounded-full bg-[#2e6b5f]" style={{ width: `${attendanceRate}%` }} />
+          </div>
+        </>
+      ) : (
+        <div className="mt-3">
+          <p className="text-3xl font-semibold tracking-tight text-[#9aa8b4]">{headline}</p>
+          <p className="mt-1 text-xs text-[#607080]" role="status">{detail}</p>
         </div>
-        <div className="text-right text-xs leading-5 text-[#607080]">
-          <p>성찬 {communionCount}</p>
-          <p>미출석 {absentCount}</p>
-        </div>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dbe3e8]">
-        <div className="h-full rounded-full bg-[#2e6b5f]" style={{ width: `${attendanceRate}%` }} />
-      </div>
+      )}
     </div>
   );
 }

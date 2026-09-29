@@ -10,7 +10,7 @@ describe('RAAH dashboard schedule form wiring', () => {
     );
     const source = `${page}\n${schedule}`;
 
-    expect(page).toContain("type ActiveTab = 'dashboard' | 'members' | 'attendance' | 'schedule' | 'visitation' | 'legacy'");
+    expect(page).toContain("type ActiveTab = 'dashboard' | 'members' | 'communion' | 'attendance' | 'schedule' | 'visitation' | 'legacy'");
     expect(page).toContain("schedule: '사역일정'");
     expect(page).toContain("{ id: 'schedule', label: TEXT.tabs.schedule");
     expect(page).toContain("activeTab === 'schedule'");

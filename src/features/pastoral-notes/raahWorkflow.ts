@@ -42,6 +42,56 @@ export function buildAttendanceRecordsForEvent(members: RaahMember[], event: Raa
     });
 }
 
+export type RaahDataStatus = 'loading' | 'ready' | 'legacy' | 'error';
+
+export type RaahAttendanceSummary =
+  | { status: 'loading' | 'legacy' | 'error' }
+  | { status: 'not_recorded'; activeMemberCount: number }
+  | {
+      status: 'recorded';
+      activeMemberCount: number;
+      attendedCount: number;
+      absentCount: number;
+      unrecordedCount: number;
+      communionCount: number | null;
+    };
+
+// Summarises the saved attendance event only. Members without a saved row
+// (e.g. registered after the check) are counted as unrecorded, never absent,
+// and a missing event or failed load never turns into zero or absences.
+export function summarizeSavedAttendance(
+  dataStatus: RaahDataStatus,
+  members: RaahMember[],
+  event: RaahAttendanceEvent | null
+): RaahAttendanceSummary {
+  if (dataStatus !== 'ready') return { status: dataStatus };
+  const activeMembers = members.filter((member) => member.status === 'active');
+  if (!event) return { status: 'not_recorded', activeMemberCount: activeMembers.length };
+
+  const savedRecords = new Map((event.records || []).map((record) => [record.memberId, record]));
+  let attendedCount = 0;
+  let absentCount = 0;
+  let unrecordedCount = 0;
+  let communionCount = 0;
+  for (const member of activeMembers) {
+    const record = savedRecords.get(member.id);
+    if (!record) unrecordedCount += 1;
+    else if (record.attended) {
+      attendedCount += 1;
+      if (record.communionParticipated) communionCount += 1;
+    } else absentCount += 1;
+  }
+
+  return {
+    status: 'recorded',
+    activeMemberCount: activeMembers.length,
+    attendedCount,
+    absentCount,
+    unrecordedCount,
+    communionCount: event.includesCommunion ? communionCount : null,
+  };
+}
+
 function toLocalDate(value: string) {
   return new Date(`${value}T00:00:00`);
 }

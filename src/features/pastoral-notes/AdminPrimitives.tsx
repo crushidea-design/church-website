@@ -12,7 +12,8 @@ export function FocusCard({
   icon,
 }: {
   label: string;
-  value: number;
+  // null means the value is not known yet (loading or failed), shown as a dash rather than 0.
+  value: number | null;
   helper?: string;
   icon: React.ReactNode;
 }) {
@@ -22,17 +23,17 @@ export function FocusCard({
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#607080]">{label}</p>
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef7f3] text-[#2e6b5f]">{icon}</span>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-[#17202b] sm:text-3xl">{value}</p>
+      <p className={`mt-3 text-2xl font-semibold sm:text-3xl ${value === null ? 'text-[#9aa8b4]' : 'text-[#17202b]'}`}>{value ?? '—'}</p>
       {helper && <p className="mt-1 text-xs text-[#607080]">{helper}</p>}
     </div>
   );
 }
 
-export function MiniCount({ label, value }: { label: string; value: number }) {
+export function MiniCount({ label, value }: { label: string; value: number | null }) {
   return (
     <div className={shell.mutedPanel + ' p-3'}>
       <p className="text-xs font-semibold text-[#607080]">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-[#17202b]">{value}</p>
+      <p className={`mt-1 text-xl font-semibold ${value === null ? 'text-[#9aa8b4]' : 'text-[#17202b]'}`}>{value ?? '—'}</p>
     </div>
   );
 }

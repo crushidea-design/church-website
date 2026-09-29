@@ -1,7 +1,7 @@
 import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { requireRaahAdmin } from './_shared/raah-auth.mjs';
+import { requireRaahAccess } from './_shared/raah-access.mjs';
 
 declare const Netlify:
   | {
@@ -1022,8 +1022,8 @@ const handleCompleteScheduleItem = async (itemId: string, user: RaahUser) => {
 };
 
 export default async (req: Request, context: Context) => {
-  const adminCheck = await requireRaahAdmin(req);
-  if (adminCheck.response || !adminCheck.user) return adminCheck.response;
+  const accessCheck = await requireRaahAccess(req);
+  if (accessCheck.response || !accessCheck.access) return accessCheck.response;
 
   const pathname = new URL(req.url).pathname;
   const route = pathname.includes('/attendance')
@@ -1046,17 +1046,17 @@ export default async (req: Request, context: Context) => {
   if (req.method === 'GET' && route === 'bootstrap') return handleBootstrap(req);
   if (req.method === 'GET' && route === 'summary') return handleSummary();
   if (route === 'attendance' && req.method === 'GET') return handleGetAttendance(req);
-  if (route === 'attendance' && req.method === 'POST') return handleSaveAttendance(req, adminCheck.user);
-  if (route === 'follow-ups' && req.method === 'POST' && pathname.includes('/resolve')) return handleResolveFollowUp(req, adminCheck.user);
-  if (route === 'schedule' && req.method === 'POST' && !id && !pathname.includes('/complete')) return handleCreateScheduleItem(req, adminCheck.user);
+  if (route === 'attendance' && req.method === 'POST') return handleSaveAttendance(req, accessCheck.access.user);
+  if (route === 'follow-ups' && req.method === 'POST' && pathname.includes('/resolve')) return handleResolveFollowUp(req, accessCheck.access.user);
+  if (route === 'schedule' && req.method === 'POST' && !id && !pathname.includes('/complete')) return handleCreateScheduleItem(req, accessCheck.access.user);
   if (route === 'schedule' && req.method === 'PATCH' && id) return handleUpdateScheduleItem(req, id);
-  if (route === 'schedule' && req.method === 'POST' && id && pathname.includes('/complete')) return handleCompleteScheduleItem(id, adminCheck.user);
+  if (route === 'schedule' && req.method === 'POST' && id && pathname.includes('/complete')) return handleCompleteScheduleItem(id, accessCheck.access.user);
   if (route === 'members' && req.method === 'GET' && !id) return handleListMembers();
-  if (route === 'members' && req.method === 'POST' && !id) return handleCreateMember(req, adminCheck.user);
+  if (route === 'members' && req.method === 'POST' && !id) return handleCreateMember(req, accessCheck.access.user);
   if (route === 'members' && req.method === 'PATCH' && id) return handleUpdateMember(req, id);
   if (route === 'visitation-logs' && req.method === 'GET' && !id) return handleListLogs();
   if (route === 'visitation-logs' && req.method === 'GET' && id) return handleLogDetail(id);
-  if (route === 'visitation-logs' && req.method === 'POST' && !id) return handleCreateLog(req, adminCheck.user);
+  if (route === 'visitation-logs' && req.method === 'POST' && !id) return handleCreateLog(req, accessCheck.access.user);
   if (route === 'visitation-logs' && req.method === 'PATCH' && id) return handleUpdateLog(req, id);
 
   return noStoreJson({ error: 'Method not allowed' }, 405);

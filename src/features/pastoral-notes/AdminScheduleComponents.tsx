@@ -301,10 +301,16 @@ export function MinistrySchedulePanel({
   const hasOpenItems = items.some((item) => item.status === 'open');
   const [selectedFormDate, setSelectedFormDate] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (!isOpen || !editingItemId || !form.date) return;
+    if (!isOpen) {
+      setSelectedFormDate(null);
+      return;
+    }
+    // Edits, and new forms opened outside the calendar (e.g. a member's "일정 등록"),
+    // have no picked day yet: show the popup on the form's own date.
+    if (!form.date || (!editingItemId && selectedFormDate !== null)) return;
     setSelectedFormDate(form.date);
     setAnchorDate(form.date);
-  }, [editingItemId, form.date, isOpen]);
+  }, [editingItemId, form.date, isOpen, selectedFormDate]);
   const shiftCalendar = (direction: -1 | 1) => {
     setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)));
   };
