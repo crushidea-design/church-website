@@ -243,6 +243,8 @@ type ApiBootstrap = {
   attendanceHistory?: RaahAttendanceHistoryRecord[];
   followUpResolutions?: ApiFollowUpResolution[];
   ministryScheduleItems?: ApiScheduleItem[];
+  /** Notes still waiting to move into logs; null when the server could not count them. */
+  legacyPendingCount?: number | null;
 };
 
 export async function getAuthHeaders(user: User) {
@@ -314,6 +316,7 @@ export async function getRaahBootstrap(date: string, user: User) {
     attendanceHistory: data.attendanceHistory || [],
     followUpResolutions: data.followUpResolutions || [],
     ministryScheduleItems: data.ministryScheduleItems || [],
+    legacyPendingCount: typeof data.legacyPendingCount === 'number' ? data.legacyPendingCount : null,
   };
 }
 

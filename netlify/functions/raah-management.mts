@@ -2,7 +2,7 @@ import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { requireRaahAccess, type RaahAccess } from './_shared/raah-access.mjs';
-import { UUID, fail, json, rpc } from './_shared/raah-rpc.mjs';
+import { UUID, countRows, fail, json, rpc } from './_shared/raah-rpc.mjs';
 
 declare const Netlify:
   | {
@@ -578,7 +578,7 @@ const handleBootstrap = async (req: Request) => {
   const date = new URL(req.url).searchParams.get('date') || new Date().toISOString().slice(0, 10);
   if (!validDate(date)) return noStoreJson({ error: 'Invalid attendance date.' }, 400);
 
-  const [membersResult, logsResult, attendanceResult, attendanceSummaryResult, followUpsResult, scheduleResult] = await Promise.all([
+  const [membersResult, logsResult, attendanceResult, attendanceSummaryResult, followUpsResult, scheduleResult, legacyPendingCount] = await Promise.all([
     supabaseFetch(
       'raah_members?select=id,name,search_name,birth_date,phone,address,position,district,registered_at,status,public_note,is_synthetic,created_at,updated_at&order=name.asc'
     ),
@@ -589,6 +589,8 @@ const handleBootstrap = async (req: Request) => {
     supabaseFetch('raah_attendance_records?select=member_id,attended,communion_participated,raah_attendance_events!inner(date,event_type,service_type)'),
     supabaseFetch('raah_follow_up_resolutions?select=id,source_type,source_id,candidate_key,member_id,member_name,memo,completed_by,completed_at,created_at,updated_at&order=completed_at.desc'),
     supabaseFetch(`raah_ministry_schedule_items?select=${SCHEDULE_SELECT}&order=date.asc&order=starts_at.asc`),
+    // Drives the visibility of the 이전 tab; null (unknown) must never fail the whole bootstrap.
+    countRows('raah_notes', 'migrated_to_log_id=is.null'),
   ]);
 
   if ('response' in membersResult && membersResult.response) return membersResult.response;
@@ -638,6 +640,7 @@ const handleBootstrap = async (req: Request) => {
     attendanceHistory,
     followUpResolutions: followUpResolutions.map(rowToFollowUpResolution),
     ministryScheduleItems: ministryScheduleItems.map(rowToScheduleItem),
+    legacyPendingCount,
   });
 };
 

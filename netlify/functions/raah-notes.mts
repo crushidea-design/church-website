@@ -1,7 +1,11 @@
 import { supabaseRequest } from './_shared/supabase-request.mjs';
 import type { Config, Context } from '@netlify/functions';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { requireRaahAccess } from './_shared/raah-access.mjs';
+import { requireRaahAccess, type RaahAccess } from './_shared/raah-access.mjs';
+import { countRows, rpc } from './_shared/raah-rpc.mjs';
+import { mapLegacyNote, type LegacySkipReason } from './_shared/raah-legacy-migration.mjs';
+// The one encryption contract for visitation bodies; reused, never re-implemented.
+import { encryptPayload as encryptLogPayload } from './raah-management.mjs';
 
 declare const Netlify:
   | {
@@ -46,6 +50,7 @@ type EncryptedPayload = {
 };
 
 const ENCRYPTION_VERSION = 1;
+const MIGRATE_BATCH_SIZE = 50;
 
 const getEnv = (key: string) => {
   const netlifyValue = typeof Netlify !== 'undefined' ? Netlify.env.get(key) : undefined;
@@ -189,7 +194,7 @@ const rowToNote = (row: SupabaseRow, includeSensitive = false, secret?: string) 
 
 const handleList = async () => {
   const result = await supabaseFetch(
-    'raah_notes?select=id,member_name,member_search_name,date,meeting_type,encryption_version,is_encrypted,created_by,created_at,updated_at&order=date.desc&order=created_at.desc'
+    'raah_notes?select=id,member_name,member_search_name,date,meeting_type,encryption_version,is_encrypted,created_by,created_at,updated_at&migrated_to_log_id=is.null&order=date.desc&order=created_at.desc'
   );
   if (result.response) return result.response;
 
@@ -331,7 +336,88 @@ const handleDelete = async (noteId: string) => {
   return noStoreJson({ ok: true });
 };
 
+type MigrateRow = {
+  id: string;
+  member_name: string;
+  member_search_name: string;
+  date: string;
+  meeting_type: string;
+  encrypted_payload: EncryptedPayload | string | null;
+};
+
+// Moves up to one batch of unmigrated notes into visitation logs. Each note is its own RPC
+// transaction, so one failure never blocks the rest. `offset` is how many notes the caller has
+// already seen skipped: they stay pending, so they must be stepped over to reach the next ones.
+const handleMigrate = async (req: Request, access: RaahAccess) => {
+  const config = getSupabaseConfig();
+  if (!config) {
+    return noStoreJson({ error: 'RAAH Supabase environment variables are not configured.', code: 'RAAH_SUPABASE_NOT_CONFIGURED' }, 503);
+  }
+  const body = (await req.json().catch(() => null)) as { offset?: unknown } | null;
+  const offset = typeof body?.offset === 'number' && Number.isInteger(body.offset) && body.offset >= 0 ? body.offset : 0;
+
+  const [notesResult, membersResult] = await Promise.all([
+    supabaseFetch(
+      `raah_notes?select=id,member_name,member_search_name,date,meeting_type,encrypted_payload&migrated_to_log_id=is.null&order=created_at.asc&order=id.asc&limit=${MIGRATE_BATCH_SIZE}&offset=${offset}`
+    ),
+    supabaseFetch('raah_members?select=id,name,is_synthetic&is_synthetic=eq.false'),
+  ]);
+  if (notesResult.response) return notesResult.response;
+  if (membersResult.response) return membersResult.response;
+  if (!notesResult.supabaseResponse.ok || !membersResult.supabaseResponse.ok) {
+    return noStoreJson({ error: 'Failed to load RAAH notes.' }, 502);
+  }
+  const notes = (await notesResult.supabaseResponse.json().catch(() => [])) as MigrateRow[];
+  const members = (await membersResult.supabaseResponse.json().catch(() => [])) as Array<{ id: string; name: string; is_synthetic?: boolean | null }>;
+
+  let migrated = 0;
+  const skipped: Array<{ id: string; reason: LegacySkipReason }> = [];
+  for (const note of notes) {
+    let payload: PastoralNotePayload;
+    try {
+      payload = decryptPayload(note.encrypted_payload, config.secret);
+    } catch {
+      skipped.push({ id: note.id, reason: 'decrypt_failed' });
+      continue;
+    }
+    const mapped = mapLegacyNote({ memberName: note.member_name, meetingType: note.meeting_type, payload }, members);
+    if ('reason' in mapped) {
+      skipped.push({ id: note.id, reason: mapped.reason });
+      continue;
+    }
+    const result = await rpc('raah_rpc_migrate_legacy_note', {
+      p_workspace: access.workspaceId,
+      p_actor: access.user.uid,
+      p_note_id: note.id,
+      p_member_id: mapped.memberId,
+      p_member_name: note.member_name,
+      p_member_search_name: note.member_search_name,
+      p_date: note.date,
+      p_log_type: mapped.logType,
+      p_encrypted_payload: encryptLogPayload(mapped.body, config.secret),
+      p_encryption_version: ENCRYPTION_VERSION,
+    });
+    if (result.response) {
+      skipped.push({ id: note.id, reason: 'save_failed' });
+    } else if ((result.data as { alreadyMigrated?: boolean } | null)?.alreadyMigrated !== true) {
+      migrated += 1;
+    }
+  }
+
+  // Notes not yet attempted: everything still pending minus the ones stepped over (offset + skipped now).
+  const pending = await countRows('raah_notes', 'migrated_to_log_id=is.null');
+  const remaining = pending === null ? (notes.length === MIGRATE_BATCH_SIZE ? 1 : 0) : Math.max(0, pending - offset - skipped.length);
+  return noStoreJson({ migrated, skipped, processed: notes.length, remaining });
+};
+
 export default async (req: Request, context: Context) => {
+  // Writing logs from legacy notes always needs an explicit grant, even while the global flag is off.
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/api/raah/notes/migrate')) {
+    const grantCheck = await requireRaahAccess(req, { requireGrant: true });
+    if (grantCheck.response || !grantCheck.access) return grantCheck.response;
+    return handleMigrate(req, grantCheck.access);
+  }
+
   const accessCheck = await requireRaahAccess(req);
   if (accessCheck.response || !accessCheck.access) return accessCheck.response;
 
@@ -347,5 +433,5 @@ export default async (req: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ['/api/raah/notes', '/api/raah/notes/:id'],
+  path: ['/api/raah/notes', '/api/raah/notes/migrate', '/api/raah/notes/:id'],
 };

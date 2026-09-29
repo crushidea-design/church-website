@@ -21,11 +21,15 @@ import {
 } from './api';
 import {
   COVERAGE_LABELS,
+  GUIDE_GENERAL_SOURCES,
+  GUIDE_SOURCE_NOTE,
   GUIDE_TOPICS,
   SAFETY_NOTICE,
   composeConversationNote,
   emptyConversationDraft,
   isConversationDraftEmpty,
+  sourcesFor,
+  type GuideSource,
   type ConversationDraft,
   type TopicCoverage,
 } from './questionGuide';
@@ -180,6 +184,7 @@ export function ConversationForm({
         <h4 className="text-sm font-semibold">대화 기록</h4>
         <span className="text-xs text-[#607080]">모든 항목을 채울 필요는 없습니다</span>
       </div>
+      <GuideSources sources={sourcesFor(GUIDE_GENERAL_SOURCES)} prefix="심방 근거" />
       <TextInput label="대화일" type="date" value={draft.date} onChange={(date) => setDraft((prev) => ({ ...prev, date }))} />
       <div className="space-y-1.5">
         {GUIDE_TOPICS.map((topic) => (
@@ -192,6 +197,7 @@ export function ConversationForm({
             </summary>
             <p className="mt-2 text-sm text-[#17202b]">{topic.prompt}</p>
             <p className="mt-1 text-xs text-[#607080]">남길 수 있는 기록: {topic.hint}</p>
+            <GuideSources sources={sourcesFor(topic.sources)} />
             {topic.key === 'love' && (
               <p className="mt-2 flex items-start gap-1.5 rounded-md bg-[#fbf3e6] p-2 text-xs text-[#6b4a1a]">
                 <ShieldAlert size={14} className="mt-0.5 shrink-0" />
@@ -311,5 +317,32 @@ export function LinkedLogs({
         </div>
       )}
     </div>
+  );
+}
+
+/** One line of citations; opening it shows paraphrased summaries and, where there is one, a link to the text. */
+function GuideSources({ sources, prefix = '근거' }: { sources: GuideSource[]; prefix?: string }) {
+  return (
+    <details className="mt-1.5 text-xs text-[#607080]">
+      <summary className="cursor-pointer">
+        {prefix}: {sources.map((source) => source.label).join(' · ')}
+      </summary>
+      <ul className="mt-1.5 space-y-1 border-l-2 border-[#dbe3e8] pl-2">
+        {sources.map((source) => (
+          <li key={source.label}>
+            <span className="font-semibold text-[#28415b]">{source.label}</span> {source.summary}
+            {source.url && (
+              <>
+                {' '}
+                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#2e6b5f] underline underline-offset-2">
+                  원문
+                </a>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 text-[11px] text-[#7a8b9a]">{GUIDE_SOURCE_NOTE}</p>
+    </details>
   );
 }

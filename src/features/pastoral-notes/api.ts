@@ -98,3 +98,24 @@ export async function deleteRaahNote(noteId: string, user: User) {
   });
   await readJsonResponse<{ ok: true }>(response);
 }
+
+export type LegacyMigrationSkip = { id: string; reason: 'too_long' | 'invalid' | 'decrypt_failed' | 'save_failed' };
+
+export type LegacyMigrationBatch = {
+  migrated: number;
+  skipped: LegacyMigrationSkip[];
+  /** Notes the server looked at in this call; 0 means nothing more can be done. */
+  processed: number;
+  /** Notes not yet attempted (skipped ones are excluded). */
+  remaining: number;
+};
+
+/** Moves one batch of legacy notes into visitation logs. `offset` is the number of notes skipped so far. */
+export async function migrateRaahNotesBatch(offset: number, user: User) {
+  const response = await fetch('/api/raah/notes/migrate', {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ offset }),
+  });
+  return readJsonResponse<LegacyMigrationBatch>(response);
+}

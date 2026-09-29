@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { createRaahNote, getRaahNoteDetail, listRaahNotes, updateRaahNote } from '../features/pastoral-notes/api';
+import { createRaahNote, getRaahNoteDetail, listRaahNotes, migrateRaahNotesBatch, updateRaahNote } from '../features/pastoral-notes/api';
 import {
   completeRaahMinistryScheduleItem,
   createRaahGoogleCalendarEvent,
@@ -158,6 +158,10 @@ export default function AdminPastoralNotes() {
   const [legacyNotes, setLegacyNotes] = React.useState<PastoralNote[]>([]);
   const [legacyLoaded, setLegacyLoaded] = React.useState(false);
   const [isLegacyLoading, setIsLegacyLoading] = React.useState(false);
+  // Notes still waiting to move into 기록 (null = unknown); the 이전 tab disappears at 0.
+  const [legacyPendingCount, setLegacyPendingCount] = React.useState<number | null>(null);
+  // Notes moved so far while a migration runs; null when idle.
+  const [legacyMigrationProgress, setLegacyMigrationProgress] = React.useState<number | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
@@ -169,9 +173,6 @@ export default function AdminPastoralNotes() {
   const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
   const [editingLogId, setEditingLogId] = React.useState<string | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = React.useState(false);
-  const [rawAiMemo, setRawAiMemo] = React.useState('');
-  const [aiSuggestion, setAiSuggestion] = React.useState('');
-  const [isAiDrafting, setIsAiDrafting] = React.useState(false);
 
   const [attendanceDate, setAttendanceDate] = React.useState(getLatestSunday);
   const [attendanceServiceType, setAttendanceServiceType] = React.useState('주일예배');
@@ -209,6 +210,7 @@ export default function AdminPastoralNotes() {
       attendanceHistory: nextAttendanceHistory,
       followUpResolutions: nextFollowUpResolutions,
       ministryScheduleItems: nextScheduleItems,
+      legacyPendingCount: nextLegacyPendingCount,
     } = await getRaahBootstrap(attendanceDate, user);
     const nextAttendance = selectAttendanceEvent(nextAttendanceEvents, activeAttendanceEventType);
     const attendanceOption = getAttendanceOption(activeAttendanceEventType);
@@ -220,6 +222,7 @@ export default function AdminPastoralNotes() {
     setAttendanceHistory(nextAttendanceHistory);
     setFollowUpResolutions(nextFollowUpResolutions);
     setMinistryScheduleItems(nextScheduleItems);
+    setLegacyPendingCount(nextLegacyPendingCount);
     setAttendanceServiceType(nextAttendance?.serviceType || attendanceOption.serviceType);
     setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? attendanceOption.includesCommunion);
     setAttendanceMemo(nextAttendance?.memo || '');
@@ -312,6 +315,12 @@ export default function AdminPastoralNotes() {
     });
   }, [activeTab, isLegacyLoading, legacyLoaded, loadLegacyNotes, storageMode]);
 
+  // Hide 이전 once nothing is left to move; unknown (null) and the Firestore fallback keep it.
+  const showLegacyTab = storageMode !== 'supabase' || legacyPendingCount === null || legacyPendingCount > 0;
+  React.useEffect(() => {
+    if (!showLegacyTab && activeTab === 'legacy') setActiveTab('visitation');
+  }, [activeTab, showLegacyTab]);
+
   // The communion menu exists only when its API answers for this account (plan 5.1).
   React.useEffect(() => {
     if (!user || storageMode !== 'supabase') {
@@ -363,7 +372,7 @@ export default function AdminPastoralNotes() {
         : 'error';
   const savedAttendanceSummary = summarizeSavedAttendance(dataStatus, members, attendance);
   const activeAttendanceOption = getAttendanceOption(activeAttendanceEventType);
-  const isLogFormDirty = isLogFormOpen && (hasFormChanges(logForm, logFormBaseline) || rawAiMemo.trim() !== '');
+  const isLogFormDirty = isLogFormOpen && hasFormChanges(logForm, logFormBaseline);
   const isMemberFormDirty = isMemberFormOpen && hasFormChanges(memberForm, memberFormBaseline);
   const isLegacyFormDirty = isLegacyFormOpen && hasFormChanges(legacyForm, legacyFormBaseline);
   const isAttendanceDirty =
@@ -512,8 +521,6 @@ export default function AdminPastoralNotes() {
     setDecryptedLog(null);
     setLogForm(nextForm);
     setLogFormBaseline(nextForm);
-    setRawAiMemo('');
-    setAiSuggestion('');
     setIsLogFormOpen(true);
     setActiveTab('visitation');
   };
@@ -542,8 +549,6 @@ export default function AdminPastoralNotes() {
     setDecryptedLog(log);
     setLogForm(nextForm);
     setLogFormBaseline(nextForm);
-    setRawAiMemo('');
-    setAiSuggestion('');
     setIsLogFormOpen(true);
     setActiveTab('visitation');
   };
@@ -632,8 +637,6 @@ export default function AdminPastoralNotes() {
     if (!confirmDiscardChanges(isLogFormDirty)) return;
     setIsLogFormOpen(false);
     setEditingLogId(null);
-    setRawAiMemo('');
-    setAiSuggestion('');
   };
 
   const closeMemberForm = () => {
@@ -665,21 +668,6 @@ export default function AdminPastoralNotes() {
   const leaveWorkspace = (leave: () => void) => {
     if (!confirmDiscardChanges(hasUnsavedChanges)) return;
     leave();
-  };
-
-  const handleGenerateAiDraft = () => {
-    const memo = rawAiMemo.trim();
-    if (!memo) return;
-    if ([logForm.innerNote.trim(), memo].filter(Boolean).join('\n\n').length > 5000) {
-      toast.error('내밀한 기록은 5,000자까지 저장할 수 있습니다. 메모를 나누어 옮겨 주세요.');
-      return;
-    }
-    setLogForm((prev) => ({
-      ...prev,
-      innerNote: [prev.innerNote.trim(), memo].filter(Boolean).join('\n\n'),
-    }));
-    setRawAiMemo('');
-    toast.success('메모를 내밀한 기록에 옮겼습니다. 아래 양식에서 정리한 뒤 저장해 주세요.');
   };
 
   const handleMemberSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -743,8 +731,6 @@ export default function AdminPastoralNotes() {
       setSelectedLogId(created.id);
       setDecryptedLog(created);
       setLogForm(emptyLogForm());
-      setRawAiMemo('');
-      setAiSuggestion('');
       toast.success(editingLogId ? '심방/상담 기록을 수정했습니다.' : '심방/상담 기록을 암호화해 저장했습니다.');
       await refreshSupabase();
     } catch (error) {
@@ -890,6 +876,46 @@ export default function AdminPastoralNotes() {
     }
   };
 
+  const handleMigrateLegacy = async () => {
+    if (!user || isSaving || legacyMigrationProgress !== null) return;
+    const total = legacyPendingCount ?? legacyNotes.length;
+    if (
+      !window.confirm(
+        `이전 기록 ${total}건을 기록 탭으로 옮길까요?\n\n원본은 지우지 않고 보관합니다. 옮긴 기록은 기록 탭에서 확인하고 수정할 수 있습니다.`
+      )
+    ) {
+      return;
+    }
+
+    let migrated = 0;
+    let skipped = 0;
+    setLegacyMigrationProgress(0);
+    try {
+      // Skipped notes stay pending, so each call steps over them; stop when nothing is left or nothing was processed.
+      for (;;) {
+        const batch = await migrateRaahNotesBatch(skipped, user);
+        migrated += batch.migrated;
+        skipped += batch.skipped.length;
+        setLegacyMigrationProgress(migrated);
+        if (batch.remaining <= 0 || batch.processed === 0) break;
+      }
+      if (migrated > 0) {
+        toast.success(`이전 기록 ${migrated}건을 옮겼습니다.${skipped > 0 ? ` 옮기지 못한 기록 ${skipped}건은 이전 탭에 남아 있습니다.` : ''}`);
+      } else if (skipped > 0) {
+        toast.error(`옮기지 못한 기록 ${skipped}건은 이전 탭에 남아 있습니다.`);
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, '이전 기록을 옮기지 못했습니다.'));
+    } finally {
+      setLegacyMigrationProgress(null);
+      try {
+        await Promise.all([loadManagementData(), loadLegacyNotes()]);
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'RAAH 데이터를 다시 불러오지 못했습니다.'));
+      }
+    }
+  };
+
   const handleLegacySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || isSaving) return;
@@ -963,7 +989,7 @@ export default function AdminPastoralNotes() {
     { id: 'attendance', label: TEXT.tabs.attendance, icon: <CheckSquare size={18} /> },
     { id: 'schedule', label: TEXT.tabs.schedule, icon: <CalendarDays size={18} /> },
     { id: 'visitation', label: TEXT.tabs.visitation, icon: <ClipboardList size={18} /> },
-    { id: 'legacy', label: TEXT.tabs.legacy, icon: <FileText size={18} /> },
+    ...(showLegacyTab ? [{ id: 'legacy' as const, label: TEXT.tabs.legacy, icon: <FileText size={18} /> }] : []),
   ];
 
   const switchTab = (tabId: ActiveTab) => {
@@ -1298,17 +1324,12 @@ export default function AdminPastoralNotes() {
                 form={logForm}
                 setForm={setLogForm}
                 editingLogId={editingLogId}
-                rawAiMemo={rawAiMemo}
-                setRawAiMemo={setRawAiMemo}
-                aiSuggestion={aiSuggestion}
-                isAiDrafting={isAiDrafting}
                 isDetailLoading={isDetailLoading}
                 calendarStatus={calendarStatus}
                 calendarEventForm={calendarEventForm}
                 setCalendarEventForm={setCalendarEventForm}
                 isCalendarEventFormOpen={isCalendarEventFormOpen}
                 setIsCalendarEventFormOpen={setIsCalendarEventFormOpen}
-                onAiDraft={handleGenerateAiDraft}
                 onSubmit={handleLogSubmit}
                 onCreateCalendarEvent={handleCreateCalendarEvent}
                 onOpenCalendarEvent={openCalendarEventForm}
@@ -1337,6 +1358,9 @@ export default function AdminPastoralNotes() {
                 onNew={openNewLegacyForm}
                 onEdit={openLegacyFormForEdit}
                 canEdit={storageMode === 'supabase'}
+                pendingCount={legacyPendingCount}
+                migrationProgress={legacyMigrationProgress}
+                onMigrate={handleMigrateLegacy}
               />
             )}
           </div>
