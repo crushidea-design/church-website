@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { shell } from '../adminShell';
 import { getErrorMessage } from '../adminHelpers';
 import { addCommunionOccasion, updateCommunionOccasion, type CommunionOccasion, type CommunionOccasionStatus } from './api';
-import { OCCASION_CANCEL_CONFIRM, describeOccasion, occasionActions } from './workflow';
+import { OCCASION_CANCEL_CONFIRM, describeOccasion, occasionActions, type OccasionPatch } from './workflow';
 
 const smallButton = shell.ghostButton + ' px-2.5 py-1 text-xs';
 
@@ -21,8 +21,8 @@ export function OccasionList({
   occasions: CommunionOccasion[];
   periodClosed: boolean;
   user: User;
-  /** Called after every attempt, also a failed one, so stale data is replaced. */
-  onChanged: () => void;
+  /** Called after every attempt: with the saved change on success, with null after a failure so stale data is replaced. */
+  onChanged: (patch: OccasionPatch | null) => void;
 }) {
   const [busy, setBusy] = React.useState(false);
   // Which row is being moved (id) or whether a new date is being added.
@@ -30,29 +30,30 @@ export function OccasionList({
   const [adding, setAdding] = React.useState(false);
   const [dateDraft, setDateDraft] = React.useState('');
 
-  const run = async (action: () => Promise<unknown>, done: string, failure: string) => {
+  const run = async (action: () => Promise<OccasionPatch>, done: string, failure: string) => {
     if (busy) return;
     setBusy(true);
     try {
-      await action();
+      const patch = await action();
       toast.success(done);
       setMovingId(null);
       setAdding(false);
       setDateDraft('');
+      setBusy(false);
+      onChanged(patch);
     } catch (error) {
       toast.error(
         (error as { status?: number })?.status === 409
           ? '다른 곳에서 먼저 변경되었거나 같은 날짜가 이미 있습니다. 최신 내용을 다시 불러옵니다.'
           : getErrorMessage(error, failure)
       );
-    } finally {
-      onChanged();
       setBusy(false);
+      onChanged(null);
     }
   };
 
   const setStatus = (occasion: CommunionOccasion, status: CommunionOccasionStatus, done: string) =>
-    run(() => updateCommunionOccasion(occasion.id, { expectedRevision: occasion.revision, status }, user), done, '성찬 시행 상태를 바꾸지 못했습니다.');
+    run(async () => ({ kind: 'update', id: occasion.id, status, ...(await updateCommunionOccasion(occasion.id, { expectedRevision: occasion.revision, status }, user)) }), done, '성찬 시행 상태를 바꾸지 못했습니다.');
 
   const submitDate = () => {
     if (!dateDraft) {
@@ -61,9 +62,9 @@ export function OccasionList({
     }
     const moving = occasions.find((occasion) => occasion.id === movingId);
     if (moving) {
-      return run(() => updateCommunionOccasion(moving.id, { expectedRevision: moving.revision, serviceDate: dateDraft }, user), '시행일을 바꿨습니다.', '시행일을 바꾸지 못했습니다.');
+      return run(async () => ({ kind: 'update', id: moving.id, serviceDate: dateDraft, ...(await updateCommunionOccasion(moving.id, { expectedRevision: moving.revision, serviceDate: dateDraft }, user)) }), '시행일을 바꿨습니다.', '시행일을 바꾸지 못했습니다.');
     }
-    return run(() => addCommunionOccasion(periodId, dateDraft, user), '시행일을 추가했습니다.', '시행일을 추가하지 못했습니다.');
+    return run(async () => ({ kind: 'add', serviceDate: dateDraft, ...(await addCommunionOccasion(periodId, dateDraft, user)) }), '시행일을 추가했습니다.', '시행일을 추가하지 못했습니다.');
   };
 
   const dateForm = (label: string) => (

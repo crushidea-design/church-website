@@ -17,12 +17,18 @@ import { ConversationForm, LinkedLogs, ReviewStatusControl } from './ReviewWorks
 import { CreatePeriodForm, RosterEditor } from './PeriodSetup';
 import { CareTasksSection, type SourceOption } from '../care-tasks/CareTasksSection';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
+import { useRefreshableLoad, type Load } from '../hooks/useRefreshableLoad';
 import {
   DEFAULT_REVIEW_FILTER,
   PROGRESS_DISCLAIMER,
   REVIEW_STATUS_LABELS,
   REVIEW_STATUS_ORDER,
   REOPEN_REASON_MAX,
+  applyOccasionPatch,
+  applyPeriodClosed,
+  applyPeriodReopened,
+  applyReviewChange,
+  applyReviewChangeToDetail,
   buildCloseConfirmMessage,
   buildClosedSummaryLine,
   buildReopenedLine,
@@ -37,10 +43,9 @@ import {
   toSeoulDate,
   validateReopenReason,
   type PeriodDraft,
+  type ReviewChange,
   type ReviewFilter,
 } from './workflow';
-
-type Load<T> = { state: 'loading' } | { state: 'ready'; data: T } | { state: 'error'; status?: number };
 
 const PERIOD_STATUS_LABELS: Record<CommunionPeriod['status'], string> = { active: '진행 중', planned: '예정', closed: '마감' };
 
@@ -49,29 +54,6 @@ function errorMessage(status?: number) {
   if (status === 404) return '목양 주기를 찾을 수 없습니다.';
   if (status === 503) return '저장소에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.';
   return '성찬 목양 정보를 불러오지 못했습니다.';
-}
-
-function useLoad<T>(key: string | null, load: () => Promise<T>) {
-  const [result, setResult] = React.useState<Load<T>>({ state: 'loading' });
-  const [attempt, setAttempt] = React.useState(0);
-  const loadedKey = React.useRef<string | null>(null);
-  React.useEffect(() => {
-    if (key === null) return;
-    let cancelled = false;
-    // A refresh of the same thing keeps showing what is loaded, so forms below
-    // (and their unsaved drafts) stay mounted. A different key starts clean.
-    if (loadedKey.current !== key) setResult({ state: 'loading' });
-    loadedKey.current = key;
-    load()
-      .then((data) => !cancelled && setResult({ state: 'ready', data }))
-      .catch((error: { status?: number }) => !cancelled && setResult({ state: 'error', status: error?.status }));
-    return () => {
-      cancelled = true;
-    };
-    // `load` is recreated each render; `key` and `attempt` decide when to refetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, attempt]);
-  return { result, reload: () => setAttempt((value) => value + 1) };
 }
 
 function LoadState({ result, onRetry }: { result: Load<unknown>; onRetry: () => void }) {
@@ -111,7 +93,7 @@ export function CommunionTab({
   /** Opens this period (e.g. from the home panel). A new nonce makes a repeated request for the same period work. */
   requestedPeriod?: { periodId: string; nonce: number } | null;
 }) {
-  const periods = useLoad('periods', () => listCommunionPeriods(user));
+  const periods = useRefreshableLoad('periods', () => listCommunionPeriods(user));
   // Unsaved work can sit in the person panel, the roster editor or the new-period form.
   const [dirtyParts, setDirtyParts] = React.useState({ panel: false, roster: false, create: false });
   const markDirty = React.useCallback((part: keyof typeof dirtyParts) => (dirty: boolean) => setDirtyParts((prev) => (prev[part] === dirty ? prev : { ...prev, [part]: dirty })), []);
@@ -126,7 +108,7 @@ export function CommunionTab({
   const [nextSeed, setNextSeed] = React.useState<{ draft: PeriodDraft; memberIds: Set<string> } | null>(null);
   const [carryOver, setCarryOver] = React.useState<{ periodId: string; memberIds: Set<string> } | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<string | null>(null);
-  const detail = useLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
+  const detail = useRefreshableLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<ReviewFilter>(DEFAULT_REVIEW_FILTER);
   const [isDeletingPeriod, setIsDeletingPeriod] = React.useState(false);
@@ -141,6 +123,8 @@ export function CommunionTab({
 
   const selectPeriod = (periodId: string | null) => {
     if (!confirmDiscardChanges(draftDirty)) return;
+    // The list shows counts and dates that changed while a period was open; refresh it on the way back.
+    if (periodId === null) periods.refresh();
     setSelectedPeriodId(periodId);
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
@@ -161,7 +145,6 @@ export function CommunionTab({
 
   const openCreatedPeriod = (periodId: string) => {
     setIsCreating(false);
-    periods.reload();
     setCarryOver(nextSeed ? { periodId, memberIds: nextSeed.memberIds } : null);
     setNextSeed(null);
     setSelectedPeriodId(periodId);
@@ -226,7 +209,7 @@ export function CommunionTab({
       setSelectedReviewId(null);
       setFilter(DEFAULT_REVIEW_FILTER);
       setIsEditingRoster(false);
-      periods.reload();
+      periods.refresh();
       onWorkspaceDataChanged();
     } catch (error) {
       toast.error((error as { status?: number })?.status === 409 ? REAL_MEMBERS_IN_PERIOD_MESSAGE : getErrorMessage(error, '목양 주기를 삭제하지 못했습니다.'));
@@ -240,9 +223,10 @@ export function CommunionTab({
     if (!window.confirm(buildCloseConfirmMessage(period.counts))) return;
     setIsChangingPeriod(true);
     try {
-      await closeCommunionPeriod(period.id, period.revision, user);
+      const result = await closeCommunionPeriod(period.id, period.revision, user);
+      // Closing only freezes this period; nothing the other tabs show has changed.
+      detail.update((data) => applyPeriodClosed(data, result, new Date().toISOString()));
       toast.success('주기를 마감했습니다.');
-      onWorkspaceDataChanged();
       setDirtyParts({ panel: false, roster: false, create: false });
       setIsEditingRoster(false);
       setReopenDraft(null);
@@ -253,10 +237,9 @@ export function CommunionTab({
           : getErrorMessage(error, '주기를 마감하지 못했습니다.')
       );
     } finally {
-      // Reload on failure too, so a stale revision or state is replaced by what the server has.
-      detail.reload();
-      periods.reload();
       setIsChangingPeriod(false);
+      // In the background; after a failure too, so a stale revision or state is replaced by what the server has.
+      detail.refresh();
     }
   };
 
@@ -269,9 +252,10 @@ export function CommunionTab({
     }
     setIsChangingPeriod(true);
     try {
-      await reopenCommunionPeriod(period.id, { expectedRevision: period.revision, reason: reopenDraft.trim() }, user);
+      const reason = reopenDraft.trim();
+      const result = await reopenCommunionPeriod(period.id, { expectedRevision: period.revision, reason }, user);
+      detail.update((data) => applyPeriodReopened(data, result, reason, new Date().toISOString()));
       toast.success('주기를 다시 열었습니다.');
-      onWorkspaceDataChanged();
       setReopenDraft(null);
     } catch (error) {
       toast.error(
@@ -280,9 +264,8 @@ export function CommunionTab({
           : getErrorMessage(error, '주기를 다시 열지 못했습니다.')
       );
     } finally {
-      detail.reload();
-      periods.reload();
       setIsChangingPeriod(false);
+      detail.refresh();
     }
   };
 
@@ -339,9 +322,9 @@ export function CommunionTab({
             occasions={period.occasions}
             periodClosed={isClosed}
             user={user}
-            onChanged={() => {
-              detail.reload();
-              periods.reload();
+            onChanged={(patch) => {
+              if (patch) detail.update((data) => applyOccasionPatch(data, patch));
+              detail.refresh();
             }}
           />
           {isClosed && <p className="text-sm text-[#607080]">{buildClosedSummaryLine(closedDate, period.closingSummary)}</p>}
@@ -398,7 +381,7 @@ export function CommunionTab({
               members={members}
               reviews={reviews}
               user={user}
-              onSaved={detail.reload}
+              onSaved={detail.refresh}
               onClose={() => setIsEditingRoster(false)}
               onDirtyChange={setRosterDirty}
               initialSelection={carryOver?.periodId === period.id ? carryOver.memberIds : undefined}
@@ -446,7 +429,10 @@ export function CommunionTab({
             onOpenLog={(logId) => {
               if (confirmDiscardChanges(draftDirty)) onOpenLog(logId);
             }}
-            onChanged={detail.reload}
+            onReviewChanged={(change) => {
+              if (change) detail.update((data) => applyReviewChange(data, selectedReview.id, change, new Date().toISOString()));
+              detail.refresh();
+            }}
             onWorkspaceDataChanged={onWorkspaceDataChanged}
             onDraftDirtyChange={setPanelDirty}
           />
@@ -611,7 +597,7 @@ function PersonPanel({
   attendanceHistory,
   onBack,
   onOpenLog,
-  onChanged,
+  onReviewChanged,
   onWorkspaceDataChanged,
   onDraftDirtyChange,
 }: {
@@ -622,14 +608,17 @@ function PersonPanel({
   attendanceHistory: RaahAttendanceHistoryRecord[];
   onBack: () => void;
   onOpenLog: (logId: string) => void;
-  onChanged: () => void;
+  /** The saved change when the server answered with one; null after a failure, to reload what the server has. */
+  onReviewChanged: (change: ReviewChange | null) => void;
   onWorkspaceDataChanged: () => void;
   onDraftDirtyChange: (dirty: boolean) => void;
 }) {
-  const detail = useLoad(review.id, () => getCommunionReview(review.id, user));
-  const refreshAll = () => {
-    detail.reload();
-    onChanged();
+  const detail = useRefreshableLoad(review.id, () => getCommunionReview(review.id, user));
+  // After a saved change the panel and the period already show the answer; each is refreshed once in the background.
+  const applyChange = (change: ReviewChange | null) => {
+    if (change) detail.update((data) => applyReviewChangeToDetail(data, change));
+    else detail.refresh();
+    onReviewChanged(change);
   };
   const editable = !periodClosed && review.rosterState === 'included';
   // Two drafts can be open at once (conversation, new task); either one counts as unsaved.
@@ -687,14 +676,14 @@ function PersonPanel({
         <LoadState result={detail.result} onRetry={detail.reload} />
       ) : (
         <>
-          <ReviewStatusControl detail={detail.result.data} user={user} disabled={!editable} onChanged={refreshAll} />
+          <ReviewStatusControl detail={detail.result.data} user={user} disabled={!editable} onChanged={applyChange} />
           <LinkedLogs
             detail={detail.result.data}
             memberLogs={memberLogs}
             user={user}
             disabled={!editable}
             onOpenLog={onOpenLog}
-            onChanged={refreshAll}
+            onChanged={detail.refresh}
           />
           <CareTasksSection memberId={review.memberId} sources={taskSources} user={user} disabled={!editable} onDirtyChange={setTaskDirty} onScheduleCreated={onWorkspaceDataChanged} />
         </>
@@ -766,8 +755,10 @@ function PersonPanel({
             user={user}
             disabled={!editable}
             onDirtyChange={setConversationDirty}
-            onSaved={() => {
-              refreshAll();
+            onSaved={(change) => {
+              applyChange(change);
+              // The new record also shows in the person's linked logs (a failed save already reloaded them).
+              if (change) detail.refresh();
               onWorkspaceDataChanged();
             }}
           />

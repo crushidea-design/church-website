@@ -1,4 +1,12 @@
-import type { CommunionClosingSummary, CommunionOccasionStatus, CommunionReview, CommunionReviewStatus, ParticipationFact } from './api';
+import type {
+  CommunionClosingSummary,
+  CommunionOccasionStatus,
+  CommunionPeriod,
+  CommunionReview,
+  CommunionReviewDetail,
+  CommunionReviewStatus,
+  ParticipationFact,
+} from './api';
 
 // Screen names for pastoral progress (plan 8.1). These describe the care
 // conversation only — never readiness or admission to the Lord's Supper.
@@ -247,4 +255,76 @@ export function describeParticipation(entry: { serviceDate: string; fact: Partic
   const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(entry.serviceDate);
   const day = match ? `${Number(match[1])}월 ${Number(match[2])}일` : entry.serviceDate;
   return `${day} · ${PARTICIPATION_FACT_LABELS[entry.fact]}`;
+}
+
+// ───── Showing a saved change at once ─────
+// The server answers a change with the new revision (and status). These apply that
+// answer to what is on screen so the next action already carries the new revision;
+// a background reload then reconciles anything else. Counts mirror countReviews on
+// the server: only included reviews are counted.
+
+export type PeriodDetailData = { period: CommunionPeriod; reviews: CommunionReview[] };
+export type ReviewChange = { status?: CommunionReviewStatus; revision: number; statusReason?: string };
+
+export function applyReviewChange(data: PeriodDetailData, reviewId: string, change: ReviewChange, nowIso: string): PeriodDetailData {
+  const target = data.reviews.find((review) => review.id === reviewId);
+  if (!target) return data;
+  const nextStatus = change.status ?? target.status;
+  const counts = target.rosterState === 'included' && nextStatus !== target.status
+    ? {
+      ...data.period.counts,
+      byStatus: {
+        ...data.period.counts.byStatus,
+        [target.status]: Math.max(0, data.period.counts.byStatus[target.status] - 1),
+        [nextStatus]: data.period.counts.byStatus[nextStatus] + 1,
+      },
+    }
+    : data.period.counts;
+  return {
+    period: { ...data.period, counts },
+    reviews: data.reviews.map((review) => (review.id === reviewId ? { ...review, status: nextStatus, revision: change.revision, updatedAt: nowIso } : review)),
+  };
+}
+
+export function applyReviewChangeToDetail(detail: CommunionReviewDetail, change: ReviewChange): CommunionReviewDetail {
+  return {
+    ...detail,
+    review: {
+      ...detail.review,
+      status: change.status ?? detail.review.status,
+      revision: change.revision,
+      statusReason: change.statusReason ?? detail.review.statusReason,
+    },
+  };
+}
+
+export function applyPeriodClosed(
+  data: PeriodDetailData,
+  result: { revision: number; closingSummary: CommunionClosingSummary },
+  nowIso: string
+): PeriodDetailData {
+  return { ...data, period: { ...data.period, status: 'closed', revision: result.revision, closingSummary: result.closingSummary, closedAt: nowIso } };
+}
+
+export function applyPeriodReopened(data: PeriodDetailData, result: { revision: number }, reason: string, nowIso: string): PeriodDetailData {
+  return {
+    ...data,
+    period: { ...data.period, status: 'active', revision: result.revision, closedAt: null, reopenedAt: nowIso, reopenReason: reason },
+  };
+}
+
+export type OccasionPatch =
+  | { kind: 'add'; id: string; serviceDate: string; revision: number }
+  | { kind: 'update'; id: string; revision: number; status?: CommunionOccasionStatus; serviceDate?: string };
+
+export function applyOccasionPatch(data: PeriodDetailData, patch: OccasionPatch): PeriodDetailData {
+  const occasions =
+    patch.kind === 'add'
+      ? [...data.period.occasions, { id: patch.id, serviceDate: patch.serviceDate, status: 'scheduled' as const, revision: patch.revision }]
+      : data.period.occasions.map((occasion) =>
+        occasion.id === patch.id
+          ? { ...occasion, revision: patch.revision, status: patch.status ?? occasion.status, serviceDate: patch.serviceDate ?? occasion.serviceDate }
+          : occasion
+      );
+  return { ...data, period: { ...data.period, occasions: [...occasions].sort((a, b) => a.serviceDate.localeCompare(b.serviceDate)) } };
 }

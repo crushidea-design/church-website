@@ -33,7 +33,7 @@ import {
   type ConversationDraft,
   type TopicCoverage,
 } from './questionGuide';
-import { ALLOWED_TRANSITIONS, REVIEW_STATUS_LABELS, TRANSITION_ACTION_LABELS, transitionNeedsReason } from './workflow';
+import { ALLOWED_TRANSITIONS, REVIEW_STATUS_LABELS, TRANSITION_ACTION_LABELS, transitionNeedsReason, type ReviewChange } from './workflow';
 
 const newIdempotencyKey = () => crypto.randomUUID();
 
@@ -54,7 +54,8 @@ export function ReviewStatusControl({
   detail: CommunionReviewDetail;
   user: User;
   disabled: boolean;
-  onChanged: () => void;
+  /** The saved change on success; null after a failure so the caller reloads what the server has. */
+  onChanged: (change: ReviewChange | null) => void;
 }) {
   const { review } = detail;
   const [target, setTarget] = React.useState<CommunionReviewStatus | null>(null);
@@ -69,15 +70,16 @@ export function ReviewStatusControl({
     }
     setIsSaving(true);
     try {
-      await transitionCommunionReview(review.id, { status: to, expectedRevision: review.revision, reason: reason.trim() || undefined }, user);
+      const saved = await transitionCommunionReview(review.id, { status: to, expectedRevision: review.revision, reason: reason.trim() || undefined }, user);
       toast.success(`${REVIEW_STATUS_LABELS[to]}(으)로 바꿨습니다.`);
       setTarget(null);
       setReason('');
+      setIsSaving(false);
+      onChanged({ status: saved.status, revision: saved.revision, statusReason: reason.trim() });
     } catch (error) {
       toast.error(getErrorMessage(error, '진행 상태를 바꾸지 못했습니다.'));
-    } finally {
       setIsSaving(false);
-      onChanged();
+      onChanged(null);
     }
   };
 
@@ -130,7 +132,8 @@ export function ConversationForm({
   user: User;
   disabled: boolean;
   onDirtyChange: (dirty: boolean) => void;
-  onSaved: () => void;
+  /** The change the record made to the review; null after a conflict, so the caller reloads. */
+  onSaved: (change: ReviewChange | null) => void;
 }) {
   const [draft, setDraft] = React.useState<ConversationDraft>(() => emptyConversationDraft(getTodayIso()));
   const [isSaving, setIsSaving] = React.useState(false);
@@ -153,7 +156,7 @@ export function ConversationForm({
     }
     setIsSaving(true);
     try {
-      await createCommunionLog(
+      const saved = await createCommunionLog(
         detail.review.id,
         {
           expectedRevision: detail.review.revision,
@@ -169,12 +172,13 @@ export function ConversationForm({
       toast.success('대화 기록을 암호화해 저장했습니다.');
       setDraft(emptyConversationDraft(getTodayIso()));
       idempotencyKey.current = newIdempotencyKey();
-      onSaved();
+      setIsSaving(false);
+      // Recording a conversation moves an open review to "in progress" (and drops an old reason).
+      onSaved({ status: 'in_progress', revision: saved.revision, statusReason: detail.review.status === 'in_progress' ? undefined : '' });
     } catch (error) {
       toast.error(getErrorMessage(error, '대화 기록을 저장하지 못했습니다. 내용은 화면에 남아 있습니다.'));
-      if ((error as { status?: number }).status === 409) onSaved();
-    } finally {
       setIsSaving(false);
+      if ((error as { status?: number }).status === 409) onSaved(null);
     }
   };
 

@@ -98,4 +98,52 @@ describe('RAAH workspace access', () => {
     // A distinct code so the client never mistakes it for "Supabase not configured".
     expect(await response?.json()).toMatchObject({ code: 'RAAH_ACCESS_UNAVAILABLE' });
   });
+
+  describe('parallel grant lookup', () => {
+    const jwt = (uid: string) => `h.${Buffer.from(JSON.stringify({ sub: uid })).toString('base64url')}.s`;
+    const jwtRequest = (uid: string) => new Request('https://example.test/x', { headers: { Authorization: `Bearer ${jwt(uid)}` } });
+
+    it('starts the grant lookup before verification resolves', async () => {
+      let release!: (v: unknown) => void;
+      mocks.requireRaahAdmin.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+      fetchSpy.mockResolvedValue(grantResponse([grant()]));
+      const pending = requireRaahAccess(jwtRequest('admin-uid'));
+      await Promise.resolve();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      release({ user: admin });
+      expect((await pending).access?.accessRole).toBe('pastor');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not trust a prefetched grant for a different verified uid', async () => {
+      mocks.requireRaahAdmin.mockResolvedValue({ user: admin });
+      fetchSpy.mockImplementation(async (input) => {
+        const uid = new URL(String(input)).searchParams.get('firebase_uid');
+        return grantResponse(uid === 'eq.admin-uid' ? [] : [grant()]);
+      });
+      const result = await requireRaahAccess(jwtRequest('someone-else'));
+      expect(result.response?.status).toBe(403);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('never returns prefetched data when verification fails', async () => {
+      const unauthorized = new Response(null, { status: 401 });
+      mocks.requireRaahAdmin.mockResolvedValue({ response: unauthorized });
+      fetchSpy.mockResolvedValue(grantResponse([grant()]));
+      const result = await requireRaahAccess(jwtRequest('admin-uid'));
+      expect(result.response).toBe(unauthorized);
+      expect(result.access).toBeUndefined();
+    });
+
+    it('skips the prefetch entirely when no grant is needed', async () => {
+      vi.stubEnv('RAAH_ACCESS_ENFORCED', '');
+      await requireRaahAccess(jwtRequest('admin-uid'));
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps the 503 for an unavailable lookup', async () => {
+      fetchSpy.mockRejectedValue(new Error('offline'));
+      expect((await requireRaahAccess(jwtRequest('admin-uid'))).response?.status).toBe(503);
+    });
+  });
 });

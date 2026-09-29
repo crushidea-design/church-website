@@ -46,6 +46,38 @@ describe('RAAH authorization boundary', () => {
     expect((await requireRaahAdmin(request())).response?.status).toBe(503);
     expect(mocks.verify).not.toHaveBeenCalled();
   });
+  describe('parallel role read', () => {
+    const jwt = (uid: string) => `h.${Buffer.from(JSON.stringify({ sub: uid })).toString('base64url')}.s`;
+    it('reads the role while the token is still being verified', async () => {
+      let release!: (v: unknown) => void;
+      mocks.verify.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+      mocks.get.mockResolvedValue({ exists: true, data: () => ({ role: 'admin' }) });
+      const pending = requireRaahAdmin(request(jwt('member')));
+      await Promise.resolve();
+      expect(mocks.get).toHaveBeenCalledTimes(1);
+      release({ uid: 'member', email: 'member@example.test', email_verified: true });
+      expect((await pending).user?.uid).toBe('member');
+      expect(mocks.get).toHaveBeenCalledTimes(1);
+    });
+    it('rereads the role when the verified uid differs from the claimed one', async () => {
+      mocks.verify.mockResolvedValue({ uid: 'real', email: 'r@example.test' });
+      mocks.get.mockResolvedValueOnce({ exists: true, data: () => ({ role: 'admin' }) })
+        .mockResolvedValueOnce({ exists: true, data: () => ({ role: 'user' }) });
+      expect((await requireRaahAdmin(request(jwt('claimed')))).response?.status).toBe(403);
+      expect(mocks.get).toHaveBeenCalledTimes(2);
+    });
+    it('returns 401 without user data when verification fails', async () => {
+      mocks.verify.mockRejectedValue(new Error('bad'));
+      mocks.get.mockResolvedValue({ exists: true, data: () => ({ role: 'admin' }) });
+      const result = await requireRaahAdmin(request(jwt('member')));
+      expect(result.response?.status).toBe(401);
+      expect(result.user).toBeUndefined();
+    });
+    it('maps a failed role read to 503', async () => {
+      mocks.get.mockRejectedValue(new Error('down'));
+      expect((await requireRaahAdmin(request(jwt('member')))).response?.status).toBe(503);
+    });
+  });
   it('never reads or forwards an AI memo, even for an administrator', async () => {
     mocks.get.mockResolvedValue({ exists: true, data: () => ({ role: 'admin' }) });
     const req = new Request('https://example.test/api/raah/ai-assist', {

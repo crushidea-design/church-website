@@ -10,6 +10,7 @@ import { shell } from '../adminShell';
 import { getErrorMessage } from '../adminHelpers';
 import { confirmDiscardChanges, useBeforeUnloadWarning } from '../hooks/useUnsavedChanges';
 import { hasFormChanges } from '../formChanges';
+import { useRefreshableLoad } from '../hooks/useRefreshableLoad';
 import { getMemberEcclesialProfile, setMemberEcclesialProfile } from './api';
 import {
   BAPTISM_LABELS,
@@ -22,7 +23,6 @@ import {
   type BaptismStatus,
   type CommunicantStatus,
   type EcclesialDraft,
-  type MemberEcclesialProfile,
   type ProfessionStatus,
 } from './helpers';
 
@@ -56,22 +56,11 @@ export function EcclesialProfileSection({
   user: User;
   onDirtyChange: (dirty: boolean) => void;
 }) {
-  const [profile, setProfile] = React.useState<MemberEcclesialProfile | null>(null);
-  const [loadError, setLoadError] = React.useState(false);
-  const [reload, setReload] = React.useState(0);
+  const loaded = useRefreshableLoad(memberId, () => getMemberEcclesialProfile(memberId, user));
+  const profile = loaded.result.state === 'ready' ? loaded.result.data : null;
+  const loadError = loaded.result.state === 'error';
   const [draft, setDraft] = React.useState<EcclesialDraft | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    setLoadError(false);
-    getMemberEcclesialProfile(memberId, user)
-      .then((next) => !cancelled && setProfile(next))
-      .catch(() => !cancelled && setLoadError(true));
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId, user, reload]);
 
   const dirty = Boolean(profile && draft && hasFormChanges(draft, draftFromProfile(profile)));
   useBeforeUnloadWarning(dirty);
@@ -93,15 +82,17 @@ export function EcclesialProfileSection({
     }
     setIsSaving(true);
     try {
-      await setMemberEcclesialProfile(memberId, { ...draft, expectedRevision: profile.revision }, user);
+      const saved = await setMemberEcclesialProfile(memberId, { ...draft, expectedRevision: profile.revision }, user);
+      // Show what was saved with its new revision; the verifier and date come from the background reload.
+      loaded.update((current) => ({ ...current, ...draft, sourceLabel: draft.sourceLabel.trim(), revision: saved.revision }));
       toast.success('교회 기록을 저장했습니다.');
       setDraft(null);
-      setReload((value) => value + 1);
+      loaded.refresh();
     } catch (error) {
       if ((error as { status?: number })?.status === 409) {
         toast.error('다른 곳에서 먼저 변경되었습니다. 최신 기록을 다시 불러왔습니다. 확인 후 다시 입력해 주세요.');
         setDraft(null);
-        setReload((value) => value + 1);
+        loaded.refresh();
       } else {
         toast.error(getErrorMessage(error, '교회 기록을 저장하지 못했습니다.'));
       }
@@ -124,7 +115,7 @@ export function EcclesialProfileSection({
       <p className="mt-1 text-xs text-[#607080]">{ECCLESIAL_HINT}</p>
       {loadError ? (
         <p className="mt-2 text-sm text-[#8a3b2a]" role="alert">
-          교회 기록을 불러오지 못했습니다. <button type="button" onClick={() => setReload((value) => value + 1)} className="underline">다시 시도</button>
+          교회 기록을 불러오지 못했습니다. <button type="button" onClick={loaded.reload} className="underline">다시 시도</button>
         </p>
       ) : !profile ? (
         <p className="mt-2 text-sm text-[#607080]" role="status">불러오는 중…</p>
