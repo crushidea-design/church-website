@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeConversationNote, emptyConversationDraft, isConversationDraftEmpty } from './questionGuide';
+import { GUIDE_TOPICS, composeConversationNote, emptyConversationDraft, isConversationDraftEmpty } from './questionGuide';
 
 describe('composeConversationNote', () => {
   it('writes only the topics that were touched, with their scope label', () => {
@@ -25,5 +25,18 @@ describe('composeConversationNote', () => {
     expect(isConversationDraftEmpty(draft)).toBe(true);
     draft.nextSteps = '다음 주 연락';
     expect(isConversationDraftEmpty(draft)).toBe(false);
+  });
+});
+
+describe('GUIDE_TOPICS sources', () => {
+  it('gives every prompt at least one cited source with an https link', () => {
+    for (const topic of GUIDE_TOPICS) {
+      expect(topic.sources.length, topic.key).toBeGreaterThan(0);
+      for (const source of topic.sources) {
+        expect(source.label.trim()).not.toBe('');
+        expect(source.summary.trim()).not.toBe('');
+        expect(source.url).toMatch(/^https:\/\//);
+      }
+    }
   });
 });

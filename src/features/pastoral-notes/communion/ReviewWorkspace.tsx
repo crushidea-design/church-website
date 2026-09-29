@@ -21,6 +21,7 @@ import {
 } from './api';
 import {
   COVERAGE_LABELS,
+  GUIDE_SOURCE_NOTE,
   GUIDE_TOPICS,
   SAFETY_NOTICE,
   composeConversationNote,
@@ -192,6 +193,20 @@ export function ConversationForm({
             </summary>
             <p className="mt-2 text-sm text-[#17202b]">{topic.prompt}</p>
             <p className="mt-1 text-xs text-[#607080]">남길 수 있는 기록: {topic.hint}</p>
+            <details className="mt-1.5 text-xs text-[#607080]">
+              <summary className="cursor-pointer">근거: {topic.sources.map((source) => source.label).join(' · ')}</summary>
+              <ul className="mt-1.5 space-y-1 border-l-2 border-[#dbe3e8] pl-2">
+                {topic.sources.map((source) => (
+                  <li key={source.label}>
+                    <span className="font-semibold text-[#28415b]">{source.label}</span> {source.summary}{' '}
+                    <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#2e6b5f] underline underline-offset-2">
+                      원문
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] text-[#7a8b9a]">{GUIDE_SOURCE_NOTE}</p>
+            </details>
             {topic.key === 'love' && (
               <p className="mt-2 flex items-start gap-1.5 rounded-md bg-[#fbf3e6] p-2 text-xs text-[#6b4a1a]">
                 <ShieldAlert size={14} className="mt-0.5 shrink-0" />
