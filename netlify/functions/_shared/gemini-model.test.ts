@@ -3,7 +3,7 @@ import { DEFAULT_GEMINI_MODEL, resolveGeminiModel } from './gemini-model.mjs';
 
 describe('resolveGeminiModel', () => {
   it('uses the configured model name', () => {
-    expect(resolveGeminiModel(' gemini-3.8-flash ')).toBe('gemini-3.8-flash');
+    expect(resolveGeminiModel(' gemini-2.5-flash ')).toBe('gemini-2.5-flash');
   });
 
   it('falls back when unset or malformed', () => {
