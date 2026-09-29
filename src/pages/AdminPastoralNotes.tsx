@@ -181,6 +181,8 @@ export default function AdminPastoralNotes() {
   const [scheduleForm, setScheduleForm] = React.useState<RaahMinistryScheduleItemInput>(emptyScheduleForm);
   const [editingScheduleItemId, setEditingScheduleItemId] = React.useState<string | null>(null);
   const [isScheduleFormOpen, setIsScheduleFormOpen] = React.useState(false);
+  // A visit booked from a member's panel is edited right there, without leaving the member tab.
+  const [isMemberScheduleForm, setIsMemberScheduleForm] = React.useState(false);
   const [copiedScheduleItem, setCopiedScheduleItem] = React.useState<RaahMinistryScheduleItem | null>(null);
   const [calendarStatus, setCalendarStatus] = React.useState<RaahCalendarStatus | null>(null);
   const [calendarEventForm, setCalendarEventForm] = React.useState<RaahGoogleCalendarEventInput>(emptyCalendarEventForm);
@@ -583,6 +585,7 @@ export default function AdminPastoralNotes() {
   };
 
   const closeScheduleForm = () => {
+    setIsMemberScheduleForm(false);
     setEditingScheduleItemId(null);
     setScheduleForm(emptyScheduleForm());
     setIsScheduleFormOpen(false);
@@ -640,6 +643,8 @@ export default function AdminPastoralNotes() {
   // Selecting another member closes an open edit form, so unsaved edits are confirmed first.
   const selectMember = (memberId: string | null) => {
     if (isMemberFormOpen && !closeMemberForm()) return;
+    // A visit form prefilled for one member must not stay open for another.
+    if (isMemberScheduleForm && memberId !== selectedMemberId) closeScheduleForm();
     setSelectedMemberId(memberId);
   };
 
@@ -946,6 +951,7 @@ export default function AdminPastoralNotes() {
   const switchTab = (tabId: ActiveTab) => {
     // Other tabs keep their drafts in this component; the communion draft lives in the tab and is lost on leaving it.
     if (activeTab === 'communion' && tabId !== 'communion' && !confirmDiscardChanges(isCommunionDraftDirty)) return;
+    if (isMemberScheduleForm && tabId !== 'members') closeScheduleForm();
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
@@ -1155,9 +1161,13 @@ export default function AdminPastoralNotes() {
                 onNewSchedule={(member) => {
                   openNewScheduleForm();
                   setScheduleForm((previous) => ({ ...previous, itemType: 'visitation', memberId: member.id, memberName: member.name, title: `${member.name} 심방` }));
-                  setSearchTerm('');
-                  setActiveTab('schedule');
+                  setIsMemberScheduleForm(true);
                 }}
+                isScheduleFormOpen={isScheduleFormOpen && isMemberScheduleForm}
+                scheduleForm={scheduleForm}
+                setScheduleForm={setScheduleForm}
+                onSubmitSchedule={handleCreateScheduleItem}
+                onCloseScheduleForm={closeScheduleForm}
                 selectedMember={selectedMember}
                 selectedMemberLogs={selectedMemberLogs}
                 selectedMemberAttendance={selectedMemberAttendance}

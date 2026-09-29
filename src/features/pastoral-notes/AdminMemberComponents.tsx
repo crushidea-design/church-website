@@ -9,8 +9,10 @@ import {
   RaahAttendanceRecord,
   RaahMember,
   RaahMemberInput,
+  RaahMinistryScheduleItemInput,
   RaahVisitationLog,
 } from './managementApi';
+import { SchedulePopupForm } from './AdminScheduleComponents';
 import { formatDisplayDate } from './utils';
 import { shell } from './adminShell';
 import { getAttendanceOption } from './adminHelpers';
@@ -42,6 +44,11 @@ export function MembersTab({
   setForm,
   onSubmit,
   onCloseForm,
+  isScheduleFormOpen,
+  scheduleForm,
+  setScheduleForm,
+  onSubmitSchedule,
+  onCloseScheduleForm,
 }: {
   members: RaahMember[];
   search: string;
@@ -66,6 +73,11 @@ export function MembersTab({
   setForm: React.Dispatch<React.SetStateAction<RaahMemberInput>>;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCloseForm: () => void | boolean;
+  isScheduleFormOpen: boolean;
+  scheduleForm: RaahMinistryScheduleItemInput;
+  setScheduleForm: React.Dispatch<React.SetStateAction<RaahMinistryScheduleItemInput>>;
+  onSubmitSchedule: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCloseScheduleForm: () => void;
 }) {
   const [isDesktop, setIsDesktop] = React.useState(() => window.matchMedia('(min-width: 1280px)').matches);
   React.useEffect(() => {
@@ -81,7 +93,17 @@ export function MembersTab({
   const closeRef = React.useRef<HTMLButtonElement>(null);
   const isPanelOpen = Boolean(selectedMember || isFormOpen);
   // onSelectMember closes an open form itself (after confirming unsaved edits).
-  const closePanel = () => onSelectMember(null);
+  const closePanel = () => {
+    if (isScheduleFormOpen) onCloseScheduleForm();
+    onSelectMember(null);
+  };
+  // Sits inside the card header rather than floating above it.
+  const closeButton = (
+    <button ref={closeRef} type="button" onClick={closePanel} className={shell.ghostButton + ' shrink-0 px-2.5 py-1.5 text-xs'}>
+      <X size={14} />
+      닫기
+    </button>
+  );
   React.useEffect(() => {
     if (!isPanelOpen || isDesktop) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -155,8 +177,12 @@ export function MembersTab({
         </div>}
       </div>
       <aside ref={panelRef} role={!isDesktop && isPanelOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isPanelOpen ? true : undefined} aria-label="성도 상세" onKeyDown={(event) => { if (event.key === 'Escape') closePanel(); }} className={isPanelOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-[#f3f6f8] p-4 xl:sticky xl:top-4 xl:z-auto xl:overflow-visible xl:bg-transparent xl:p-0' : 'hidden xl:block'}>
-        {isPanelOpen ? <><div className="mb-3 flex justify-end"><button ref={closeRef} type="button" onClick={closePanel} className={shell.ghostButton}><X size={16} />닫기</button></div>
-          {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} /> : selectedMember && <MemberHub member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} />}
+        {isPanelOpen ? <>
+          {isFormOpen ? <MemberForm isSaving={isSaving} editing={editing} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onCloseForm} closeButton={closeButton} /> : selectedMember && <MemberHub closeButton={closeButton} member={selectedMember} logs={[...selectedMemberLogs].sort((a, b) => b.date.localeCompare(a.date))} attendance={selectedMemberAttendance} attendanceHistory={selectedMemberAttendanceHistory} attendanceDate={attendanceDate} hasAttendanceEvent={hasAttendanceEvent} onEdit={() => onEditMember(selectedMember)} onNewLog={() => onNewLog(selectedMember)} onNewSchedule={() => onNewSchedule(selectedMember)} />}
+          {/* Inside the panel so the mobile dialog's focus handling covers it too. */}
+          {isScheduleFormOpen && !isFormOpen && (
+            <SchedulePopupForm form={scheduleForm} setForm={setScheduleForm} editingItemId={null} isSaving={isSaving} onSubmit={onSubmitSchedule} onClose={onCloseScheduleForm} />
+          )}
         </> : <div className={shell.panel + ' p-6 text-sm text-[#607080]'}>성도 이름을 누르면 이곳에서 정보와 기록을 확인할 수 있습니다.</div>}
       </aside>
     </section>
@@ -164,6 +190,7 @@ export function MembersTab({
 }
 
 export function MemberHub({
+  closeButton,
   member,
   logs,
   attendance,
@@ -174,6 +201,7 @@ export function MemberHub({
   onNewLog,
   onNewSchedule,
 }: {
+  closeButton?: React.ReactNode;
   member: RaahMember;
   logs: RaahVisitationLog[];
   attendance?: RaahAttendanceRecord | null;
@@ -191,10 +219,13 @@ export function MemberHub({
 
   return (
     <div className={shell.panel + ' p-5'}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[#607080]">성도 상세</p>
+        {closeButton}
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[#607080]">성도 상세</p>
-          <h2 className="mt-2 text-2xl font-semibold">{member.name}</h2>
+          <h2 className="mt-1 text-2xl font-semibold">{member.name}</h2>
           <p className="mt-1 text-sm text-[#607080]">{[member.position, member.district].filter(Boolean).join(' · ') || '직분/구역 미입력'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -259,6 +290,7 @@ export function MemberHub({
 
 
 export function MemberForm({
+  closeButton,
   isSaving,
   editing,
   form,
@@ -266,6 +298,7 @@ export function MemberForm({
   onSubmit,
   onClose,
 }: {
+  closeButton?: React.ReactNode;
   isSaving: boolean;
   editing: boolean;
   form: RaahMemberInput;
@@ -275,7 +308,10 @@ export function MemberForm({
 }) {
   return (
     <div className="mt-4 rounded-md border border-[#dbe3e8] bg-[#f8fafb] p-4">
-      <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{editing ? '성도 정보 수정' : '성도 등록'}</h2>
+        {closeButton}
+      </div>
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
         <TextInput label="이름" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
         <div className="grid gap-3 sm:grid-cols-2">

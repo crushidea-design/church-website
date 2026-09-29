@@ -32,7 +32,11 @@ export type CommunionReview = {
 
 export async function listCommunionPeriods(user: User) {
   const response = await fetch('/api/raah/communion/periods', { headers: await getAuthHeaders(user) });
-  return (await readJsonResponse<{ periods: CommunionPeriod[] }>(response)).periods;
+  const { periods } = await readJsonResponse<{ periods?: CommunionPeriod[] }>(response);
+  // Without the function deployed, the site answers with its HTML page (200).
+  // Treat that as "not available" rather than as an empty feature.
+  if (!Array.isArray(periods)) throw Object.assign(new Error('RAAH communion API is not available.'), { status: 404 });
+  return periods;
 }
 
 export async function getCommunionPeriod(periodId: string, user: User) {
