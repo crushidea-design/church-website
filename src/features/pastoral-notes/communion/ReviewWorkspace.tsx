@@ -33,6 +33,14 @@ import { ALLOWED_TRANSITIONS, REVIEW_STATUS_LABELS, TRANSITION_ACTION_LABELS, tr
 
 const newIdempotencyKey = () => crypto.randomUUID();
 
+// Status buttons share the row evenly; four choices go two by two on a phone.
+const TRANSITION_GRID: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-2 sm:grid-cols-4',
+};
+
 export function ReviewStatusControl({
   detail,
   user,
@@ -72,14 +80,14 @@ export function ReviewStatusControl({
   return (
     <div className="mt-3">
       <p className="text-xs text-[#607080]">진행 상태 변경</p>
-      <div className="mt-1 flex flex-wrap gap-1.5">
+      <div className={`mt-1 grid gap-1.5 ${TRANSITION_GRID[ALLOWED_TRANSITIONS[review.status].length] || 'grid-cols-2'}`}>
         {ALLOWED_TRANSITIONS[review.status].map((to) => (
           <button
             key={to}
             type="button"
             disabled={disabled || isSaving}
             onClick={() => submit(to)}
-            className={(to === 'reviewed' ? shell.button : shell.ghostButton) + ' px-3 py-1.5 text-xs'}
+            className={(to === 'reviewed' ? shell.button : shell.ghostButton) + ' w-full px-2 py-1.5 text-xs'}
           >
             {TRANSITION_ACTION_LABELS[to]}
           </button>
