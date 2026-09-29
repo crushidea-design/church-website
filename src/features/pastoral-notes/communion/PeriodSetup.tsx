@@ -22,16 +22,20 @@ export function CreatePeriodForm({
   onCreated,
   onCancel,
   onDirtyChange,
+  initial,
 }: {
   user: User;
   onCreated: (periodId: string) => void;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** A suggested starting draft (next period). An untouched prefilled form is not "dirty". */
+  initial?: PeriodDraft;
 }) {
-  const [draft, setDraft] = React.useState<PeriodDraft>(EMPTY_PERIOD);
+  const [baseline] = React.useState<PeriodDraft>(initial ?? EMPTY_PERIOD);
+  const [draft, setDraft] = React.useState<PeriodDraft>(baseline);
   const [isSaving, setIsSaving] = React.useState(false);
   const idempotencyKey = React.useRef(crypto.randomUUID());
-  const dirty = hasFormChanges(draft, EMPTY_PERIOD);
+  const dirty = hasFormChanges(draft, baseline);
   useBeforeUnloadWarning(dirty);
   React.useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
   React.useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
@@ -93,6 +97,7 @@ export function RosterEditor({
   onSaved,
   onClose,
   onDirtyChange,
+  initialSelection,
 }: {
   periodId: string;
   members: RaahMember[];
@@ -101,9 +106,11 @@ export function RosterEditor({
   onSaved: () => void;
   onClose: () => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** Members suggested from the previous period. Not saved until the pastor saves, so it counts as unsaved changes. */
+  initialSelection?: Set<string>;
 }) {
   const [selected, setSelected] = React.useState<Set<string>>(
-    () => new Set(reviews.filter((review) => review.rosterState === 'included').map((review) => review.memberId))
+    () => new Set(initialSelection ?? reviews.filter((review) => review.rosterState === 'included').map((review) => review.memberId))
   );
   const [query, setQuery] = React.useState('');
   const [showInactive, setShowInactive] = React.useState(false);
@@ -168,6 +175,7 @@ export function RosterEditor({
           닫기
         </button>
       </div>
+      {initialSelection && dirty && <p className="text-xs text-[#607080]">지난 주기 명부를 불러왔습니다. 확인 후 저장하세요.</p>}
       <p className="rounded-md bg-[#f3f6f8] p-2 text-xs text-[#4b5d6d]">
         성찬회원 정보를 입력하는 화면이 아직 없어 활성 성도를 후보로 보여 줍니다. 명부에 넣지 않는 것은 성찬 참여 금지를 뜻하지 않으며, 제외한 성도의 목양 이력은 지워지지 않습니다.
       </p>

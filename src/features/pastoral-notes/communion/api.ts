@@ -81,6 +81,15 @@ export async function probeCommunionAvailability(user: User): Promise<CommunionA
 export type CommunionReviewDetail = {
   review: CommunionReview & { statusReason: string };
   logs: Array<{ id: string; date: string; logType: string; publicSummary: string; linkedAt: string }>;
+  /** Same member's earlier periods, newest first (max 3). Reference only: status and time, no content. */
+  previousReviews: CommunionPreviousReview[];
+};
+
+export type CommunionPreviousReview = {
+  periodName: string;
+  periodServiceDate: string | null;
+  status: CommunionReviewStatus;
+  statusChangedAt: string;
 };
 
 export async function getCommunionReview(reviewId: string, user: User) {

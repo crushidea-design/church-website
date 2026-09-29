@@ -290,16 +290,28 @@ type ReviewDetailRow = {
   revision: number;
   updated_at: string;
   raah_members?: { name: string } | null;
+  period_id: string;
+  raah_communion_periods?: { starts_on: string } | null;
   raah_communion_review_logs?: Array<{
     linked_at: string;
     raah_visitation_logs?: { id: string; date: string; log_type: string; public_summary: string | null } | null;
   }>;
 };
 
+type PreviousReviewRow = {
+  status: ReviewStatus;
+  updated_at: string;
+  raah_communion_periods: {
+    name: string;
+    starts_on: string;
+    raah_communion_occasions?: Array<{ service_date: string; status: string }>;
+  } | null;
+};
+
 async function getReview(access: RaahAccess, reviewId: string) {
   const query = new URLSearchParams({
     select:
-      'id,member_id,status,roster_state,status_reason,revision,updated_at,raah_members(name),' +
+      'id,member_id,period_id,status,roster_state,status_reason,revision,updated_at,raah_members(name),raah_communion_periods(starts_on),' +
       'raah_communion_review_logs(linked_at,raah_visitation_logs(id,date,log_type,public_summary))',
     workspace_id: `eq.${access.workspaceId}`,
     id: `eq.${reviewId}`,
@@ -319,6 +331,38 @@ async function getReview(access: RaahAccess, reviewId: string) {
       linkedAt: link.linked_at,
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Earlier periods for the same member, for reference only: status and time,
+  // never conversation content or reasons. It does not affect this review.
+  let previousReviews: Array<{ periodName: string; periodServiceDate: string | null; status: ReviewStatus; statusChangedAt: string }> = [];
+  const startsOn = row.raah_communion_periods?.starts_on;
+  if (startsOn) {
+    const previousQuery = new URLSearchParams({
+      select: 'status,updated_at,raah_communion_periods!inner(name,starts_on,raah_communion_occasions(service_date,status))',
+      workspace_id: `eq.${access.workspaceId}`,
+      member_id: `eq.${row.member_id}`,
+      period_id: `neq.${row.period_id}`,
+      roster_state: 'eq.included',
+      'raah_communion_periods.starts_on': `lt.${startsOn}`,
+    });
+    const previous = await upstream(`raah_communion_reviews?${previousQuery}`);
+    if (previous.response) return previous.response;
+    previousReviews = (previous.data as PreviousReviewRow[])
+      .filter((entry) => entry.raah_communion_periods)
+      .sort((a, b) => b.raah_communion_periods!.starts_on.localeCompare(a.raah_communion_periods!.starts_on))
+      .slice(0, 3)
+      .map((entry) => {
+        const occasions = (entry.raah_communion_periods!.raah_communion_occasions || [])
+          .filter((occasion) => occasion.status !== 'cancelled')
+          .sort((a, b) => a.service_date.localeCompare(b.service_date));
+        return {
+          periodName: entry.raah_communion_periods!.name,
+          periodServiceDate: occasions[0]?.service_date ?? null,
+          status: entry.status,
+          statusChangedAt: entry.updated_at,
+        };
+      });
+  }
   return json({
     review: {
       id: row.id,
@@ -331,6 +375,7 @@ async function getReview(access: RaahAccess, reviewId: string) {
       updatedAt: row.updated_at,
     },
     logs,
+    previousReviews,
   });
 }
 

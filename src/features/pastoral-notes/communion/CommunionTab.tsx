@@ -25,10 +25,14 @@ import {
   buildCloseConfirmMessage,
   buildClosedSummaryLine,
   buildReopenedLine,
+  carryOverRoster,
   describePeriodProgress,
+  describePreviousReview,
   filterReviews,
+  suggestNextPeriod,
   toSeoulDate,
   validateReopenReason,
+  type PeriodDraft,
   type ReviewFilter,
 } from './workflow';
 
@@ -114,6 +118,9 @@ export function CommunionTab({
   React.useEffect(() => onDraftDirtyChange(draftDirty), [draftDirty, onDraftDirtyChange]);
   const [isCreating, setIsCreating] = React.useState(false);
   const [isEditingRoster, setIsEditingRoster] = React.useState(false);
+  // "다음 주기 만들기": the suggested form values and the previous roster to preselect afterwards.
+  const [nextSeed, setNextSeed] = React.useState<{ draft: PeriodDraft; memberIds: Set<string> } | null>(null);
+  const [carryOver, setCarryOver] = React.useState<{ periodId: string; memberIds: Set<string> } | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<string | null>(null);
   const detail = useLoad(selectedPeriodId, () => getCommunionPeriod(selectedPeriodId!, user));
   const [selectedReviewId, setSelectedReviewId] = React.useState<string | null>(null);
@@ -135,6 +142,8 @@ export function CommunionTab({
     setFilter(DEFAULT_REVIEW_FILTER);
     setIsEditingRoster(false);
     setReopenDraft(null);
+    setNextSeed(null);
+    setCarryOver(null);
   };
 
   const handledRequestNonce = React.useRef<number | null>(null);
@@ -149,6 +158,8 @@ export function CommunionTab({
   const openCreatedPeriod = (periodId: string) => {
     setIsCreating(false);
     periods.reload();
+    setCarryOver(nextSeed ? { periodId, memberIds: nextSeed.memberIds } : null);
+    setNextSeed(null);
     setSelectedPeriodId(periodId);
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
@@ -283,6 +294,21 @@ export function CommunionTab({
             <h2 className="text-lg font-semibold">{period.name}</h2>
             <span className={shell.badge}>{PERIOD_STATUS_LABELS[period.status]}</span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              {!nextSeed && (
+                <button
+                  type="button"
+                  disabled={isChangingPeriod}
+                  onClick={() => {
+                    if (!confirmDiscardChanges(draftDirty)) return;
+                    setSelectedReviewId(null);
+                    setIsEditingRoster(false);
+                    setNextSeed({ draft: suggestNextPeriod(period), memberIds: carryOverRoster(reviews, members) });
+                  }}
+                  className={shell.ghostButton + ' px-3 py-1.5 text-xs'}
+                >
+                  다음 주기 만들기
+                </button>
+              )}
               {isClosed ? (
                 reopenDraft === null && (
                   <button type="button" disabled={isChangingPeriod} onClick={() => setReopenDraft('')} className={shell.ghostButton + ' px-3 py-1.5 text-xs'}>
@@ -334,6 +360,15 @@ export function CommunionTab({
             </form>
           )}
         </div>
+        {nextSeed && (
+          <CreatePeriodForm
+            user={user}
+            initial={nextSeed.draft}
+            onCreated={openCreatedPeriod}
+            onCancel={() => setNextSeed(null)}
+            onDirtyChange={setCreateDirty}
+          />
+        )}
         <div className="grid grid-cols-2 gap-2 border-t border-[#e6edf2] p-4 sm:grid-cols-3 lg:grid-cols-6">
           <MiniCount label="대상" value={period.counts.included} />
           {REVIEW_STATUS_ORDER.map((status) => (
@@ -353,6 +388,7 @@ export function CommunionTab({
               onSaved={detail.reload}
               onClose={() => setIsEditingRoster(false)}
               onDirtyChange={setRosterDirty}
+              initialSelection={carryOver?.periodId === period.id ? carryOver.memberIds : undefined}
             />
           ) : (
             <>
@@ -647,6 +683,20 @@ function PersonPanel({
         </>
       )}
       {!editable && <p className="mt-2 text-xs text-[#607080]">마감된 주기이거나 명부에서 제외된 성도라 변경할 수 없습니다.</p>}
+
+      {detail.result.state === 'ready' && (detail.result.data.previousReviews ?? []).length > 0 && (
+        <div className="mt-4 rounded-md bg-[#f3f6f8] p-2">
+          <h4 className="text-xs font-semibold text-[#4b5d6d]">지난 주기</h4>
+          <p className="text-xs text-[#607080]">참고용이며 이번 목양을 대신하지 않습니다.</p>
+          <ul className="mt-1 space-y-0.5">
+            {(detail.result.data.previousReviews ?? []).map((entry, index) => (
+              <li key={index} className="text-xs text-[#4b5d6d]">
+                {describePreviousReview(entry)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <h4 className="mt-4 text-sm font-semibold">최근 심방 기록</h4>
       {memberLogs.length === 0 ? (

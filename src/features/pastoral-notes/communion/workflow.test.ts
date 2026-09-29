@@ -7,9 +7,12 @@ import {
   buildClosedSummaryLine,
   buildReopenedLine,
   chunk,
+  carryOverRoster,
   computeRosterChanges,
+  describePreviousReview,
   describePeriodProgress,
   filterReviews,
+  suggestNextPeriod,
   toSeoulDate,
   transitionNeedsReason,
   validateReopenReason,
@@ -183,5 +186,64 @@ describe('period close and reopen text', () => {
     expect(toSeoulDate('2026-10-05T14:59:00Z')).toBe('2026-10-05');
     expect(toSeoulDate(null)).toBe('');
     expect(toSeoulDate('nope')).toBe('');
+  });
+});
+
+describe('next period suggestion', () => {
+  const occasion = (serviceDate: string, status = 'held') => ({ serviceDate, status });
+
+  it('adds two months and moves to the following Sunday', () => {
+    // 2026-09-27 + 2 months = 2026-11-27 (Friday) -> Sunday 2026-11-29
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [occasion('2026-09-27')] })).toEqual({
+      name: '2026년 11월 성찬 목양',
+      startsOn: '2026-11-08',
+      endsOn: '2026-11-29',
+      serviceDate: '2026-11-29',
+    });
+  });
+
+  it('keeps a date that is already a Sunday', () => {
+    // 2026-08-04 + 2 months = 2026-10-04, already a Sunday
+    expect(suggestNextPeriod({ endsOn: '', occasions: [occasion('2026-08-04')] }).serviceDate).toBe('2026-10-04');
+  });
+
+  it('clamps at month end', () => {
+    // 2026-12-31 + 2 months -> 2027-02-28 (Sunday)
+    expect(suggestNextPeriod({ endsOn: '2026-12-31', occasions: [occasion('2026-12-31')] }).serviceDate).toBe('2027-02-28');
+    // leap year: 2027-12-31 + 2 months -> 2028-02-29 (Tuesday) -> 2028-03-05
+    expect(suggestNextPeriod({ endsOn: '', occasions: [occasion('2027-12-31')] }).serviceDate).toBe('2028-03-05');
+  });
+
+  it('rolls over the year', () => {
+    const next = suggestNextPeriod({ endsOn: '', occasions: [occasion('2026-11-29')] });
+    // 2027-01-29 (Friday) -> 2027-01-31
+    expect(next).toMatchObject({ name: '2027년 1월 성찬 목양', serviceDate: '2027-01-31', startsOn: '2027-01-10', endsOn: '2027-01-31' });
+  });
+
+  it('ignores cancelled occasions and falls back to the end date without one', () => {
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [occasion('2026-01-04', 'cancelled'), occasion('2026-09-27')] }).serviceDate).toBe('2026-11-29');
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [] }).serviceDate).toBe('2026-11-29');
+    expect(suggestNextPeriod({ endsOn: '2026-09-27', occasions: [occasion('2026-01-04', 'cancelled')] }).serviceDate).toBe('2026-11-29');
+  });
+});
+
+describe('carry-over roster', () => {
+  it('keeps included members that are still active', () => {
+    const reviews = [
+      { memberId: 'a', rosterState: 'included' as const },
+      { memberId: 'b', rosterState: 'excluded' as const },
+      { memberId: 'c', rosterState: 'included' as const },
+      { memberId: 'gone', rosterState: 'included' as const },
+    ];
+    const members = [{ id: 'a', status: 'active' }, { id: 'b', status: 'active' }, { id: 'c', status: 'inactive' }];
+    expect([...carryOverRoster(reviews, members)]).toEqual(['a']);
+  });
+});
+
+describe('describePreviousReview', () => {
+  it('shows the period, status label and Seoul date', () => {
+    expect(describePreviousReview({ periodName: '2026년 10월 성찬 목양', status: 'reviewed', statusChangedAt: '2026-10-01T03:00:00Z' })).toBe(
+      '2026년 10월 성찬 목양 · 목양 확인 (2026-10-01)'
+    );
   });
 });

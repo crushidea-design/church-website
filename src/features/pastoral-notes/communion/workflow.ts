@@ -149,3 +149,61 @@ export function validateReopenReason(reason: string) {
   if (trimmed.length > REOPEN_REASON_MAX) return `다시 여는 이유는 ${REOPEN_REASON_MAX}자까지 쓸 수 있습니다.`;
   return null;
 }
+
+// ───── Next period (plan 6, 7.6) ─────
+
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return { year, month, day };
+}
+
+/** Date-only arithmetic on YYYY-MM-DD strings (UTC), so no timezone drift. */
+function addDays(value: string, days: number) {
+  const { year, month, day } = parseIsoDate(value);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}`;
+}
+
+/** Adds calendar months and clamps the day to the target month's end (12-31 + 2 → end of Feb). */
+function addMonths(value: string, months: number) {
+  const { year, month, day } = parseIsoDate(value);
+  const index = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(index / 12);
+  const targetMonth = index % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return `${targetYear}-${pad2(targetMonth + 1)}-${pad2(Math.min(day, lastDay))}`;
+}
+
+function onOrAfterSunday(value: string) {
+  const { year, month, day } = parseIsoDate(value);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return addDays(value, (7 - weekday) % 7);
+}
+
+/**
+ * The next communion is two months later, on a Sunday. Only a suggestion for
+ * the form: the previous period's roster or statuses are not part of it.
+ */
+export function suggestNextPeriod(period: { endsOn: string; occasions: Array<{ serviceDate: string; status: string }> }): PeriodDraft {
+  const occasion = [...period.occasions].filter((entry) => entry.status !== 'cancelled').sort((a, b) => a.serviceDate.localeCompare(b.serviceDate))[0];
+  const serviceDate = onOrAfterSunday(addMonths(occasion?.serviceDate ?? period.endsOn, 2));
+  const { year, month } = parseIsoDate(serviceDate);
+  return { name: `${year}년 ${month}월 성찬 목양`, startsOn: addDays(serviceDate, -21), endsOn: serviceDate, serviceDate };
+}
+
+/** Previous roster as a suggestion: included members who still exist and are active. Nothing is saved from this. */
+export function carryOverRoster(
+  previousReviews: Array<Pick<CommunionReview, 'memberId' | 'rosterState'>>,
+  members: Array<{ id: string; status: string }>
+) {
+  const active = new Set(members.filter((member) => member.status === 'active').map((member) => member.id));
+  return new Set(previousReviews.filter((review) => review.rosterState === 'included' && active.has(review.memberId)).map((review) => review.memberId));
+}
+
+/** "2026년 10월 성찬 목양 · 목양 확인 (2026-10-01)" — reference only, never completes the current review. */
+export function describePreviousReview(entry: { periodName: string; status: CommunionReviewStatus; statusChangedAt: string }) {
+  const date = toSeoulDate(entry.statusChangedAt);
+  return `${entry.periodName} · ${REVIEW_STATUS_LABELS[entry.status]}${date ? ` (${date})` : ''}`;
+}
