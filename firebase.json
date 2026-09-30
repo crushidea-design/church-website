@@ -8,5 +8,20 @@
   ],
   "storage": {
     "rules": "storage.rules"
-  }
+  },
+  "functions": [
+    {
+      "source": "firebase-functions",
+      "codebase": "raah",
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ],
+      "ignore": [
+        "node_modules",
+        "src",
+        "*.test.ts",
+        ".git"
+      ]
+    }
+  ]
 }

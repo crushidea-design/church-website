@@ -1,3 +1,4 @@
+/api/raah/*  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/raahApi/api/raah/:splat  200!
 https://raah.builttogether.church/* /index.html 200
 /next-generation/* /next/:splat 301
 /next-generation /next 301
