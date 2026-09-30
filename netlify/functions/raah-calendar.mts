@@ -217,7 +217,13 @@ const refreshAccessToken = async (connection: CalendarConnectionRow, secret: str
     }),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.access_token) throw new Error(typeof data.error_description === 'string' ? data.error_description : 'Failed to refresh Google access token.');
+  if (!response.ok || !data.access_token) {
+    // invalid_grant: Google no longer accepts the stored refresh token (expired,
+    // revoked, or issued while the OAuth app was in Testing, which expires in 7 days).
+    const error = new Error(typeof data.error_description === 'string' ? data.error_description : 'Failed to refresh Google access token.') as Error & { reconnect?: boolean };
+    error.reconnect = data.error === 'invalid_grant';
+    throw error;
+  }
   return String(data.access_token);
 };
 
@@ -429,7 +435,15 @@ const getCalendarAccess = async () => {
     const accessToken = await refreshAccessToken(result.connection, config.secret, config.clientId, config.clientSecret);
     return { config, connection: result.connection, accessToken };
   } catch (error) {
-    return { response: noStoreJson({ error: error instanceof Error ? error.message : 'Failed to refresh Google Calendar token.' }, 401) };
+    if ((error as { reconnect?: boolean }).reconnect) {
+      return {
+        response: noStoreJson(
+          { error: 'Google 캘린더 연결이 만료되었습니다. 다시 연결해 주세요.', code: 'RAAH_CALENDAR_RECONNECT_REQUIRED' },
+          409
+        ),
+      };
+    }
+    return { response: noStoreJson({ error: 'Google 캘린더 접근 권한을 새로 받지 못했습니다. 잠시 후 다시 시도해 주세요.', code: 'RAAH_CALENDAR_TOKEN_REFRESH_FAILED' }, 502) };
   }
 };
 
