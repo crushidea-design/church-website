@@ -29,7 +29,10 @@ export const raahApi = onRequest(
     memory: '512MiB',
     timeoutSeconds: 60,
     invoker: 'public',
-    cors: false,
+    // Normally reached same-origin through the Netlify proxy. The RAAH origin is
+    // allowed so the pastor's own page can reach it directly (auth is the bearer
+    // token, not cookies, so this adds no ambient authority).
+    cors: ['https://raah.builttogether.church'],
   },
   async (req, res) => {
     // The handlers read settings from process.env (getEnv fallback); secrets are
