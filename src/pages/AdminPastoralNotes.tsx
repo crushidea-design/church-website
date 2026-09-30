@@ -180,6 +180,9 @@ export default function AdminPastoralNotes() {
   const [isMemberScheduleForm, setIsMemberScheduleForm] = React.useState(false);
   const [copiedScheduleItem, setCopiedScheduleItem] = React.useState<RaahMinistryScheduleItem | null>(null);
   const [calendarStatus, setCalendarStatus] = React.useState<RaahCalendarStatus | null>(null);
+  const [calendarNeedsReconnect, setCalendarNeedsReconnect] = React.useState(false);
+  // A connection whose Google grant expired must offer "connect" again, not a sync that keeps failing.
+  const visibleCalendarStatus = calendarStatus && calendarNeedsReconnect ? { ...calendarStatus, connected: false } : calendarStatus;
   const [calendarEventForm, setCalendarEventForm] = React.useState<RaahGoogleCalendarEventInput>(emptyCalendarEventForm);
   const [isCalendarEventFormOpen, setIsCalendarEventFormOpen] = React.useState(false);
 
@@ -393,6 +396,8 @@ export default function AdminPastoralNotes() {
       await loadCalendarStatus();
       toast.success(`Google Calendar에서 ${items.length}개의 일정을 불러왔습니다.`);
     } catch (error) {
+      // The stored Google grant is gone: show the connect button again instead of a dead sync button.
+      if ((error as { code?: string }).code === 'RAAH_CALENDAR_RECONNECT_REQUIRED') setCalendarNeedsReconnect(true);
       toast.error(getErrorMessage(error, 'Google Calendar 일정을 동기화하지 못했습니다.'));
     } finally {
       setIsSaving(false);
@@ -1152,7 +1157,7 @@ export default function AdminPastoralNotes() {
                 onOpenNewSchedule={openNewScheduleForm}
                 onCloseScheduleForm={closeScheduleForm}
                 onEdit={openScheduleFormForEdit}
-                calendarStatus={calendarStatus}
+                calendarStatus={visibleCalendarStatus}
                 isSaving={isSaving}
                 onCreateScheduleItem={handleCreateScheduleItem}
                 onCompleteScheduleItem={handleCompleteScheduleItem}
@@ -1185,7 +1190,7 @@ export default function AdminPastoralNotes() {
                 setForm={setLogForm}
                 editingLogId={editingLogId}
                 isDetailLoading={isDetailLoading}
-                calendarStatus={calendarStatus}
+                calendarStatus={visibleCalendarStatus}
                 calendarEventForm={calendarEventForm}
                 setCalendarEventForm={setCalendarEventForm}
                 isCalendarEventFormOpen={isCalendarEventFormOpen}
