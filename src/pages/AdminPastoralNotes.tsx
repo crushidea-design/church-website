@@ -717,6 +717,9 @@ export default function AdminPastoralNotes() {
         return [...withoutCurrent, saved];
       });
       setAttendanceRecords(buildAttendanceRecordsForEvent(members, saved));
+      // The server trims these; take its values so the saved form is not left looking dirty.
+      setAttendanceServiceType(saved.serviceType || attendanceServiceType.trim());
+      setAttendanceMemo(saved.memo || '');
       toast.success('출석 체크를 저장했습니다.');
       // Summary and history come from the background reload; the form already shows what was saved.
       reloadManagementDataQuietly({ preserveAttendanceDraft: true });

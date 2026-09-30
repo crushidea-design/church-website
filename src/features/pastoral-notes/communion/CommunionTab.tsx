@@ -123,8 +123,9 @@ export function CommunionTab({
 
   const selectPeriod = (periodId: string | null) => {
     if (!confirmDiscardChanges(draftDirty)) return;
-    // The list shows counts and dates that changed while a period was open; refresh it on the way back.
-    if (periodId === null) periods.refresh();
+    // The list shows counts and dates that changed while a period was open. Reload it on the way
+    // back through the path that shows an error with a retry, never a silently stale list.
+    if (periodId === null) periods.reload();
     setSelectedPeriodId(periodId);
     setSelectedReviewId(null);
     setFilter(DEFAULT_REVIEW_FILTER);
@@ -145,6 +146,8 @@ export function CommunionTab({
 
   const openCreatedPeriod = (periodId: string) => {
     setIsCreating(false);
+    // The new period must appear in the list; a failed reload shows an error with a retry.
+    periods.reload();
     setCarryOver(nextSeed ? { periodId, memberIds: nextSeed.memberIds } : null);
     setNextSeed(null);
     setSelectedPeriodId(periodId);
@@ -209,7 +212,7 @@ export function CommunionTab({
       setSelectedReviewId(null);
       setFilter(DEFAULT_REVIEW_FILTER);
       setIsEditingRoster(false);
-      periods.refresh();
+      periods.reload();
       onWorkspaceDataChanged();
     } catch (error) {
       toast.error((error as { status?: number })?.status === 409 ? REAL_MEMBERS_IN_PERIOD_MESSAGE : getErrorMessage(error, '목양 주기를 삭제하지 못했습니다.'));

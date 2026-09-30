@@ -1,6 +1,5 @@
 import { requireRaahAdmin, type RaahUser } from './raah-auth.mjs';
 import { timed } from './server-timing.mjs';
-import { unverifiedUidHint } from './unverified-token.mjs';
 
 export type RaahAccessRole = 'pastor' | 'elder' | 'clerk';
 
@@ -69,13 +68,13 @@ export async function requireRaahAccess(
   options: { requireGrant?: boolean } = {}
 ): Promise<{ access?: RaahAccess; response?: Response }> {
   const needsGrant = Boolean(options.requireGrant) || isRaahAccessEnforced();
-  // Start the grant lookup while the token is verified, using the uid the token
-  // claims. The result is used only if verification yields that same uid and is
-  // dropped on any failure; findActiveGrant never rejects.
-  const hint = needsGrant ? unverifiedUidHint(req) : null;
-  const prefetch = hint ? findActiveGrant(hint) : null;
-
-  const adminCheck = await requireRaahAdmin(req);
+  // The grant lookup starts once the token's signature is verified, alongside the
+  // revocation and role checks; it is keyed by that signed uid. findActiveGrant
+  // never rejects, and its result is used only after the full admin check passes.
+  let grantLookup: Promise<AccessRow | null | 'unavailable'> | null = null;
+  const adminCheck = await requireRaahAdmin(req, {
+    onSignedUid: needsGrant ? (uid) => { grantLookup = findActiveGrant(uid); } : undefined,
+  });
   if (adminCheck.response || !adminCheck.user) return { response: adminCheck.response };
   const user = adminCheck.user;
 
@@ -83,7 +82,7 @@ export async function requireRaahAccess(
     return { access: { user, workspaceId: RAAH_WORKSPACE_ID, accessRole: null } };
   }
 
-  const grant = await (prefetch && hint === user.uid ? prefetch : findActiveGrant(user.uid));
+  const grant = await (grantLookup ?? findActiveGrant(user.uid));
   if (grant === 'unavailable') return failure(503, '접근 권한을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.', 'RAAH_ACCESS_UNAVAILABLE');
   if (!grant || !isGrantUsable(grant, Date.now())) {
     return failure(403, '라아 목양 접근 권한이 없습니다. 관리자에게 접근 승인을 요청해 주세요.', 'RAAH_ACCESS_NOT_GRANTED');

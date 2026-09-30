@@ -99,51 +99,54 @@ describe('RAAH workspace access', () => {
     expect(await response?.json()).toMatchObject({ code: 'RAAH_ACCESS_UNAVAILABLE' });
   });
 
-  describe('parallel grant lookup', () => {
-    const jwt = (uid: string) => `h.${Buffer.from(JSON.stringify({ sub: uid })).toString('base64url')}.s`;
-    const jwtRequest = (uid: string) => new Request('https://example.test/x', { headers: { Authorization: `Bearer ${jwt(uid)}` } });
-
-    it('starts the grant lookup before verification resolves', async () => {
+  describe('grant lookup after the signature check', () => {
+    it('starts the grant lookup for the signed uid before the admin check finishes', async () => {
       let release!: (v: unknown) => void;
-      mocks.requireRaahAdmin.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+      mocks.requireRaahAdmin.mockImplementation((_req: Request, options?: { onSignedUid?: (uid: string) => void }) => {
+        options?.onSignedUid?.('admin-uid');
+        return new Promise((resolve) => { release = resolve; });
+      });
       fetchSpy.mockResolvedValue(grantResponse([grant()]));
-      const pending = requireRaahAccess(jwtRequest('admin-uid'));
+      const pending = requireRaahAccess(request());
       await Promise.resolve();
       expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(new URL(String(fetchSpy.mock.calls[0][0])).searchParams.get('firebase_uid')).toBe('eq.admin-uid');
       release({ user: admin });
       expect((await pending).access?.accessRole).toBe('pastor');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('does not trust a prefetched grant for a different verified uid', async () => {
-      mocks.requireRaahAdmin.mockResolvedValue({ user: admin });
-      fetchSpy.mockImplementation(async (input) => {
-        const uid = new URL(String(input)).searchParams.get('firebase_uid');
-        return grantResponse(uid === 'eq.admin-uid' ? [] : [grant()]);
-      });
-      const result = await requireRaahAccess(jwtRequest('someone-else'));
-      expect(result.response?.status).toBe(403);
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('never returns prefetched data when verification fails', async () => {
+    it('does no lookup when the signature check fails', async () => {
       const unauthorized = new Response(null, { status: 401 });
       mocks.requireRaahAdmin.mockResolvedValue({ response: unauthorized });
+      const result = await requireRaahAccess(request());
+      expect(result.response).toBe(unauthorized);
+      expect(result.access).toBeUndefined();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('never returns grant data when a later check fails', async () => {
+      const unauthorized = new Response(null, { status: 401 });
+      mocks.requireRaahAdmin.mockImplementation(async (_req: Request, options?: { onSignedUid?: (uid: string) => void }) => {
+        options?.onSignedUid?.('admin-uid');
+        return { response: unauthorized };
+      });
       fetchSpy.mockResolvedValue(grantResponse([grant()]));
-      const result = await requireRaahAccess(jwtRequest('admin-uid'));
+      const result = await requireRaahAccess(request());
       expect(result.response).toBe(unauthorized);
       expect(result.access).toBeUndefined();
     });
 
-    it('skips the prefetch entirely when no grant is needed', async () => {
+    it('does not ask for the signed uid when no grant is needed', async () => {
       vi.stubEnv('RAAH_ACCESS_ENFORCED', '');
-      await requireRaahAccess(jwtRequest('admin-uid'));
+      await requireRaahAccess(request());
+      expect(mocks.requireRaahAdmin.mock.calls[0][1]?.onSignedUid).toBeUndefined();
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it('keeps the 503 for an unavailable lookup', async () => {
       fetchSpy.mockRejectedValue(new Error('offline'));
-      expect((await requireRaahAccess(jwtRequest('admin-uid'))).response?.status).toBe(503);
+      expect((await requireRaahAccess(request())).response?.status).toBe(503);
     });
   });
 });
