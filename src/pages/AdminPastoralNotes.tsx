@@ -97,6 +97,7 @@ import {
   VisitationTab,
 } from '../features/pastoral-notes/AdminVisitationComponents';
 import { MembersTab } from '../features/pastoral-notes/AdminMemberComponents';
+import { createReloadCoalescer } from '../features/pastoral-notes/reloadCoalescer';
 import { HomeCarePanels } from '../features/pastoral-notes/HomeCarePanels';
 import { CommunionTab } from '../features/pastoral-notes/communion/CommunionTab';
 import { probeCommunionAvailability, type CommunionAvailability } from '../features/pastoral-notes/communion/api';
@@ -186,7 +187,7 @@ export default function AdminPastoralNotes() {
   const [logFormBaseline, setLogFormBaseline] = React.useState<RaahVisitationLogInput>(logForm);
   const [memberFormBaseline, setMemberFormBaseline] = React.useState<RaahMemberInput>(memberForm);
 
-  const loadManagementData = React.useCallback(async () => {
+  const loadManagementData = React.useCallback(async (options: { preserveAttendanceDraft?: boolean } = {}) => {
     if (!user) return;
     const {
       summary: nextSummary,
@@ -207,10 +208,13 @@ export default function AdminPastoralNotes() {
     setAttendanceHistory(nextAttendanceHistory);
     setFollowUpResolutions(nextFollowUpResolutions);
     setMinistryScheduleItems(nextScheduleItems);
-    setAttendanceServiceType(nextAttendance?.serviceType || attendanceOption.serviceType);
-    setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? attendanceOption.includesCommunion);
-    setAttendanceMemo(nextAttendance?.memo || '');
-    setAttendanceRecords(buildAttendanceRecordsForEvent(nextMembers, nextAttendance));
+    // A background refresh after saving attendance must not replace boxes ticked since the save.
+    if (!options.preserveAttendanceDraft) {
+      setAttendanceServiceType(nextAttendance?.serviceType || attendanceOption.serviceType);
+      setAttendanceIncludesCommunion(nextAttendance?.includesCommunion ?? attendanceOption.includesCommunion);
+      setAttendanceMemo(nextAttendance?.memo || '');
+      setAttendanceRecords(buildAttendanceRecordsForEvent(nextMembers, nextAttendance));
+    }
     setSelectedMemberId((currentId) => (currentId && nextMembers.some((member) => member.id === currentId) ? currentId : null));
     setSelectedLogId((currentId) => (currentId && nextLogs.some((log) => log.id === currentId) ? currentId : null));
   }, [activeAttendanceEventType, attendanceDate, user]);
@@ -337,9 +341,30 @@ export default function AdminPastoralNotes() {
   });
   const selectedLog = selectedLogId ? (decryptedLog?.id === selectedLogId ? decryptedLog : logs.find((log) => log.id === selectedLogId) ?? null) : null;
 
-  const refreshSupabase = async () => {
+  // Follow-up reloads of the page-wide data run in the background: the button and the toast
+  // finish when the save does. Requests are coalesced (one reload at a time, one more after it
+  // if something asked meanwhile) and a failure only shows a quiet notice.
+  const loadManagementDataRef = React.useRef(loadManagementData);
+  loadManagementDataRef.current = loadManagementData;
+  const fullReloadRequested = React.useRef(false);
+  const managementReloader = React.useRef(
+    createReloadCoalescer(
+      async () => {
+        const preserveAttendanceDraft = !fullReloadRequested.current;
+        fullReloadRequested.current = false;
+        await loadManagementDataRef.current({ preserveAttendanceDraft });
+      },
+      () => toast('화면을 최신 상태로 새로 고치지 못했습니다. 잠시 후 다시 확인해 주세요.', { id: 'raah-refresh-failed' })
+    )
+  );
+  const reloadManagementDataQuietly = (options: { preserveAttendanceDraft?: boolean } = {}) => {
+    if (!options.preserveAttendanceDraft) fullReloadRequested.current = true;
+    void managementReloader.current.request();
+  };
+
+  const refreshSupabase = () => {
     if (!user || storageMode !== 'supabase') return;
-    await loadManagementData();
+    reloadManagementDataQuietly();
   };
 
   const handleConnectCalendar = async () => {
@@ -571,11 +596,13 @@ export default function AdminPastoralNotes() {
     try {
       const saved = editingMemberId ? await updateRaahMember(editingMemberId, memberForm, user) : await createRaahMember(memberForm, user);
       setSelectedMemberId(saved.id);
+      // Show the saved member at once; the background reload below fills in the rest.
+      setMembers((prev) => (prev.some((member) => member.id === saved.id) ? prev.map((member) => (member.id === saved.id ? saved : member)) : [...prev, saved]));
       setIsMemberFormOpen(false);
       setEditingMemberId(null);
       setMemberForm(emptyMemberForm);
       toast.success(editingMemberId ? '성도 정보를 수정했습니다.' : '성도 명부에 등록했습니다.');
-      await refreshSupabase();
+      refreshSupabase();
     } catch (error) {
       toast.error(getErrorMessage(error, '성도 정보를 저장하지 못했습니다.'));
     } finally {
@@ -590,8 +617,9 @@ export default function AdminPastoralNotes() {
     try {
       const counts = await deleteRaahSyntheticMember(member.id, user);
       setSelectedMemberId(null);
+      setMembers((prev) => prev.filter((item) => item.id !== member.id));
       toast.success(describeSyntheticDelete(counts));
-      await loadManagementData();
+      reloadManagementDataQuietly();
     } catch (error) {
       toast.error(getErrorMessage(error, '시범 자료를 삭제하지 못했습니다.'));
     } finally {
@@ -621,7 +649,7 @@ export default function AdminPastoralNotes() {
       setDecryptedLog(created);
       setLogForm(emptyLogForm());
       toast.success(editingLogId ? '심방/상담 기록을 수정했습니다.' : '심방/상담 기록을 암호화해 저장했습니다.');
-      await refreshSupabase();
+      refreshSupabase();
     } catch (error) {
       toast.error(getErrorMessage(error, '심방/상담 기록을 저장하지 못했습니다.'));
     } finally {
@@ -689,8 +717,12 @@ export default function AdminPastoralNotes() {
         return [...withoutCurrent, saved];
       });
       setAttendanceRecords(buildAttendanceRecordsForEvent(members, saved));
+      // The server trims these; take its values so the saved form is not left looking dirty.
+      setAttendanceServiceType(saved.serviceType || attendanceServiceType.trim());
+      setAttendanceMemo(saved.memo || '');
       toast.success('출석 체크를 저장했습니다.');
-      await loadManagementData();
+      // Summary and history come from the background reload; the form already shows what was saved.
+      reloadManagementDataQuietly({ preserveAttendanceDraft: true });
     } catch (error) {
       toast.error(getErrorMessage(error, '출석 체크를 저장하지 못했습니다.'));
     } finally {
@@ -818,10 +850,6 @@ export default function AdminPastoralNotes() {
     setActiveTab(tabId);
     setSearchTerm('');
     setDecryptedLog(null);
-  };
-
-  const reloadManagementDataQuietly = () => {
-    loadManagementData().catch(() => undefined);
   };
 
   const openMemberFromHome = (memberId: string) => {
@@ -1062,7 +1090,7 @@ export default function AdminPastoralNotes() {
                 setForm={setMemberForm}
                 onSubmit={handleMemberSubmit}
                 onCloseForm={closeMemberForm}
-                careTasks={user && communionAvailability === 'available' ? { user, onDirtyChange: setIsMemberTaskDirty, onProfileDirtyChange: setIsMemberProfileDirty, onScheduleCreated: reloadManagementDataQuietly } : undefined}
+                careTasks={user && communionAvailability === 'available' ? { user, onDirtyChange: setIsMemberTaskDirty, onProfileDirtyChange: setIsMemberProfileDirty, onScheduleCreated: () => reloadManagementDataQuietly() } : undefined}
               />
             )}
 
@@ -1077,7 +1105,7 @@ export default function AdminPastoralNotes() {
                   setActiveTab('visitation');
                 }}
                 onDraftDirtyChange={setIsCommunionDraftDirty}
-                onWorkspaceDataChanged={reloadManagementDataQuietly}
+                onWorkspaceDataChanged={() => reloadManagementDataQuietly()}
                 requestedPeriod={communionPeriodRequest}
               />
             )}

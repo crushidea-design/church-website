@@ -22,8 +22,13 @@ describe('RAAH authorization boundary', () => {
   });
   it('rejects missing and revoked tokens', async () => {
     expect((await requireRaahAdmin(request(''))).response?.status).toBe(401);
-    mocks.verify.mockRejectedValue(new Error('revoked'));
+    // A validly signed but revoked token fails the second, revocation-checking call.
+    mocks.verify.mockImplementation(async (_token: string, checkRevoked?: boolean) => {
+      if (checkRevoked) throw new Error('revoked');
+      return { uid: 'member', email: 'member@example.test', email_verified: true };
+    });
     expect((await requireRaahAdmin(request())).response?.status).toBe(401);
+    expect(mocks.verify).toHaveBeenCalledWith('test-token');
     expect(mocks.verify).toHaveBeenCalledWith('test-token', true);
   });
   it('rejects member-controlled admin metadata', async () => {
@@ -45,6 +50,47 @@ describe('RAAH authorization boundary', () => {
     mocks.initialize.mockReturnValue(false);
     expect((await requireRaahAdmin(request())).response?.status).toBe(503);
     expect(mocks.verify).not.toHaveBeenCalled();
+  });
+  describe('signature first, then revocation and role in parallel', () => {
+    it('touches nothing else when the signature is invalid', async () => {
+      mocks.verify.mockRejectedValue(new Error('bad signature'));
+      const onSignedUid = vi.fn();
+      const result = await requireRaahAdmin(request(), { onSignedUid });
+      expect(result.response?.status).toBe(401);
+      expect(result.user).toBeUndefined();
+      expect(mocks.get).not.toHaveBeenCalled();
+      expect(onSignedUid).not.toHaveBeenCalled();
+    });
+    it('reads the role and signals the signed uid while revocation is still being checked', async () => {
+      let release!: (v: unknown) => void;
+      mocks.verify.mockImplementation((_token: string, checkRevoked?: boolean) =>
+        checkRevoked
+          ? new Promise((resolve) => { release = resolve; })
+          : Promise.resolve({ uid: 'member', email: 'member@example.test', email_verified: true })
+      );
+      mocks.get.mockResolvedValue({ exists: true, data: () => ({ role: 'admin' }) });
+      const onSignedUid = vi.fn();
+      const pending = requireRaahAdmin(request(), { onSignedUid });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(onSignedUid).toHaveBeenCalledWith('member');
+      expect(mocks.get).toHaveBeenCalledTimes(1);
+      release({ uid: 'member' });
+      expect((await pending).user?.uid).toBe('member');
+    });
+    it('denies a revoked session even when the role read succeeded', async () => {
+      mocks.verify.mockImplementation(async (_token: string, checkRevoked?: boolean) => {
+        if (checkRevoked) throw new Error('revoked');
+        return { uid: 'member', email: 'member@example.test', email_verified: true };
+      });
+      mocks.get.mockResolvedValue({ exists: true, data: () => ({ role: 'admin' }) });
+      const result = await requireRaahAdmin(request());
+      expect(result.response?.status).toBe(401);
+      expect(result.user).toBeUndefined();
+    });
+    it('maps a failed role read to 503', async () => {
+      mocks.get.mockRejectedValue(new Error('down'));
+      expect((await requireRaahAdmin(request())).response?.status).toBe(503);
+    });
   });
   it('never reads or forwards an AI memo, even for an administrator', async () => {
     mocks.get.mockResolvedValue({ exists: true, data: () => ({ role: 'admin' }) });

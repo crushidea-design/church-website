@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CommunionReview } from './api';
+import type { CommunionPeriod, CommunionReview, CommunionReviewDetail } from './api';
 import {
   ALLOWED_TRANSITIONS,
+  applyOccasionPatch,
+  applyPeriodClosed,
+  applyPeriodReopened,
+  applyReviewChange,
+  applyReviewChangeToDetail,
   DEFAULT_REVIEW_FILTER,
   buildCloseConfirmMessage,
   buildClosedSummaryLine,
@@ -293,5 +298,61 @@ describe('describeParticipation', () => {
     for (const fact of ['participated', 'not_recorded', 'no_attendance_event', 'upcoming'] as const) {
       expect(describeParticipation({ serviceDate: '2026-10-13', fact })).not.toMatch(/불참|결석|미참여|부적격/);
     }
+  });
+});
+
+describe('showing a saved change at once', () => {
+  const period = (overrides: Partial<CommunionPeriod> = {}): CommunionPeriod => ({
+    id: 'p1', name: '가을', startsOn: '2026-09-01', endsOn: '2026-10-01', status: 'active', guideVersion: 'v1', ownerUid: 'u', revision: 3,
+    closedAt: null, closingSummary: null, reopenedAt: null, reopenReason: null,
+    occasions: [{ id: 'o2', serviceDate: '2026-10-04', status: 'scheduled', revision: 1 }],
+    counts: { included: 2, byStatus: { not_started: 1, scheduled: 0, in_progress: 1, reviewed: 0, closed_without_contact: 0 } },
+    ...overrides,
+  });
+  const data = (reviews: CommunionReview[] = [review('r1', 'A', { status: 'not_started', revision: 2 }), review('r2', 'B', { status: 'in_progress' })]) => ({ period: period(), reviews });
+
+  it('moves a review between status counts and takes its new revision', () => {
+    const next = applyReviewChange(data(), 'r1', { status: 'reviewed', revision: 3 }, '2026-09-29T00:00:00Z');
+    expect(next.reviews[0]).toMatchObject({ status: 'reviewed', revision: 3, updatedAt: '2026-09-29T00:00:00Z' });
+    expect(next.period.counts.byStatus).toMatchObject({ not_started: 0, reviewed: 1, in_progress: 1 });
+    expect(next.period.counts.included).toBe(2);
+  });
+
+  it('does not count an excluded review and leaves counts alone when the status is the same', () => {
+    const excluded = data([review('r1', 'A', { status: 'not_started', rosterState: 'excluded' })]);
+    expect(applyReviewChange(excluded, 'r1', { status: 'reviewed', revision: 5 }, 'now').period.counts).toEqual(excluded.period.counts);
+    const same = applyReviewChange(data(), 'r2', { status: 'in_progress', revision: 9 }, 'now');
+    expect(same.period.counts).toEqual(data().period.counts);
+    expect(same.reviews[1].revision).toBe(9);
+  });
+
+  it('ignores an unknown review and does not mutate its input', () => {
+    const original = data();
+    expect(applyReviewChange(original, 'missing', { status: 'reviewed', revision: 2 }, 'now')).toBe(original);
+    applyReviewChange(original, 'r1', { status: 'reviewed', revision: 3 }, 'now');
+    expect(original.reviews[0].status).toBe('not_started');
+  });
+
+  it('updates the person detail revision, status and reason', () => {
+    const detail = { review: { ...review('r1', 'A'), statusReason: 'old' }, logs: [], previousReviews: [] } as CommunionReviewDetail;
+    expect(applyReviewChangeToDetail(detail, { status: 'reviewed', revision: 4, statusReason: '' }).review).toMatchObject({ status: 'reviewed', revision: 4, statusReason: '' });
+    expect(applyReviewChangeToDetail(detail, { revision: 5 }).review).toMatchObject({ status: detail.review.status, revision: 5, statusReason: 'old' });
+  });
+
+  it('applies close and reopen with the returned revision and summary', () => {
+    const summary = { included: 2, excluded: 0, byStatus: data().period.counts.byStatus, openCareTasks: 1 };
+    const closed = applyPeriodClosed(data(), { revision: 4, closingSummary: summary }, 'now');
+    expect(closed.period).toMatchObject({ status: 'closed', revision: 4, closingSummary: summary, closedAt: 'now' });
+    const reopened = applyPeriodReopened(closed, { revision: 5 }, '추가 면담', 'later');
+    expect(reopened.period).toMatchObject({ status: 'active', revision: 5, closedAt: null, reopenedAt: 'later', reopenReason: '추가 면담', closingSummary: summary });
+  });
+
+  it('applies occasion changes keeping dates in order', () => {
+    const added = applyOccasionPatch(data(), { kind: 'add', id: 'o1', serviceDate: '2026-09-27', revision: 1 });
+    expect(added.period.occasions.map((occasion) => occasion.id)).toEqual(['o1', 'o2']);
+    const moved = applyOccasionPatch(added, { kind: 'update', id: 'o1', revision: 2, serviceDate: '2026-10-11' });
+    expect(moved.period.occasions.map((occasion) => occasion.id)).toEqual(['o2', 'o1']);
+    const held = applyOccasionPatch(moved, { kind: 'update', id: 'o2', revision: 2, status: 'held' });
+    expect(held.period.occasions.find((occasion) => occasion.id === 'o2')).toMatchObject({ status: 'held', revision: 2, serviceDate: '2026-10-04' });
   });
 });

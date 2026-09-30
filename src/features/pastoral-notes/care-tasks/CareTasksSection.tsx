@@ -12,6 +12,8 @@ import { getErrorMessage } from '../adminHelpers';
 import { formatDisplayDate } from '../utils';
 import { confirmDiscardChanges, useBeforeUnloadWarning } from '../hooks/useUnsavedChanges';
 import { hasFormChanges } from '../formChanges';
+import { useRefreshableLoad } from '../hooks/useRefreshableLoad';
+import { applyCareTaskStatus } from './taskState';
 import {
   CARE_TASK_STATUS_LABELS,
   createCareTask,
@@ -46,25 +48,12 @@ export function CareTasksSection({
   onScheduleCreated?: () => void;
 }) {
   const [scope, setScope] = React.useState<'active' | 'all'>('active');
-  const [tasks, setTasks] = React.useState<CareTask[] | null>(null);
-  const [loadError, setLoadError] = React.useState(false);
-  const [reload, setReload] = React.useState(0);
+  const list = useRefreshableLoad(`${memberId}:${scope}`, () => listCareTasks(memberId, scope, user));
+  const tasks = list.result.state === 'ready' ? list.result.data : null;
+  const loadError = list.result.state === 'error';
   const [details, setDetails] = React.useState<Record<string, string>>({});
   const [deferDates, setDeferDates] = React.useState<Record<string, string>>({});
   const [busyTaskId, setBusyTaskId] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    setLoadError(false);
-    listCareTasks(memberId, scope, user)
-      .then((next) => !cancelled && setTasks(next))
-      .catch(() => !cancelled && setLoadError(true));
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId, scope, user, reload]);
-
-  const refresh = () => setReload((value) => value + 1);
 
   const showDetail = async (taskId: string) => {
     try {
@@ -83,13 +72,15 @@ export function CareTasksSection({
     }
     setBusyTaskId(task.id);
     try {
-      await setCareTaskStatus(task.id, { status, expectedRevision: task.revision, dueOn }, user);
+      const saved = await setCareTaskStatus(task.id, { status, expectedRevision: task.revision, dueOn }, user);
+      list.update((current) => applyCareTaskStatus(current, task.id, { ...saved, dueOn }, scope));
       toast.success(`후속 돌봄을 '${CARE_TASK_STATUS_LABELS[status]}'(으)로 바꿨습니다.`);
     } catch (error) {
       toast.error(getErrorMessage(error, '후속 돌봄을 바꾸지 못했습니다.'));
     } finally {
       setBusyTaskId(null);
-      refresh();
+      // In the background; after a failure too, so a stale revision is replaced.
+      list.refresh();
     }
   };
 
@@ -104,7 +95,7 @@ export function CareTasksSection({
       </div>
       {loadError ? (
         <p className="mt-1 text-sm text-[#8a3b2a]" role="alert">
-          후속 돌봄을 불러오지 못했습니다. <button type="button" onClick={refresh} className="underline">다시 시도</button>
+          후속 돌봄을 불러오지 못했습니다. <button type="button" onClick={list.reload} className="underline">다시 시도</button>
         </p>
       ) : tasks === null ? (
         <p className="mt-1 text-sm text-[#607080]" role="status">불러오는 중…</p>
@@ -187,7 +178,7 @@ export function CareTasksSection({
           user={user}
           onDirtyChange={onDirtyChange}
           onCreated={(withSchedule) => {
-            refresh();
+            list.refresh();
             if (withSchedule) onScheduleCreated?.();
           }}
         />
