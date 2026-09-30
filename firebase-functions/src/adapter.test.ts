@@ -4,6 +4,7 @@ import {
   handleRequest,
   matchRoute,
   normalizePath,
+  toRequest,
   type HandlerModule,
   type IncomingLike,
   type OutgoingLike,
@@ -216,5 +217,17 @@ describe('real handlers through the route table', () => {
     const { res, state } = fakeRes();
     await handleRequest(routes, fakeReq({ originalUrl: '/api/raah/bootstrap' }), res);
     expect([401, 503]).toContain(state.statusCode);
+  });
+});
+
+describe('public origin', () => {
+  it('presents the site address to handlers when one is given', () => {
+    const request = toRequest(
+      { method: 'GET', url: '/api/raah/calendar/auth-url', headers: { host: 'asia-northeast1-x.cloudfunctions.net' } } as never,
+      '/api/raah/calendar/auth-url',
+      'https://raah.builttogether.church'
+    );
+    expect(new URL(request.url).origin).toBe('https://raah.builttogether.church');
+    expect(new URL(request.url).pathname).toBe('/api/raah/calendar/auth-url');
   });
 });

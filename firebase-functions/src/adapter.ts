@@ -116,7 +116,7 @@ const internalErrorResponse = () =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
-export const toRequest = (incoming: IncomingLike, normalizedUrl: string): Request => {
+export const toRequest = (incoming: IncomingLike, normalizedUrl: string, publicOrigin?: string): Request => {
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {
     if (value === undefined || name.startsWith(':')) continue;
@@ -128,7 +128,10 @@ export const toRequest = (incoming: IncomingLike, normalizedUrl: string): Reques
   const rawBody = hasBody ? incoming.rawBody : undefined;
   const host = headers.get('x-forwarded-host') || headers.get('host') || 'localhost';
   const protocol = headers.get('x-forwarded-proto')?.split(',')[0].trim() || incoming.protocol || 'https';
-  return new Request(`${protocol}://${host}${normalizedUrl}`, {
+  // Handlers build absolute URLs from the request (the calendar OAuth callback),
+  // so behind the proxy they must see the site's public address, not the function's.
+  const origin = publicOrigin || `${protocol}://${host}`;
+  return new Request(`${origin}${normalizedUrl}`, {
     method,
     headers,
     body: rawBody && rawBody.length > 0 ? new Uint8Array(rawBody) : undefined,
@@ -148,7 +151,7 @@ export const writeResponse = async (response: Response, res: OutgoingLike, isHea
 };
 
 /** Handles one Express request end to end. Never throws. */
-export const handleRequest = async (routes: Route[], incoming: IncomingLike, res: OutgoingLike) => {
+export const handleRequest = async (routes: Route[], incoming: IncomingLike, res: OutgoingLike, publicOrigin?: string) => {
   const rawUrl = incoming.originalUrl || incoming.url || '/';
   const queryIndex = rawUrl.indexOf('?');
   const pathname = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex);
@@ -161,7 +164,7 @@ export const handleRequest = async (routes: Route[], incoming: IncomingLike, res
   }
   let response: Response;
   try {
-    const request = toRequest(incoming, `${normalizedPath}${query}`);
+    const request = toRequest(incoming, `${normalizedPath}${query}`, publicOrigin);
     response = await match.route.handler(request, { params: match.params });
   } catch (error) {
     // Log only the error class: messages can carry record content.

@@ -20,6 +20,9 @@ const secrets = [
 const accessEnforced = defineString('RAAH_ACCESS_ENFORCED');
 const communionEnabled = defineString('RAAH_COMMUNION_ENABLED');
 
+// The address users reach RAAH at; the function is only ever called on its behalf.
+const PUBLIC_ORIGIN = 'https://raah.builttogether.church';
+
 const routes = buildRouteTable([management, communion, careTasks, calendar, aiAssist] as unknown as HandlerModule[]);
 
 export const raahApi = onRequest(
@@ -39,6 +42,6 @@ export const raahApi = onRequest(
     // already injected there, params from .env files/prompts are copied here.
     process.env.RAAH_ACCESS_ENFORCED = accessEnforced.value();
     process.env.RAAH_COMMUNION_ENABLED = communionEnabled.value();
-    await handleRequest(routes, req, res);
+    await handleRequest(routes, req, res, PUBLIC_ORIGIN);
   },
 );
