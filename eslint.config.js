@@ -14,6 +14,8 @@ export default tseslint.config(
       'build/**',
       'coverage/**',
       'node_modules/**',
+      'firebase-functions/lib/**',
+      'firebase-functions/node_modules/**',
       '.netlify/**',
       '.claude/**',
       '.superpowers/**',

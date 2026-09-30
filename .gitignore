@@ -15,3 +15,7 @@ raah-migration-insert*.sql
 RAAH-backups/
 raah-data-*.sql
 raah-schema-*.sql
+
+# Firebase Functions build output and installed deps
+firebase-functions/lib/
+firebase-functions/node_modules/
