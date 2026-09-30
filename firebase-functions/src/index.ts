@@ -11,10 +11,9 @@ const secrets = [
   defineSecret('RAAH_ENCRYPTION_SECRET'),
   defineSecret('SUPABASE_URL'),
   defineSecret('SUPABASE_SERVICE_ROLE_KEY'),
-  defineSecret('GOOGLE_CALENDAR_CLIENT_ID'),
-  defineSecret('GOOGLE_CALENDAR_CLIENT_SECRET'),
-  defineSecret('GOOGLE_CALENDAR_ID'),
 ];
+// Google Calendar OAuth settings are not secrets here: production keeps them in
+// raah_calendar_oauth_settings, which raah-calendar reads when the env is unset.
 
 // Non-secret feature flags. No default on purpose: a deploy without a value
 // prompts (or fails in CI) instead of silently turning access enforcement off.

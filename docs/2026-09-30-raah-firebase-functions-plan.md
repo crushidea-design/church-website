@@ -41,7 +41,7 @@ RAAH 함수는 표준 웹 형식 `(Request, context) => Response`로 짜여 있�
 
 1. **예산 알림**(사용자): Google Cloud 결제 → 예산 알림 월 $5, 50%·90%·100% 알림.
 2. **코드**(Claude/Sonnet): 3절의 입구·빌드·테스트. PR로 올림. 이 PR만으로는 운영 동작이 바뀌지 않는다(Netlify 함수 그대로).
-3. **비밀값 등록**(사용자, 터미널에서 직접 입력 — 값은 대화에 붙이지 않음): `firebase functions:secrets:set` 으로 `RAAH_ENCRYPTION_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_ID`. 플래그(`RAAH_ACCESS_ENFORCED`, `RAAH_COMMUNION_ENABLED`)는 비밀이 아니므로 함수 설정값으로 둔다.
+3. **비밀값 등록**(사용자, 터미널에서 직접 입력 — 값은 대화에 붙이지 않음): `firebase functions:secrets:set` 으로 `RAAH_ENCRYPTION_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. 구글 캘린더 OAuth 값은 운영 Netlify에도 없고 DB(`raah_calendar_oauth_settings`)에서 읽으므로 옮기지 않는다(2026-09-30 확인). 플래그(`RAAH_ACCESS_ENFORCED`, `RAAH_COMMUNION_ENABLED`)는 비밀이 아니므로 함수 설정값으로 둔다.
 4. **함수 배포**(사용자 승인 후 Claude가 CLI로, 또는 사용자): `firebase deploy --only functions:raahApi`. 아직 아무도 이 주소로 요청하지 않으므로 운영 영향 없음.
 5. **직접 확인**: 도쿄 함수 주소로 로그인 없는 요청 → 401, Server-Timing 확인. 브라우저에서 로그인한 상태로 함수 주소에 `bootstrap`을 호출해 기존 기록이 복호화되는지 숫자로만 확인.
 6. **전환**(PR 병합 → Netlify 배포): `public/_redirects` 맨 위에 `/api/raah/*  https://asia-northeast1-<프로젝트>.cloudfunctions.net/raahApi/api/raah/:splat  200!` 한 줄. Netlify RAAH 함수는 지우지 않고 둔다.
