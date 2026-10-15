@@ -1,6 +1,6 @@
 # Firebase Hosting 자동 배포 연결
 
-상태: 구현·권한 명세 및 로컬 검증 완료. Google Cloud WIF·IAM 적용은 자동 승인 검토에서 구체적인 사용자 승인이 필요하다는 사유로 거부되어 아직 실행하지 않았다. 운영 Hosting은 기존 DNS 전환 완료 버전 그대로다.
+상태: 사용자 승인에 따라 WIF·전용 계정·9개 권한·GitHub main 전용 환경을 적용하고 PR #114를 병합했다. 첫 main CI는 검증·인증·함수 조회를 통과했으나 Hosting 게시 직전 Cloud Run 조회 권한 부족으로 실패했다. 두 운영 release는 변경되지 않았다. 아래 서비스 두 개에 한정한 추가 조회 권한은 별도 승인 대기 중이다.
 
 ## 동작
 
@@ -67,4 +67,23 @@ Hosting 게시 권한은 `sites.update`로 제공되며 해당 프로젝트의 �
 - actionlint 1.7.12 구문 검사 통과. 공식 배포 아카이브 체크섬 확인 후 사용했다.
 - 현재 운영 주소에서 새 공개 검증 스크립트 24건 통과. 현재 사용자 인증으로 새 backend 사전 검사도 통과했다. 이는 새 CI 서비스 계정의 권한 검증을 대신하지 않는다.
 - 새 테스트 4건은 backend 조회 거부·비정상 함수 상태·API의 SPA 오배선·RAAH의 잘못된 HTML 진입점을 거부하는지 확인한다.
-- WIF·서비스 계정·커스텀 역할·IAM 바인딩·GitHub 환경·첫 자동 배포는 승인 전이므로 아직 적용하거나 성공했다고 주장하지 않는다.
+- WIF·전용 서비스 계정·9개 권한 역할·IAM 바인딩·GitHub 환경은 승인 후 적용 완료했다. 사용자 관리 키는 0개이며 실제 GitHub 단기 인증도 성공했다. 첫 자동 게시 성공 여부는 아래 실행 기록을 따른다.
+
+## 첫 실행과 추가 권한 수정안 (2026-10-15 20:14 KST)
+
+- PR #114 병합 커밋: `8b6ac80a592f3b12f51691c1d630f91a0224477d`.
+- 실행: https://github.com/crushidea-design/church-website/actions/runs/38725640679
+- main 필수 검사 전체, WIF 단기 인증, 두 세대 Functions 목록 및 API 함수 조회에 성공했다.
+- 두 사이트 파일 업로드 후 버전 finalize에서 `run.services.get` 403이 발생했다. 기존 함수 조회 권한과 별도로 Hosting이 Cloud Run 서비스를 확인하는 권한이 필요하다. 최초 사전 검사에서 이 조건을 확인하지 못했으므로 Cloud Run GET 검사와 회귀 테스트를 추가했다.
+- release 재조회 결과 교회 `25df15c32ee35379`, RAAH `6eb73d5c6dfeb2f2`로 기존 운영 버전이 유지된다. 업로드만 된 버전은 운영에 게시되지 않았다.
+
+### 추가 승인 대상 — 아직 미적용
+
+`.github/firebase-hosting-identity.json`의 `backendReader`가 명세다. `githubHostingBackendReader` 커스텀 역할에 `run.services.get` 하나만 넣고, 기존 배포 계정 `github-hosting-deploy@gen-lang-client-0036445484.iam.gserviceaccount.com`에 다음 두 **서비스 리소스의 IAM**으로 연결한다. 프로젝트 전체에는 이 역할을 연결하지 않는다.
+
+- `projects/gen-lang-client-0036445484/locations/asia-northeast1/services/siteapi`
+- `projects/gen-lang-client-0036445484/locations/asia-northeast1/services/raahapi`
+
+서비스 구성 조회만 추가한다. 서비스 실행·수정·배포·IAM 변경 권한은 배포 계정에 추가하지 않는다. 기존 각 서비스의 호출자 등 IAM 바인딩과 etag를 보존한다. 사용자 승인 후 역할과 두 바인딩을 적용·재조회하고 수정 PR을 병합해 Hosting 배포·운영 검사를 재시도한다.
+
+Cloud Run 권한 정의: https://docs.cloud.google.com/run/docs/reference/iam/permissions

@@ -9,6 +9,14 @@
   "providerId": "church-main",
   "serviceAccountId": "github-hosting-deploy",
   "roleId": "githubHostingPublisher",
+  "backendReader": {
+    "roleId": "githubHostingBackendReader",
+    "permissions": ["run.services.get"],
+    "services": [
+      "projects/gen-lang-client-0036445484/locations/asia-northeast1/services/siteapi",
+      "projects/gen-lang-client-0036445484/locations/asia-northeast1/services/raahapi"
+    ]
+  },
   "permissions": [
     "firebase.projects.get",
     "firebasehosting.sites.get",
