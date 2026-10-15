@@ -37,6 +37,8 @@ export type OutgoingLike = {
 
 const FUNCTION_PREFIX = '/raahApi';
 const API_PREFIX = '/api/raah/';
+// Keep Google's registered redirect URI while moving its implementation.
+const CALENDAR_CALLBACK_PATH = '/.netlify/functions/raah-calendar-callback';
 const SKIPPED_RESPONSE_HEADERS = new Set(['content-length', 'transfer-encoding', 'connection']);
 
 const splitPath = (path: string) => path.split('/').filter((part) => part.length > 0);
@@ -61,14 +63,14 @@ export const buildRouteTable = (modules: HandlerModule[]): Route[] => {
   return routes.sort((a, b) => b.literalCount - a.literalCount);
 };
 
-/** Removes the Firebase function-name prefix and returns the path, or null when it is not an RAAH API path. */
+/** Removes the Firebase function-name prefix and returns the path, or null when it is not an RAAH API or calendar callback path. */
 export const normalizePath = (pathname: string): string | null => {
   let path = pathname;
   if (path === FUNCTION_PREFIX || path.startsWith(`${FUNCTION_PREFIX}/`)) {
     path = path.slice(FUNCTION_PREFIX.length) || '/';
   }
   if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-  return path.startsWith(API_PREFIX) ? path : null;
+  return path.startsWith(API_PREFIX) || path === CALENDAR_CALLBACK_PATH ? path : null;
 };
 
 const safeDecode = (value: string) => {

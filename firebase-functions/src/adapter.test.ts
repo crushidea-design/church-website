@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHmac, createHash, createDecipheriv } from 'node:crypto';
 import {
   buildRouteTable,
   handleRequest,
@@ -14,8 +15,9 @@ import * as communion from '../../netlify/functions/raah-communion.mjs';
 import * as careTasks from '../../netlify/functions/raah-care-tasks.mjs';
 import * as calendar from '../../netlify/functions/raah-calendar.mjs';
 import * as aiAssist from '../../netlify/functions/raah-ai-assist.mjs';
+import * as calendarCallback from '../../netlify/functions/raah-calendar-callback.mjs';
 
-const realModules = [management, communion, careTasks, calendar, aiAssist] as unknown as HandlerModule[];
+const realModules = [management, communion, careTasks, calendar, aiAssist, calendarCallback] as unknown as HandlerModule[];
 
 const fakeModule = (name: string, path: string | string[]) => {
   const handler = vi.fn(async (_req: Request, ctx: { params: Record<string, string> }) =>
@@ -104,6 +106,89 @@ describe('normalizePath', () => {
     expect(normalizePath('/raahApiX/api/raah/bootstrap')).toBeNull();
     expect(normalizePath('/other')).toBeNull();
     expect(normalizePath('/')).toBeNull();
+  });
+});
+
+describe('calendar callback', () => {
+  const path = '/.netlify/functions/raah-calendar-callback';
+
+  it('allows only the exact legacy callback path', () => {
+    expect(normalizePath(path)).toBe(path);
+    expect(normalizePath(`/raahApi${path}`)).toBe(path);
+    expect(normalizePath(`${path}/extra`)).toBeNull();
+    expect(normalizePath('/.netlify/functions/notifications-send')).toBeNull();
+  });
+
+  it('preserves OAuth query encoding and the registered public redirect origin', async () => {
+    const { mod, handler } = fakeModule('callback', path);
+    const { res, state } = fakeRes();
+    const query = '?code=test%2Bcode%2Fvalue&state=signed.payload';
+    await handleRequest(buildRouteTable([mod]), fakeReq({
+      originalUrl: `/raahApi${path}${query}`,
+      headers: { host: 'cloudfunctions.net', 'x-forwarded-host': 'untrusted.example' },
+    }), res, 'https://raah.builttogether.church');
+    const [request] = handler.mock.calls[0];
+    expect(request.url).toBe(`https://raah.builttogether.church${path}${query}`);
+    expect(new URL(request.url).searchParams.get('code')).toBe('test+code/value');
+    expect(state.statusCode).toBe(200);
+  });
+
+  it('exchanges a signed callback using the public URI and stores encrypted tokens', async () => {
+    const secret = 'test-secret';
+    for (const [name, value] of Object.entries({
+      SUPABASE_URL: 'https://db.example', SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
+      RAAH_ENCRYPTION_SECRET: secret, GOOGLE_CALENDAR_CLIENT_ID: 'test-client',
+      GOOGLE_CALENDAR_CLIENT_SECRET: 'test-client-secret', GOOGLE_CALENDAR_ID: 'primary',
+    })) vi.stubEnv(name, value);
+    const body = Buffer.from(JSON.stringify({ uid: 'admin-test', iat: Date.now() })).toString('base64url');
+    const signedState = `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ access_token: 'test-access', refresh_token: 'test-refresh' }))
+      .mockResolvedValueOnce(Response.json({ items: [] }))
+      .mockResolvedValueOnce(Response.json([{ id: 'connection-test' }]));
+    try {
+      const { res, state } = fakeRes();
+      await handleRequest(buildRouteTable(realModules), fakeReq({
+        originalUrl: `/raahApi${path}?code=test&state=${signedState}`,
+      }), res, 'https://raah.builttogether.church');
+      expect(state.statusCode).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      const exchange = fetchSpy.mock.calls[0][1]!;
+      expect((exchange.body as URLSearchParams).get('redirect_uri')).toBe(`https://raah.builttogether.church${path}`);
+      const saved = JSON.parse(fetchSpy.mock.calls[2][1]!.body as string);
+      expect(saved.connected_by.uid).toBe('admin-test');
+      expect(JSON.stringify(saved)).not.toContain('test-refresh');
+      const encrypted = saved.encrypted_token;
+      const decipher = createDecipheriv('aes-256-gcm', createHash('sha256').update(secret).digest(), Buffer.from(encrypted.iv, 'base64'));
+      decipher.setAuthTag(Buffer.from(encrypted.tag, 'base64'));
+      const decrypted = Buffer.concat([decipher.update(Buffer.from(encrypted.ciphertext, 'base64')), decipher.final()]);
+      expect(JSON.parse(decrypted.toString()).refreshToken).toBe('test-refresh');
+    } finally {
+      fetchSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('rejects invalid OAuth state before exchanging a token or saving a connection', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://db.example');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-key');
+    vi.stubEnv('RAAH_ENCRYPTION_SECRET', 'test-secret');
+    vi.stubEnv('GOOGLE_CALENDAR_CLIENT_ID', 'test-client');
+    vi.stubEnv('GOOGLE_CALENDAR_CLIENT_SECRET', 'test-client-secret');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    try {
+      const { res, headers, state } = fakeRes();
+      await handleRequest(buildRouteTable(realModules), fakeReq({
+        originalUrl: `/raahApi${path}?code=test&state=invalid.signature`,
+      }), res, 'https://raah.builttogether.church');
+      expect(state.statusCode).toBe(400);
+      expect(headers['content-type']).toContain('text/html');
+      expect(headers['cache-control']).toBe('no-store');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
   });
 });
 
