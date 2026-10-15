@@ -1,6 +1,6 @@
 # Netlify 이전 후속 작업
 
-## 현재 상태 (2026-10-15)
+## 최초 상태 (2026-10-15, 이후 진행은 아래 기록)
 
 - #107: RAAH HTTP API 5개를 Firebase 도쿄 `raahApi`에서 실행하도록 구현하고 `/api/raah/*` 프록시를 main에 반영.
 - #108: 캘린더 연결 만료 시 재연결 안내 반영.
@@ -25,7 +25,7 @@
 | 2 | 일반 HTTP API | 댓글, 첨부 삭제, 알림 구독·발송·상태, 말씀열매 확인·카드 생성·발행 알림을 Firebase 진입점에 연결하고 인증/권한 회귀 검증 |
 | 3 | 예약 실행 | 예약 알림(매시), 말씀열매 집계(매일 23시 KST), 자동 초안(토요일 23시 KST), 경고(금요일 12시 KST)를 Scheduler로 이전. 작업별 중복 실행 방지와 실패 재시도를 검증하고 기존 스케줄과 동시 활성화하지 않는다 |
 | 4 | Firebase Hosting | 기본·RAAH·다음세대 도메인별 진입점과 SPA 라우팅, 보안 헤더, API rewrite, OAuth 기존 콜백 URL 호환, 프리뷰 검증 및 승인 후 DNS 전환 |
-| 5 | 자동 배포·정리 | 승인된 CI 배포 절차, 롤백 확인, 안정 기간 뒤 Netlify 함수/환경 변수 정리 및 해지 |
+| 5 | 자동 배포·정리 | 승인된 CI 배포 절차, 롤백 확인, 불필요한 Netlify 실행·비밀값 정리 검토. 계정·사이트는 사용자 요청대로 무료 유지 |
 
 예약 발송의 실제 실행이나 운영 자료 변경은 검증 목적으로 수행하지 않는다. 각 운영 전환은 코드 구현·검증과 별도로 명시적 배포 승인을 받아 진행한다.
 
@@ -75,3 +75,15 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 ## Firebase Hosting 미리보기 검증 완료
 
 2026-10-15 사용자 승인으로 교회·RAAH의 `migration-review` 채널을 7일 만료로 배포했다. 두 미리보기의 실제 Google 로그인을 확인했고, RAAH 조회 API의 인증 후 HTTP 200과 양쪽 정적·API 거부 응답 검사 총 54건을 확인했다. `.firebaserc`에 실제 target 매핑을 기록했다. 운영 도메인·DNS·live Hosting release는 아직 전환하지 않았으며 PR #113은 초안 상태다. URL·버전·검증 한계는 `2026-10-15-firebase-hosting-migration.md`의 완료 기록을 따른다.
+
+## Hosting 운영 배포 및 도메인 인증 진행
+
+2026-10-15 15:57 KST 사용자 승인으로 PR #113을 병합(main `759e307`)하고 교회·RAAH의 Firebase Hosting live 채널을 배포했다. 기본 live URL의 정적 페이지·API 거부 응답 검사를 통과했다. Namecheap에 소유권·인증서 TXT를 게시하고 A 레코드 TTL을 1분으로 낮췄다. 인증서 활성화와 TLS 사전 검사 뒤 운영 A를 Firebase 주소로 전환한다. 기존 Netlify 배포·인증서는 복구용으로 유지한다. 상세 진행은 `2026-10-15-firebase-hosting-migration.md`에 기록한다.
+
+예약 알림은 16:00 KST 회차의 provider=firebase, status=completed를 확인했다. 나머지 세 작업의 자연 실행 및 실제 푸시 수신은 별도 확인 대상이다.
+
+## Firebase Hosting 운영 도메인 전환 완료
+
+2026-10-15 17:52~17:56 KST 세 도메인의 인증서 활성화를 확인하고 Namecheap의 `@`·`www`·`raah` A를 `199.36.158.100`으로 전환했다. 세 도메인 모두 Firebase 소유권·호스팅·인증서 ACTIVE, 공개 DNS·운영 HTTP 검사 24건 통과, Chrome 로그인 상태 유지와 RAAH 조회 완료를 확인했다. 교회와 RAAH는 200, www는 루트로 301을 반환한다. 메일 설정은 유지했다.
+
+사용자는 Netlify 구독을 무료 등급으로 낮췄으며 탈퇴·사이트 삭제는 원하지 않는다. 계정과 사이트는 유지한다. 다음 구현 대상은 승인 절차를 갖춘 Firebase CI 배포 연결이다. 세부 전환·검증·복구 기록은 `2026-10-15-firebase-hosting-migration.md`를 따른다.

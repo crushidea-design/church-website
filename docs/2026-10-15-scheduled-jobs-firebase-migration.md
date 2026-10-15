@@ -1,6 +1,6 @@
 # 예약 알림·말씀열매 예약 작업의 Firebase 이전
 
-상태: PR #112 병합·Netlify 실행 제어 배포·Firebase 예약 함수 배포·실행 주체 전환 완료(2026-10-15 15:27 KST). 자연 실행 결과는 아직 확인 전이다.
+상태: PR #112 병합·Netlify 실행 제어 배포·Firebase 예약 함수 배포·실행 주체 전환 완료(2026-10-15 15:27 KST). 16:00 KST 예약 알림의 첫 자연 실행은 Firebase에서 completed로 확인했다. 나머지 세 작업은 예정 시각의 자연 실행 확인이 남아 있다.
 
 ## 실행 주기
 
@@ -95,3 +95,7 @@ firebase deploy --only functions:raah:scheduledNotifications,functions:raah:word
 | 자동 초안 | 2026-10-17 23:00 |
 
 Netlify 스케줄은 롤백용으로 남겨두었으나 owners가 firebase이므로 guard에서 업무를 건너뛴다. 안정 기간 뒤 별도 PR로 제거한다. 문제 발생 시 승인된 운영 절차로 해당 owner를 paused(정지) 또는 netlify(롤백)로 변경한다. 이미 시작한 작업은 취소되지 않으며 기존 회차 기록을 지워 재실행하지 않는다.
+
+## 첫 자연 실행 확인
+
+2026-10-15 16:00 KST 회차 `_scheduled_job_runs/scheduledNotifications__2026-10-15T07:00:00.000Z`에서 provider `firebase`, status `completed`를 확인했다. 실제 발송을 수동 유발하지 않고 실행 메타데이터만 읽었다. 이 상태만으로 수신 단말의 푸시 도착까지 확인한 것은 아니다. 나머지 일간·주간 예약은 각 예정 시각의 자연 실행 확인이 남아 있다.
