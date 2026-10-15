@@ -4,7 +4,7 @@ import * as management from '../raah-management.mts';
 import * as calendar from '../raah-calendar.mts';
 import * as communion from '../raah-communion.mts';
 import * as careTasks from '../raah-care-tasks.mts';
-import * as calendarCallback from '../raah-calendar-callback.mts';
+import * as calendarCallback from './raah-calendar-callback.mts';
 import * as ai from '../raah-ai-assist.mts';
 import * as comments from '../post-comments.mts';
 import * as attachments from '../delete-attachment.mts';

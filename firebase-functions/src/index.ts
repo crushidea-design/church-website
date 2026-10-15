@@ -6,6 +6,7 @@ import * as communion from '../../netlify/functions/raah-communion.mjs';
 import * as careTasks from '../../netlify/functions/raah-care-tasks.mjs';
 import * as calendar from '../../netlify/functions/raah-calendar.mjs';
 import * as aiAssist from '../../netlify/functions/raah-ai-assist.mjs';
+import * as calendarCallback from '../../netlify/functions/_shared/raah-calendar-callback.mjs';
 
 const secrets = [
   defineSecret('RAAH_ENCRYPTION_SECRET'),
@@ -23,7 +24,7 @@ const communionEnabled = defineString('RAAH_COMMUNION_ENABLED');
 // The address users reach RAAH at; the function is only ever called on its behalf.
 const PUBLIC_ORIGIN = 'https://raah.builttogether.church';
 
-const routes = buildRouteTable([management, communion, careTasks, calendar, aiAssist] as unknown as HandlerModule[]);
+const routes = buildRouteTable([management, communion, careTasks, calendar, aiAssist, calendarCallback] as unknown as HandlerModule[]);
 
 export const raahApi = onRequest(
   {
