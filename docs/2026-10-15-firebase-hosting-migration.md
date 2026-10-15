@@ -2,7 +2,7 @@
 
 ## 범위와 현재 상태
 
-2026-10-15: 일반 API·RAAH API·예약 작업의 Firebase 이전 다음 단계로 정적 호스팅 설정과 로컬 검증을 준비했다. 이후 사용자 승인으로 두 Hosting 미리보기 배포와 실제 Google 로그인·API 연결 검증을 완료했다. PR #113 병합과 두 live 채널 배포를 완료했으며, 현재 운영 도메인 인증서 사전 검증을 진행 중이다. DNS 소유권·인증서 TXT를 게시했고 실제 트래픽은 인증서 활성화 전까지 Netlify에서 처리한다.
+2026-10-15: 일반 API·RAAH API·예약 작업의 Firebase 이전 다음 단계로 정적 호스팅 설정과 로컬 검증을 준비했다. 이후 사용자 승인으로 두 Hosting 미리보기 배포와 실제 Google 로그인·API 연결 검증을 완료했다. PR #113 병합과 두 live 채널 배포에 이어 17:52~17:56 KST 인증서 활성화 확인·운영 DNS 전환·접속 검증을 완료했다. 교회·www·RAAH 운영 트래픽은 Firebase Hosting에서 처리한다. Netlify 계정과 사이트는 사용자 요청에 따라 무료 등급으로 유지한다.
 
 - 교회 및 다음세대: `church` target. 기존 교회 도메인과 `/next` 경로를 유지한다.
 - RAAH: `raah` target. 기존 `raah.builttogether.church`를 유지한다.
@@ -165,3 +165,15 @@ Firebase는 기존 CNAME 도메인의 live migration 단계를 지원하지 않�
 세 도메인이 모두 `OWNERSHIP_ACTIVE`로 바뀌었다. 인증서는 모두 `CERT_VALIDATING`이다. RAAH의 인증서 TXT는 Firebase에서도 발견되어 live migration 첫 단계가 `PROCESSING`으로 진행했다. 루트와 www의 인증서 TXT 조회는 아직 캐시된 부정 응답을 보고 있어 첫 단계 `INCOMPLETE`다. 앞의 16:24 상태보다 진행됐지만 A 최종 전환 조건은 아직 충족하지 않았다.
 
 운영 HTTPS 재확인: 루트 200, RAAH 200, www 301→루트, 모두 유효한 Netlify TLS. 문서 기록 커밋 `70a82ce`의 GitHub CI run `38698615124`도 성공했다.
+
+## 운영 DNS 전환 완료 (2026-10-15 17:56 KST)
+
+- 17:52 KST 세 도메인 모두 `CERT_ACTIVE`를 확인했다. 변경 직전 Firebase IP를 지정한 HTTPS·정적 페이지·일반 API 8개·RAAH bootstrap·기존 OAuth 콜백·www 리디렉션 검사 24건을 통과했다. 인증서 검증 우회는 사용하지 않았다.
+- Namecheap에서 `@`, `www`, `raah`의 A 값을 `75.2.60.5`에서 `199.36.158.100`으로 변경했다. TTL은 1분을 유지했다. 저장 화면과 두 권한 DNS 서버, Google 공개 DNS에서 세 주소를 확인했다.
+- Firebase custom domain 세 리소스 모두 `OWNERSHIP_ACTIVE`, `HOST_ACTIVE`, `CERT_ACTIVE`이며 생성 operation도 done=true다.
+- 전환 직후 로컬 DNS 캐시가 남은 RAAH에서 이전 Netlify HTML이 한 차례 조회됐다. 캐시 갱신 후 공개 운영 주소 검사 24건을 모두 통과했다. 교회·RAAH 200, www 301→루트, 세 응답 모두 Firebase CDN을 확인했다.
+- Chrome 운영 교회 화면에서 기존 로그인·관리자 메뉴가 유지되고 게시물이 표시되는 것을 확인했다. 운영 RAAH도 기존 로그인 상태에서 조회를 완료해 ‘암호화 저장’ 상태가 표시됐다. 민감한 목양 내용이나 토큰은 출력·기록하지 않았다. 신규 Google 로그인 동의, 캘린더 재연결, 발송·AI 생성·자료 수정은 실행하지 않았다.
+- MX 5개, SPF, NS, DNSSEC, 소유권 TXT는 유지했다. Netlify 무료 등급 변경은 사용자가 직접 수행했다고 알렸으며, 계정 탈퇴·사이트 삭제를 원하지 않는다는 요청에 따라 모두 유지한다. Netlify 배포·환경 변수도 이번에는 정리하지 않았다.
+- 앱 소스와 배포 버전은 PR #113의 기존 live release 그대로다. 이번 변경은 DNS 설정과 운영 기록 문서뿐이다.
+
+다음 작업은 승인 절차를 갖춘 Firebase 자동 배포 연결과 나머지 예약 작업의 자연 실행 확인이다. 자동 배포가 연결되기 전에는 main 변경만으로 Firebase 운영 버전이 바뀌지 않는다.
