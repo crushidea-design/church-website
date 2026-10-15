@@ -71,6 +71,21 @@ function addDays(date: string, days: number) {
   return formatDate(next);
 }
 
+/**
+ * Absences at the newest Sunday morning service that was actually recorded.
+ * Weeks that only have another service get a placeholder Sunday column; that
+ * placeholder must not read as "no absences". Returns null when no Sunday is recorded.
+ */
+export function summarizeLatestRecordedSunday(flow: Pick<RaahAttendanceFlow, 'events' | 'rows'>) {
+  const latest = flow.events
+    .filter((event) => event.eventType === 'sunday_morning' && event.recorded)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .at(-1);
+  if (!latest) return null;
+  const absences = flow.rows.filter((row) => row.cells.find((cell) => cell.eventKey === latest.key)?.attended === false).length;
+  return { key: latest.key, date: latest.date, absences };
+}
+
 export function getAttendanceWeekStart(date: string) {
   const parsed = parseDate(date);
   parsed.setUTCDate(parsed.getUTCDate() - parsed.getUTCDay());

@@ -14,6 +14,7 @@ export type RaahMember = {
   registeredAt?: string;
   status: RaahMemberStatus;
   publicNote?: string;
+  isSynthetic?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -28,6 +29,8 @@ export type RaahMemberInput = {
   registeredAt?: string;
   status: RaahMemberStatus;
   publicNote?: string;
+  /** Test data flag; honoured only when the member is created. */
+  isSynthetic?: boolean;
 };
 
 export type RaahVisitationSensitiveFields = {
@@ -205,6 +208,7 @@ type ApiMember = {
   registeredAt?: string;
   status: RaahMemberStatus;
   publicNote?: string;
+  isSynthetic?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -239,9 +243,10 @@ type ApiBootstrap = {
   attendanceHistory?: RaahAttendanceHistoryRecord[];
   followUpResolutions?: ApiFollowUpResolution[];
   ministryScheduleItems?: ApiScheduleItem[];
+  /** Notes still waiting to move into logs; null when the server could not count them. */
 };
 
-async function getAuthHeaders(user: User) {
+export async function getAuthHeaders(user: User) {
   const token = await user.getIdToken();
   return {
     Authorization: `Bearer ${token}`,
@@ -249,7 +254,7 @@ async function getAuthHeaders(user: User) {
   };
 }
 
-async function readJsonResponse<T>(response: Response): Promise<T> {
+export async function readJsonResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = typeof data?.error === 'string' ? data.error : 'RAAH API request failed.';
@@ -339,6 +344,17 @@ export async function updateRaahMember(memberId: string, input: RaahMemberInput,
   });
   const data = await readJsonResponse<{ member: ApiMember }>(response);
   return toMember(data.member);
+}
+
+export type RaahSyntheticDeleteCounts = { visitationLogs: number; reviews: number; careTasks: number; scheduleItems: number };
+
+/** Permanently deletes a test ("시범") member and everything attached; the server refuses real members. */
+export async function deleteRaahSyntheticMember(memberId: string, user: User) {
+  const response = await fetch(`/api/raah/members/${encodeURIComponent(memberId)}`, {
+    method: 'DELETE',
+    headers: await getAuthHeaders(user),
+  });
+  return readJsonResponse<RaahSyntheticDeleteCounts>(response);
 }
 
 export async function listRaahVisitationLogs(user: User) {

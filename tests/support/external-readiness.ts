@@ -55,7 +55,7 @@ try {
   } else await check('supabase', async () => {
     const base = new URL(env.SUPABASE_URL);
     if (base.protocol !== 'https:' || !base.hostname.endsWith('.supabase.co')) throw Object.assign(new Error('Unexpected Supabase endpoint.'), { code: 'ENDPOINT_MISMATCH' });
-    const response = await fetch(new URL('/rest/v1/raah_notes?select=id&limit=1', base), {
+    const response = await fetch(new URL('/rest/v1/raah_members?select=id&limit=1', base), {
       method: 'HEAD', headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
       signal: AbortSignal.timeout(15000),
     });

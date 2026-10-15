@@ -1,22 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { encryptPayload as encryptNote, decryptPayload as decryptNote } from '../netlify/functions/raah-notes.mjs';
 import { encryptPayload as encryptLog, decryptPayload as decryptLog } from '../netlify/functions/raah-management.mjs';
 import { buildGoogleEventPayload } from '../netlify/functions/raah-calendar.mjs';
 
 describe('pastoral record encryption compatibility', () => {
-  it('round-trips note and visitation fields without changing the stored envelope', () => {
-    const note = { currentSituation: '테스트 상황', encouragement: '권면', prayerTopics: '기도', remarks: '비고' };
+  it('round-trips visitation fields without changing the stored envelope', () => {
     const log = { innerNote: '테스트 기록', prayerTopics: '기도', nextSteps: '후속', privateRemarks: '비고' };
-    expect(decryptNote(JSON.stringify(encryptNote(note, 'test-only-secret')), 'test-only-secret')).toEqual(note);
     expect(decryptLog(encryptLog(log, 'test-only-secret'), 'test-only-secret')).toEqual(log);
     expect(encryptLog(log, 'test-only-secret').iv).not.toEqual(encryptLog(log, 'test-only-secret').iv);
   });
   it('rejects modified ciphertext and wrong encryption keys', () => {
-    const encrypted = encryptNote({ currentSituation: '상황', encouragement: '권면', prayerTopics: '기도' }, 'test-only-secret');
+    const encrypted = encryptLog({ innerNote: '기록', prayerTopics: '기도', nextSteps: '', privateRemarks: '' }, 'test-only-secret');
     const ciphertext = Buffer.from(encrypted.ciphertext, 'base64');
     ciphertext[0] ^= 1;
-    expect(() => decryptNote({ ...encrypted, ciphertext: ciphertext.toString('base64') }, 'test-only-secret')).toThrow();
-    expect(() => decryptNote(encrypted, 'wrong-key')).toThrow();
+    expect(() => decryptLog({ ...encrypted, ciphertext: ciphertext.toString('base64') }, 'test-only-secret')).toThrow();
+    expect(() => decryptLog(encrypted, 'wrong-key')).toThrow();
   });
 });
 

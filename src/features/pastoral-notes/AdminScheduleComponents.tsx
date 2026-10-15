@@ -30,6 +30,7 @@ import {
   getMonthRangeLabel,
   getOpenScheduleItems,
   getScheduleMemberLabel,
+  getScheduleTypeTone,
   getScheduleTypeLabel,
   getTodayIso,
   getWeekCalendarDays,
@@ -301,10 +302,16 @@ export function MinistrySchedulePanel({
   const hasOpenItems = items.some((item) => item.status === 'open');
   const [selectedFormDate, setSelectedFormDate] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (!isOpen || !editingItemId || !form.date) return;
+    if (!isOpen) {
+      setSelectedFormDate(null);
+      return;
+    }
+    // Edits, and new forms opened outside the calendar (e.g. a member's "일정 등록"),
+    // have no picked day yet: show the popup on the form's own date.
+    if (!form.date || (!editingItemId && selectedFormDate !== null)) return;
     setSelectedFormDate(form.date);
     setAnchorDate(form.date);
-  }, [editingItemId, form.date, isOpen]);
+  }, [editingItemId, form.date, isOpen, selectedFormDate]);
   const shiftCalendar = (direction: -1 | 1) => {
     setAnchorDate((current) => (viewMode === 'week' ? addDaysIso(current, direction * 7) : addMonthsIso(current, direction)));
   };
@@ -590,7 +597,7 @@ export function WeekScheduleGrid({
                 <p className="rounded-lg border border-dashed border-[#ccd7df] bg-white/70 px-2 py-2 text-xs text-[#7a8b9a]">일정 없음</p>
               ) : (
                 day.items.map((item) => (
-                  <div key={item.id} className="group relative rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_14px_rgba(21,38,57,0.04)]">
+                  <div key={item.id} className={`group relative rounded-lg border border-l-4 p-2 shadow-[0_4px_14px_rgba(21,38,57,0.04)] ${getScheduleTypeTone(item.itemType)}`}>
                     <div>
                       <div className="min-w-0">
                         <p className="line-clamp-2 text-xs font-semibold leading-4 text-[#17202b]">{item.title}</p>
@@ -717,7 +724,7 @@ export function MonthScheduleGrid({
                 )}
                 <div className="mt-2 space-y-1.5">
                   {day.items.slice(0, 3).map((item) => (
-                    <div key={item.id} className="group relative rounded-lg border border-[#dbe3e8] bg-white p-2 shadow-[0_4px_12px_rgba(21,38,57,0.04)]">
+                    <div key={item.id} className={`group relative rounded-lg border border-l-4 p-2 shadow-[0_4px_12px_rgba(21,38,57,0.04)] ${getScheduleTypeTone(item.itemType)}`}>
                       <div>
                         <div className="min-w-0">
                           <p className="line-clamp-2 text-[11px] font-semibold leading-4 text-[#17202b]">{item.title}</p>

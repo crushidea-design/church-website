@@ -1,6 +1,6 @@
 import { getMessaging } from 'firebase-admin/messaging';
 import { getAuth } from 'firebase-admin/auth';
-import { cert, getApp, getApps, initializeApp, type ServiceAccount as FirebaseServiceAccount } from 'firebase-admin/app';
+import { applicationDefault, cert, getApp, getApps, initializeApp, type ServiceAccount as FirebaseServiceAccount } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 declare const Netlify:
@@ -75,7 +75,15 @@ export const initializeFirebaseAdmin = () => {
   if (getApps().length > 0) return true;
 
   const rawKey = getEnv('FIREBASE_SERVICE_ACCOUNT_KEY');
-  if (!rawKey) return false;
+  if (!rawKey) {
+    // Google Cloud (Cloud Functions / Cloud Run) provides default application
+    // credentials; Netlify and local runs still require the service-account key.
+    if (process.env.K_SERVICE || process.env.FUNCTION_TARGET) {
+      initializeApp({ credential: applicationDefault() });
+      return true;
+    }
+    return false;
+  }
 
   const serviceAccount = parseServiceAccount(rawKey);
   if (!serviceAccount?.project_id) {

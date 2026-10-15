@@ -10,3 +10,12 @@ coverage/
 raah-migration-insert*.sql
 .claude/worktrees/
 .superpowers/
+
+# Never commit database backups (they contain member data)
+RAAH-backups/
+raah-data-*.sql
+raah-schema-*.sql
+
+# Firebase Functions build output and installed deps
+firebase-functions/lib/
+firebase-functions/node_modules/

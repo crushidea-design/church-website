@@ -15,6 +15,7 @@ import {
   RaahAttendanceFlowCell,
   RaahAttendanceFlowEvent,
   buildRaahAttendanceFlow,
+  summarizeLatestRecordedSunday,
 } from './attendanceFlow';
 import { formatDisplayDate } from './utils';
 import { shell } from './adminShell';
@@ -318,7 +319,7 @@ export function AttendanceTab({
       <AttendanceFlowPanel
         flow={attendanceFlow}
         onSelectEvent={(event) => {
-          setDate(event.date);
+          // onEventTypeChange also moves to event.date, so the unsaved-sheet check runs once.
           onEventTypeChange(event.eventType, event.date);
         }}
       />
@@ -335,8 +336,7 @@ export function AttendanceFlowPanel({
 }) {
   const visibleRows = flow.rows;
   const sundayEvents = flow.events.filter((event) => event.eventType === 'sunday_morning').sort((a, b) => a.date.localeCompare(b.date));
-  const latestSunday = sundayEvents.at(-1);
-  const currentAbsences = flow.rows.filter((row) => row.cells.find((cell) => cell.eventKey === latestSunday?.key)?.attended === false).length;
+  const latestSunday = summarizeLatestRecordedSunday(flow);
   const repeatedAbsences = flow.rows.filter((row) => row.requiredAbsenceCount >= 2).length;
   const steadyRows = flow.rows.filter((row) => row.requiredRecordedCount > 0 && row.requiredAbsenceCount === 0).length;
 
@@ -348,7 +348,7 @@ export function AttendanceFlowPanel({
           <p className="mt-1 text-sm text-[#607080]">주일 오전 출석을 한눈에 비교합니다. 왼쪽은 과거, 오른쪽은 최근 기록입니다.</p>
         </div>
         <div className="grid grid-cols-3 gap-2 lg:min-w-[360px]">
-          <MiniCount label="가장 최근 주 결석" value={currentAbsences} />
+          <MiniCount label="가장 최근 주일 결석" value={latestSunday ? latestSunday.absences : null} />
           <MiniCount label="기간 내 2회 이상 결석" value={repeatedAbsences} />
           <MiniCount label="꾸준 출석" value={steadyRows} />
         </div>
