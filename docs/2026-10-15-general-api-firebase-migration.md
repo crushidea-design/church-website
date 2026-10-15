@@ -1,6 +1,6 @@
 # 일반 HTTP API를 Firebase 도쿄로 이전
 
-상태: 구현·로컬 검증 완료, 미배포. 운영 경로는 계속 기존 Netlify 함수로 연결된다.
+상태: 사용자 승인 후 siteApi 배포·직접 거부 응답 검증 완료. 운영 경로는 계속 기존 Netlify 함수로 연결된다.
 
 ## 구현
 
@@ -53,3 +53,22 @@
 7. 문제가 있으면 추가한 프록시 규칙을 제거해 기존 Netlify 핸들러로 돌아간다. 기존 함수와 키는 안정 확인 전 지우지 않는다. 자료 이동은 없다.
 
 Netlify 프록시 시간 제한과 별개로 Firebase 함수 timeout은 60초다. 특히 AI 카드 생성과 부모 알림까지 기다리는 체크의 실제 응답 시간은 전환 전에 확인해야 한다. 스케줄 이전과 Firebase Hosting/DNS 전환은 다음 단계다.
+
+## 배포 결과 (2026-10-15)
+
+- 배포 소스 `5c2cfa4`, 명령 `firebase deploy --only functions:raah:siteApi --project gen-lang-client-0036445484 --non-interactive` 성공. `raahApi`는 이번에 배포하지 않았다.
+- Node.js 22, asia-northeast1, 상태 ACTIVE. 실행 계정 `638399109645-compute@developer.gserviceaccount.com` 확인.
+- Netlify 키는 CLI에서 마스킹되어 자동 복사하지 못했다. 사용자가 Secret Manager에 직접 등록한 `GEMINI_API_KEY` 활성 버전 1을 연결했다. 실제 키 값은 조회·출력하지 않았다. 배포 CLI가 이 비밀값에 한해 실행 계정에 Secret Accessor를 연결했다.
+- Netlify의 유효한 모델 override가 없어 기존 코드 기본값 `gemini-3.8-flash`를 gitignored 함수 dotenv에 지정했고, 배포된 모델 설정도 확인했다.
+- Auth·Firestore·FCM 권한은 기존 Editor 역할에서 확인했다. Storage 객체 조회는 빠져 있어 사용자 별도 승인 후 `projects/gen-lang-client-0036445484/roles/churchSiteAttachmentRead` 역할을 만들었다(`storage.objects.get` 하나).
+- 버킷에 직접 조건부 권한을 넣으려면 uniform bucket-level access가 필요해 해당 방식은 적용하지 않았다. 사용자가 프로젝트 IAM 방식을 별도로 승인한 뒤, 프로젝트 정책에 같은 실행 계정·같은 단일 역할을 연결했다. 조건은 아래 세 접두 경로의 OR이며 다른 버킷/경로에 권한을 추가하지 않는다. 버킷 ACL은 변경하지 않았다.
+
+```text
+projects/_/buckets/gen-lang-client-0036445484.firebasestorage.app/objects/pdfs/
+projects/_/buckets/gen-lang-client-0036445484.firebasestorage.app/objects/materials/
+projects/_/buckets/gen-lang-client-0036445484.firebasestorage.app/objects/sermons/
+```
+
+- Cloud Functions 공개 주소에서 8개 API 비인증 요청 → 모두 401, 잘못된 메서드 8건 → 모두 405, 미등록 RAAH/예약/레거시 경로 3건 → 모두 404. 19건 모두 no-store 확인.
+- 실제 로그인·Storage 파일 조회/삭제·알림 발송·Gemini 생성 요청은 이번 배포 검증에서 실행하지 않았다. 따라서 이 기능들의 운영 성공을 입증한 것은 아니다. IAM 정책과 함수 설정은 메타데이터로 검증했다.
+- 다음 작업은 PR #110 병합과 별도 API 프록시 전환 PR이다. 현재 웹 클라이언트는 계속 Netlify 일반 API를 호출한다.

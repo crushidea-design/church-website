@@ -55,4 +55,4 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 
 ## 일반 API 구현 진행
 
-별도 `siteApi`에 일반 HTTP 핸들러 8개를 연결했다. 운영 프록시·비밀값·IAM·배포는 아직 변경하지 않았다. 구현·검증 및 전환 절차는 `2026-10-15-general-api-firebase-migration.md`를 따른다.
+별도 `siteApi`에 일반 HTTP 핸들러 8개를 연결했다. 운영 프록시는 아직 변경하지 않았다. 사용자 승인 후 Gemini 비밀값 등록·조건부 Storage 조회 권한 연결·siteApi 배포와 직접 거부 응답 19건 검증을 마쳤다. 구현·검증 및 전환 절차는 `2026-10-15-general-api-firebase-migration.md`를 따른다.
