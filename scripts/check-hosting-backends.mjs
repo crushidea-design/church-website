@@ -26,6 +26,13 @@ export async function checkHostingBackends(token, request = fetch) {
       throw new Error(`${name} must be an active second-generation function with a Cloud Run service.`);
     }
     // Deliberately do not log function configuration, environment variables or tokens.
+    // Hosting also checks the underlying Run service when finalizing a version.
+    const service = name.toLowerCase();
+    const runResponse = await request(`https://run.googleapis.com/v2/projects/${project}/locations/${region}/services/${service}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!runResponse.ok) throw new Error(`Cannot read ${service} Cloud Run metadata (${runResponse.status}).`);
   }
   return 'Both existing API backends are active and readable.';
 }
