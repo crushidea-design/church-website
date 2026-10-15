@@ -141,8 +141,9 @@ export default async (req: Request) => {
       return { count: nextCount, dates: nextDates, childName: data.childName ?? '' };
     });
 
-    // Fire-and-forget parent notification (don't block check response on failure)
-    notifyLinkedParents(decoded.uid, result.childName, result.count, result.count >= 3).catch(
+    // Cloud Functions may suspend work after the response. Finish notifications
+    // before returning; a delivery failure still does not undo the saved check.
+    await notifyLinkedParents(decoded.uid, result.childName, result.count, result.count >= 3).catch(
       (err) => console.error('notifyLinkedParents failed:', err),
     );
 

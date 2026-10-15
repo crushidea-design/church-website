@@ -1,5 +1,9 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
+import { handleSiteRequest } from './site-api.js';
+import { DEFAULT_GEMINI_MODEL } from '../../netlify/functions/_shared/gemini-model.mjs';
+
+const siteGeminiModel = defineString('GEMINI_MODEL', { default: DEFAULT_GEMINI_MODEL });
 import { handleRequest, buildRouteTable, type HandlerModule } from './adapter.js';
 import * as management from '../../netlify/functions/raah-management.mjs';
 import * as communion from '../../netlify/functions/raah-communion.mjs';
@@ -44,5 +48,21 @@ export const raahApi = onRequest(
     process.env.RAAH_ACCESS_ENFORCED = accessEnforced.value();
     process.env.RAAH_COMMUNION_ENABLED = communionEnabled.value();
     await handleRequest(routes, req, res, PUBLIC_ORIGIN);
+  },
+);
+
+// General church/next-generation API: deliberately has no RAAH/Supabase secrets.
+export const siteApi = onRequest(
+  {
+    region: 'asia-northeast1',
+    secrets: [defineSecret('GEMINI_API_KEY')],
+    timeoutSeconds: 60,
+    invoker: 'public',
+    // Existing clients call same-origin /api/* through the hosting proxy.
+    cors: false,
+  },
+  async (req, res) => {
+    process.env.GEMINI_MODEL = siteGeminiModel.value();
+    await handleSiteRequest(req, res);
   },
 );
