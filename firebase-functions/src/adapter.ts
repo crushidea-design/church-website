@@ -64,13 +64,18 @@ export const buildRouteTable = (modules: HandlerModule[]): Route[] => {
 };
 
 /** Removes the Firebase function-name prefix and returns the path, or null when it is not an RAAH API or calendar callback path. */
-export const normalizePath = (pathname: string): string | null => {
+export const normalizePath = (
+  pathname: string,
+  functionPrefix = FUNCTION_PREFIX,
+  apiPrefixes = [API_PREFIX],
+  exactPaths = [CALENDAR_CALLBACK_PATH],
+): string | null => {
   let path = pathname;
-  if (path === FUNCTION_PREFIX || path.startsWith(`${FUNCTION_PREFIX}/`)) {
-    path = path.slice(FUNCTION_PREFIX.length) || '/';
+  if (path === functionPrefix || path.startsWith(`${functionPrefix}/`)) {
+    path = path.slice(functionPrefix.length) || '/';
   }
   if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-  return path.startsWith(API_PREFIX) || path === CALENDAR_CALLBACK_PATH ? path : null;
+  return apiPrefixes.some((prefix) => path.startsWith(prefix)) || exactPaths.includes(path) ? path : null;
 };
 
 const safeDecode = (value: string) => {
@@ -153,12 +158,15 @@ export const writeResponse = async (response: Response, res: OutgoingLike, isHea
 };
 
 /** Handles one Express request end to end. Never throws. */
-export const handleRequest = async (routes: Route[], incoming: IncomingLike, res: OutgoingLike, publicOrigin?: string) => {
+export const handleRequest = async (
+  routes: Route[], incoming: IncomingLike, res: OutgoingLike, publicOrigin?: string,
+  normalize: (pathname: string) => string | null = normalizePath,
+) => {
   const rawUrl = incoming.originalUrl || incoming.url || '/';
   const queryIndex = rawUrl.indexOf('?');
   const pathname = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex);
   const query = queryIndex === -1 ? '' : rawUrl.slice(queryIndex);
-  const normalizedPath = normalizePath(pathname);
+  const normalizedPath = normalize(pathname);
   const match = normalizedPath ? matchRoute(routes, normalizedPath) : null;
   if (!normalizedPath || !match) {
     await writeResponse(notFoundResponse(), res);
@@ -170,7 +178,7 @@ export const handleRequest = async (routes: Route[], incoming: IncomingLike, res
     response = await match.route.handler(request, { params: match.params });
   } catch (error) {
     // Log only the error class: messages can carry record content.
-    console.error('raahApi handler failed', error instanceof Error ? error.name : 'unknown');
+    console.error('HTTP API handler failed', error instanceof Error ? error.name : 'unknown');
     response = internalErrorResponse();
   }
   await writeResponse(response, res, incoming.method.toUpperCase() === 'HEAD');
