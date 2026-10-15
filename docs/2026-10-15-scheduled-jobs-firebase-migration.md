@@ -1,6 +1,6 @@
 # 예약 알림·말씀열매 예약 작업의 Firebase 이전
 
-상태: 구현·로컬 검증 완료, 미배포. 기존 Netlify 스케줄이 운영 실행 주체다.
+상태: PR #112 병합·Netlify 실행 제어 배포·Firebase 예약 함수 배포·실행 주체 전환 완료(2026-10-15 15:27 KST). 자연 실행 결과는 아직 확인 전이다.
 
 ## 실행 주기
 
@@ -72,3 +72,26 @@ firebase deploy --only functions:raah:scheduledNotifications,functions:raah:word
 - needs_review 또는 오래된 processing이 있으면 발송·AI 저장·알림 생성의 실제 결과를 확인한다. 필요한 개별 업무만 검토 후 처리한다. 자동 lease 복구/무조건 재발송은 구현하지 않는다.
 - 토요일/금요일 작업을 검증하기 위해 실제 운영 원고·알림을 수동 생성하지 않는다. 시험은 모의 SDK 또는 격리된 에뮬레이터에서 수행한다.
 - ledger 보존 정책/자동 TTL 정리는 아직 추가하지 않았다. 정리할 때도 실행 중이거나 같은 회차가 다시 전달될 가능성이 있는 기록은 지우지 않는다.
+
+## 운영 전환 결과 (2026-10-15)
+
+사용자가 PR 병합, Netlify 실행 제어 배포, Firebase 예약 함수 배포, 실행 주체 전환을 명시적으로 승인했다.
+
+- PR #112의 CI 2건, Netlify 미리보기·리다이렉트 검사 통과 후 squash 병합: `1e573890c8c360b678bdeeb7a5001b8b58a1a199`.
+- Netlify production 배포 `6ad0715cc7267d841bd6a2f3`, 해당 커밋으로 ready 및 15:24:32 KST 게시 확인. 네 예약 함수의 새 번들 생성 시각·다이제스트·기존 UTC 스케줄을 메타데이터로 확인했다. 검증 목적으로 업무를 호출하지 않았다.
+- 전환 전 `_scheduler_control/jobs`는 없었고 네 작업 모두 코드 기본값 netlify로 확인했다. 실행 기록도 없었다.
+- Cloud Scheduler API를 활성화하고 승인된 네 예약 함수만 배포했다. `siteApi`와 `raahApi`는 이번 배포 대상에 포함하지 않았다.
+- 네 함수 모두 ACTIVE, Scheduler ENABLED, 타임존 Asia/Seoul, 재시도 0, 예정 cron 일치 확인. Scheduler OIDC 계정은 `638399109645-compute@developer.gserviceaccount.com`이고 각 함수 실행 계정과 일치한다.
+- Cloud Run IAM에 allUsers/allAuthenticatedUsers 연결이 없고, 네 함수의 비인증 HTTP 요청이 모두 403을 반환함을 확인했다. 실제 인증 업무 호출/Run now는 실행하지 않았다.
+- 자동 초안 함수에만 Secret Manager GEMINI_API_KEY 버전 1이 연결됨을 확인했다. 나머지 세 함수에는 비밀값 연결이 없다.
+- 15:27:34 KST, named Firestore의 `_scheduler_control/jobs` owners 네 필드만 단일 commit으로 firebase로 전환했다. 문서 부재 precondition을 사용하고 이후 네 값을 재조회 검증했다. 기존 데이터·실행 기록은 변경하지 않았다.
+- 전환 직후 실행 기록은 여전히 없었다. 사전 검증은 설정·인증 거부에 한정되며 실제 발송·집계·AI 생성 성공을 입증하지 않는다.
+
+| 작업 | 전환 후 첫 자연 실행 예정 (KST) |
+| --- | --- |
+| 예약 알림 | 2026-10-15 16:00 |
+| 집계 | 2026-10-15 23:00 |
+| 원고 경고 | 2026-10-16 12:00 |
+| 자동 초안 | 2026-10-17 23:00 |
+
+Netlify 스케줄은 롤백용으로 남겨두었으나 owners가 firebase이므로 guard에서 업무를 건너뛴다. 안정 기간 뒤 별도 PR로 제거한다. 문제 발생 시 승인된 운영 절차로 해당 owner를 paused(정지) 또는 netlify(롤백)로 변경한다. 이미 시작한 작업은 취소되지 않으며 기존 회차 기록을 지워 재실행하지 않는다.

@@ -63,4 +63,6 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 
 ## 예약 작업 이전 구현
 
-네 예약 작업을 Firebase onSchedule로 연결하고, Netlify와 Firebase가 공유하는 실행 주체·회차별 트랜잭션 guard를 추가했다. 아직 배포하거나 실행 주체를 바꾸지 않았다. `2026-10-15-scheduled-jobs-firebase-migration.md`의 단계별 전환·롤백 절차를 따른다.
+네 예약 작업을 Firebase onSchedule로 연결하고, Netlify와 Firebase가 공유하는 실행 주체·회차별 트랜잭션 guard를 추가했다. 2026-10-15 사용자 승인 후 PR #112 병합·Netlify 실행 제어 배포·Firebase 예약 함수 배포와 실행 주체 전환을 완료했다. 네 owner는 firebase이며 자연 실행 결과는 아직 확인 전이다. `2026-10-15-scheduled-jobs-firebase-migration.md`의 단계별 전환·롤백 절차를 따른다.
+
+다음 단계는 예약 작업의 자연 실행 확인과 안정 기간 뒤 Netlify 예약 진입점 정리, 이후 Firebase Hosting·도메인 전환이다.
