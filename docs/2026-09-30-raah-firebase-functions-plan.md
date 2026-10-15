@@ -42,7 +42,7 @@ RAAH 함수는 표준 웹 형식 `(Request, context) => Response`로 짜여 있�
 1. **예산 알림**(사용자): Google Cloud 결제 → 예산 알림 월 $5, 50%·90%·100% 알림.
 2. **코드**(Claude/Sonnet): 3절의 입구·빌드·테스트. PR로 올림. 이 PR만으로는 운영 동작이 바뀌지 않는다(Netlify 함수 그대로).
 3. **비밀값 등록**(사용자, 터미널에서 직접 입력 — 값은 대화에 붙이지 않음): `firebase functions:secrets:set` 으로 `RAAH_ENCRYPTION_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. 구글 캘린더 OAuth 값은 운영 Netlify에도 없고 DB(`raah_calendar_oauth_settings`)에서 읽으므로 옮기지 않는다(2026-09-30 확인). 플래그(`RAAH_ACCESS_ENFORCED`, `RAAH_COMMUNION_ENABLED`)는 비밀이 아니므로 함수 설정값으로 둔다.
-4. **함수 배포**(사용자 승인 후 Claude가 CLI로, 또는 사용자): `firebase deploy --only functions:raahApi`. 아직 아무도 이 주소로 요청하지 않으므로 운영 영향 없음.
+4. **함수 배포**(사용자 승인 후 Claude가 CLI로, 또는 사용자): `firebase deploy --only functions:raah:raahApi`. 아직 아무도 이 주소로 요청하지 않으므로 운영 영향 없음.
 5. **직접 확인**: 도쿄 함수 주소로 로그인 없는 요청 → 401, Server-Timing 확인. 브라우저에서 로그인한 상태로 함수 주소에 `bootstrap`을 호출해 기존 기록이 복호화되는지 숫자로만 확인.
 6. **전환**(PR 병합 → Netlify 배포): `public/_redirects` 맨 위에 `/api/raah/*  https://asia-northeast1-<프로젝트>.cloudfunctions.net/raahApi/api/raah/:splat  200!` 한 줄. Netlify RAAH 함수는 지우지 않고 둔다.
 7. **측정**: 병합 전후 Server-Timing 비교, 목사님 화면 확인(홈·성도·성찬·기록·일정·캘린더 연결).
@@ -73,4 +73,4 @@ RAAH 함수는 표준 웹 형식 `(Request, context) => Response`로 짜여 있�
 
 ## 8. 후속 진행
 
-2026-10-15: PR #107의 도쿄 진입점과 `/api/raah/*` 프록시 설정, #108의 캘린더 재연결 안내가 main에 반영되어 있다. 운영 bootstrap 비인증 요청의 401 응답을 확인했다. 로그인 후 기능·복호화·속도와 실제 배포 버전은 별도 확인이 필요하다. 캘린더 OAuth 콜백은 아직 Netlify에 남아 있어 다음 작업으로 Firebase 라우팅을 추가했다(미배포). 전체 후속 순서는 `2026-10-15-netlify-exit-follow-up.md`를 따른다.
+2026-10-15: PR #107의 도쿄 진입점과 `/api/raah/*` 프록시 설정, #108의 캘린더 재연결 안내가 main에 반영되어 있다. 운영 bootstrap 비인증 요청의 401 응답을 확인했다. 로그인 후 기능·복호화·속도와 실제 배포 버전은 별도 확인이 필요하다. 캘린더 OAuth 콜백은 아직 Netlify에 남아 있어 후속 작업으로 Firebase 라우팅을 추가하고 2026-10-15 사용자 승인 후 함수 배포를 완료했다. 배포된 콜백의 잘못된 state 요청은 HTML 400, bootstrap 비인증 요청은 401을 반환한다. 운영 콜백의 Netlify 프록시 전환은 아직 진행하지 않았다. 전체 후속 순서는 `2026-10-15-netlify-exit-follow-up.md`를 따른다.
