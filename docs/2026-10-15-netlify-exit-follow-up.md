@@ -12,14 +12,10 @@
 1. 변경 코드 검토 후 Firebase `raahApi` 배포를 승인받는다. 기존 세 비밀값을 그대로 사용한다. Google OAuth 설정은 기존 DB 설정을 읽는다.
 2. `npm --prefix firebase-functions run build` 후 `firebase deploy --only functions:raah:raahApi` 실행. 이 단계에서는 Netlify 콜백이 계속 운영 요청을 처리한다.
 3. 배포된 함수의 `/raahApi/.netlify/functions/raah-calendar-callback?code=test&state=invalid.signature`가 HTML 400을 반환하는지 확인한다. 토큰 교환·저장이 발생하면 안 된다. 비밀값이나 OAuth 쿼리 전체를 로그에 남기지 않는다.
-4. 그 뒤 별도 PR에서 `public/_redirects`의 SPA 규칙보다 위에 아래 한 줄을 추가한다. Firebase 배포와 400 응답 확인을 마친 뒤 이 줄을 추가했다. PR 병합·Netlify 배포 전까지 운영 요청 경로는 바뀌지 않는다.
-
-```text
-/.netlify/functions/raah-calendar-callback  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/raahApi/.netlify/functions/raah-calendar-callback  200!
-```
-
-5. Netlify 배포 후 실제 관리자 화면에서 재연결 → 완료 → RAAH 복귀 → 일정 조회를 확인한다. Google에 등록된 콜백 주소는 바꾸지 않는다. Google token 교환에도 기존 공개 도메인 주소를 사용한다.
-6. 실패하면 위 프록시 한 줄을 제거해 Netlify 콜백으로 복귀한다. 기존 Netlify 함수와 비밀값은 안정 확인 전 삭제하지 않는다.
+4. PR #109에서 기존 Netlify 콜백을 Firebase로 GET 전달하는 얇은 함수로 교체한다. Netlify 미리보기 검사에서 `/.netlify/functions/*`를 `_redirects` 출발점으로 쓰는 것은 금지됨을 확인했으므로 프록시 규칙은 사용하지 않는다.
+5. 기존 콜백 구현은 `_shared/raah-calendar-callback.mts`로 옮겨 Firebase에서만 실행한다. 로컬 개발은 공유 구현을 직접 사용한다. 전달 함수는 고정된 Firebase 주소만 호출하고 OAuth 쿼리의 인코딩을 보존하며 요청·오류 내용을 로그에 남기지 않는다.
+6. Netlify 배포 후 실제 관리자 화면에서 재연결 → 완료 → RAAH 복귀 → 일정 조회를 확인한다. Google 등록 콜백 주소는 유지한다. Netlify 전달 함수는 호스팅 이전 시 제거할 임시 의존성이다.
+7. 실패 시 Netlify 콜백 파일을 기존 구현으로 복구해 배포한다. 현재 PR에는 원본 구현이 공유 파일로 보존되어 있다.
 
 ## 이후 전체 이전 순서
 
@@ -45,4 +41,4 @@
 
 ## 콜백 전환 PR 준비
 
-Firebase 배포 후 `public/_redirects` 맨 위에 기존 콜백 URL의 강제 프록시를 추가했다. Google 등록 주소는 유지하며 서명 state와 code 쿼리를 Firebase 핸들러에 전달한다. 기존 Netlify 핸들러는 롤백용으로 유지한다. 운영 전환과 실제 Google 재연결 확인은 PR 병합·배포 뒤 진행한다.
+PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한다. Firebase OAuth 구현과 서명 state·암호화 저장 처리는 그대로 유지한다. 최초 시도한 `_redirects` 규칙은 Netlify 검사에서 예약 경로 제한으로 거부되어 제거했다. 실제 Google 재연결 확인은 PR 병합·배포 뒤 진행한다.

@@ -6,7 +6,7 @@ import * as communion from '../../netlify/functions/raah-communion.mjs';
 import * as careTasks from '../../netlify/functions/raah-care-tasks.mjs';
 import * as calendar from '../../netlify/functions/raah-calendar.mjs';
 import * as aiAssist from '../../netlify/functions/raah-ai-assist.mjs';
-import * as calendarCallback from '../../netlify/functions/raah-calendar-callback.mjs';
+import * as calendarCallback from '../../netlify/functions/_shared/raah-calendar-callback.mjs';
 
 const secrets = [
   defineSecret('RAAH_ENCRYPTION_SECRET'),
