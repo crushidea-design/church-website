@@ -12,7 +12,7 @@
 1. 변경 코드 검토 후 Firebase `raahApi` 배포를 승인받는다. 기존 세 비밀값을 그대로 사용한다. Google OAuth 설정은 기존 DB 설정을 읽는다.
 2. `npm --prefix firebase-functions run build` 후 `firebase deploy --only functions:raah:raahApi` 실행. 이 단계에서는 Netlify 콜백이 계속 운영 요청을 처리한다.
 3. 배포된 함수의 `/raahApi/.netlify/functions/raah-calendar-callback?code=test&state=invalid.signature`가 HTML 400을 반환하는지 확인한다. 토큰 교환·저장이 발생하면 안 된다. 비밀값이나 OAuth 쿼리 전체를 로그에 남기지 않는다.
-4. 그 뒤 별도 PR에서 `public/_redirects`의 SPA 규칙보다 위에 아래 한 줄을 추가한다. 현재 코드에는 이 줄을 추가하지 않아 선배포 전 요청 전환을 막았다.
+4. 그 뒤 별도 PR에서 `public/_redirects`의 SPA 규칙보다 위에 아래 한 줄을 추가한다. Firebase 배포와 400 응답 확인을 마친 뒤 이 줄을 추가했다. PR 병합·Netlify 배포 전까지 운영 요청 경로는 바뀌지 않는다.
 
 ```text
 /.netlify/functions/raah-calendar-callback  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/raahApi/.netlify/functions/raah-calendar-callback  200!
@@ -42,3 +42,7 @@
 - 같은 함수의 bootstrap 비인증 요청 → 401, `application/json`, `Cache-Control: no-store`.
 - 실제 Google 재연결·토큰 교환·기존 기록 복호화는 이번 운영 검증에서 실행하지 않았다. 잘못된 state가 토큰 교환·저장에 도달하지 않는 동작은 앞선 모의 테스트로 확인했다.
 - Netlify 콜백 프록시 변경, main 병합, 웹 배포는 수행하지 않았다. 다음 작업은 위 전환 절차 4~5번이다.
+
+## 콜백 전환 PR 준비
+
+Firebase 배포 후 `public/_redirects` 맨 위에 기존 콜백 URL의 강제 프록시를 추가했다. Google 등록 주소는 유지하며 서명 state와 code 쿼리를 Firebase 핸들러에 전달한다. 기존 Netlify 핸들러는 롤백용으로 유지한다. 운영 전환과 실제 Google 재연결 확인은 PR 병합·배포 뒤 진행한다.
