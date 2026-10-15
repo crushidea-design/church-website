@@ -1,3 +1,4 @@
+import { netlifyScheduledHandler } from './_shared/scheduled-job.mjs';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Config } from '@netlify/functions';
 import { resolveGeminiModel } from './_shared/gemini-model.mjs';
@@ -316,7 +317,18 @@ const runAutoDraft = async (now = new Date()): Promise<RunResult> => {
     docPayload.createdAt = FieldValue.serverTimestamp();
   }
 
-  await fruitRef.set(docPayload, { merge: true });
+  // AI generation can take long enough for a pastor to save or publish. Compare
+  // the exact Firestore version again in the final transaction before writing.
+  const saved = await db.runTransaction(async (tx) => {
+    const current = await tx.get(fruitRef);
+    if (current.exists !== existing.exists ||
+      (current.exists && !existing.updateTime?.isEqual(current.updateTime!))) return false;
+    tx.set(fruitRef, docPayload, { merge: true });
+    return true;
+  });
+  if (!saved) {
+    return { ok: false, weekId, sundayKey, reason: 'HUMAN_EDITED', message: '생성 중 변경된 주차는 덮어쓰지 않았습니다.' };
+  }
 
   // Notify pastors
   const pastorUids = await findPastorUids();
@@ -330,7 +342,7 @@ const runAutoDraft = async (now = new Date()): Promise<RunResult> => {
 
 /* ────────────────────────── handler ────────────────────────────────────── */
 
-export default async (req: Request) => {
+export const runJob = async () => {
   if (!initializeFirebaseAdmin()) {
     return jsonResponse({ error: 'Firebase Admin not initialized' }, 500);
   }
@@ -347,6 +359,8 @@ export default async (req: Request) => {
  * Cron schedule (UTC). Saturday 14:00 UTC = Saturday 23:00 KST.
  * Runs every Saturday late evening so a draft is ready by Sunday morning.
  */
+export default netlifyScheduledHandler('wordFruitAutoDraft', runJob);
+
 export const config: Config = {
   schedule: '0 14 * * 6',
 };

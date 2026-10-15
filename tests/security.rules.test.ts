@@ -16,6 +16,7 @@ vi.mock('../netlify/functions/_shared/firebase-admin.mjs', async () => {
   };
 });
 import commentHandler from '../netlify/functions/post-comments.mts';
+import { runScheduledJob } from '../netlify/functions/_shared/scheduled-job.mjs';
 import { getAppDb } from '../netlify/functions/_shared/firebase-admin.mjs';
 import { claimNotification } from '../netlify/functions/_shared/notification-claim.mjs';
 
@@ -89,6 +90,31 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     expect((await ref.get()).data()?.status).toBe('processing');
     expect(await claimNotification(db, ref)).toBeNull();
   }, 15000); // Admin SDK initialization and transaction contention can exceed 5s locally.
+
+  it('denies client access to scheduler ownership and run records, including admin clients', async () => {
+    for (const context of [env.authenticatedContext('owner'), env.authenticatedContext('admin', { email: 'crushidea@gmail.com', email_verified: true })]) {
+      const db = context.firestore();
+      await assertFails(db.doc('_scheduler_control/jobs').set({ owners: { wordFruitAutoDraft: 'firebase' } }));
+      await assertFails(db.doc('_scheduled_job_runs/test').set({ status: 'completed' }));
+      await assertFails(db.doc('_scheduler_control/jobs').get());
+      await assertFails(db.collection('_scheduled_job_runs').get());
+    }
+  });
+
+  it('claims a scheduler slot once across concurrent providers and ownership changes', async () => {
+    const db = getAppDb();
+    const control = db.collection('_scheduler_control').doc('jobs');
+    await control.set({ owners: { wordFruitAutoDraft: 'firebase' } });
+    let calls = 0;
+    const work = async () => { calls += 1; return Response.json({ ok: true }); };
+    await Promise.all(Array.from({ length: 5 }, () => runScheduledJob('wordFruitAutoDraft', 'firebase', work)));
+    await control.set({ owners: { wordFruitAutoDraft: 'netlify' } });
+    await runScheduledJob('wordFruitAutoDraft', 'netlify', work);
+    expect(calls).toBe(1);
+    const records = await db.collection('_scheduled_job_runs').get();
+    expect(records.size).toBe(1);
+    expect(records.docs[0].data().status).toBe('completed');
+  }, 15000);
 
   it('keeps comments and counts atomic across duplicate and concurrent requests', async () => {
     const call = (method: string, commentId: string, uid = 'owner') => commentHandler(new Request('https://example.test/api/post-comments', {

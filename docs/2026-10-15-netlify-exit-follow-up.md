@@ -56,3 +56,11 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 ## 일반 API 구현 진행
 
 별도 `siteApi`에 일반 HTTP 핸들러 8개를 연결했다. 운영 프록시는 아직 변경하지 않았다. 사용자 승인 후 Gemini 비밀값 등록·조건부 Storage 조회 권한 연결·siteApi 배포와 직접 거부 응답 19건 검증을 마쳤다. 구현·검증 및 전환 절차는 `2026-10-15-general-api-firebase-migration.md`를 따른다.
+
+## 일반 API 운영 전환 완료
+
+2026-10-15 15:11 KST: PR #110·#111을 승인된 절차로 병합하고 일반 API 8개를 Firebase 도쿄로 전환했다. 운영 두 도메인에서 거부 응답 32건과 RAAH 회귀 2건을 확인했다. 다음 단계는 예약 작업 이전이다. 상세 배포·검증·롤백 기록은 `2026-10-15-general-api-firebase-migration.md`를 따른다.
+
+## 예약 작업 이전 구현
+
+네 예약 작업을 Firebase onSchedule로 연결하고, Netlify와 Firebase가 공유하는 실행 주체·회차별 트랜잭션 guard를 추가했다. 아직 배포하거나 실행 주체를 바꾸지 않았다. `2026-10-15-scheduled-jobs-firebase-migration.md`의 단계별 전환·롤백 절차를 따른다.
