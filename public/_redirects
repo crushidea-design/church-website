@@ -1,3 +1,11 @@
+/api/post-comments  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/post-comments  200!
+/api/attachments  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/attachments  200!
+/api/notifications/subscribe  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/notifications/subscribe  200!
+/api/notifications/send  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/notifications/send  200!
+/api/notifications/health  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/notifications/health  200!
+/api/word-fruit/check  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/word-fruit/check  200!
+/api/word-fruit/generate-cards  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/word-fruit/generate-cards  200!
+/api/word-fruit/notify-publish  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/siteApi/api/word-fruit/notify-publish  200!
 /api/raah/*  https://asia-northeast1-gen-lang-client-0036445484.cloudfunctions.net/raahApi/api/raah/:splat  200!
 https://raah.builttogether.church/* /index.html 200
 /next-generation/* /next/:splat 301
