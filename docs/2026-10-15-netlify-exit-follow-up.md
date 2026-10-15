@@ -1,6 +1,6 @@
 # Netlify 이전 후속 작업
 
-## 현재 상태 (2026-10-15)
+## 최초 상태 (2026-10-15, 이후 진행은 아래 기록)
 
 - #107: RAAH HTTP API 5개를 Firebase 도쿄 `raahApi`에서 실행하도록 구현하고 `/api/raah/*` 프록시를 main에 반영.
 - #108: 캘린더 연결 만료 시 재연결 안내 반영.
@@ -75,3 +75,9 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 ## Firebase Hosting 미리보기 검증 완료
 
 2026-10-15 사용자 승인으로 교회·RAAH의 `migration-review` 채널을 7일 만료로 배포했다. 두 미리보기의 실제 Google 로그인을 확인했고, RAAH 조회 API의 인증 후 HTTP 200과 양쪽 정적·API 거부 응답 검사 총 54건을 확인했다. `.firebaserc`에 실제 target 매핑을 기록했다. 운영 도메인·DNS·live Hosting release는 아직 전환하지 않았으며 PR #113은 초안 상태다. URL·버전·검증 한계는 `2026-10-15-firebase-hosting-migration.md`의 완료 기록을 따른다.
+
+## Hosting 운영 배포 및 도메인 인증 진행
+
+2026-10-15 15:57 KST 사용자 승인으로 PR #113을 병합(main `759e307`)하고 교회·RAAH의 Firebase Hosting live 채널을 배포했다. 기본 live URL의 정적 페이지·API 거부 응답 검사를 통과했다. Namecheap에 소유권·인증서 TXT를 게시하고 A 레코드 TTL을 1분으로 낮췄다. 인증서 활성화와 TLS 사전 검사 뒤 운영 A를 Firebase 주소로 전환한다. 기존 Netlify 배포·인증서는 복구용으로 유지한다. 상세 진행은 `2026-10-15-firebase-hosting-migration.md`에 기록한다.
+
+예약 알림은 16:00 KST 회차의 provider=firebase, status=completed를 확인했다. 나머지 세 작업의 자연 실행 및 실제 푸시 수신은 별도 확인 대상이다.

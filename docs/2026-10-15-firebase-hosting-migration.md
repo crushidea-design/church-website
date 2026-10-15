@@ -1,8 +1,8 @@
-# Firebase Hosting 이전 준비
+# Firebase Hosting 이전
 
 ## 범위와 현재 상태
 
-2026-10-15: 일반 API·RAAH API·예약 작업의 Firebase 이전 다음 단계로 정적 호스팅 설정과 로컬 검증을 준비했다. 이후 사용자 승인으로 두 Hosting 미리보기 배포와 실제 Google 로그인·API 연결 검증을 완료했다. DNS와 운영 트래픽은 전환하지 않았다.
+2026-10-15: 일반 API·RAAH API·예약 작업의 Firebase 이전 다음 단계로 정적 호스팅 설정과 로컬 검증을 준비했다. 이후 사용자 승인으로 두 Hosting 미리보기 배포와 실제 Google 로그인·API 연결 검증을 완료했다. PR #113 병합과 두 live 채널 배포를 완료했으며, 현재 운영 도메인 인증서 사전 검증을 진행 중이다. DNS 소유권·인증서 TXT를 게시했고 실제 트래픽은 인증서 활성화 전까지 Netlify에서 처리한다.
 
 - 교회 및 다음세대: `church` target. 기존 교회 도메인과 `/next` 경로를 유지한다.
 - RAAH: `raah` target. 기존 `raah.builttogether.church`를 유지한다.
@@ -112,3 +112,50 @@ npm run test:hosting
 - 배포 predeploy의 Vite/Hosting 빌드 통과. typecheck, lint(오류 0·기존 경고 416), 전체 테스트(354 통과·130 생략)를 재확인했다.
 
 남은 운영 검증은 실제 Google Calendar 재연결, 푸시 구독·발송, 첨부 삭제, AI 생성 등 쓰기 기능이다. 이번 연결 검사에서는 운영 데이터를 변경하는 테스트나 목양 기록 복호화를 따로 실행하지 않았다. 다음 단계는 예약 작업의 자연 실행 결과를 확인하면서 PR 검토와 운영 도메인·DNS 전환을 준비하는 것이다.
+
+## 운영 전환 진행 (2026-10-15)
+
+사용자가 PR #113 병합과 운영 도메인·DNS 전환을 승인했다.
+
+- PR #113: CI 두 건 및 Netlify 미리보기 통과 후 15:57 KST squash 병합. main 커밋 `759e30775070645a29680794e6b8d53315786c88`.
+- `codex/work`에 main을 병합하고 `firebase deploy --only hosting:church,hosting:raah --config firebase.hosting.json --project gen-lang-client-0036445484 --non-interactive` 성공. 두 live 기본 URL의 루트·다음세대·API 거부 응답 8건 확인.
+- Firebase live release (15:57:47 KST): church `25df15c32ee35379`, raah `6eb73d5c6dfeb2f2`. Functions는 이번에 재배포하지 않았다.
+- 복구용 Netlify production: `6ad0795576a037dce749ce2a`, 같은 main 커밋, 15:58:29 KST ready.
+- Firebase 도메인 등록: `builttogether.church`, `www.builttogether.church`는 교회 site, `raah.builttogether.church`는 RAAH site. www는 기존과 같이 루트 도메인으로 301 redirect한다.
+
+### DNS 복구 기준
+
+DNS 공급자는 Namecheap BasicDNS(`dns1.registrar-servers.com`, `dns2.registrar-servers.com`). 변경 전 공개 레코드와 관리 화면을 함께 확인했다.
+
+| Host | 이전 종류 | 이전 값 | 이전 TTL |
+| --- | --- | --- | --- |
+| `@` | A | `75.2.60.5` | Automatic, 조회 1800초 |
+| `www` | CNAME | `spectacular-sfogliatella-d364c0.netlify.app.` | Automatic, 조회 1800초 |
+| `raah` | CNAME | `spectacular-sfogliatella-d364c0.netlify.app.` | Automatic, 조회 1800초 |
+
+기존 메일 전달 설정, MX 5개와 SPF TXT(`v=spf1 include:spf.efwd.registrar-servers.com ~all`)는 유지한다. NS, DNSSEC, 메일 설정은 변경하지 않는다. CNAME으로 복구할 때는 같은 host의 Firebase 소유권 TXT를 함께 정리해야 한다. 즉시 복구가 필요하면 세 host의 A를 검증된 Netlify 주소 `75.2.60.5`로 되돌리는 방법을 먼저 사용한다. Netlify 도메인 연결·인증서·배포는 안정 기간 동안 유지한다.
+
+### 인증서 사전 준비
+
+Firebase는 기존 CNAME 도메인의 live migration 단계를 지원하지 않는다고 응답했다. 먼저 `curl --resolve`로 `75.2.60.5`의 www 301·RAAH 200과 유효한 TLS를 확인한 뒤 www·raah를 이 Netlify A 주소로 바꾸었다. 세 host의 A TTL은 1분으로 낮췄다. 따라서 이 준비 단계에서도 기존 사이트가 트래픽을 처리한다.
+
+추가한 TXT:
+
+- `@`, `www`: `hosting-site=gen-lang-client-0036445484`
+- `raah`: `hosting-site=builttogether-raah`
+- 각 도메인의 `_acme-challenge`: Firebase가 발급한 DNS 인증서 검증 값. 값은 갱신될 수 있으므로 이 문서에 고정하지 않고 API의 현재 값을 따른다.
+
+소유권과 인증서가 활성화되고 Firebase 주소에 대한 TLS/콘텐츠 사전 검사가 통과한 뒤 A를 Firebase가 안내한 `199.36.158.100`으로 바꾼다. 준비 중인 인증서에 맞춰 미리 트래픽을 보내지 않는다.
+
+### 배포 이후 운영 주의점
+
+- Firebase Auth 설정에는 `builttogether.church`가 허용되어 있다. 설치된 Firebase Auth SDK의 `matchDomain`은 루트 도메인과 그 하위 도메인을 함께 허용하므로 `www`·`raah`도 포함된다. 이번 DNS 작업에서 로그인 권한을 추가로 넓히지 않았다.
+- 현재 GitHub Actions는 검증만 수행하며 Firebase 자동 배포 단계는 없다. DNS 전환 이후 main 변경을 운영에 반영하려면 명시적으로 승인된 Firebase Hosting 배포가 필요하다. 다음 작업은 승인 절차를 갖춘 Firebase CI 배포 연결이다. Netlify의 main 자동 배포만으로 Firebase 운영 사이트는 갱신되지 않는다.
+
+### 인증서 대기 상태 (16:24 KST)
+
+- Namecheap의 두 권한 DNS 서버와 Google 공개 DNS에서 게시한 TXT 값을 확인했다. 두 권한 서버의 세 A는 Netlify `75.2.60.5`이며 TTL 60초다.
+- Firebase는 루트 도메인 `OWNERSHIP_ACTIVE`, 세 도메인 모두 `CERT_VALIDATING`이다. www·raah는 아직 이전 CNAME을 조회하고 있어 소유권 재확인을 기다린다.
+- Firebase IP `199.36.158.100`을 지정한 HTTPS 검사는 세 도메인 모두 인증서 이름 불일치(curl 60)였다. 따라서 A의 최종 전환을 보류했다. 검증을 우회하지 않았으며 기존 운영 접속은 유지된다.
+- 기존 레코드 TTL은 1800초였고 SOA의 부정 응답 캐시 시간은 3601초다. 새 TTL 60초가 이미 캐시된 응답의 유효 시간을 줄이지는 않는다. 발급 완료 시간을 단정하지 않는다.
+- 이어서 할 작업: 현재 CustomDomain의 인증서 검증 TXT가 게시된 값과 같은지 확인 → CERT_ACTIVE 및 `curl --resolve` TLS/페이지 확인 → 세 A를 Firebase가 안내하는 값으로 변경 → 공개 DNS/HTTPS/API/로그인 검증. 이미 승인된 운영 전환 범위이며 추가 승인을 요구하지 않는다.
