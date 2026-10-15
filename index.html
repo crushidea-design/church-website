@@ -32,12 +32,13 @@
       (() => {
         const path = window.location.pathname;
         const hostname = window.location.hostname;
-        const isNextGeneration =
+        const isRaahSite = hostname === 'raah.builttogether.church' || document.documentElement.dataset.appSurface === 'raah';
+        const isNextGeneration = !isRaahSite && (
           path === '/next' ||
           path.startsWith('/next/') ||
           path === '/next-generation' ||
-          path.startsWith('/next-generation/');
-        const isRaah = hostname === 'raah.builttogether.church' || path === '/raah' || path.startsWith('/raah/');
+          path.startsWith('/next-generation/'));
+        const isRaah = isRaahSite || path === '/raah' || path.startsWith('/raah/');
 
         const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
         const themeColor = document.querySelector('meta[name="theme-color"]');
@@ -76,7 +77,7 @@
         } else if (isRaah) {
           applyAppMeta({
             title: 'RAAH',
-            manifestHref: hostname === 'raah.builttogether.church' ? '/raah.webmanifest' : '/raah-path.webmanifest',
+            manifestHref: isRaahSite ? '/raah.webmanifest' : '/raah-path.webmanifest',
             svgHref: '/raah-favicon.svg',
             icon48Href: '/raah-icon-48.png',
             icon192Href: '/raah-icon-192.png',

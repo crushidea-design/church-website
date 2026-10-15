@@ -63,4 +63,15 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 
 ## 예약 작업 이전 구현
 
-네 예약 작업을 Firebase onSchedule로 연결하고, Netlify와 Firebase가 공유하는 실행 주체·회차별 트랜잭션 guard를 추가했다. 아직 배포하거나 실행 주체를 바꾸지 않았다. `2026-10-15-scheduled-jobs-firebase-migration.md`의 단계별 전환·롤백 절차를 따른다.
+네 예약 작업을 Firebase onSchedule로 연결하고, Netlify와 Firebase가 공유하는 실행 주체·회차별 트랜잭션 guard를 추가했다. 2026-10-15 사용자 승인 후 PR #112 병합·Netlify 실행 제어 배포·Firebase 예약 함수 배포와 실행 주체 전환을 완료했다. 네 owner는 firebase이며 자연 실행 결과는 아직 확인 전이다. `2026-10-15-scheduled-jobs-firebase-migration.md`의 단계별 전환·롤백 절차를 따른다.
+
+다음 단계는 예약 작업의 자연 실행 확인과 안정 기간 뒤 Netlify 예약 진입점 정리, 이후 Firebase Hosting·도메인 전환이다.
+
+## Hosting 이전 준비
+
+교회·다음세대를 위한 `church`와 RAAH 전용 `raah` Hosting target을 준비했다. 설정은 `firebase.hosting.json`, 빌드는 `npm run build:hosting`을 사용한다. 미리보기에서도 RAAH 진입점과 PWA가 올바르게 동작하도록 화면 판별을 보완하고 API·기존 콜백 rewrite를 연결했다. 사이트 생성·미리보기 업로드·Auth 도메인·DNS는 아직 변경하지 않았다. 자세한 검증·배포·롤백 절차는 `2026-10-15-firebase-hosting-migration.md`를 따른다.
+
+
+## Firebase Hosting 미리보기 검증 완료
+
+2026-10-15 사용자 승인으로 교회·RAAH의 `migration-review` 채널을 7일 만료로 배포했다. 두 미리보기의 실제 Google 로그인을 확인했고, RAAH 조회 API의 인증 후 HTTP 200과 양쪽 정적·API 거부 응답 검사 총 54건을 확인했다. `.firebaserc`에 실제 target 매핑을 기록했다. 운영 도메인·DNS·live Hosting release는 아직 전환하지 않았으며 PR #113은 초안 상태다. URL·버전·검증 한계는 `2026-10-15-firebase-hosting-migration.md`의 완료 기록을 따른다.
