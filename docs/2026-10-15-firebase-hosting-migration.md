@@ -159,3 +159,9 @@ Firebase는 기존 CNAME 도메인의 live migration 단계를 지원하지 않�
 - Firebase IP `199.36.158.100`을 지정한 HTTPS 검사는 세 도메인 모두 인증서 이름 불일치(curl 60)였다. 따라서 A의 최종 전환을 보류했다. 검증을 우회하지 않았으며 기존 운영 접속은 유지된다.
 - 기존 레코드 TTL은 1800초였고 SOA의 부정 응답 캐시 시간은 3601초다. 새 TTL 60초가 이미 캐시된 응답의 유효 시간을 줄이지는 않는다. 발급 완료 시간을 단정하지 않는다.
 - 이어서 할 작업: 현재 CustomDomain의 인증서 검증 TXT가 게시된 값과 같은지 확인 → CERT_ACTIVE 및 `curl --resolve` TLS/페이지 확인 → 세 A를 Firebase가 안내하는 값으로 변경 → 공개 DNS/HTTPS/API/로그인 검증. 이미 승인된 운영 전환 범위이며 추가 승인을 요구하지 않는다.
+
+### 소유권 인증 갱신 (16:28 KST)
+
+세 도메인이 모두 `OWNERSHIP_ACTIVE`로 바뀌었다. 인증서는 모두 `CERT_VALIDATING`이다. RAAH의 인증서 TXT는 Firebase에서도 발견되어 live migration 첫 단계가 `PROCESSING`으로 진행했다. 루트와 www의 인증서 TXT 조회는 아직 캐시된 부정 응답을 보고 있어 첫 단계 `INCOMPLETE`다. 앞의 16:24 상태보다 진행됐지만 A 최종 전환 조건은 아직 충족하지 않았다.
+
+운영 HTTPS 재확인: 루트 200, RAAH 200, www 301→루트, 모두 유효한 Netlify TLS. 문서 기록 커밋 `70a82ce`의 GitHub CI run `38698615124`도 성공했다.
