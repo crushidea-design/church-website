@@ -2,13 +2,13 @@
 
 ## 범위와 현재 상태
 
-2026-10-15: 일반 API·RAAH API·예약 작업의 Firebase 이전 다음 단계로 정적 호스팅 설정과 로컬 검증을 준비했다. 이번 변경은 미리보기 검토용이며 Hosting 사이트 생성, 업로드, Auth 허용 도메인, DNS, 운영 트래픽을 변경하지 않았다.
+2026-10-15: 일반 API·RAAH API·예약 작업의 Firebase 이전 다음 단계로 정적 호스팅 설정과 로컬 검증을 준비했다. 이후 사용자 승인으로 두 Hosting 미리보기 배포와 실제 Google 로그인·API 연결 검증을 완료했다. DNS와 운영 트래픽은 전환하지 않았다.
 
 - 교회 및 다음세대: `church` target. 기존 교회 도메인과 `/next` 경로를 유지한다.
 - RAAH: `raah` target. 기존 `raah.builttogether.church`를 유지한다.
 - 프로젝트: `gen-lang-client-0036445484`.
-- 사전 조회에서는 기본 Hosting 사이트 `gen-lang-client-0036445484` 하나만 확인했다. 이를 교회 사이트로 사용할 수 있다. RAAH 사이트 ID는 생성할 때 가용성을 확인해 확정한다.
-- `.firebaserc`에는 Hosting target을 아직 연결하지 않았다. 존재하지 않는 사이트 ID를 미리 기록하지 않는다.
+- 교회 target은 기존 기본 사이트 `gen-lang-client-0036445484`, RAAH target은 새로 생성한 `builttogether-raah`에 연결했다. 기본 사이트에는 기존 release·custom domain이 없음을 먼저 확인했다.
+- `.firebaserc`에 두 실제 사이트의 Hosting target 연결을 기록했다.
 - 예약 네 작업의 자연 실행 확인은 별도 `2026-10-15-scheduled-jobs-firebase-migration.md`를 따른다. 검증 목적으로 알림·AI 작업을 수동 실행하지 않는다.
 
 ## 빌드와 라우팅
@@ -88,3 +88,27 @@ npm run test:hosting
 - [여러 사이트와 deploy target](https://firebase.google.com/docs/hosting/multisites)
 - [Hosting과 Functions 연결](https://firebase.google.com/docs/hosting/functions)
 - [미리보기 배포](https://firebase.google.com/docs/hosting/test-preview-deploy)
+
+
+## 미리보기 배포·로그인 확인 완료 (2026-10-15)
+
+사용자의 “Firebase 미리보기 배포하고 로그인과 API 연결 확인” 승인에 따라 실행했다. 배포한 앱 소스는 `aec6bb9`이며, target 매핑은 이번 배포에서 연결했다.
+
+| 항목 | 교회·다음세대 | RAAH |
+| --- | --- | --- |
+| site ID | `gen-lang-client-0036445484` | `builttogether-raah` |
+| channel | `migration-review` | `migration-review` |
+| version | `6716c5d70aba50e3` | `857c7fc017a0ede3` |
+| URL | https://gen-lang-client-0036445484--migration-review-x6189374.web.app | https://builttogether-raah--migration-review-kl4o4ser.web.app |
+| 만료 | 2026-10-22 15:48 KST | 2026-10-22 15:48 KST |
+
+- Firebase CLI가 위 두 미리보기 호스트를 Auth authorizedDomains에 추가한 것을 API로 다시 확인했다. 기존 허용 도메인은 유지했다. 검토 종료 후 채널 삭제와 함께 해당 호스트의 허용 목록 잔존 여부를 확인한다.
+- 두 사이트 모두 live 채널에는 release version이 없다. 운영 배포·도메인 연결·DNS 변경·Functions 재배포·PR 병합은 수행하지 않았다.
+- Chrome에서 교회 미리보기의 Google 로그인 완료 후 사용자·관리자 메뉴가 표시되는 것을 확인했다.
+- RAAH 미리보기는 로그인 전 관리자 전용 안내가 나타났고, Google 로그인 뒤 관리 화면과 ‘암호화 저장’ 상태를 확인했다. 이는 bootstrap 데이터 조회와 Calendar 상태 조회 이후 표시되는 상태다.
+- 15:50 KST 서버 요청 기록에서 RAAH 미리보기 referer를 가진 `/api/raah/bootstrap`, `/api/raah/calendar/status`, `/api/raah/care-tasks`, `/api/raah/communion/periods`의 HTTP 200을 확인했다. 요청·응답 본문이나 인증 토큰·목양 데이터는 기록하지 않았다.
+- 두 사이트에서 각 27건, 총 54건의 HTTP 검사를 통과했다: 일반 API 8개와 RAAH bootstrap의 비인증 거부, 메서드 거부, 미등록 API JSON 404, 잘못된 OAuth state HTML 400, 루트·깊은 경로·다음세대·서비스 워커·실제 이미지. API/콜백 no-store 및 정적 응답 no-cache를 확인했다.
+- 알림 구독 API는 token 필드가 없으면 인증보다 먼저 400을 반환하므로 가짜 token 필드를 넣고 인증 헤더 없이 401을 확인했다. RAAH는 인증을 메서드보다 먼저 검사하므로 비인증 PATCH도 401이다. 일반 API의 PATCH는 405다. 이는 기존 핸들러 처리 순서이며 동작 변경은 없었다.
+- 배포 predeploy의 Vite/Hosting 빌드 통과. typecheck, lint(오류 0·기존 경고 416), 전체 테스트(354 통과·130 생략)를 재확인했다.
+
+남은 운영 검증은 실제 Google Calendar 재연결, 푸시 구독·발송, 첨부 삭제, AI 생성 등 쓰기 기능이다. 이번 연결 검사에서는 운영 데이터를 변경하는 테스트나 목양 기록 복호화를 따로 실행하지 않았다. 다음 단계는 예약 작업의 자연 실행 결과를 확인하면서 PR 검토와 운영 도메인·DNS 전환을 준비하는 것이다.

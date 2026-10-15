@@ -70,3 +70,8 @@ PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한
 ## Hosting 이전 준비
 
 교회·다음세대를 위한 `church`와 RAAH 전용 `raah` Hosting target을 준비했다. 설정은 `firebase.hosting.json`, 빌드는 `npm run build:hosting`을 사용한다. 미리보기에서도 RAAH 진입점과 PWA가 올바르게 동작하도록 화면 판별을 보완하고 API·기존 콜백 rewrite를 연결했다. 사이트 생성·미리보기 업로드·Auth 도메인·DNS는 아직 변경하지 않았다. 자세한 검증·배포·롤백 절차는 `2026-10-15-firebase-hosting-migration.md`를 따른다.
+
+
+## Firebase Hosting 미리보기 검증 완료
+
+2026-10-15 사용자 승인으로 교회·RAAH의 `migration-review` 채널을 7일 만료로 배포했다. 두 미리보기의 실제 Google 로그인을 확인했고, RAAH 조회 API의 인증 후 HTTP 200과 양쪽 정적·API 거부 응답 검사 총 54건을 확인했다. `.firebaserc`에 실제 target 매핑을 기록했다. 운영 도메인·DNS·live Hosting release는 아직 전환하지 않았으며 PR #113은 초안 상태다. URL·버전·검증 한계는 `2026-10-15-firebase-hosting-migration.md`의 완료 기록을 따른다.
