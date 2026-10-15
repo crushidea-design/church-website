@@ -66,3 +66,5 @@ export const siteApi = onRequest(
     await handleSiteRequest(req, res);
   },
 );
+
+export { scheduledNotifications, wordFruitAggregate, wordFruitFridayWarning, wordFruitAutoDraft } from './scheduled-jobs.js';

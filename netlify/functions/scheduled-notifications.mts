@@ -1,3 +1,4 @@
+import { netlifyScheduledHandler } from './_shared/scheduled-job.mjs';
 import { getMessaging } from 'firebase-admin/messaging';
 import { claimNotification } from './_shared/notification-claim.mjs';
 import type { Config } from '@netlify/functions';
@@ -11,7 +12,7 @@ import {
   sendMulticastInChunks,
 } from './_shared/firebase-admin.mjs';
 
-export default async () => {
+export const runJob = async () => {
   if (!initializeFirebaseAdmin()) {
     return jsonResponse({ error: 'Firebase Admin not initialized' }, 500);
   }
@@ -71,6 +72,8 @@ export default async () => {
   }
 };
 
+export default netlifyScheduledHandler('scheduledNotifications', runJob);
+
 export const config: Config = {
-  schedule: '@hourly',
+  schedule: '0 * * * *',
 };

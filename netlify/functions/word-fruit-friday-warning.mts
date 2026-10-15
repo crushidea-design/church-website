@@ -1,3 +1,4 @@
+import { netlifyScheduledHandler } from './_shared/scheduled-job.mjs';
 import type { Config } from '@netlify/functions';
 import {
   createInAppNotifications,
@@ -56,7 +57,7 @@ const findPastorUids = async (): Promise<string[]> => {
 
 /* ────────────────────────── handler ────────────────────────────────────── */
 
-export default async (_req: Request) => {
+export const runJob = async () => {
   if (!initializeFirebaseAdmin()) {
     return jsonResponse({ error: 'Firebase Admin not initialized' }, 500);
   }
@@ -99,6 +100,8 @@ export default async (_req: Request) => {
  * Gives the pastor ~36 hours to upload the manuscript before the Saturday
  * 23:00 KST auto-draft cron tries to read it.
  */
+export default netlifyScheduledHandler('wordFruitFridayWarning', runJob);
+
 export const config: Config = {
   schedule: '0 3 * * 5',
 };

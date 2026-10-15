@@ -1,3 +1,4 @@
+import { netlifyScheduledHandler } from './_shared/scheduled-job.mjs';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Config } from '@netlify/functions';
 import {
@@ -111,7 +112,7 @@ const runTick = async (now = new Date()): Promise<TickResult> => {
 
 /* ────────────────────────── handler ────────────────────────────────────── */
 
-export default async (_req: Request) => {
+export const runJob = async () => {
   if (!initializeFirebaseAdmin()) {
     return jsonResponse({ error: 'Firebase Admin not initialized' }, 500);
   }
@@ -129,6 +130,8 @@ export default async (_req: Request) => {
  * Recomputes the public anonymous aggregate so the panel doesn't drift
  * from reality between manual pastor saves.
  */
+export default netlifyScheduledHandler('wordFruitAggregate', runJob);
+
 export const config: Config = {
   schedule: '0 14 * * *',
 };
