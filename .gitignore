@@ -22,3 +22,6 @@ firebase-functions/node_modules/
 
 # Firebase CLI local cache and emulator logs
 .firebase/
+
+# Ephemeral GitHub OIDC credentials (never commit or ship)
+gha-creds-*.json
