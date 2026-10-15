@@ -1,6 +1,6 @@
 # 일반 HTTP API를 Firebase 도쿄로 이전
 
-상태: 사용자 승인 후 siteApi 배포·직접 거부 응답 검증 완료. 운영 경로는 계속 기존 Netlify 함수로 연결된다.
+상태: siteApi 배포 및 PR #110·#111 병합, 운영 일반 API 8개 경로 전환 완료. Netlify는 요청을 Firebase 도쿄로 전달한다.
 
 ## 구현
 
@@ -78,3 +78,17 @@ projects/_/buckets/gen-lang-client-0036445484.firebasestorage.app/objects/sermon
 사용자가 PR #110 병합과 일반 API 경로 전환까지 승인했다. #110의 CI·미리보기 검사 통과를 확인해 병합했다. 후속 전환에서는 `public/_redirects` 맨 위에 위 8개 정확한 경로의 Firebase 강제 프록시를 추가한다. 기존 RAAH API·SPA 규칙은 유지한다. 기존 Netlify 함수는 안정 확인과 롤백을 위해 유지한다.
 
 전환 PR의 미리보기에서 8개 비인증 요청과 8개 잘못된 메서드 요청의 상태·no-store를 확인한 후 병합한다. 운영 배포 후 같은 검증을 기본 도메인에서 반복하고, RAAH 도메인의 일반 API도 확인한다. 실제 로그인 후 기능과 Gemini 생성·발송·파일 삭제는 이 거부 응답 검사만으로 검증되지 않는다.
+
+## 운영 전환 완료 (2026-10-15 15:11 KST)
+
+- PR #110 병합 커밋: `159d974815b2392ef23ae625b38957a885c7787c`.
+- 전환 PR #111 병합 커밋: `b71e4ab09fa78dc215a517ada96171167ee3ee44`.
+- Netlify production 배포 `6ad06e596f0259266ae746f2`가 해당 커밋으로 ready 상태, 15:11 KST 게시됨을 확인했다.
+- 로컬 필수 검사 통과: typecheck, lint(오류 0·기존 경고 417), 테스트 324개 통과·128개 생략, 웹 build. 빌드 결과의 `_redirects` 일치를 확인했다.
+- 전환 PR의 GitHub CI 2건과 Netlify 리다이렉트·미리보기 검사 통과.
+- 미리보기: 8개 API 비인증 요청 → 401, 잘못된 메서드 8건 → 405, 16건 모두 no-store.
+- 운영 `https://builttogether.church`와 `https://raah.builttogether.church` 각각 같은 16건(총 32건) 통과. 이제 기존 클라이언트 `/api/*` 요청은 Firebase로 전달된다.
+- RAAH 회귀 확인: 운영 bootstrap 비인증 요청 401, 잘못된 state 캘린더 콜백 400, 모두 no-store.
+- 로그인 후 실제 발송·첨부 조회/삭제·Gemini 생성 성공은 검증하지 않았다. 위 요청은 모두 비인증 상태로 수행했으며 운영 자료를 변경하지 않았다.
+- 롤백: `public/_redirects`의 일반 API용 8개 정확한 경로 규칙만 제거해 PR/배포한다. 기존 Netlify 함수는 유지했다.
+- 다음 이전 범위: 예약 알림과 말씀열매 예약 작업. Netlify 웹 호스팅·예약 함수·캘린더 전달 함수는 아직 남아 있다.
