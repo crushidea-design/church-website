@@ -42,3 +42,13 @@
 ## 콜백 전환 PR 준비
 
 PR #109: Firebase 배포 후 기존 Netlify 콜백을 전달 함수로 교체한다. Firebase OAuth 구현과 서명 state·암호화 저장 처리는 그대로 유지한다. 최초 시도한 `_redirects` 규칙은 Netlify 검사에서 예약 경로 제한으로 거부되어 제거했다. 실제 Google 재연결 확인은 PR 병합·배포 뒤 진행한다.
+
+## 운영 전환 완료 (2026-10-15 14:41 KST)
+
+- 사용자 승인 후 PR #109 squash 병합: `301fa8c9587a6a9be00cef953d32fe1d7b40ed43`.
+- Netlify production 배포 `6ad06735dc7d30f39af6597f`, state `ready`, 게시 시각 2026-10-15 14:41 KST 확인.
+- 운영 `raah.builttogether.church`의 기존 콜백 주소에 잘못된 state 요청 → 400, HTML, no-store 확인.
+- 운영 bootstrap 비인증 요청 → 401, JSON, no-store 확인.
+- PR CI 2건과 Netlify 리다이렉트 검사·미리보기 배포 통과. 로컬 필수 검사 통과, 테스트 297개 통과·128개 생략, 린트 오류 0·기존 경고 417.
+- 실제 Google 동의 화면의 재연결 및 로그인 후 일정 조회는 계정 소유자의 확인이 남아 있다. 이번 검증은 실제 OAuth 토큰 교환·저장을 수행하지 않았다.
+- Netlify에는 기존 URL을 유지하는 전달 함수만 남아 있다. 다음 구현 범위는 일반 HTTP API 이전이다.
