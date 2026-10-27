@@ -1,6 +1,6 @@
 # 게시글 초안 접근 제어 배포 준비
 
-상태: 수정·검증 및 읽기 전용 사전 점검 단계. 운영 데이터 보정, 인덱스·규칙·API·Hosting 배포, PR 병합은 아직 실행하지 않았다.
+상태: 사용자 명시적 승인 후 2026-10-27 21:06 KST 운영 반영과 검증 완료. 인덱스 준비, 기존 공개 글 142개 보정, PR #117 병합, Hosting·named DB 규칙·siteApi 배포를 완료했다.
 
 ## 변경 이유와 범위
 
@@ -46,3 +46,19 @@ PR #116의 draft 표시가 실제 접근 제한으로 연결되지 않았다. �
 ## 로컬 검증 결과
 
 2026-10-27: typecheck, lint(오류 0·경고 413), 전체 테스트(400 통과·133 에뮬레이터/DB 전용 생략), Vite build, Firebase Functions bundle build, diff 공백 검사 통과. Firestore·Storage 에뮬레이터를 별도로 실행해 보안 규칙/트랜잭션 테스트 12개를 모두 통과했다. 운영 인덱스·보정·규칙 배포는 수행하지 않았다.
+
+
+## 운영 반영 완료 (2026-10-27)
+
+- 사용자 승인 범위: 인덱스 준비, 필드가 없는 기존 공개 글만 보정, PR #117 병합 및 Hosting·Firestore 규칙·siteApi 배포.
+- 기존 posts 인덱스 24개를 보존하고 필요한 26개만 추가했다. 총 50개 중 이 변경이 요구하는 40개가 모두 READY임을 확인했다. 로컬 구성에 없는 기존 인덱스는 삭제하지 않았다.
+- 보정 직전 재조회도 590개 중 누락 142개였다. updateTime precondition과 isPublished 필드 마스크로 정확히 142개를 보정했다. 보정 후 590개 true, 누락·false·잘못된 값 0개를 확인했다. 제목·본문·작성자·작성일은 보정 대상에 포함하지 않았다.
+- PR #117: https://github.com/crushidea-design/church-website/pull/117
+- 운영 커밋: `a6a415626c20bcb43b0a6a5a144cc049ca1343a5` (21:01:46 KST 병합).
+- CI: https://github.com/crushidea-design/church-website/actions/runs/40500580766 — 검사·Hosting 배포·운영 경로 검사 모두 성공.
+- 21:04:11 KST Hosting 게시: 교회 `182833adeed9ed0e`, RAAH `15f4c5d5f39f88fb`. 두 release 메시지에서 위 커밋·실행 번호 확인.
+- 21:05:03 KST named Firestore 규칙 게시. ruleset `ce83d4fc-be6b-401f-9ba9-98d447450f08`의 소스가 수정본과 일치함을 재조회 확인했다.
+- 21:06:23 KST `siteApi` 업데이트 완료: `siteapi-00003-dez`, ACTIVE. 기존 GEMINI_API_KEY·MCCHEYNE_PUBLISH_KEY 연결을 유지했다. RAAH는 `raahapi-00005-wov` 및 기존 10월 15일 배포 시각 그대로다. 예약 함수·Storage 규칙은 배포 대상에서 제외했다.
+- 운영 비인증 Firestore 검사 12개 통과: 공개 카테고리 목록·연구 제목 정렬·맥체인 dateKey·공개 상세 메타데이터 200, draft 및 게시 필터 없는 쿼리·비회원 설교 조회·내부 요약 조회 403. 게시 API의 자격 증명 없는 POST는 401. 기존 Hosting/API 경로 회귀 24개도 통과.
+- 실제 운영 초안·발송·AI 생성은 만들지 않았다. 관리자/회원의 초안 get·list 및 게시 취소 시나리오는 에뮬레이터 12개 테스트로 검증했고, 운영에서는 동일 규칙 배포 및 비인증 거부를 확인했다.
+- PR #116의 P1·P2 검토 스레드 두 개를 해결됨으로 정리했다.
