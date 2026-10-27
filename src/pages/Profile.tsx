@@ -87,7 +87,7 @@ export default function Profile() {
 
         if (activeTab === 'posts') {
           const postsQuery = query(
-            collection(db, 'posts'),
+            collection(db, 'posts'), where('isPublished', '==', true),
             where('authorId', '==', user.uid),
             orderBy('createdAt', 'desc'),
             limit(20)

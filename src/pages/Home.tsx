@@ -12,95 +12,22 @@ const DEFAULT_HERO_IMAGE = "https://lh3.googleusercontent.com/d/1V0VulPP6zYJLhZC
 
 export default function Home() {
   const { user, role } = useAuth();
-  const { homeLatestPosts, homeLatestPostsFetched, researchCategories, setHomeLatestPosts, setCategories } = useStore();
+  const { homeLatestPosts, researchCategories, setHomeLatestPosts, setCategories } = useStore();
   
   const [heroImage, setHeroImage] = useState(DEFAULT_HERO_IMAGE);
   const [isEditing, setIsEditing] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [loadingPosts, setLoadingPosts] = useState(!homeLatestPostsFetched);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchLatestPosts = async () => {
-      if (homeLatestPostsFetched) {
-        setLoadingPosts(false);
-        return;
-      }
-
-      // Check cache first
-      const CACHE_KEY = 'home_latest_posts_cache';
-      const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-      const cachedData = localStorage.getItem(CACHE_KEY);
-      
-      if (cachedData) {
-        try {
-          const { posts, timestamp } = JSON.parse(cachedData);
-          const cacheNeedsCategoryId = posts.some((post: any) => post.category === 'research' && !post.researchCategoryId);
-          if (!cacheNeedsCategoryId && Date.now() - timestamp < CACHE_TTL) {
-            setHomeLatestPosts(posts);
-            setLoadingPosts(false);
-            return;
-          }
-          if (cacheNeedsCategoryId) {
-            localStorage.removeItem(CACHE_KEY);
-          }
-        } catch (e) {
-          localStorage.removeItem(CACHE_KEY);
-        }
-      }
-
+      // Always revalidate public posts: a cached summary can outlive publication.
+      localStorage.removeItem('home_latest_posts_cache');
+      setHomeLatestPosts([]);
       setLoadingPosts(true);
       try {
-        // Optimization: Read from a pre-computed summary document
-        const summarySnap = await getDoc(doc(db, 'settings', 'latest_posts_summary'));
-        
-        if (summarySnap.exists()) {
-          const summaryData = summarySnap.data();
-          const categories = ['sermon', 'research', 'journal', 'community'];
-          const postsData: any[] = [];
-          
-          categories.forEach(cat => {
-            if (summaryData[cat]) {
-              // Permission check for sermon
-              if (cat === 'sermon' && role !== 'regular' && role !== 'admin') {
-                return;
-              }
-              postsData.push(summaryData[cat]);
-            }
-          });
-
-          await Promise.all(postsData.map(async (post) => {
-            if (post.category !== 'research' || post.researchCategoryId || !post.id) return;
-
-            const postSnap = await getDoc(doc(db, 'posts', post.id));
-            if (postSnap.exists()) {
-              const data = postSnap.data();
-              post.researchCategoryId = data.researchCategoryId || null;
-              post.subCategory = data.subCategory || post.subCategory;
-            }
-          }));
-
-          // Sort by createdAt descending
-          postsData.sort((a, b) => {
-            const dateA = new Date(a.createdAt).getTime();
-            const dateB = new Date(b.createdAt).getTime();
-            return dateB - dateA;
-          });
-
-          const finalPosts = postsData.slice(0, 3);
-          setHomeLatestPosts(finalPosts);
-          
-          // Cache the result
-          localStorage.setItem(CACHE_KEY, JSON.stringify({
-            posts: finalPosts,
-            timestamp: Date.now()
-          }));
-          
-          setLoadingPosts(false);
-          return;
-        }
-
-        // Fallback to original query if summary doesn't exist
         const categories = ['community', 'research', 'journal'];
         if (role === 'regular' || role === 'admin') {
           categories.push('sermon');
@@ -109,7 +36,7 @@ export default function Home() {
         const postsData: any[] = [];
         await Promise.all(categories.map(async (cat) => {
           const q = query(
-            collection(db, 'posts'),
+            collection(db, 'posts'), where('isPublished', '==', true),
             where('category', '==', cat),
             orderBy('createdAt', 'desc'),
             limit(1)
@@ -127,7 +54,7 @@ export default function Home() {
           return dateB - dateA;
         });
 
-        setHomeLatestPosts(postsData.slice(0, 3));
+        if (!cancelled) setHomeLatestPosts(postsData.slice(0, 3));
       } catch (error: any) {
         console.error('Error fetching latest posts:', error);
       } finally {
@@ -135,7 +62,8 @@ export default function Home() {
       }
     };
     fetchLatestPosts();
-  }, [role, homeLatestPostsFetched]);
+    return () => { cancelled = true; };
+  }, [role, setHomeLatestPosts]);
 
   useEffect(() => {
     const getDirectImageUrl = (url: string) => {

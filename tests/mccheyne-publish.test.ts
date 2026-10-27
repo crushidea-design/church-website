@@ -100,6 +100,11 @@ describe('markdownToGuideText', () => {
     const md = '말씀이다 [^1].\n\n다음 문단[^note].\n\n[^1]: 각주 하나\n    이어지는 줄\n\n    또 이어지는 단락\n[^note]: 두 번째\n\n마지막 문단.';
     expect(markdownToGuideText(md)).toBe('  말씀이다.\n\n  다음 문단.\n\n  마지막 문단.');
   });
+  it.each([' ', '  ', '   ', '\t'])('removes indented definitions and continuations (%j)', (indent) => {
+    const md = `본문입니다.[^1]\r\n\r\n${indent}[^1]: 검수 각주\r\n    이어지는 설명\r\n\r\n\t다음 각주 문단\r\n\r\n보존할 본문.`;
+    expect(markdownToGuideText(md)).toBe('  본문입니다.\n\n  보존할 본문.');
+  });
+
   it('strips headings, emphasis, links, images, code, quotes, rules, html', () => {
     const md = '# 제목\n\n**굵게**와 *기울임*과 __밑줄__ 그리고 snake_case_word.\n\n[링크](http://x.y)와 ![그림](a.png) `코드`\n\n> 인용문\n\n---\n\n<b>태그</b> 문단\n\n\\*별표\\*';
     expect(markdownToGuideText(md)).toBe(
@@ -289,6 +294,16 @@ describe('POST /api/mccheyne/publish', () => {
     expect(res.status).toBe(200);
     expect(state.writes.find((w) => w.path === 'posts/new_post_id')!.data).toMatchObject({ isPublished: false });
     expect(state.writes.some((w) => w.op === 'summary')).toBe(false);
+  });
+
+  it('atomically retracts a published guide from the home summary on downgrade', async () => {
+    state.docs.set('posts/existing1', { ...template, isPublished: true });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1' });
+    state.docs.set('settings/latest_posts_summary', { today_word: { id: 'existing1', content: 'old public text' } });
+    expect((await post({ ...valid, status: 'draft' })).status).toBe(200);
+    expect(state.writes).toContainEqual(expect.objectContaining({ op: 'update', path: 'posts/existing1', data: expect.objectContaining({ isPublished: false }) }));
+    expect(state.writes).toContainEqual({ op: 'update', path: 'settings/latest_posts_summary', data: { today_word: 'DELETE_FIELD', updatedAt: 'SERVER_TS' } });
+    expect(state.writes.some(w => w.op === 'summary')).toBe(false);
   });
 
   it('still succeeds when the home summary update fails', async () => {

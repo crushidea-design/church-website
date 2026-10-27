@@ -14,7 +14,7 @@ import { formatFileSize, getMaterialAttachmentLabel, getPostAttachments } from '
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -35,7 +35,12 @@ export default function PostDetail() {
   const [researchCategoryName, setResearchCategoryName] = useState('');
 
   useEffect(() => {
-    if (!id) return;
+    let cancelled = false;
+    setPost(null);
+    setPrevPost(null);
+    setNextPost(null);
+    setLoading(true);
+    if (!id || authLoading) return;
 
     const fetchPostAndComments = async () => {
       try {
@@ -44,15 +49,11 @@ export default function PostDetail() {
         let postSnap;
         try {
           postSnap = await getDoc(postRef);
+          if (cancelled) return;
         } catch (error: any) {
-          // If permission denied, it's likely a sermon post and user is not regular
           if (error.code === 'permission-denied') {
-            const isRegularMember = role === 'regular' || role === 'admin';
-            if (!isRegularMember) {
-              alert('정회원만 볼 수 있는 영상입니다. 상단 \'문의\'를 통해 신청해주세요.');
-              navigate('/sermons');
-              return;
-            }
+            navigate('/', { replace: true });
+            return;
           }
           throw error;
         }
@@ -62,6 +63,10 @@ export default function PostDetail() {
           return;
         }
         const postData: any = { id: postSnap.id, ...postSnap.data() };
+        if (postData.isPublished !== true && role !== 'admin') {
+          navigate('/', { replace: true });
+          return;
+        }
         
         // Handle long content reassembly
         if (postData.isLongContent) {
@@ -91,6 +96,7 @@ export default function PostDetail() {
           return;
         }
 
+        if (cancelled) return;
         setPost(postData);
         setResearchCategoryName('');
 
@@ -163,14 +169,14 @@ export default function PostDetail() {
              ];
              
              prevQuery = query(
-               collection(db, 'posts'),
+               collection(db, 'posts'), where('isPublished', '==', true),
                ...baseQueryConstraints,
                where('sortOrder', '<', postData.sortOrder || 0),
                orderBy('sortOrder', 'desc'),
                limit(1)
              );
              nextQuery = query(
-               collection(db, 'posts'),
+               collection(db, 'posts'), where('isPublished', '==', true),
                ...baseQueryConstraints,
                where('sortOrder', '>', postData.sortOrder || 0),
                orderBy('sortOrder', 'asc'),
@@ -178,14 +184,14 @@ export default function PostDetail() {
              );
           } else {
              prevQuery = query(
-               collection(db, 'posts'),
+               collection(db, 'posts'), where('isPublished', '==', true),
                where('category', '==', category),
                where('createdAt', '>', postData.createdAt),
                orderBy('createdAt', 'asc'),
                limit(1)
              );
              nextQuery = query(
-               collection(db, 'posts'),
+               collection(db, 'posts'), where('isPublished', '==', true),
                where('category', '==', category),
                where('createdAt', '<', postData.createdAt),
                orderBy('createdAt', 'desc'),
@@ -220,7 +226,8 @@ export default function PostDetail() {
     };
 
     fetchPostAndComments();
-  }, [id, navigate, role, user]);
+    return () => { cancelled = true; };
+  }, [id, navigate, role, user, authLoading]);
 
   const handleLoadMoreComments = async () => {
     if (!id || !lastCommentDoc || loadingMoreComments || !hasMoreComments) return;
@@ -319,7 +326,7 @@ export default function PostDetail() {
           if (summaryData[category]?.id === id) {
             console.info('Deleted post was in summary, finding new latest for:', category);
             const q = query(
-              collection(db, 'posts'),
+              collection(db, 'posts'), where('isPublished', '==', true),
               where('category', '==', category),
               orderBy('createdAt', 'desc'),
               limit(1)
@@ -450,7 +457,7 @@ export default function PostDetail() {
     return parts.length > 0 ? parts : text;
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-wood-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wood-900"></div>
@@ -458,7 +465,7 @@ export default function PostDetail() {
     );
   }
 
-  if (!post) return null;
+  if (!post || (post.isPublished !== true && role !== 'admin')) return null;
 
   const isAdmin = role === 'admin';
   const attachments = getPostAttachments(post);

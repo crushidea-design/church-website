@@ -1,6 +1,6 @@
 # Firebase Hosting 자동 배포 연결
 
-상태: 사용자 승인에 따라 WIF·전용 계정·9개 권한·GitHub main 전용 환경을 적용하고 PR #114를 병합했다. 첫 main CI는 검증·인증·함수 조회를 통과했으나 Hosting 게시 직전 Cloud Run 조회 권한 부족으로 실패했다. 두 운영 release는 변경되지 않았다. 아래 서비스 두 개에 한정한 추가 조회 권한은 별도 승인 대기 중이다.
+상태: 2026-10-15 20:28 KST Firebase Hosting 자동 배포와 운영 경로 검사까지 완료했다. PR #114·#115를 승인 후 병합했고 WIF 인증, 프로젝트 수준 9개 권한, 두 API 서비스에 한정한 Cloud Run 조회 권한으로 실제 운영 배포에 성공했다.
 
 ## 동작
 
@@ -9,11 +9,11 @@
 - 최신 main SHA를 확인해 대기 중 낡아진 실행을 건너뛴다. main 검증·배포는 새 push가 와도 중단하지 않으며, 배포 job은 `firebase-hosting-production` concurrency로 직렬 실행한다. 실행 중 새 main이 들어오면 진행 중 배포가 끝난 뒤 최신 실행이 배포된다.
 - 확인한 커밋을 checkout하고 lockfile로 의존성을 설치한다. Firebase CLI는 `15.25.1`로 고정했다. 기존 Hosting predeploy가 같은 커밋의 산출물을 다시 빌드한다.
 - 배포 직전에 단기 Google 자격증명을 발급받는다. GitHub에 서비스 계정 JSON 키나 기존 개인 Firebase 토큰을 저장하지 않는다. 생성된 임시 `gha-creds-*.json`은 gitignore에 추가하며 Hosting publish 디렉터리 밖에 생성된다.
-- CLI의 함수 목록 조회가 실패하면 잘못된 1세대 rewrite로 진행될 수 있으므로, 먼저 두 세대의 목록 조회 권한과 `siteApi`·`raahApi`의 활성 2세대 상태를 검사한다. 함수 설정·환경 변수·토큰은 출력하지 않는다.
+- CLI의 함수 목록 조회가 실패하면 잘못된 1세대 rewrite로 진행될 수 있으므로, 먼저 두 세대의 목록 조회 권한과 `siteApi`·`raahApi`의 활성 2세대 상태, 실제 `siteapi`·`raahapi` Cloud Run 구성 조회를 검사한다. 함수 설정·환경 변수·토큰은 출력하지 않는다.
 - `--only hosting:church,hosting:raah --config firebase.hosting.json`으로 두 Hosting 사이트만 배포한다. Functions·Firestore·Storage 규칙은 이 작업으로 배포하지 않는다.
 - 배포 후 공개 HTTPS 검사 24건으로 정적 진입점, 다음세대, 일반 API 8개, RAAH bootstrap, 기존 콜백 거부 응답 및 www 리디렉션을 검사한다. 운영 인증 없이 가짜 구독 token을 사용하므로 실제 쓰기·발송·AI 실행을 유발하지 않는다.
 
-## 적용할 Google Cloud 인증·권한 명세
+## 적용한 Google Cloud 인증·권한 명세
 
 기계 판독 원본: `.github/firebase-hosting-identity.json`.
 
@@ -77,13 +77,24 @@ Hosting 게시 권한은 `sites.update`로 제공되며 해당 프로젝트의 �
 - 두 사이트 파일 업로드 후 버전 finalize에서 `run.services.get` 403이 발생했다. 기존 함수 조회 권한과 별도로 Hosting이 Cloud Run 서비스를 확인하는 권한이 필요하다. 최초 사전 검사에서 이 조건을 확인하지 못했으므로 Cloud Run GET 검사와 회귀 테스트를 추가했다.
 - release 재조회 결과 교회 `25df15c32ee35379`, RAAH `6eb73d5c6dfeb2f2`로 기존 운영 버전이 유지된다. 업로드만 된 버전은 운영에 게시되지 않았다.
 
-### 추가 승인 대상 — 아직 미적용
+### 추가 승인 범위 — 20:25 KST 적용 완료
 
 `.github/firebase-hosting-identity.json`의 `backendReader`가 명세다. `githubHostingBackendReader` 커스텀 역할에 `run.services.get` 하나만 넣고, 기존 배포 계정 `github-hosting-deploy@gen-lang-client-0036445484.iam.gserviceaccount.com`에 다음 두 **서비스 리소스의 IAM**으로 연결한다. 프로젝트 전체에는 이 역할을 연결하지 않는다.
 
 - `projects/gen-lang-client-0036445484/locations/asia-northeast1/services/siteapi`
 - `projects/gen-lang-client-0036445484/locations/asia-northeast1/services/raahapi`
 
-서비스 구성 조회만 추가한다. 서비스 실행·수정·배포·IAM 변경 권한은 배포 계정에 추가하지 않는다. 기존 각 서비스의 호출자 등 IAM 바인딩과 etag를 보존한다. 사용자 승인 후 역할과 두 바인딩을 적용·재조회하고 수정 PR을 병합해 Hosting 배포·운영 검사를 재시도한다.
+서비스 구성 조회만 추가한다. 서비스 실행·수정·배포·IAM 변경 권한은 배포 계정에 추가하지 않는다. 기존 각 서비스의 호출자 등 IAM 바인딩과 etag를 보존한다. 사용자 승인 후 역할과 두 바인딩을 적용·재조회했다. PR #115를 병합한 다음 실행에서 Hosting 배포·운영 검사를 모두 통과했다.
 
 Cloud Run 권한 정의: https://docs.cloud.google.com/run/docs/reference/iam/permissions
+
+## 자동 배포 완료 (2026-10-15 20:28 KST)
+
+- PR #115: https://github.com/crushidea-design/church-website/pull/115
+- 운영 커밋: `3ad4d9f765a0a9fcd5aa505e00cacaa927c99e31` (20:25:09 KST 병합).
+- 성공 실행: https://github.com/crushidea-design/church-website/actions/runs/38727194181
+- main 타입 검사·린트·테스트·빌드·Hosting 경로·보안 규칙 검사, WIF 단기 인증, Functions 및 Cloud Run 조회, 두 Hosting 게시, 운영 HTTPS 24건 검사가 모두 통과했다. 수정안 로컬 검사도 모두 통과했으며 테스트 359 통과·130 생략, 린트 오류 0·기존 경고 416이다.
+- 두 서비스의 IAM을 재조회해 `githubHostingBackendReader` 연결을 확인했다. 프로젝트 IAM의 배포 계정 바인딩은 기존 9개 권한인 `githubHostingPublisher` 하나이며, 추가 Run 조회 역할은 두 서비스에서만 연결했다.
+- 20:28:10 KST 교회 버전 `3fa14bacc373653c`, RAAH 버전 `44b02512d4798d1c`를 게시했다. Hosting releases API에서 두 release의 메시지가 위 커밋과 실행 번호를 포함하며, 배포 주체가 `github-hosting-deploy@gen-lang-client-0036445484.iam.gserviceaccount.com`임을 확인했다.
+- Functions·보안 규칙·예약 실행 주체는 이번 Hosting 배포에서 변경하지 않았다. 실제 데이터 수정·푸시·AI 생성·새 OAuth 동의는 수행하지 않았다.
+- 이후 사용자 승인 PR을 main에 병합하면 검증 성공 후 두 Hosting 사이트가 자동 갱신된다. Netlify 계정·사이트는 무료 상태로 유지한다. 다음 확인 대상은 나머지 예약 작업의 자연 실행이다.

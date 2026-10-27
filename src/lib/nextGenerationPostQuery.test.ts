@@ -45,6 +45,7 @@ describe('resource post queries', () => {
     expect(getDocs).toHaveBeenCalledWith({
       collection: 'posts',
       constraints: [
+        { field: 'isPublished', operator: '==', value: true },
         { field: 'category', operator: '==', value: 'next_generation' },
         { field: 'createdAt', direction: 'desc' },
         { count: 300 },
