@@ -1,11 +1,16 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
+import { handleSiteRequest } from './site-api.js';
+import { DEFAULT_GEMINI_MODEL } from '../../netlify/functions/_shared/gemini-model.mjs';
+
+const siteGeminiModel = defineString('GEMINI_MODEL', { default: DEFAULT_GEMINI_MODEL });
 import { handleRequest, buildRouteTable, type HandlerModule } from './adapter.js';
 import * as management from '../../netlify/functions/raah-management.mjs';
 import * as communion from '../../netlify/functions/raah-communion.mjs';
 import * as careTasks from '../../netlify/functions/raah-care-tasks.mjs';
 import * as calendar from '../../netlify/functions/raah-calendar.mjs';
 import * as aiAssist from '../../netlify/functions/raah-ai-assist.mjs';
+import * as calendarCallback from '../../netlify/functions/_shared/raah-calendar-callback.mjs';
 
 const secrets = [
   defineSecret('RAAH_ENCRYPTION_SECRET'),
@@ -23,7 +28,7 @@ const communionEnabled = defineString('RAAH_COMMUNION_ENABLED');
 // The address users reach RAAH at; the function is only ever called on its behalf.
 const PUBLIC_ORIGIN = 'https://raah.builttogether.church';
 
-const routes = buildRouteTable([management, communion, careTasks, calendar, aiAssist] as unknown as HandlerModule[]);
+const routes = buildRouteTable([management, communion, careTasks, calendar, aiAssist, calendarCallback] as unknown as HandlerModule[]);
 
 export const raahApi = onRequest(
   {
@@ -45,3 +50,21 @@ export const raahApi = onRequest(
     await handleRequest(routes, req, res, PUBLIC_ORIGIN);
   },
 );
+
+// General church/next-generation API: deliberately has no RAAH/Supabase secrets.
+export const siteApi = onRequest(
+  {
+    region: 'asia-northeast1',
+    secrets: [defineSecret('GEMINI_API_KEY')],
+    timeoutSeconds: 60,
+    invoker: 'public',
+    // Existing clients call same-origin /api/* through the hosting proxy.
+    cors: false,
+  },
+  async (req, res) => {
+    process.env.GEMINI_MODEL = siteGeminiModel.value();
+    await handleSiteRequest(req, res);
+  },
+);
+
+export { scheduledNotifications, wordFruitAggregate, wordFruitFridayWarning, wordFruitAutoDraft } from './scheduled-jobs.js';

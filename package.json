@@ -16,7 +16,10 @@
     "test:watch": "vitest",
     "test:db": "node scripts/test-db.mjs",
     "test:rules": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only firestore,storage \"vitest run tests/security.rules.test.ts\"",
-    "test:roles": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only auth,firestore,storage \"node --import tsx tests/support/role-preview.ts\""
+    "test:roles": "firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only auth,firestore,storage \"node --import tsx tests/support/role-preview.ts\"",
+    "hosting:prepare": "node scripts/prepare-hosting.mjs",
+    "build:hosting": "npm run build && npm run hosting:prepare",
+    "test:hosting": "node scripts/test-hosting.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

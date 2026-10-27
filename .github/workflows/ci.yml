@@ -5,11 +5,15 @@ on:
     branches: [main, codex/work]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
-# Cancel in-progress runs for the same ref so only the latest push counts.
+permissions:
+  contents: read
+
+# Preserve main deployments; superseded branch/PR checks can be cancelled.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
@@ -42,6 +46,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Prepare Firebase Hosting artifacts
+        run: npm run hosting:prepare
+
+      - name: Firebase Hosting routing smoke test
+        run: npx --yes --package firebase-tools@15.25.1 --call "npm run test:hosting"
+
       - name: Setup Java for security rules tests
         uses: actions/setup-java@v4
         with:
@@ -50,3 +60,88 @@ jobs:
 
       - name: Security rules and comment transaction tests
         run: npx --yes --package firebase-tools@15.25.1 firebase emulators:exec --config firebase.emulators.json --project demo-church-review --only firestore,storage "npx vitest run tests/security.rules.test.ts"
+
+  deploy-hosting:
+    name: Deploy Firebase Hosting
+    needs: verify
+    if: >-
+      github.repository == 'crushidea-design/church-website' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: firebase-production
+      url: https://builttogether.church
+    concurrency:
+      group: firebase-hosting-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deployment dependencies
+        run: |
+          npm ci
+          npm install --global firebase-tools@15.25.1
+
+      - name: Skip a superseded main commit
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$latest_sha" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipped: a newer main commit will deploy." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Authenticate with short-lived Google credentials
+        if: steps.current.outputs.deploy == 'true'
+        id: google
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: gen-lang-client-0036445484
+          workload_identity_provider: projects/638399109645/locations/global/workloadIdentityPools/github-hosting/providers/church-main
+          service_account: github-hosting-deploy@gen-lang-client-0036445484.iam.gserviceaccount.com
+          token_format: access_token
+
+      # A failed backend lookup can make Firebase CLI silently emit a v1 rewrite.
+      # Fail before publishing if the deploy identity cannot read the v2 APIs.
+      - name: Verify existing API backends
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          GOOGLE_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+        run: node scripts/check-hosting-backends.mjs
+
+      - name: Deploy church and RAAH Hosting only
+        if: steps.current.outputs.deploy == 'true'
+        run: >-
+          firebase deploy --only hosting:church,hosting:raah
+          --config firebase.hosting.json
+          --project gen-lang-client-0036445484
+          --message "GitHub ${GITHUB_SHA} run ${GITHUB_RUN_ID}"
+          --non-interactive
+
+      - name: Verify production routes
+        if: steps.current.outputs.deploy == 'true'
+        run: node scripts/check-hosting-production.mjs
+
+      - name: Record deployment
+        if: steps.current.outputs.deploy == 'true'
+        run: |
+          echo "Firebase Hosting deployed commit $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Church: https://builttogether.church" >> "$GITHUB_STEP_SUMMARY"
+          echo "- RAAH: https://raah.builttogether.church" >> "$GITHUB_STEP_SUMMARY"

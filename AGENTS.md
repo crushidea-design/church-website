@@ -6,11 +6,11 @@
 ## 프로젝트
 
 - 교회 웹사이트(개척교회). 성도용 콘텐츠 + 다음세대 + RAAH 목양 관리(심방/출석/일정).
-- 스택: Vite + React 19 + TypeScript, react-router 7, zustand, Tailwind 4, Netlify(호스팅 + Functions), Firebase Auth/Firestore, Supabase(목양노트 저장), Google GenAI.
+- 스택: Vite + React 19 + TypeScript, react-router 7, zustand, Tailwind 4, Firebase Hosting/Functions/Auth/Firestore, Netlify(무료 복구용 사이트 유지), Supabase(목양노트 저장), Google GenAI.
 
 ## 브랜치·배포 규칙 (CODEX.md 요약)
 
-- **`main` 직접 커밋/push 금지.** main은 Netlify 프로덕션 자동배포에 연결되어 있어 push 즉시 배포된다.
+- **`main` 직접 커밋/push 금지.** main은 운영 릴리스 브랜치다. Hosting CI 연결 후 main 검사 성공 시 Firebase Hosting에 자동 배포되며, 유지 중인 Netlify 사이트도 main을 빌드한다.
 - Codex는 `codex/work`, Claude는 `claude/work` 브랜치에서 작업한다. 본격 작업 전 최신 `origin/main`과 동기화한다.
 - 배포는 사용자가 명시적으로 요청할 때만, PR/병합 등 승인된 절차로 진행한다.
 - 다른 에이전트가 작업 중이면 같은 파일을 수정하지 않는다. 공유 파일(`src/App.tsx`, `package.json`, `netlify.toml`, `firestore.rules`, 라우팅/인증 유틸, 전역 설정)을 수정해야 하면 먼저 그 위험을 알린다.
@@ -28,7 +28,7 @@ npm run build
 
 ## 민감 데이터
 
-- 목양노트(RAAH)는 민감 정보다. Netlify Function에서 Firebase ID 토큰 검증 + 관리자 확인을 거쳐 Supabase에 AES-GCM 암호화로 저장하는 구조를 절대 깨뜨리지 않는다.
+- 목양노트(RAAH)는 민감 정보다. Firebase Function에서 Firebase ID 토큰 검증 + 관리자 확인을 거쳐 Supabase에 AES-GCM 암호화로 저장하는 구조를 절대 깨뜨리지 않는다.
 - 목양·심방 데이터를 로그·이메일·외부 API에 노출하지 않는다.
 - `.env`는 커밋하지 않는다. `.env.example`만 추적한다.
 

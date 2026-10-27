@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "gen-lang-client-0036445484"
-  }
+  },
+  "targets": {
+    "gen-lang-client-0036445484": {
+      "hosting": {
+        "church": [
+          "gen-lang-client-0036445484"
+        ],
+        "raah": [
+          "builttogether-raah"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

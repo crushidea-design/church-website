@@ -280,7 +280,4 @@ export function getErrorMessage(error: unknown, fallback: string) {
   return typed.message || typed.code || fallback;
 }
 
-export function isRaahSubdomain() {
-  if (typeof window === 'undefined') return false;
-  return window.location.hostname === 'raah.builttogether.church';
-}
+export { isRaahSubdomain } from '../../lib/appSurface';

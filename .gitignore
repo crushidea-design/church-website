@@ -19,3 +19,9 @@ raah-schema-*.sql
 # Firebase Functions build output and installed deps
 firebase-functions/lib/
 firebase-functions/node_modules/
+
+# Firebase CLI local cache and emulator logs
+.firebase/
+
+# Ephemeral GitHub OIDC credentials (never commit or ship)
+gha-creds-*.json

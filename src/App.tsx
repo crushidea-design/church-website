@@ -7,6 +7,7 @@ import QuotaExceededView from './components/QuotaExceededView';
 import { SiteCmsProvider, useSiteCms } from './lib/siteCms';
 import Layout from './components/Layout';
 import Home from './pages/Home';
+import { isRaahSubdomain } from './lib/appSurface';
 
 const Introduction = React.lazy(() => import('./pages/Introduction'));
 const ArchiveLayout = React.lazy(() => import('./pages/ArchiveLayout'));
@@ -62,11 +63,6 @@ function CmsSlugRedirect() {
   }
 
   return <Navigate to={matched.targetPath} replace />;
-}
-
-function isRaahSubdomain() {
-  if (typeof window === 'undefined') return false;
-  return window.location.hostname === 'raah.builttogether.church';
 }
 
 export default function App() {

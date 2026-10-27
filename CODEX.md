@@ -3,7 +3,7 @@
 ## Branch Rules
 
 - Do not commit or push directly to `main`.
-- `main` is connected to Netlify production deploys, so pushing to `main` can deploy immediately.
+- `main` is a production release branch. Once the Hosting CI connection is enabled, successful main CI deploys Firebase Hosting; the retained Netlify site also builds main. Never use a direct push to bypass the approved PR flow.
 - Treat `origin/main` as the latest release baseline.
 - Before starting work, check the current branch and compare with `origin/main`.
 - Do actual Codex work on `codex/work` unless the user explicitly asks for another branch.
@@ -22,6 +22,8 @@
 - Do not deploy unless the user explicitly asks.
 - Do not push to `main` as a way to deploy.
 - When the user is ready to deploy, use a deliberate PR/merge or other user-approved release flow.
+- Production domains use Firebase Hosting. The Hosting CI workflow deploys only church and RAAH Hosting after verification; Functions, rules, and scheduled-job ownership changes require separate explicit deployment scope.
+- Keep the Netlify account and site on the user-selected free plan. Do not delete them as part of migration cleanup.
 
 ## Handoff
 
