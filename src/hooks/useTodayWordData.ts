@@ -84,6 +84,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
   // Fetch post + user progress whenever date or auth changes
   useEffect(() => {
     let ignore = false;
+    setLatestPost(null);
 
     const fetchData = async () => {
       setLoading(true);
@@ -93,6 +94,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
         try {
           const byDateKeyQuery = query(
             collection(db, 'posts'),
+            ...(role === 'admin' ? [] : [where('isPublished', '==', true)]),
             where('category', '==', 'today_word'),
             where('dateKey', '==', dateStr),
             limit(10),
@@ -111,6 +113,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
             end.setHours(23, 59, 59, 999);
             const byCreatedAtQuery = query(
               collection(db, 'posts'),
+            ...(role === 'admin' ? [] : [where('isPublished', '==', true)]),
               where('category', '==', 'today_word'),
               where('createdAt', '>=', start),
               where('createdAt', '<=', end),
@@ -122,6 +125,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
             console.warn('TodayWord createdAt query failed, using fallback:', err);
             const fallbackQuery = query(
               collection(db, 'posts'),
+            ...(role === 'admin' ? [] : [where('isPublished', '==', true)]),
               where('category', '==', 'today_word'),
               limit(500),
             );

@@ -80,6 +80,9 @@ export default async (req: Request) => {
         template = templateSnap.docs[0].data() as { authorId?: string; authorName?: string };
       }
 
+      const summaryRef = db.collection('settings').doc('latest_posts_summary');
+      const summarySnap = !isPublished ? await tx.get(summaryRef) : undefined;
+
       // ---- writes
       const postRef = updating && existingRef ? existingRef : db.collection('posts').doc();
       const bodyFields = {
@@ -113,6 +116,11 @@ export default async (req: Request) => {
           updatedAt: FieldValue.serverTimestamp(),
           ...(isLong ? { isLongContent: true, fullContentLength: content.length } : {}),
         });
+      }
+
+      // Retract a formerly published snippet in the same transaction as the draft.
+      if (summarySnap?.data()?.today_word?.id === postRef.id) {
+        tx.update(summaryRef, { today_word: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
       }
 
       chunks.forEach((chunk, index) => {

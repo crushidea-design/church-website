@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { 
-  collection, query, where, orderBy, getDocs, limit, 
+import {
+  collection, query, where, orderBy, getDocs, limit,
   startAfter
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -22,14 +22,14 @@ export default function ResearchLab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const { research, researchCategories, setCategoryCollection, setCategories } = useStore();
-  
+
   const [activeTab, setActiveTab] = useState(tabParam || 'all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageLastDocs, setPageLastDocs] = useState<{[key: number]: any}>({});
   const pageSize = 10;
-  
+
   const currentResearch = research[activeTab] || { data: [], lastDoc: null, hasMore: true, fetched: false };
-  
+
   const [loading, setLoading] = useState(!currentResearch.fetched);
   const [error, setError] = useState<string | null>(null);
   const [sortOrderDirection, setSortOrderDirection] = useState<'asc' | 'desc'>('asc');
@@ -64,9 +64,9 @@ export default function ResearchLab() {
         const orderDir = sortOrderDirection;
 
         if (effectiveTab === 'all') {
-          q = query(collection(db, 'posts'), where('category', '==', 'research'), orderBy(orderField, orderDir), limit(pageSize + 1));
+          q = query(collection(db, 'posts'), where('isPublished', '==', true), where('category', '==', 'research'), orderBy(orderField, orderDir), limit(pageSize + 1));
         } else {
-          q = query(collection(db, 'posts'), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab), orderBy(orderField, orderDir), limit(pageSize + 1));
+          q = query(collection(db, 'posts'), where('isPublished', '==', true), where('category', '==', 'research'), where('researchCategoryId', '==', effectiveTab), orderBy(orderField, orderDir), limit(pageSize + 1));
         }
 
         const snapshot = await getDocs(q);
@@ -101,11 +101,11 @@ export default function ResearchLab() {
       const anchorDoc = pageLastDocs[page - 1];
 
       if (page > 1 && anchorDoc) {
-        q = query(collection(db, 'posts'), where('category', '==', 'research'), 
+        q = query(collection(db, 'posts'), where('isPublished', '==', true), where('category', '==', 'research'),
             ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
             orderBy(orderField, orderDir), startAfter(anchorDoc), limit(pageSize + 1));
       } else {
-        q = query(collection(db, 'posts'), where('category', '==', 'research'),
+        q = query(collection(db, 'posts'), where('isPublished', '==', true), where('category', '==', 'research'),
             ...(activeTab !== 'all' ? [where('researchCategoryId', '==', activeTab)] : []),
             orderBy(orderField, orderDir), limit(pageSize + 1));
       }

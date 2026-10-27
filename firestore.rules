@@ -89,9 +89,11 @@ service cloud.firestore {
     }
 
     function canReadPostData(postData) {
-      return postData.category != 'sermon' ||
-             isRegularMember() ||
-             (isAuthenticated() && postData.authorId == request.auth.uid);
+      return isAdmin() ||
+             (postData.get('isPublished', false) == true &&
+              (postData.category != 'sermon' ||
+               isRegularMember() ||
+               (isAuthenticated() && postData.authorId == request.auth.uid)));
     }
     
     function hasOnlyAllowedFields(fields) {
@@ -377,7 +379,8 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
-      allow read: if true;
+      // Cached snippets can outlive publication; public pages query posts instead.
+      allow read: if settingId != 'latest_posts_summary' || isAdmin();
       allow write: if isAdmin();
     }
 

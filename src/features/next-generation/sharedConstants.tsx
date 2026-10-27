@@ -140,6 +140,7 @@ export const sectionTabs = [
 ];
 
 export interface NextGenerationPost {
+  isPublished?: boolean;
   id: string;
   title?: string;
   content?: string;

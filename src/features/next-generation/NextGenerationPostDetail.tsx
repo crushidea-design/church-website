@@ -51,7 +51,7 @@ const NEXT_GENERATION_CATEGORY = 'next_generation';
 export default function NextGenerationPostDetail({ id }: { id: string }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { role } = useAuth();
+  const { role, loading: authLoading } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
   const isRestricted = hasDepartment(member, '학생');
   const { tabs: cmsTabs, departments: cmsDepartments, topics: cmsTopics } = useNextGenerationCms();
@@ -67,6 +67,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     : '\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.';
 
   useEffect(() => {
+    if (authLoading) return;
     let cancelled = false;
     const fetchPost = async () => {
       setLoading(true);
@@ -86,7 +87,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
         }
 
         const data = { id: snapshot.id, ...snapshot.data() } as NextGenerationPost;
-        if (data.category !== NEXT_GENERATION_CATEGORY) {
+        if (data.category !== NEXT_GENERATION_CATEGORY || (data.isPublished !== true && !isAdmin)) {
           navigate(`${NEXT_GENERATION_PATH}/elementary`, { replace: true });
           return;
         }
@@ -156,9 +157,9 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
 
     void fetchPost();
     return () => { cancelled = true; };
-  }, [id, navigate, isRestricted, isAdmin]);
+  }, [id, navigate, isRestricted, isAdmin, authLoading]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center bg-sky-50">
         <Loader2 className="h-10 w-10 animate-spin text-emerald-700" />
@@ -166,7 +167,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     );
   }
 
-  if (!post) return <p role="alert" className="p-8 text-center">{detailError}</p>;
+  if (!post || (post.isPublished !== true && !isAdmin)) return <p role="alert" className="p-8 text-center">{detailError}</p>;
 
   const mergedTabs: ResourceTabItem[] = (cmsTabs.length > 0 ? cmsTabs : (allResourceTabs as any)).map((tab: any) => ({
     id: tab.slug || tab.id,

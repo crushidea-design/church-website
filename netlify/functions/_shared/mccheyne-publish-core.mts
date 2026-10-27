@@ -109,7 +109,7 @@ const removeFootnotes = (md: string): string => {
   const out: string[] = [];
   const isContinuation = (l: string) => /^( {4}|\t)/.test(l);
   for (let i = 0; i < lines.length; i++) {
-    if (/^\[\^[^\]]+\]:/.test(lines[i])) {
+    if (/^[ \t]*\[\^[^\]]+\]:/.test(lines[i])) {
       let j = i + 1;
       for (;;) {
         if (j < lines.length && isContinuation(lines[j]) && lines[j].trim() !== '') { j++; continue; }
