@@ -33,7 +33,7 @@ type NotificationPayload = {
   badgeCount?: number;
 };
 
-const getEnv = (key: string) => {
+export const getEnv = (key: string) => {
   const netlifyValue = typeof Netlify !== 'undefined' ? Netlify.env.get(key) : undefined;
   return netlifyValue || process.env[key];
 };

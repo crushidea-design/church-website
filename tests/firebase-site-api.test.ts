@@ -23,7 +23,7 @@ const endpoints = [
   ['POST', '/api/post-comments'], ['DELETE', '/api/attachments'],
   ['POST', '/api/notifications/subscribe'], ['POST', '/api/notifications/send'],
   ['GET', '/api/notifications/health'], ['POST', '/api/word-fruit/check'],
-  ['POST', '/api/word-fruit/generate-cards'], ['POST', '/api/word-fruit/notify-publish'],
+  ['POST', '/api/word-fruit/generate-cards'], ['POST', '/api/word-fruit/notify-publish'], ['POST', '/api/mccheyne/publish'],
 ] as const;
 
 const call = async (method: string, path: string, body: unknown = {}, token?: string) => {
@@ -51,8 +51,8 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe('general API routing and authentication', () => {
-  it('registers exactly the eight existing HTTP handlers', () => {
-    expect(siteModules).toHaveLength(8);
+  it('registers exactly the nine allowlisted HTTP handlers', () => {
+    expect(siteModules).toHaveLength(9);
     expect(siteRoutes.map((r) => r.pattern).sort()).toEqual(endpoints.map(([, path]) => path).sort());
     for (const [, path] of endpoints) expect(matchRoute(siteRoutes, path)).not.toBeNull();
   });

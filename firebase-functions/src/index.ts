@@ -55,7 +55,7 @@ export const raahApi = onRequest(
 export const siteApi = onRequest(
   {
     region: 'asia-northeast1',
-    secrets: [defineSecret('GEMINI_API_KEY')],
+    secrets: [defineSecret('GEMINI_API_KEY'), defineSecret('MCCHEYNE_PUBLISH_KEY')],
     timeoutSeconds: 60,
     invoker: 'public',
     // Existing clients call same-origin /api/* through the hosting proxy.
