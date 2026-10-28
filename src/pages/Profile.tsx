@@ -294,7 +294,7 @@ export default function Profile() {
                         {post.title}
                       </h3>
                       <span className="text-xs font-medium px-2.5 py-1 bg-wood-100 text-wood-600 rounded-sm whitespace-nowrap ml-4">
-                        {post.category === 'journal' ? '개척일지' : 
+                        {post.category === 'today_word' ? '맥체인 묵상 가이드' : post.category === 'journal' ? '개척일지' :
                          post.category === 'sermon' ? '설교' : 
                          post.category === 'research' ? '연구소' :
                          post.category === 'next_generation' ? '다음세대' : '소통게시판'}

@@ -22,6 +22,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import handler from '../netlify/functions/mccheyne-publish.mts';
+import { MCCHEYNE_AUTHOR_UID, MCCHEYNE_AUTHOR_EMAIL, publicationFingerprint } from '../netlify/functions/_shared/mccheyne-site-state.mts';
 import {
   buildGuideTitle, isAuthorized, kstMidnight, markdownToGuideText, postUrl, PUBLIC_ORIGIN, validatePublishRequest,
 } from '../netlify/functions/_shared/mccheyne-publish-core.mts';
@@ -194,6 +195,7 @@ let getFirestore: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   state.docs.clear();
+  state.docs.set(`users/${MCCHEYNE_AUTHOR_UID}`, { uid: MCCHEYNE_AUTHOR_UID, email: MCCHEYNE_AUTHOR_EMAIL, displayName: '이종구', role: 'admin' });
   state.writes = [];
   state.summaryFails = false;
   vi.stubEnv('MCCHEYNE_PUBLISH_KEY', KEY);
@@ -235,13 +237,25 @@ describe('POST /api/mccheyne/publish', () => {
     expect(getFirestore).not.toHaveBeenCalled();
   });
 
-  it('returns NO_TEMPLATE_POST when no guide exists yet', async () => {
+  it('fails closed if the verified author profile is unavailable', async () => {
+    state.docs.delete(`users/${MCCHEYNE_AUTHOR_UID}`);
     const res = await post(valid);
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ ok: false, error: 'NO_TEMPLATE_POST' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ ok: false, error: 'AUTHOR_NOT_CONFIGURED' });
     expect(state.writes).toEqual([]);
   });
 
+  it('ignores request authors and does not need a post as an author template', async () => {
+    expect((await post({ ...valid, authorId: 'attacker', authorName: 'forged' })).status).toBe(200);
+    expect(state.writes.find(w => w.path === 'posts/new_post_id')?.data).toMatchObject({ authorId: MCCHEYNE_AUTHOR_UID, authorName: '이종구' });
+  });
+  it('does not let the external key API resurrect deleted mappings or overwrite manual changes', async () => {
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'deleted1' });
+    expect(await (await post(valid)).json()).toMatchObject({ error: 'SITE_POST_DELETED' });
+    state.docs.set('posts/deleted1', { ...template, content: '수동 변경' });
+    expect(await (await post(valid)).json()).toMatchObject({ error: 'SITE_POST_EDITED' });
+    expect(state.writes).toEqual([]);
+  });
   it('creates a short post with exactly the admin field set, mapping and summary', async () => {
     state.docs.set('posts/tpl', template);
     const res = await post(valid);
@@ -257,7 +271,7 @@ describe('POST /api/mccheyne/publish', () => {
     expect(created.data).toMatchObject({
       title: '10월 27일 열왕기하 8장 항상 등불을 주겠다고 말씀하셨음이라',
       content: '  첫 문단입니다.\n\n  둘째 문단입니다.',
-      category: 'today_word', subCategory: 'general', authorId: 'pastor-uid', authorName: '목사님',
+      category: 'today_word', subCategory: 'general', authorId: MCCHEYNE_AUTHOR_UID, authorName: '이종구',
       commentCount: 0, viewCount: 0, isPublished: true, dateKey: '2026-10-27',
       createdAt: { ts: '2026-10-26T15:00:00.000Z' }, updatedAt: 'SERVER_TS', sortOrder: expect.any(Number),
     });
@@ -268,7 +282,7 @@ describe('POST /api/mccheyne/publish', () => {
 
     const summary = state.writes.find((w) => w.op === 'summary')!;
     expect(summary.path).toBe('settings/latest_posts_summary');
-    expect(summary.data).toMatchObject({ today_word: { id: 'new_post_id', category: 'today_word', authorName: '목사님', sermonCategoryId: null } });
+    expect(summary.data).toMatchObject({ today_word: { id: 'new_post_id', category: 'today_word', authorName: '이종구', sermonCategoryId: null } });
   });
 
   it('stores long content as a snippet plus 10000-char chunks', async () => {
@@ -298,7 +312,7 @@ describe('POST /api/mccheyne/publish', () => {
 
   it('atomically retracts a published guide from the home summary on downgrade', async () => {
     state.docs.set('posts/existing1', { ...template, isPublished: true });
-    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1' });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', publishedFingerprint: publicationFingerprint(state.docs.get('posts/existing1'), '') });
     state.docs.set('settings/latest_posts_summary', { today_word: { id: 'existing1', content: 'old public text' } });
     expect((await post({ ...valid, status: 'draft' })).status).toBe(200);
     expect(state.writes).toContainEqual(expect.objectContaining({ op: 'update', path: 'posts/existing1', data: expect.objectContaining({ isPublished: false }) }));
@@ -317,7 +331,7 @@ describe('POST /api/mccheyne/publish', () => {
   it('updates the existing post for the same source_id, preserving identity and deleting stale chunks', async () => {
     state.docs.set('posts/tpl', template);
     state.docs.set('posts/existing1', { ...template, authorId: 'original', createdAt: 'orig-created', commentCount: 3, viewCount: 9 });
-    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created' });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created', publishedFingerprint: publicationFingerprint(state.docs.get('posts/existing1'), '') });
     state.docs.set('post_contents/existing1_0', { postId: 'existing1', index: 0 });
     state.docs.set('post_contents/existing1_1', { postId: 'existing1', index: 1 });
     state.docs.set('post_contents/existing1_2', { postId: 'existing1', index: 2 });
@@ -343,7 +357,7 @@ describe('POST /api/mccheyne/publish', () => {
 
   it('removes all chunks and long-content fields when an update becomes short', async () => {
     state.docs.set('posts/existing1', { ...template });
-    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created' });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created', publishedFingerprint: publicationFingerprint(state.docs.get('posts/existing1'), '') });
     state.docs.set('post_contents/existing1_0', { postId: 'existing1', index: 0 });
     expect((await post(valid)).status).toBe(200);
     const update = state.writes.find((w) => w.op === 'update')!;

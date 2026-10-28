@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth';
 import { useStore } from '../store/useStore';
 import { ArrowLeft, Loader2, FileText, X, Plus } from 'lucide-react';
 import { generateSortOrder } from '../lib/sortUtils';
+import { prepareMccheyneManualChange } from '../lib/mccheyneManualChange';
 import {
   getDepartmentTopics,
   isNextGenerationWeeklyResource,
@@ -71,6 +72,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
   const [content, setContent] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [type, setType] = useState('');
+  const [wasTodayWord, setWasTodayWord] = useState(false);
   const isNextGeneration = nextGenerationMode || type === 'next_generation';
   const [dateKey, setDateKey] = useState('');
   const [subCategory, setSubCategory] = useState('general');
@@ -151,6 +153,7 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
           setContent(fullContent);
           setYoutubeUrl(data.youtubeUrl || data.videoUrl || '');
           setType(data.category);
+          setWasTodayWord(data.category === 'today_word');
           setDateKey(data.dateKey || getLocalDateKey(getDateFromFirestoreValue(data.createdAt) || new Date()));
           setSubCategory(data.subCategory || 'general');
           // Keep the stored topic as-is here; it is validated against the CMS
@@ -427,7 +430,8 @@ export default function EditPost({ postId, nextGenerationMode = false }: EditPos
         }
       }
 
-      console.info('Updating document in Firestore...', updateData);
+      if (wasTodayWord) await prepareMccheyneManualChange(user, id, 'edit');
+      console.info('Updating document in Firestore');
       
       const runUpdate = async (payload: any) => {
         const updatePromise = updateDoc(postRef, payload);
