@@ -11,6 +11,7 @@ import { ArrowLeft, MessageSquare, Trash2, Edit3, FileText, Plus } from 'lucide-
 import PdfCanvasViewer from '../components/PdfCanvasViewer';
 import { useStore } from '../store/useStore';
 import { formatFileSize, getMaterialAttachmentLabel, getPostAttachments } from '../lib/attachments';
+import { todayWordDateKey } from '../lib/todayWordDate';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -515,7 +516,7 @@ export default function PostDetail() {
                 'journal': '/journal',
                 'sermon': '/archive/sermons',
                 'research': '/archive/research',
-                'today_word': '/archive/today',
+                'today_word': todayWordDateKey(post?.dateKey) ? `/archive/today?date=${post.dateKey}` : '/archive/today',
                 'community': '/community',
                 'next_generation': post?.subCategory === 'pilgrim_lecture' || post?.subCategory === 'podcast_review' || post?.subCategory === 'retreat_materials'
                   ? '/next/young-adults'
@@ -565,7 +566,17 @@ export default function PostDetail() {
               <div className="flex items-center text-sm text-wood-600 gap-4">
                 <span>{post.authorName}</span>
                 <span>&bull;</span>
-                <span>{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
+                {post.category === 'today_word' ? (
+                  todayWordDateKey(post.dateKey) ? (
+                    <Link className="underline underline-offset-4" to={`/archive/today?date=${post.dateKey}`}>
+                      묵상 날짜: {post.dateKey}
+                    </Link>
+                  ) : (
+                    <span>기준 날짜: {formatDate(post.createdAt, 'yyyy.MM.dd')} (묵상 날짜 미지정)</span>
+                  )
+                ) : (
+                  <span>{formatDate(post.createdAt, 'yyyy.MM.dd HH:mm')}</span>
+                )}
                 {post.category !== 'today_word' && post.category !== 'next_generation' && (
                   <>
                     <span>&bull;</span>
