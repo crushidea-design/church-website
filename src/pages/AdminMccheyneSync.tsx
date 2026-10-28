@@ -22,6 +22,9 @@ const messages: Record<string, string> = {
   EXISTING_POST_REQUIRES_LINK: '기존 게시글 후보가 있습니다. 별도 연결 확인 전에는 등록하지 않습니다.', INVALID_HEADING: '첫 문단의 날짜·성경 본문·제목을 확인해 주세요.',
   DATE_MISMATCH: '묵상 날짜가 원문과 일치하지 않습니다.', DRIVE_AUTH_REQUIRED: 'Drive 읽기 권한 연결을 확인해 주세요.', DRIVE_NOT_CONFIGURED: 'Drive 연결 전입니다.',
   INDEX_REQUIRED: '게시글 중복 검사 인덱스가 필요합니다.', OUTSIDE_APPROVED_FOLDER: '검수완료 폴더 밖의 문서입니다.',
+  INVALID_SINGLE_TARGET: 'Google Docs 문서 링크와 묵상 날짜를 확인해 주세요.',
+  SINGLE_TARGET_NOT_FOUND: '지정한 문서가 검수완료 폴더에 없습니다.', AMBIGUOUS_SINGLE_TARGET: '문서를 하나로 확인하지 못해 반영하지 않았습니다.',
+  SINGLE_TARGET_DATE_MISMATCH: '지정한 날짜가 원문 날짜와 달라 반영하지 않았습니다.', SINGLE_TARGET_ID_MISMATCH: '문서가 일치하지 않아 반영하지 않았습니다.',
 };
 const label = (code: string) => messages[code] ?? '처리 보류 · 관리자 점검이 필요합니다.';
 
@@ -35,6 +38,8 @@ export default function AdminMccheyneSync() {
   const [trialCursor, setTrialCursor] = useState<string>();
   const [notice, setNotice] = useState('');
   const [trialRecords, setTrialRecords] = useState<Row[]>([]);
+  const [singleLink, setSingleLink] = useState('');
+  const [singleDate, setSingleDate] = useState('');
   const call = useCallback(async (body?: unknown) => {
     if (!user || role !== 'admin') throw new Error('AUTH_REQUIRED');
     const response = await fetch('/api/mccheyne/sync', {
@@ -71,6 +76,19 @@ export default function AdminMccheyneSync() {
         <button className="border rounded px-4 py-2" disabled={busy} onClick={() => act(refresh)}>상태 새로고침</button>
       </div>
       <p className="text-sm">한 번에 최대 20개 문서를 확인하며 남은 문서는 다음 실행에서 이어갑니다. 끄기는 새 실행과 다음 문서 처리를 막습니다. 이미 완료된 게시를 되돌리지는 않습니다. 읽기 전용 시험은 쓰기를 하지 않으므로 끄기 설정도 변경하지 않습니다.</p>
+      <fieldset className="border rounded p-4 space-y-3" disabled={busy || stopping || !enabled || status?.busy}>
+        <legend className="font-semibold px-2">문서 한 건만 반영</legend>
+        <label className="block">Google Docs 문서 링크<input type="url" className="block border rounded p-2 w-full" value={singleLink} onChange={e => setSingleLink(e.target.value)} /></label>
+        <label className="block">게시할 묵상 날짜<input type="date" className="block border rounded p-2" value={singleDate} onChange={e => setSingleDate(e.target.value)} /></label>
+        <p className="text-sm">검수완료 폴더의 지정한 문서만 확인합니다. 원문 날짜·승인 기록이 맞지 않거나 기존 글과 충돌하면 반영하지 않습니다. 예약 설정은 바뀌지 않습니다.</p>
+        <button className="rounded bg-wood-800 text-white px-4 py-2 disabled:opacity-40" disabled={!singleLink || !singleDate} onClick={() => act(async () => {
+          let id: string | undefined;
+          try { const url = new URL(singleLink); if (url.protocol === 'https:' && url.hostname === 'docs.google.com') id = /^\/document\/d\/([A-Za-z0-9_-]{10,200})(?:\/|$)/.exec(url.pathname)?.[1]; } catch { /* Reject malformed links without any request. */ }
+          if (!id) throw new Error('INVALID_SINGLE_TARGET');
+          const r = await call({ action: 'run_one', id, date: singleDate });
+          setTrialRecords(r.records ?? []); setNotice(`${label(r.code)} · 성공 ${r.success ?? 0} · 변경 없음 ${r.skipped ?? 0} · 보류 ${r.held ?? 0} · 실패 ${r.failed ?? 0}`);
+        })}>이 문서 한 건만 반영</button>
+      </fieldset>
       {status?.lastRun && <p>최근 실행: 성공 {status.lastRun.success} · 변경 없음 {status.lastRun.skipped} · 보류 {status.lastRun.held} · 실패 {status.lastRun.failed} · 남음 {status.lastRun.pending} — {label(status.lastRun.code)}</p>}
       {notice && <p role="status">{notice}</p>}
       <p className="text-sm text-wood-600">등록 후 원본이 바뀌면 기존 공개본을 유지합니다. 아래에서 현재 내용을 확인하고 재승인한 뒤 반영할 수 있습니다. 기존 수동 게시글 후보는 자동 연결하거나 덮어쓰지 않습니다.</p>
