@@ -94,7 +94,7 @@ export interface SyncStore {
   siteState(id: string): Promise<SiteState>;
   stop(uid: string): Promise<void>;
   control(): Promise<{ stopped: boolean; cursor?: string }>;
-  beginItem(id: string, lease: string): Promise<void>;
+  beginItem(id: string, lease: string, advanceCursor?: boolean): Promise<void>;
   acquire(durationMs: number): Promise<string | null>;
   release(lease: string): Promise<void>;
   load(id: string): Promise<RecordState | undefined>;
@@ -104,8 +104,16 @@ export interface SyncStore {
   summary(result: RunResult, lease: string): Promise<void>;
 }
 export const MAX_DOCUMENTS_PER_RUN = 20;
+export type SingleTarget = { id: string; date: string };
+export function assertSingleTarget(target: SingleTarget) {
+  if (!target || typeof target.id !== 'string' || !/^[A-Za-z0-9_-]{10,200}$/.test(target.id) ||
+    typeof target.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(target.date) ||
+    !Number.isFinite(Date.parse(target.date)) || new Date(target.date).toISOString().slice(0, 10) !== target.date) throw new SyncError('INVALID_SINGLE_TARGET');
+}
 export type RunResult = { mode: 'dry_run' | 'publish'; scanned: number; success: number; skipped: number; held: number; failed: number; pending: number; code: string; finishedAt: number; cursor?: string };
-export async function runSync(reader: SourceReader, store: SyncStore, mode: 'dry_run' | 'publish', options: { budgetMs?: number; now?: () => number; sleep?: (ms: number) => Promise<void>; cursor?: string } = {}): Promise<RunResult> {
+export async function runSync(reader: SourceReader, store: SyncStore, mode: 'dry_run' | 'publish', options: { budgetMs?: number; now?: () => number; sleep?: (ms: number) => Promise<void>; cursor?: string; target?: SingleTarget } = {}): Promise<RunResult> {
+  const target = options.target ? { ...options.target } : undefined;
+  if (target) assertSingleTarget(target);
   const now = options.now ?? Date.now;
   const sleep = options.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
   const budget = options.budgetMs ?? 40_000;
@@ -128,14 +136,15 @@ export async function runSync(reader: SourceReader, store: SyncStore, mode: 'dry
     const next = cursor ? sorted.findIndex(file => file.id > cursor) : 0;
     const start = next < 0 ? 0 : next;
     // Finish the current sweep at the end; the following run starts a new sweep.
-    const files = sorted.slice(start);
+    const files = target ? listed.filter(file => file.id === target.id) : sorted.slice(start);
+    if (target && files.length !== 1) throw new SyncError(files.length ? 'AMBIGUOUS_SINGLE_TARGET' : 'SINGLE_TARGET_NOT_FOUND');
     for (let index = 0; index < files.length; index++) {
       result.pending = files.length - index;
       if (now() >= deadline || result.scanned >= MAX_DOCUMENTS_PER_RUN) { result.code = 'MORE_PENDING'; break; }
       const meta = files[index];
       // Atomic stop check + fencing + cursor advance, before any document body read.
-      await store.beginItem(meta.id, lease);
-      result.cursor = meta.id;
+      await store.beginItem(meta.id, lease, !target);
+      if (!target) result.cursor = meta.id;
       result.scanned++;
       result.pending--;
       let state = await store.load(meta.id);
@@ -145,14 +154,17 @@ export async function runSync(reader: SourceReader, store: SyncStore, mode: 'dry
         assertApprovedFile(meta);
         const site = await store.siteState(meta.id);
         if (site.version && state?.approvedSiteVersion !== site.version) throw new SyncError(site.code!);
+        if (target && state?.status === 'success' && state.approvedDate !== target.date) throw new SyncError('SINGLE_TARGET_DATE_MISMATCH');
         if (state?.version === meta.version && state.folderId === approvedLocation(meta).folderId && (state.status === 'success' || (mode === 'dry_run' && state.status === 'dry_run'))) { result.skipped++; continue; }
         if (state?.version === meta.version && state.folderId === approvedLocation(meta).folderId && state.status === 'held') { result.held++; continue; }
         if (state?.version === meta.version && state.folderId === approvedLocation(meta).folderId && state.status === 'failed' && ((state.attempts ?? 0) >= 3 || (state.nextAttemptAt ?? 0) > now())) { result.failed++; continue; }
         snapshot = await reader.snapshot(meta.id);
+        if (target && snapshot.meta.id !== target.id) throw new SyncError('SINGLE_TARGET_ID_MISMATCH');
         if (state?.version !== snapshot.meta.version || state.folderId !== approvedLocation(snapshot.meta).folderId) state = { ...state, id: meta.id, name: meta.name, version: snapshot.meta.version, folderId: approvedLocation(snapshot.meta).folderId, sourceHash: snapshot.sourceHash, status: 'held', code: 'UNAPPROVED', attempts: 0, updatedAt: now() };
         state ??= { id: meta.id, name: meta.name, version: snapshot.meta.version, folderId: approvedLocation(snapshot.meta).folderId, sourceHash: snapshot.sourceHash, status: 'held', code: 'UNAPPROVED', attempts: 0, updatedAt: now() };
         const explicitlyApproved = state.approvedHash === snapshot.sourceHash;
         const guide = parseGuide(snapshot, explicitlyApproved ? state.approvedDate : undefined);
+        if (target && guide.date !== target.date) throw new SyncError('SINGLE_TARGET_DATE_MISMATCH');
         if (!explicitlyApproved) {
           if (state.publishedHash) throw new SyncError('REAPPROVAL_REQUIRED');
           if (!await reader.approvedMove(snapshot.meta)) throw new SyncError('APPROVAL_EVIDENCE_REQUIRED', true);

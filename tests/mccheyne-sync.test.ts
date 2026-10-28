@@ -23,7 +23,7 @@ function setup(headings = ['2026년 12월 3일 역대하 2장 제목']) {
     siteState: vi.fn(async () => ({})),
     stop: vi.fn(async () => { control.stopped = true; }),
     control: vi.fn(async () => ({ ...control })),
-    beginItem: vi.fn(async (id, lease) => { if (lease !== lock) throw new SyncError('STALE_RUN'); if (control.stopped) throw new SyncError('STOPPED', false, true); control.cursor = id; }),
+    beginItem: vi.fn(async (id, lease, advanceCursor = true) => { if (lease !== lock) throw new SyncError('STALE_RUN'); if (control.stopped) throw new SyncError('STOPPED', false, true); if (advanceCursor) control.cursor = id; }),
     acquire: vi.fn(async () => { if (lock) return null; lock = `run${++serial}`; return lock; }),
     release: vi.fn(async lease => { if (lease === lock) lock = null; }),
     load: vi.fn(async id => states.get(id)),
@@ -62,6 +62,48 @@ describe('approved document extraction', () => {
   });
 });
 describe('batch processing and approval boundaries', () => {
+  it('publishes only the exact ID/date and preserves the batch cursor and other source states', async () => {
+    const x = setup(['10월 28일 열왕기하 9장 이전', '10월 29일 열왕기하 10장 대상', '10월 30일 열왕기하 11장 다음']);
+    x.control.cursor = x.files[2].id;
+    const target = { id: x.files[1].id, date: '2026-10-29' };
+    const result = await runSync(x.reader, x.store, 'publish', { target });
+    expect(result).toMatchObject({ code: 'COMPLETE', scanned: 1, success: 1, pending: 0 });
+    expect(result.cursor).toBeUndefined(); expect(x.control.cursor).toBe(x.files[2].id);
+    expect([...x.states.keys()]).toEqual([target.id]);
+    expect(x.reader.snapshot).toHaveBeenCalledExactlyOnceWith(target.id);
+    expect(x.store.publish).toHaveBeenCalledOnce();
+    expect(vi.mocked(x.store.publish).mock.calls[0][0]).toMatchObject({ source_id: target.id, date: target.date });
+    expect(await runSync(x.reader, x.store, 'publish', { target })).toMatchObject({ skipped: 1, success: 0 });
+    expect(x.store.publish).toHaveBeenCalledOnce();
+  });
+  it('never substitutes a different document when the selected ID is absent or duplicated', async () => {
+    for (const duplicate of [false, true]) {
+      const x = setup(); const id = duplicate ? x.files[0].id : 'missing_document';
+      if (duplicate) x.files.push(x.files[0]);
+      expect(await runSync(x.reader, x.store, 'publish', { target: { id, date: '2026-12-03' } })).toMatchObject({ scanned: 0, success: 0, code: duplicate ? 'AMBIGUOUS_SINGLE_TARGET' : 'SINGLE_TARGET_NOT_FOUND' });
+      expect(x.reader.snapshot).not.toHaveBeenCalled(); expect(x.store.save).not.toHaveBeenCalled(); expect(x.store.beginItem).not.toHaveBeenCalled();
+    }
+  });
+  it('rejects malformed single targets before storage or Drive access', async () => {
+    const x = setup();
+    for (const target of [{ id: '../outside', date: '2026-10-29' }, { id: x.files[0].id, date: '2026-02-30' }]) {
+      await expect(runSync(x.reader, x.store, 'publish', { target })).rejects.toThrow('INVALID_SINGLE_TARGET');
+    }
+    expect(x.store.acquire).not.toHaveBeenCalled(); expect(x.reader.list).not.toHaveBeenCalled();
+  });
+  it('holds date/ID mismatches, unsafe folders, absent approval, and manual conflicts without falling through', async () => {
+    for (const reason of ['date', 'id', 'folder', 'approval', 'conflict', 'edited']) {
+      const x = setup(['10월 29일 열왕기하 10장 대상', '10월 30일 열왕기하 11장 다른 문서']);
+      if (reason === 'folder') x.files[0].parents = ['unapproved_folder'];
+      if (reason === 'approval') vi.mocked(x.reader.approvedMove).mockResolvedValue(false);
+      if (reason === 'conflict') vi.mocked(x.store.conflict).mockResolvedValue(true);
+      if (reason === 'edited') vi.mocked(x.store.siteState).mockResolvedValue({ code: 'SITE_POST_EDITED', version: 'manual' });
+      if (reason === 'id') vi.mocked(x.reader.snapshot).mockResolvedValue(extractSnapshot(x.files[1], native(x.files[1].id, '10월 29일 열왕기하 10장 다른 ID')));
+      const result = await runSync(x.reader, x.store, 'publish', { target: { id: x.files[0].id, date: reason === 'date' ? '2026-10-30' : '2026-10-29' } });
+      expect(result.success).toBe(0); expect(result.scanned).toBe(1); expect(result.held + result.failed).toBe(1);
+      expect(x.store.publish).not.toHaveBeenCalled(); expect([...x.states.keys()]).toEqual([x.files[0].id]); expect(x.control.cursor).toBeUndefined();
+    }
+  });
   it('checks website changes before skipping an unchanged Drive version', async () => {
     const x = setup(); await x.run();
     vi.mocked(x.store.siteState).mockResolvedValue({ code: 'SITE_POST_DELETED', version: 'deleted-version' });

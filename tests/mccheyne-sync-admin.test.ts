@@ -22,6 +22,7 @@ describe('admin-only sync endpoint', () => {
     { action: 'manual-edit', id: 'document_12345', uid: 'forged-admin' },
     { action: 'manual-delete', id: 'document_12345', uid: 'forged-admin' },
     { action: 'run', role: 'admin', uid: 'forged-admin', isAdmin: true },
+    { action: 'run_one', id: 'document_12345', date: '2026-10-29' },
     { action: 'preview', id: 'document_12345', role: 'admin' },
     { action: 'approve', id: 'document_12345', sourceHash: 'a'.repeat(64), date: '2026-12-03', uid: 'forged-admin' },
     { action: 'config', id: 'document_12345', mode: 'publish', year: 2027 },
@@ -103,6 +104,15 @@ describe('admin-only sync endpoint', () => {
   it('allows authenticated admins and makes status/results non-cacheable', async () => {
     const run = await handler(request({ action: 'run' })); expect(run.status).toBe(200); expect(mocks.run).toHaveBeenCalledOnce();
     expect(run.headers.get('Cache-Control')).toBe('no-store'); expect((await handler(request())).status).toBe(200);
+  });
+  it('requires both an exact source ID and real date for a single run, without a batch cursor', async () => {
+    const target = { id: 'document_12345', date: '2026-10-29' };
+    for (const body of [{ action: 'run_one' }, { action: 'run_one', id: target.id }, { action: 'run_one', ...target, date: '2026-02-30' }, { action: 'run_one', ...target, id: '../outside' }, { action: 'run_one', ...target, cursor: 'document_67890' }]) {
+      expect((await handler(request(body))).status).toBe(400);
+    }
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect((await handler(request({ action: 'run_one', ...target }))).status).toBe(200);
+    expect(mocks.run).toHaveBeenCalledExactlyOnceWith(undefined, undefined, target);
   });
   it('binds approval to an explicit version hash/date and authenticated uid', async () => {
     const body = { action: 'approve', id: 'document_12345', sourceHash: 'a'.repeat(64), date: '2026-12-03' };

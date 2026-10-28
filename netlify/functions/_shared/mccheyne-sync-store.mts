@@ -55,8 +55,8 @@ export function createSyncStore(db: Firestore = getAppDb()): SyncStore {
       // Merge only the stop latch; never invalidate a worker lease or reset its cursor.
       await control.set({ stopped: true, stoppedBy: uid, stoppedAt: Date.now() }, { merge: true });
     },
-    async beginItem(id, lease) {
-      await db.runTransaction(async tx => { await fence(tx, lease); tx.set(control, { cursor: id }, { merge: true }); });
+    async beginItem(id, lease, advanceCursor = true) {
+      await db.runTransaction(async tx => { await fence(tx, lease); if (advanceCursor) tx.set(control, { cursor: id }, { merge: true }); });
     },
     async acquire(durationMs) {
       const lease = randomUUID();

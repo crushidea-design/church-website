@@ -4,23 +4,24 @@ import { createSyncStore, CONTROL_COLLECTION, STATE_COLLECTION } from './mccheyn
 import { createReadOnlySyncStore } from './mccheyne-read-only-store.mjs';
 import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
-import { APPROVED_FOLDER_YEARS, approvedLocation, parseGuide, runSync, SyncError, type RecordState } from './mccheyne-sync-core.mjs';
+import { APPROVED_FOLDER_YEARS, approvedLocation, assertSingleTarget, parseGuide, runSync, SyncError, type RecordState, type SingleTarget } from './mccheyne-sync-core.mjs';
 
 export function syncMode(): 'off' | 'dry_run' | 'publish' {
   const mode = getEnv('MCCHEYNE_SYNC_MODE');
   return mode === 'dry_run' || mode === 'publish' ? mode : 'off';
 }
-export async function executeSync(budgetMs = 40_000, cursor?: string) {
+export async function executeSync(budgetMs = 40_000, cursor?: string, target?: SingleTarget) {
+  if (target) assertSingleTarget(target);
   const mode = syncMode();
   if (mode === 'off') return { code: 'DISABLED', mode };
   if (!initializeFirebaseAdmin()) throw new SyncError('STORAGE_NOT_CONFIGURED', false, true);
   const store = createSyncStore();
   if (mode === 'dry_run') {
     const trial = createReadOnlySyncStore(store);
-    const result = await runSync(createDriveReader(), trial.store, mode, { budgetMs, cursor });
+    const result = await runSync(createDriveReader(), trial.store, mode, { budgetMs, cursor, target });
     return { ...result, records: trial.records() };
   }
-  return runSync(createDriveReader(), store, mode, { budgetMs });
+  return runSync(createDriveReader(), store, mode, { budgetMs, target });
 }
 export async function stopSync(uid: string) {
   // A read-only trial never writes control state either. Its bounded reads may finish.
