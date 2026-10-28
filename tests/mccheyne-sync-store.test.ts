@@ -64,6 +64,16 @@ describe.skipIf(!enabled)('sync transaction contracts (demo emulator only)', () 
     const control = (await db.collection(CONTROL_COLLECTION).doc('current').get()).data()!;
     expect(control).toMatchObject({ stopped: true, stoppedBy: 'verified-admin', cursor: ready.id, lease: null });
   });
+  it('fences a single item without advancing the persisted batch cursor', async () => {
+    const lease = (await store.acquire(60_000))!;
+    await store.beginItem('previous_cursor', lease);
+    await store.beginItem(ready.id, lease, false);
+    expect((await store.control()).cursor).toBe('previous_cursor');
+    await store.stop('verified-admin');
+    await expect(store.beginItem(ready.id, lease, false)).rejects.toThrow('STOPPED');
+    await expect(store.beginItem(ready.id, 'stale', false)).rejects.toThrow('STALE_RUN');
+    expect((await store.control()).cursor).toBe('previous_cursor');
+  });
   it('does not let a racing worker clear the stop latch or change cursor with a stale lease', async () => {
     const old = (await store.acquire(60_000))!;
     await db.collection(CONTROL_COLLECTION).doc('current').update({ expiresAt: 0 });

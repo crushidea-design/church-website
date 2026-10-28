@@ -56,6 +56,9 @@ describe('write-free runtime trial', () => {
     const first = await executeSync(); expect(first).toMatchObject({ scanned: 20, pending: 3 });
     const second = await executeSync(undefined, 'cursor' in first ? first.cursor : undefined);
     expect(second).toMatchObject({ scanned: 3, pending: 0, success: 3 });
+    const single = await executeSync(undefined, undefined, { id: files[0].id, date: '2026-10-23' });
+    expect(single).toMatchObject({ scanned: 1, pending: 0, success: 1 });
+    expect('cursor' in single ? single.cursor : undefined).toBeUndefined();
     expect(store.save).not.toHaveBeenCalled(); expect(store.beginItem).not.toHaveBeenCalled();
   });
 });

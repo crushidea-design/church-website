@@ -8,7 +8,7 @@ export function createReadOnlySyncStore(base: Pick<SyncStore, 'load' | 'conflict
     siteState: id => base.siteState(id),
     stop: async () => { throw new SyncError('READ_ONLY_MODE'); },
     control: async () => { const control = await base.control(); return { ...control, cursor: cursor ?? control.cursor }; },
-    beginItem: async id => { if ((await base.control()).stopped) throw new SyncError('STOPPED', false, true); cursor = id; },
+    beginItem: async (id, _lease, advanceCursor = true) => { if ((await base.control()).stopped) throw new SyncError('STOPPED', false, true); if (advanceCursor) cursor = id; },
     acquire: async () => 'read-only-local',
     release: async () => {},
     load: async id => {

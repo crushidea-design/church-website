@@ -1,6 +1,6 @@
 import type { Config } from '@netlify/functions';
 import { initializeFirebaseAdmin, requireAdmin, jsonResponse } from './_shared/firebase-admin.mjs';
-import { safeError } from './_shared/mccheyne-sync-core.mjs';
+import { assertSingleTarget, safeError } from './_shared/mccheyne-sync-core.mjs';
 import { approveSource, executeSync, holdSitePost, previewSource, stopSync, syncStatus } from './_shared/mccheyne-sync-runtime.mjs';
 
 export default async (req: Request) => {
@@ -16,6 +16,12 @@ export default async (req: Request) => {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== 'object') return respond({ code: 'INVALID_REQUEST' }, 400);
     if (body.action === 'stop') return respond(await stopSync(access.decoded.uid));
+    if (body.action === 'run_one') {
+      const target = { id: body.id, date: body.date };
+      assertSingleTarget(target);
+      if (body.cursor !== undefined) return respond({ code: 'INVALID_SINGLE_TARGET' }, 400);
+      return respond(await executeSync(undefined, undefined, target));
+    }
     if (body.action === 'run') {
       if (body.cursor !== undefined && (typeof body.cursor !== 'string' || !/^[A-Za-z0-9_-]{10,200}$/.test(body.cursor))) return respond({ code: 'INVALID_REQUEST' }, 400);
       return respond(await executeSync(undefined, body.cursor));
