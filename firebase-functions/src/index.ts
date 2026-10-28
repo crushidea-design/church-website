@@ -1,5 +1,6 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
+import { applySyncConfiguration } from './mccheyne-sync.js';
 import { handleSiteRequest } from './site-api.js';
 import { DEFAULT_GEMINI_MODEL } from '../../netlify/functions/_shared/gemini-model.mjs';
 
@@ -63,8 +64,11 @@ export const siteApi = onRequest(
   },
   async (req, res) => {
     process.env.GEMINI_MODEL = siteGeminiModel.value();
+    applySyncConfiguration();
     await handleSiteRequest(req, res);
   },
 );
 
 export { scheduledNotifications, wordFruitAggregate, wordFruitFridayWarning, wordFruitAutoDraft } from './scheduled-jobs.js';
+
+export { mccheyneApprovedSync } from './mccheyne-sync.js';

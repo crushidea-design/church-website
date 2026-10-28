@@ -20,6 +20,7 @@ const CreatePost = React.lazy(() => import('./pages/CreatePost'));
 const EditPost = React.lazy(() => import('./pages/EditPost'));
 const AdminUsers = React.lazy(() => import('./pages/AdminUsers'));
 const AdminContacts = React.lazy(() => import('./pages/AdminContacts'));
+const AdminMccheyneSync = React.lazy(() => import('./pages/AdminMccheyneSync'));
 const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
 const AdminChurchInfo = React.lazy(() => import('./pages/AdminChurchInfo'));
 const AdminNotifications = React.lazy(() => import('./pages/AdminNotifications'));
@@ -127,6 +128,7 @@ export default function App() {
                     <Route path="admin/research-categories" element={<Navigate to="/admin/site-cms" replace />} />
                     <Route path="admin/church-info" element={<AdminChurchInfo />} />
                     <Route path="admin/activity-logs" element={<Navigate to="/admin/site-cms" replace />} />
+                    <Route path="admin/mccheyne-sync" element={<AdminMccheyneSync />} />
                     <Route path="admin/notifications" element={<AdminNotifications />} />
                     <Route path="admin/next-generation" element={<AdminNextGenerationCms />} />
                     <Route path="raah" element={<AdminPastoralNotes />} />

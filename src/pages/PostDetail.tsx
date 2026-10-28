@@ -1,4 +1,5 @@
 import { writeComment } from '../lib/commentsApi';
+import { prepareMccheyneManualChange } from '../lib/mccheyneManualChange';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, deleteDoc, updateDoc, serverTimestamp, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
@@ -282,10 +283,11 @@ export default function PostDetail() {
   };
 
   const handleDeletePost = async () => {
-    if (!id) return;
+    if (!id || !user) return;
     
     setIsDeleting(true);
     try {
+      if (post?.category === 'today_word') await prepareMccheyneManualChange(user, id, 'delete');
       const attachments = getPostAttachments(post);
       await Promise.all(
         attachments.map(async (attachment) => {
