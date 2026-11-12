@@ -703,6 +703,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── 주일학교 2027: 학사 일정·진도표·반 (공개 읽기) ───
+    match /next_generation_school_terms/{termId} {
+      allow read: if true;
+      allow write: if isAdmin() || isNextGenerationPastor();
+    }
+
+    match /next_generation_school_curriculum/{entryId} {
+      allow read: if true;
+      allow write: if isAdmin() || isNextGenerationPastor();
+    }
+
+    match /next_generation_school_classes/{classId} {
+      allow read: if true;
+      allow write: if isAdmin() || isNextGenerationPastor();
+    }
+
     // ─── 말씀 열매: 교사 담당 그룹 ──────────────────────────────────
     match /next_generation_word_fruit_groups/{groupId} {
       // Group catalog is readable by any next-gen authenticated member so
