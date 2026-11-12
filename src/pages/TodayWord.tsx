@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import ArchiveIntroSection from '../components/ArchiveIntroSection';
 import { useTodayWordData } from '../hooks/useTodayWordData';
+import { parseTodayWordDate } from '../lib/todayWordDate';
 
 export default function TodayWord() {
   const { user, role } = useAuth();
@@ -62,8 +63,8 @@ export default function TodayWord() {
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = new Date(e.target.value);
-    if (!isNaN(newDate.getTime())) {
+    const newDate = parseTodayWordDate(e.target.value);
+    if (newDate) {
       setSelectedDate(newDate);
     }
   };
@@ -100,13 +101,16 @@ export default function TodayWord() {
               type="date" 
               value={dateStr}
               onChange={handleDateChange}
-              max={format(new Date(), 'yyyy-MM-dd')}
+              max={role === 'admin' ? undefined : format(new Date(), 'yyyy-MM-dd')}
               className="sr-only"
               aria-hidden="true"
             />
           </div>
         </div>
         <div className="p-6">
+          {role === 'admin' && dateStr > format(new Date(), 'yyyy-MM-dd') && (
+            <p className="mb-4 text-sm text-wood-600">관리자 미래 날짜 미리보기 · {dateStr}</p>
+          )}
           {isSelectedLeapDay && (
             <div className="mb-4 rounded-sm border border-gold-300 bg-gold-50 px-4 py-3 text-sm text-wood-800">
               2월 29일은 윤년 보정일입니다. 맥체인 성경읽기표는 365일 기준이므로 오늘은 밀린 본문을 보충하거나 2월 28일 본문을 다시 읽으며 묵상해 주세요.

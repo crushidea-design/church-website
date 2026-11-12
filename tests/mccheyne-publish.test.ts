@@ -22,6 +22,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import handler from '../netlify/functions/mccheyne-publish.mts';
+import { MCCHEYNE_AUTHOR_UID, MCCHEYNE_AUTHOR_EMAIL, publicationFingerprint } from '../netlify/functions/_shared/mccheyne-site-state.mts';
 import {
   buildGuideTitle, isAuthorized, kstMidnight, markdownToGuideText, postUrl, PUBLIC_ORIGIN, validatePublishRequest,
 } from '../netlify/functions/_shared/mccheyne-publish-core.mts';
@@ -100,6 +101,11 @@ describe('markdownToGuideText', () => {
     const md = '말씀이다 [^1].\n\n다음 문단[^note].\n\n[^1]: 각주 하나\n    이어지는 줄\n\n    또 이어지는 단락\n[^note]: 두 번째\n\n마지막 문단.';
     expect(markdownToGuideText(md)).toBe('  말씀이다.\n\n  다음 문단.\n\n  마지막 문단.');
   });
+  it.each([' ', '  ', '   ', '\t'])('removes indented definitions and continuations (%j)', (indent) => {
+    const md = `본문입니다.[^1]\r\n\r\n${indent}[^1]: 검수 각주\r\n    이어지는 설명\r\n\r\n\t다음 각주 문단\r\n\r\n보존할 본문.`;
+    expect(markdownToGuideText(md)).toBe('  본문입니다.\n\n  보존할 본문.');
+  });
+
   it('strips headings, emphasis, links, images, code, quotes, rules, html', () => {
     const md = '# 제목\n\n**굵게**와 *기울임*과 __밑줄__ 그리고 snake_case_word.\n\n[링크](http://x.y)와 ![그림](a.png) `코드`\n\n> 인용문\n\n---\n\n<b>태그</b> 문단\n\n\\*별표\\*';
     expect(markdownToGuideText(md)).toBe(
@@ -189,6 +195,7 @@ let getFirestore: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   state.docs.clear();
+  state.docs.set(`users/${MCCHEYNE_AUTHOR_UID}`, { uid: MCCHEYNE_AUTHOR_UID, email: MCCHEYNE_AUTHOR_EMAIL, displayName: '이종구', role: 'admin' });
   state.writes = [];
   state.summaryFails = false;
   vi.stubEnv('MCCHEYNE_PUBLISH_KEY', KEY);
@@ -230,13 +237,25 @@ describe('POST /api/mccheyne/publish', () => {
     expect(getFirestore).not.toHaveBeenCalled();
   });
 
-  it('returns NO_TEMPLATE_POST when no guide exists yet', async () => {
+  it('fails closed if the verified author profile is unavailable', async () => {
+    state.docs.delete(`users/${MCCHEYNE_AUTHOR_UID}`);
     const res = await post(valid);
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ ok: false, error: 'NO_TEMPLATE_POST' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ ok: false, error: 'AUTHOR_NOT_CONFIGURED' });
     expect(state.writes).toEqual([]);
   });
 
+  it('ignores request authors and does not need a post as an author template', async () => {
+    expect((await post({ ...valid, authorId: 'attacker', authorName: 'forged' })).status).toBe(200);
+    expect(state.writes.find(w => w.path === 'posts/new_post_id')?.data).toMatchObject({ authorId: MCCHEYNE_AUTHOR_UID, authorName: '이종구' });
+  });
+  it('does not let the external key API resurrect deleted mappings or overwrite manual changes', async () => {
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'deleted1' });
+    expect(await (await post(valid)).json()).toMatchObject({ error: 'SITE_POST_DELETED' });
+    state.docs.set('posts/deleted1', { ...template, content: '수동 변경' });
+    expect(await (await post(valid)).json()).toMatchObject({ error: 'SITE_POST_EDITED' });
+    expect(state.writes).toEqual([]);
+  });
   it('creates a short post with exactly the admin field set, mapping and summary', async () => {
     state.docs.set('posts/tpl', template);
     const res = await post(valid);
@@ -252,7 +271,7 @@ describe('POST /api/mccheyne/publish', () => {
     expect(created.data).toMatchObject({
       title: '10월 27일 열왕기하 8장 항상 등불을 주겠다고 말씀하셨음이라',
       content: '  첫 문단입니다.\n\n  둘째 문단입니다.',
-      category: 'today_word', subCategory: 'general', authorId: 'pastor-uid', authorName: '목사님',
+      category: 'today_word', subCategory: 'general', authorId: MCCHEYNE_AUTHOR_UID, authorName: '이종구',
       commentCount: 0, viewCount: 0, isPublished: true, dateKey: '2026-10-27',
       createdAt: { ts: '2026-10-26T15:00:00.000Z' }, updatedAt: 'SERVER_TS', sortOrder: expect.any(Number),
     });
@@ -263,7 +282,7 @@ describe('POST /api/mccheyne/publish', () => {
 
     const summary = state.writes.find((w) => w.op === 'summary')!;
     expect(summary.path).toBe('settings/latest_posts_summary');
-    expect(summary.data).toMatchObject({ today_word: { id: 'new_post_id', category: 'today_word', authorName: '목사님', sermonCategoryId: null } });
+    expect(summary.data).toMatchObject({ today_word: { id: 'new_post_id', category: 'today_word', authorName: '이종구', sermonCategoryId: null } });
   });
 
   it('stores long content as a snippet plus 10000-char chunks', async () => {
@@ -291,6 +310,16 @@ describe('POST /api/mccheyne/publish', () => {
     expect(state.writes.some((w) => w.op === 'summary')).toBe(false);
   });
 
+  it('atomically retracts a published guide from the home summary on downgrade', async () => {
+    state.docs.set('posts/existing1', { ...template, isPublished: true });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', publishedFingerprint: publicationFingerprint(state.docs.get('posts/existing1'), '') });
+    state.docs.set('settings/latest_posts_summary', { today_word: { id: 'existing1', content: 'old public text' } });
+    expect((await post({ ...valid, status: 'draft' })).status).toBe(200);
+    expect(state.writes).toContainEqual(expect.objectContaining({ op: 'update', path: 'posts/existing1', data: expect.objectContaining({ isPublished: false }) }));
+    expect(state.writes).toContainEqual({ op: 'update', path: 'settings/latest_posts_summary', data: { today_word: 'DELETE_FIELD', updatedAt: 'SERVER_TS' } });
+    expect(state.writes.some(w => w.op === 'summary')).toBe(false);
+  });
+
   it('still succeeds when the home summary update fails', async () => {
     state.docs.set('posts/tpl', template);
     state.summaryFails = true;
@@ -302,7 +331,7 @@ describe('POST /api/mccheyne/publish', () => {
   it('updates the existing post for the same source_id, preserving identity and deleting stale chunks', async () => {
     state.docs.set('posts/tpl', template);
     state.docs.set('posts/existing1', { ...template, authorId: 'original', createdAt: 'orig-created', commentCount: 3, viewCount: 9 });
-    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created' });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created', publishedFingerprint: publicationFingerprint(state.docs.get('posts/existing1'), '') });
     state.docs.set('post_contents/existing1_0', { postId: 'existing1', index: 0 });
     state.docs.set('post_contents/existing1_1', { postId: 'existing1', index: 1 });
     state.docs.set('post_contents/existing1_2', { postId: 'existing1', index: 2 });
@@ -328,7 +357,7 @@ describe('POST /api/mccheyne/publish', () => {
 
   it('removes all chunks and long-content fields when an update becomes short', async () => {
     state.docs.set('posts/existing1', { ...template });
-    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created' });
+    state.docs.set(`mccheyne_publish_sources/${SOURCE}`, { postId: 'existing1', createdAt: 'map-created', publishedFingerprint: publicationFingerprint(state.docs.get('posts/existing1'), '') });
     state.docs.set('post_contents/existing1_0', { postId: 'existing1', index: 0 });
     expect((await post(valid)).status).toBe(200);
     const update = state.writes.find((w) => w.op === 'update')!;

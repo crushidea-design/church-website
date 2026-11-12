@@ -100,7 +100,7 @@ export default function Sermons() {
     }
 
     const sermonsQuery = query(
-      collection(db, 'posts'),
+      collection(db, 'posts'), where('isPublished', '==', true),
       ...baseConstraints,
       limit(1000)
     );
@@ -220,7 +220,7 @@ export default function Sermons() {
 
       while (true) {
         const repairQuery = query(
-          collection(db, 'posts'),
+          collection(db, 'posts'), where('isPublished', '==', true),
           where('category', '==', 'sermon'),
           ...(lastDoc ? [startAfter(lastDoc)] : []),
           limit(500)

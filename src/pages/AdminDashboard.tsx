@@ -147,6 +147,7 @@ export default function AdminDashboard() {
   }
 
   const adminItems: AdminItem[] = [
+    { title: '맥체인 검수 문서 등록', description: '검수완료 문서의 자동 등록 결과를 확인하고 필요할 때 지금 반영합니다.', icon: RefreshCw, path: '/admin/mccheyne-sync', color: 'bg-amber-50 text-amber-700 border-amber-100' },
     {
       title: '기본 홈페이지 CMS',
       description: '홈/소개/아카이브/커뮤니티를 단일 CMS 화면에서 통합 관리합니다.',

@@ -10,7 +10,7 @@ export async function fetchResourcePosts(resourceIds: string[]): Promise<NextGen
   // Filtering only subCategory on the server would omit posts whose canonical
   // nextGenerationTabSlug differs from their legacy category (or lacks one).
   const snapshot = await getDocs(query(
-    collection(db, 'posts'),
+    collection(db, 'posts'), where('isPublished', '==', true),
     where('category', '==', 'next_generation'),
     orderBy('createdAt', 'desc'),
     limit(300),

@@ -16,6 +16,8 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../lib/auth';
 import { getMcheyneReadingPlan, ReadingPassage, isLeapDay } from '../lib/mcheyneUtils';
 import { useStore } from '../store/useStore';
+import { useSearchParams } from 'react-router-dom';
+import { resolveTodayWordDate } from '../lib/todayWordDate';
 
 const toLocalDateKey = (date: Date) => {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -56,7 +58,13 @@ export interface UseTodayWordDataResult {
 
 export function useTodayWordData(): UseTodayWordDataResult {
   const { user, role } = useAuth();
-  const [selectedDate, setSelectedDateRaw] = useState<Date>(new Date());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedDate = searchParams.get('date');
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const selectedDate = useMemo(
+    () => resolveTodayWordDate(requestedDate, role === 'admin', today),
+    [requestedDate, role, today],
+  );
   const [latestPost, setLatestPost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -76,7 +84,13 @@ export function useTodayWordData(): UseTodayWordDataResult {
   const setTodayWordProgress = useStore((state) => state.setTodayWordProgress);
 
   const setSelectedDate = (date: Date) => {
-    setSelectedDateRaw(date);
+    if (Number.isNaN(date.getTime())) return;
+    const allowedDate = resolveTodayWordDate(format(date, 'yyyy-MM-dd'), role === 'admin', today);
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.set('date', format(allowedDate, 'yyyy-MM-dd'));
+      return next;
+    });
     setReadingProgress([]);
     setMeditation('');
   };
@@ -84,6 +98,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
   // Fetch post + user progress whenever date or auth changes
   useEffect(() => {
     let ignore = false;
+    setLatestPost(null);
 
     const fetchData = async () => {
       setLoading(true);
@@ -93,6 +108,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
         try {
           const byDateKeyQuery = query(
             collection(db, 'posts'),
+            ...(role === 'admin' ? [] : [where('isPublished', '==', true)]),
             where('category', '==', 'today_word'),
             where('dateKey', '==', dateStr),
             limit(10),
@@ -111,6 +127,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
             end.setHours(23, 59, 59, 999);
             const byCreatedAtQuery = query(
               collection(db, 'posts'),
+            ...(role === 'admin' ? [] : [where('isPublished', '==', true)]),
               where('category', '==', 'today_word'),
               where('createdAt', '>=', start),
               where('createdAt', '<=', end),
@@ -122,6 +139,7 @@ export function useTodayWordData(): UseTodayWordDataResult {
             console.warn('TodayWord createdAt query failed, using fallback:', err);
             const fallbackQuery = query(
               collection(db, 'posts'),
+            ...(role === 'admin' ? [] : [where('isPublished', '==', true)]),
               where('category', '==', 'today_word'),
               limit(500),
             );

@@ -36,11 +36,65 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     await env.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
       for (const uid of ['owner', 'other']) await db.doc(`users/${uid}`).set({ uid, email: `${uid}@example.com`, displayName: uid, role: 'regular', createdAt: new Date() });
-      await db.doc('posts/post1').set({ title: 'Post', content: 'Body', category: 'community', authorId: 'owner', authorName: 'Owner', createdAt: new Date(), commentCount: 0 });
+      await db.doc('posts/post1').set({ title: 'Post', content: 'Body', category: 'community', isPublished: true, authorId: 'owner', authorName: 'Owner', createdAt: new Date(), commentCount: 0 });
       await context.storage().ref('pdfs/legacy.pdf').put(new Uint8Array([1]), { contentType: 'application/pdf' });
     });
   });
   afterAll(async () => { await env?.cleanup(); });
+
+  it('keeps non-sermon drafts and their full content admin-only, including after unpublishing', async () => {
+    const admin = env.authenticatedContext('admin', { email: 'crushidea@gmail.com', email_verified: true }).firestore();
+    const readers = [env.unauthenticatedContext(), env.authenticatedContext('owner'), env.authenticatedContext('other')];
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('posts/draft').set({ category: 'today_word', authorId: 'owner', isPublished: false });
+      await db.doc('posts/published').set({ category: 'today_word', authorId: 'owner', isPublished: true });
+      await db.doc('post_contents/draft_0').set({ postId: 'draft', index: 0, content: 'private draft' });
+      await db.doc('post_contents/published_0').set({ postId: 'published', index: 0, content: 'published body' });
+    });
+    for (const context of readers) {
+      const db = context.firestore();
+      await assertFails(db.doc('posts/draft').get());
+      await assertFails(db.doc('post_contents/draft_0').get());
+      await assertFails(db.collection('post_contents').where('postId', '==', 'draft').get());
+      await assertFails(db.collection('posts').where('category', '==', 'today_word').get());
+      const publicPosts = await assertSucceeds(db.collection('posts').where('category', '==', 'today_word').where('isPublished', '==', true).get());
+      expect(publicPosts.docs.map(doc => doc.id)).toEqual(['published']);
+      await assertSucceeds(db.doc('post_contents/published_0').get());
+    }
+    await assertSucceeds(admin.doc('posts/draft').get());
+    await assertSucceeds(admin.doc('post_contents/draft_0').get());
+    await env.withSecurityRulesDisabled(context => context.firestore().doc('posts/published').update({ isPublished: false }));
+    for (const context of readers) {
+      await assertFails(context.firestore().doc('posts/published').get());
+      await assertFails(context.firestore().doc('post_contents/published_0').get());
+    }
+    await assertSucceeds(admin.doc('posts/published').get());
+  });
+
+  it('requires legacy backfill and retains existing sermon membership restrictions', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('posts/legacy').set({ category: 'today_word', authorId: 'owner' });
+      await context.firestore().doc('posts/sermon').set({ category: 'sermon', authorId: 'owner', isPublished: true });
+    });
+    await assertFails(env.unauthenticatedContext().firestore().doc('posts/legacy').get());
+    await env.withSecurityRulesDisabled(context => context.firestore().doc('posts/legacy').update({ isPublished: true }));
+    await assertSucceeds(env.unauthenticatedContext().firestore().doc('posts/legacy').get());
+    await assertFails(env.unauthenticatedContext().firestore().doc('posts/sermon').get());
+    await assertSucceeds(env.authenticatedContext('other').firestore().doc('posts/sermon').get());
+  });
+
+  it('denies stale summary snippets to public readers while retaining other public settings', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('settings/latest_posts_summary').set({ today_word: { id: 'draft', content: 'stale snippet' } });
+      await context.firestore().doc('settings/church_info').set({ name: 'church' });
+    });
+    for (const context of [env.unauthenticatedContext(), env.authenticatedContext('other')]) {
+      await assertFails(context.firestore().doc('settings/latest_posts_summary').get());
+      await assertSucceeds(context.firestore().doc('settings/church_info').get());
+    }
+    await assertSucceeds(env.authenticatedContext('admin', { email: 'crushidea@gmail.com', email_verified: true }).firestore().doc('settings/latest_posts_summary').get());
+  });
 
   it('allows uploads with the authenticated owner and blocks forged metadata', async () => {
     const owner = env.authenticatedContext('owner').storage();
@@ -124,11 +178,11 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     expect(responses.map((response) => response.status)).toEqual([200, 200, 200]);
     const db = env.authenticatedContext('owner').firestore();
     expect((await db.doc('posts/post1').get()).data()?.commentCount).toBe(2);
-    expect((await db.collection('comments').get()).size).toBe(2);
+    expect((await db.collection('comments').where('authorId', '==', 'owner').get()).size).toBe(2);
     expect((await call('DELETE', 'one', 'other')).status).toBe(403);
     expect((await call('DELETE', 'one')).status).toBe(200);
     expect((await call('DELETE', 'one')).status).toBe(200);
     expect((await db.doc('posts/post1').get()).data()?.commentCount).toBe(1);
-    expect((await db.collection('comments').get()).size).toBe(1);
-  });
+    expect((await db.collection('comments').where('authorId', '==', 'owner').get()).size).toBe(1);
+  }, 15000);
 });

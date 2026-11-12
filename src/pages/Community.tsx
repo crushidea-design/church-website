@@ -27,7 +27,7 @@ export default function Community() {
         setError(null);
 
         const q = query(
-          collection(db, 'posts'),
+          collection(db, 'posts'), where('isPublished', '==', true),
           where('category', '==', 'community'),
           orderBy('createdAt', 'desc'),
           limit(20)
@@ -60,7 +60,7 @@ export default function Community() {
 
     try {
       const q = query(
-        collection(db, 'posts'),
+        collection(db, 'posts'), where('isPublished', '==', true),
         where('category', '==', 'community'),
         orderBy('createdAt', 'desc'),
         startAfter(community.lastDoc),

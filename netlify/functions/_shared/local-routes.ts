@@ -8,11 +8,12 @@ import * as calendarCallback from './raah-calendar-callback.mts';
 import * as ai from '../raah-ai-assist.mts';
 import * as comments from '../post-comments.mts';
 import * as attachments from '../delete-attachment.mts';
+import * as mccheyneSync from '../mccheyne-sync.mts';
 import * as mccheynePublish from '../mccheyne-publish.mts';
 
 /** Use the production handlers locally, including their path params and authorization. */
 export function registerLocalRoutes(app: Express) {
-  const modules = [management, calendar, communion, careTasks, calendarCallback, ai, comments, attachments, mccheynePublish];
+  const modules = [management, calendar, communion, careTasks, calendarCallback, ai, comments, attachments, mccheynePublish, mccheyneSync];
   for (const module of modules) {
     const paths = module.config.path;
     for (const path of (Array.isArray(paths) ? paths : [paths])) {

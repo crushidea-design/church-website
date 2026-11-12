@@ -26,7 +26,7 @@ export default function Journal() {
         setError(null);
 
         const q = query(
-          collection(db, 'posts'),
+          collection(db, 'posts'), where('isPublished', '==', true),
           where('category', '==', 'journal'),
           orderBy('createdAt', 'desc'),
           limit(20)
@@ -59,7 +59,7 @@ export default function Journal() {
 
     try {
       const q = query(
-        collection(db, 'posts'),
+        collection(db, 'posts'), where('isPublished', '==', true),
         where('category', '==', 'journal'),
         orderBy('createdAt', 'desc'),
         startAfter(journal.lastDoc),
