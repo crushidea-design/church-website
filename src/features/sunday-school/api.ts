@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   collection,
+  deleteDoc,
+  deleteField,
   doc,
   getDocs,
   limit,
@@ -9,6 +11,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -23,6 +26,11 @@ import {
   SCHOOL_TERMS_COLLECTION,
 } from './types';
 import type { CurriculumEntry, SchoolClass, SchoolTerm } from './types';
+import {
+  buildHeidelbergTopics,
+  buildPreparationTabs,
+  pickMissing,
+} from './admin/preparationCatalog';
 
 export interface SundaySchoolCatalog {
   terms: SchoolTerm[];
@@ -30,6 +38,8 @@ export interface SundaySchoolCatalog {
   classes: SchoolClass[];
   loading: boolean;
   usingFallback: boolean;
+  /** Per collection: true while the collection is empty/unreadable and defaults are shown. */
+  fallback: { terms: boolean; curriculum: boolean; classes: boolean };
 }
 
 interface Slot<T> {
@@ -85,6 +95,7 @@ export function useSundaySchoolCatalog(): SundaySchoolCatalog {
     classes: classes.items,
     loading: !(terms.ready && curriculum.ready && classes.ready),
     usingFallback: terms.fallback || curriculum.fallback || classes.fallback,
+    fallback: { terms: terms.fallback, curriculum: curriculum.fallback, classes: classes.fallback },
   };
 }
 
@@ -118,3 +129,97 @@ function upsert<T extends { id: string }>(collectionName: string, item: T) {
 export const upsertSchoolTerm = (term: SchoolTerm) => upsert(SCHOOL_TERMS_COLLECTION, term);
 export const upsertCurriculumEntry = (entry: CurriculumEntry) => upsert(SCHOOL_CURRICULUM_COLLECTION, entry);
 export const upsertSchoolClass = (schoolClass: SchoolClass) => upsert(SCHOOL_CLASSES_COLLECTION, schoolClass);
+
+const OPTIONAL_CURRICULUM_FIELDS = ['session', 'lordsDay', 'questions', 'note', 'isCommunionSunday'] as const;
+
+/** Saves an entry and clears optional fields that were emptied in the editor. */
+export function saveCurriculumEntry(entry: CurriculumEntry) {
+  const data: Record<string, unknown> = { ...entry, updatedAt: serverTimestamp() };
+  for (const field of OPTIONAL_CURRICULUM_FIELDS) {
+    if (entry[field] === undefined) data[field] = deleteField();
+  }
+  return setDoc(doc(db, SCHOOL_CURRICULUM_COLLECTION, entry.id), data, { merge: true });
+}
+
+export const deleteCurriculumEntry = (id: string) => deleteDoc(doc(db, SCHOOL_CURRICULUM_COLLECTION, id));
+
+export interface PreparationCatalogResult {
+  tabs: { existing: number; created: number };
+  topics: { existing: number; created: number };
+}
+
+const BATCH_LIMIT = 400;
+
+/**
+ * Creates the hidden 2027 resource tabs and Heidelberg topics that do not exist
+ * yet. Existing documents are never read back or modified.
+ */
+export async function createMissingPreparationCatalog(): Promise<PreparationCatalogResult> {
+  const [tabSnap, topicSnap] = await Promise.all([
+    getDocs(collection(db, 'next_generation_resource_tabs')),
+    getDocs(collection(db, 'next_generation_topics')),
+  ]);
+  const allTabs = buildPreparationTabs();
+  const allTopics = buildHeidelbergTopics();
+  const missingTabs = pickMissing(
+    tabSnap.docs.map((d) => d.id),
+    allTabs,
+  );
+  const missingTopics = pickMissing(
+    topicSnap.docs.map((d) => d.id),
+    allTopics,
+  );
+
+  const writes: Array<{ collectionName: string; slug: string; data: object }> = [
+    ...missingTabs.map((item) => ({ collectionName: 'next_generation_resource_tabs', slug: item.slug, data: item })),
+    ...missingTopics.map((item) => ({ collectionName: 'next_generation_topics', slug: item.slug, data: item })),
+  ];
+  for (let start = 0; start < writes.length; start += BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    for (const write of writes.slice(start, start + BATCH_LIMIT)) {
+      batch.set(doc(db, write.collectionName, write.slug), {
+        ...write.data,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  return {
+    tabs: { existing: allTabs.length - missingTabs.length, created: missingTabs.length },
+    topics: { existing: allTopics.length - missingTopics.length, created: missingTopics.length },
+  };
+}
+
+export interface PreparationPostSummary {
+  id: string;
+  title: string;
+  tabSlug: string;
+  weekKey: string;
+  topicId: string;
+}
+
+/** Unpublished next-generation posts (readable by the site admin only). */
+export async function fetchUnpublishedPreparationPosts(): Promise<PreparationPostSummary[]> {
+  // Same shape as the deployed isPublished + category + createdAt index.
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'posts'),
+      where('isPublished', '==', false),
+      where('category', '==', 'next_generation'),
+      orderBy('createdAt', 'desc'),
+      limit(100),
+    ),
+  );
+  return snapshot.docs.map((postDoc) => {
+    const data = postDoc.data();
+    return {
+      id: postDoc.id,
+      title: typeof data.title === 'string' ? data.title : '',
+      tabSlug: data.nextGenerationTabSlug || data.subCategory || '',
+      weekKey: data.nextGenerationWeekKey || '',
+      topicId: data.nextGenerationTopicId || '',
+    };
+  });
+}

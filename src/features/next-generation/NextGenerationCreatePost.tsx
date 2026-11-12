@@ -1,7 +1,7 @@
 // "Create post" form extracted from NextGeneration.tsx. Handles the
 // new-post flow for next-generation posts (uploads, topic selection,
 // weekly grouping). Self-contained: no props from the parent.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ArrowLeft, FileText, Loader2, X } from 'lucide-react';
@@ -39,12 +39,16 @@ import {
   supportsNextGenerationYoutubeUrl,
   youngAdultResourceTabs,
 } from './sharedConstants';
+import { PublishModeOptions, SchoolWeekHint } from '../sunday-school/admin/UploadPreparationPanels';
+import type { PublishMode } from '../sunday-school/admin/UploadPreparationPanels';
+import { getAdminDepartmentTopics } from '../sunday-school/admin/uploadHelpers';
 
 const NEXT_GENERATION_CATEGORY = 'next_generation';
 
 export default function NextGenerationCreatePost() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
+  const isAdmin = role === 'admin';
   const { tabs: cmsTabs, topics: cmsTopics } = useNextGenerationCms();
   const [searchParams] = useSearchParams();
   const mergedTabs: ResourceTabItem[] = useMemo(
@@ -57,6 +61,7 @@ export default function NextGenerationCreatePost() {
         icon: iconMap[tab.iconName] || tab.icon || FileText,
         departmentSlug: tab.departmentSlug || (youngAdultResourceTabs.some((item) => item.id === (tab.id || tab.slug)) ? 'young-adults' : 'elementary'),
         isGuestOpen: tab.isGuestOpen,
+        isVisible: tab.isVisible !== false,
         isWeeklyGroup: tab.isWeeklyGroup || (tab.id === 'elementary_weekly'),
         useWeekKey: tab.useWeekKey || isElementaryWeeklyResource(tab.id || tab.slug),
         useTopic: tab.useTopic || supportsNextGenerationTopic(tab.id || tab.slug),
@@ -71,6 +76,7 @@ export default function NextGenerationCreatePost() {
       mergedTabs.filter((tab) =>
         tab.departmentSlug === activeTab.departmentSlug &&
         tab.useWeekKey &&
+        tab.isVisible !== false &&
         !tab.isWeeklyGroup &&
         tab.id !== 'family_worship'
       ),
@@ -81,6 +87,8 @@ export default function NextGenerationCreatePost() {
   );
   const [selectedTopicId, setSelectedTopicId] = useState(requestedTopic || NEXT_GENERATION_UNASSIGNED_TOPIC_ID);
   const [weekKey, setWeekKey] = useState(getCurrentSundayKey());
+  const [publishMode, setPublishMode] = useState<PublishMode>('public');
+  const [topicTouched, setTopicTouched] = useState(false);
   const backPath = requestedTopic
     ? `${getResourceDepartmentPath(activeTab.id, mergedTabs)}?resource=${activeTab.id}&topic=${requestedTopic}`
     : `${getResourceDepartmentPath(activeTab.id, mergedTabs)}?resource=${activeTab.id}`;
@@ -100,9 +108,16 @@ export default function NextGenerationCreatePost() {
   const usesTopic = !!selectedTab?.useTopic;
   const topicDepartmentSlug = selectedTab?.departmentSlug || activeTab.departmentSlug;
   const departmentTopics = useMemo(
-    () => getDepartmentTopics(cmsTopics, topicDepartmentSlug),
-    [cmsTopics, topicDepartmentSlug]
+    () =>
+      isAdmin
+        ? getAdminDepartmentTopics(cmsTopics, topicDepartmentSlug)
+        : getDepartmentTopics(cmsTopics, topicDepartmentSlug),
+    [cmsTopics, topicDepartmentSlug, isAdmin]
   );
+  const selectedTabHidden = selectedTab?.isVisible === false;
+  // Only admins can prepare unpublished posts; everyone else always publishes.
+  const publishPrivately = isAdmin && (selectedTabHidden || publishMode === 'private');
+  const suggestTopic = useCallback((topicId: string) => setSelectedTopicId(topicId), []);
   const supportsYoutubeUrl = supportsNextGenerationYoutubeUrl(selectedResourceId);
   const weeklyMaterialFileCount = Object.values(weeklyMaterialFiles).reduce((total, files) => total + files.length, 0);
 
@@ -233,7 +248,7 @@ export default function NextGenerationCreatePost() {
             viewCount: 0,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-            isPublished: true,
+            isPublished: !publishPrivately,
             nextGenerationWeekKey: weekKey,
           };
 
@@ -329,7 +344,7 @@ export default function NextGenerationCreatePost() {
         viewCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        isPublished: true,
+        isPublished: !publishPrivately,
       };
 
       if (usesWeekKey) {
@@ -553,6 +568,14 @@ export default function NextGenerationCreatePost() {
                 <p className="mt-2 text-xs font-bold text-slate-500">
                   이번주 강의자료 탭은 이 날짜가 이번 주일과 같은 자료를 모아 보여줍니다.
                 </p>
+                {isAdmin && (
+                  <SchoolWeekHint
+                    weekKey={weekKey}
+                    topicIds={departmentTopics.map((topic) => topic.id)}
+                    autoSelectEnabled={usesTopic && !topicTouched && !requestedTopic}
+                    onSuggestTopic={suggestTopic}
+                  />
+                )}
               </div>
             )}
 
@@ -564,7 +587,10 @@ export default function NextGenerationCreatePost() {
                 <select
                   id="next-generation-topic"
                   value={selectedTopicId}
-                  onChange={(event) => setSelectedTopicId(event.target.value)}
+                  onChange={(event) => {
+                    setTopicTouched(true);
+                    setSelectedTopicId(event.target.value);
+                  }}
                   className="block w-full rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 >
                   {departmentTopics.length === 0 ? (
@@ -581,6 +607,16 @@ export default function NextGenerationCreatePost() {
                   같은 세부 탭 안에서도 시리즈 주제별로 자료를 묶어 보여줍니다. 주제는 관리자 화면의 다음세대 CMS &gt; 주제 관리에서 추가합니다.
                 </p>
               </div>
+            )}
+
+            {isAdmin && (
+              <PublishModeOptions
+                value={publishMode}
+                onChange={setPublishMode}
+                forcedPrivateReason={
+                  selectedTabHidden ? '선택한 탭이 숨김 상태라 비공개로만 등록됩니다. 개강 전환 때 탭과 함께 공개합니다.' : null
+                }
+              />
             )}
 
             <div>
