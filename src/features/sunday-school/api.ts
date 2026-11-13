@@ -141,6 +141,16 @@ export function saveCurriculumEntry(entry: CurriculumEntry) {
   for (const field of OPTIONAL_CURRICULUM_FIELDS) {
     if (entry[field] === undefined) data[field] = deleteField();
   }
+  // merge: true merges nested maps, so emptied memory fields must be deleted one by one.
+  if (entry.memory === undefined) {
+    data.memory = deleteField();
+  } else {
+    const memory: Record<string, unknown> = {};
+    for (const key of ['question', 'jaram', 'seum', 'didim'] as const) {
+      memory[key] = entry.memory[key] === undefined ? deleteField() : entry.memory[key];
+    }
+    data.memory = memory;
+  }
   return setDoc(doc(db, SCHOOL_CURRICULUM_COLLECTION, entry.id), data, { merge: true });
 }
 

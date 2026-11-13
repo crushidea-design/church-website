@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { deleteCurriculumEntry, saveCurriculumEntry } from '../api';
 import { HEIDELBERG_LORDS_DAYS } from '../heidelberg';
 import { findTermForDate } from '../schedule';
+import { MEMORY_CLASS_IDS, MEMORY_LEVEL_LABELS, buildMemory, hasMemoryText, memoryWarnings } from '../memory';
 import type { CurriculumEntry, CurriculumEntryKind, SchoolTerm } from '../types';
 import { toLocalDateKey } from '../../../lib/nextGenerationResources';
 import {
@@ -31,7 +32,14 @@ interface FormState {
   title: string;
   note: string;
   isCommunionSunday: boolean;
+  memoryQuestion: string;
+  memoryJaram: string;
+  memorySeum: string;
+  memoryDidim: string;
 }
+
+const MEMORY_FORM_KEYS = { jaram: 'memoryJaram', seum: 'memorySeum', didim: 'memoryDidim' } as const;
+const MEMORY_CLASS_NAMES = { jaram: '자람반', seum: '세움반', didim: '디딤반' } as const;
 
 const EMPTY_FORM: FormState = {
   date: '',
@@ -43,6 +51,10 @@ const EMPTY_FORM: FormState = {
   title: '',
   note: '',
   isCommunionSunday: false,
+  memoryQuestion: '',
+  memoryJaram: '',
+  memorySeum: '',
+  memoryDidim: '',
 };
 
 const toNumber = (value: string) => (value.trim() === '' ? undefined : Number(value));
@@ -61,6 +73,12 @@ function formToEntryFields(form: FormState) {
     title: form.title.trim(),
     note: form.note.trim() || undefined,
     isCommunionSunday: form.isCommunionSunday ? true : undefined,
+    memory: buildMemory({
+      question: form.memoryQuestion,
+      jaram: form.memoryJaram,
+      seum: form.memorySeum,
+      didim: form.memoryDidim,
+    }),
   };
 }
 
@@ -74,6 +92,10 @@ const entryToForm = (entry: CurriculumEntry): FormState => ({
   title: entry.title,
   note: entry.note ?? '',
   isCommunionSunday: !!entry.isCommunionSunday,
+  memoryQuestion: entry.memory?.question === undefined ? '' : String(entry.memory.question),
+  memoryJaram: entry.memory?.jaram ?? '',
+  memorySeum: entry.memory?.seum ?? '',
+  memoryDidim: entry.memory?.didim ?? '',
 });
 
 export default function SundaySchoolCurriculumSection({
@@ -111,6 +133,7 @@ export default function SundaySchoolCurriculumSection({
     term && fields
       ? validateCurriculumEntry(fields, { term, existingIds: curriculum.map((entry) => entry.id), editingId })
       : { errors: [], warnings: [] };
+  const allWarnings = fields ? [...validation.warnings, ...memoryWarnings(fields.memory, fields.questions)] : [];
 
   const update = (patch: Partial<FormState>) => setForm((current) => (current ? { ...current, ...patch } : current));
 
@@ -143,7 +166,7 @@ export default function SundaySchoolCurriculumSection({
   const handleSave = async () => {
     if (!term || !fields || validation.errors.length > 0) return;
     const dateChanged = editingId !== null && editingId !== fields.date;
-    if (validation.warnings.length > 0 && !window.confirm(`${validation.warnings.join('\n')}\n계속 저장할까요?`)) return;
+    if (allWarnings.length > 0 && !window.confirm(`${allWarnings.join('\n')}\n계속 저장할까요?`)) return;
     if (dateChanged && !window.confirm('날짜가 바뀌어 기존 날짜의 항목은 삭제되고 새 날짜로 저장됩니다. 진행할까요?')) return;
 
     const entry: CurriculumEntry = {
@@ -250,8 +273,38 @@ export default function SundaySchoolCurriculumSection({
               성찬 주일
             </label>
           </div>
+          <div className="mt-3 rounded-lg border border-wood-200 bg-white p-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <p className="text-sm font-bold text-wood-900">이번 주 암송</p>
+              <label className="text-xs font-bold text-wood-600">암송 문항
+                <input
+                  type="number"
+                  min={1}
+                  max={129}
+                  className={`${inputClass} w-28`}
+                  value={form.memoryQuestion}
+                  placeholder={form.qFrom || '문'}
+                  onChange={(e) => update({ memoryQuestion: e.target.value })}
+                />
+              </label>
+              <p className="pb-2 text-xs text-wood-500">한 주에 여러 문을 배우면 암송할 문 하나만 정합니다. 씨앗반은 암송하지 않습니다.</p>
+            </div>
+            <div className="mt-2 grid gap-2 md:grid-cols-3">
+              {MEMORY_CLASS_IDS.map((id) => (
+                <label key={id} className="text-xs font-bold text-wood-600">
+                  {MEMORY_CLASS_NAMES[id]} · {MEMORY_LEVEL_LABELS[id]}
+                  <textarea
+                    rows={id === 'didim' ? 5 : 3}
+                    className={inputClass}
+                    value={form[MEMORY_FORM_KEYS[id]]}
+                    onChange={(e) => update({ [MEMORY_FORM_KEYS[id]]: e.target.value } as Partial<FormState>)}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
           {validation.errors.map((message) => <p key={message} className="mt-2 text-xs font-bold text-red-600">{message}</p>)}
-          {validation.warnings.map((message) => <p key={message} className="mt-2 text-xs font-bold text-amber-700">{message}</p>)}
+          {allWarnings.map((message) => <p key={message} className="mt-2 text-xs font-bold text-amber-700">{message}</p>)}
           <div className="mt-3 flex gap-2">
             <button type="button" className={primaryButtonClass} disabled={busy || validation.errors.length > 0} onClick={handleSave}>
               {busy ? '저장 중...' : '저장'}
@@ -262,7 +315,7 @@ export default function SundaySchoolCurriculumSection({
       )}
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm">
+        <table className="w-full min-w-[940px] text-left text-sm">
           <thead>
             <tr className="text-xs text-wood-500">
               <th className="p-1.5">날짜</th>
@@ -274,12 +327,13 @@ export default function SundaySchoolCurriculumSection({
               <th className="p-1.5">제목</th>
               <th className="p-1.5">비고</th>
               <th className="p-1.5">성찬</th>
+              <th className="p-1.5">암송</th>
               <th className="p-1.5" />
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={10} className="p-3 text-center text-xs text-wood-500">이 구간에 등록된 항목이 없습니다.</td></tr>
+              <tr><td colSpan={11} className="p-3 text-center text-xs text-wood-500">이 구간에 등록된 항목이 없습니다.</td></tr>
             )}
             {rows.map((entry) => (
               <tr key={entry.id} className="border-t border-wood-100 align-top">
@@ -292,6 +346,14 @@ export default function SundaySchoolCurriculumSection({
                 <td className="p-1.5">{entry.title}</td>
                 <td className="p-1.5 text-wood-600">{entry.note ?? ''}</td>
                 <td className="p-1.5">{entry.isCommunionSunday ? '✓' : ''}</td>
+                <td className="p-1.5 text-wood-600">
+                  {entry.memory?.question ? `${entry.memory.question}문` : ''}
+                  {hasMemoryText(entry.memory) && (
+                    <span className="ml-1 text-xs">
+                      ({MEMORY_CLASS_IDS.filter((id) => entry.memory?.[id]).map((id) => MEMORY_CLASS_NAMES[id].slice(0, 2)).join('·')})
+                    </span>
+                  )}
+                </td>
                 <td className="p-1.5">
                   <div className="flex gap-1">
                     <button type="button" className={subtleButtonClass} disabled={disabled || busy || !!form} onClick={() => startEdit(entry)}>수정</button>

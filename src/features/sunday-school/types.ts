@@ -34,6 +34,18 @@ export interface CurriculumEntry {
   title: string;
   note?: string;
   isCommunionSunday?: boolean;
+  /** 이번 주 암송: 암송할 문 하나와 반별 암송 범위(씨앗반은 암송 없음). */
+  memory?: CurriculumMemory;
+}
+
+export interface CurriculumMemory {
+  question?: number;
+  /** 질문 + 핵심 한 구절 */
+  jaram?: string;
+  /** 질문 + 답의 핵심 문장 */
+  seum?: string;
+  /** 질문 + 답 전체 */
+  didim?: string;
 }
 
 export type SchoolClassId = 'seed' | 'jaram' | 'seum' | 'didim';

@@ -24,6 +24,8 @@ import { formatDate } from '../../lib/utils';
 import type { NextGenerationPost, ResourceTabItem } from '../next-generation/sharedConstants';
 import { useSundaySchoolCatalog } from './api';
 import { getHeidelbergProgress, getSchoolWeekStatus } from './schedule';
+import { findWeekMemoryEntry } from './memory';
+import ThisWeekMemory from './home/ThisWeekMemory';
 import CurriculumProgress from './home/CurriculumProgress';
 import ClassChips from './home/ClassChips';
 import SchoolWeekHero from './home/SchoolWeekHero';
@@ -84,6 +86,11 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
   }, [catalog.terms, catalog.curriculum, sundayKey]);
   const progress = useMemo(
     () => getHeidelbergProgress(catalog.curriculum, sundayKey),
+    [catalog.curriculum, sundayKey],
+  );
+
+  const memoryEntry = useMemo(
+    () => findWeekMemoryEntry(catalog.curriculum, sundayKey),
     [catalog.curriculum, sundayKey],
   );
 
@@ -208,6 +215,7 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
       <SchoolWeekHero model={heroModel} sundayKey={sundayKey} isOverride={!!overrideKey} />
       <CurriculumProgress progress={progress} />
       <ClassChips classes={catalog.classes} value={classFilter} onChange={setClassFilter} />
+      <ThisWeekMemory entry={memoryEntry} classFilter={classFilter} />
       <ThisWeekMaterials
         groups={weeklyGroups}
         loading={loading}
