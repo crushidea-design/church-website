@@ -7,6 +7,7 @@ import SundaySchoolCurriculumSection from './SundaySchoolCurriculumSection';
 import SundaySchoolClassesSection from './SundaySchoolClassesSection';
 import SundaySchoolPreparationSection from './SundaySchoolPreparationSection';
 import SundaySchoolPrivatePostsSection from './SundaySchoolPrivatePostsSection';
+import SundaySchoolTransitionSection from './SundaySchoolTransitionSection';
 
 export default function CmsSundaySchoolTab() {
   const catalog = useSundaySchoolCatalog();
@@ -23,6 +24,7 @@ export default function CmsSundaySchoolTab() {
       <SundaySchoolClassesSection classes={catalog.classes} disabled={classesLocked} />
       <SundaySchoolPreparationSection />
       <SundaySchoolPrivatePostsSection />
+      <SundaySchoolTransitionSection catalog={catalog} />
     </div>
   );
 }

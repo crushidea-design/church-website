@@ -19,6 +19,7 @@ import NextGenerationLoginModal from '../../pages/NextGenerationLoginModal';
 import NextGenerationAdmin from '../../pages/NextGenerationAdmin';
 import NextGenerationTutorialModal from './NextGenerationTutorialModal';
 import { getRejectedNoticeVersion } from './sharedConstants';
+import { useSundaySchool2027Flag } from '../sunday-school/flags';
 
 export default function NextGenerationHeader() {
   const location = useLocation();
@@ -27,6 +28,7 @@ export default function NextGenerationHeader() {
     user, member, loading: authLoading, isPastor, isMember, isPending, isRejected,
     hasAccess, needsSignUp, notifications, unreadCount, markNotificationRead, signOut,
   } = useNextGenerationAuth();
+  const schoolFlag = useSundaySchool2027Flag();
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -65,7 +67,9 @@ export default function NextGenerationHeader() {
 
   const navItems = [
     { name: '다음세대 소개', path: NEXT_GENERATION_PATH },
-    { name: '유초등부', path: `${NEXT_GENERATION_PATH}/elementary` },
+    schoolFlag.enabled
+      ? { name: '주일학교', path: `${NEXT_GENERATION_PATH}/school` }
+      : { name: '유초등부', path: `${NEXT_GENERATION_PATH}/elementary` },
     { name: '청년부', path: `${NEXT_GENERATION_PATH}/young-adults` },
     { name: '문의하기', path: `${NEXT_GENERATION_PATH}/contact` },
   ];
@@ -370,7 +374,7 @@ export default function NextGenerationHeader() {
         </div>
       )}
 
-      {showTutorial && <NextGenerationTutorialModal onClose={closeTutorial} />}
+      {showTutorial && <NextGenerationTutorialModal onClose={closeTutorial} schoolMode={schoolFlag.enabled} />}
       {showLoginModal && (
         <NextGenerationLoginModal
           onClose={() => setShowLoginModal(false)}

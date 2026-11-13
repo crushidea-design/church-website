@@ -58,4 +58,36 @@ describe('next generation tutorial steps', () => {
     expect(store.get(NEXT_GENERATION_TUTORIAL_STORAGE_KEY)).toBe('true');
     expect(shouldAutoOpenNextGenerationTutorial(storage)).toBe(false);
   });
+
+  it('guides the 2027 school page with steps that all stay under /next/school', () => {
+    const steps = getNextGenerationTutorialSteps('school');
+
+    expect(steps.map((step) => step.id)).toEqual([
+      'overview',
+      'schoolWeek',
+      'schoolClasses',
+      'libraryTabs',
+      'profileReading',
+      'qa',
+      'notifications',
+    ]);
+    for (const step of steps) {
+      expect(step.route).toMatch(/^\/next\/school(\?|$)/);
+      expect(step.target).toMatch(/^\[data-next-tour="/);
+    }
+    expect(steps[0].title).toContain('주일학교');
+  });
+
+  it('keeps the existing elementary steps pointing at the old /next screens', () => {
+    const routes = getNextGenerationTutorialSteps('elementary').map((step) => step.route);
+
+    expect(routes).toEqual([
+      '/next',
+      '/next/elementary',
+      '/next/elementary?highlight=word-fruit',
+      '/next',
+      '/next/elementary?highlight=qa',
+      '/next',
+    ]);
+  });
 });

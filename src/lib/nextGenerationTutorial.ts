@@ -1,10 +1,13 @@
-export type NextGenerationTutorialDepartment = 'elementary' | 'young-adults';
+export type NextGenerationTutorialDepartment = 'elementary' | 'young-adults' | 'school';
 
 export type NextGenerationTutorialStepId =
   | 'overview'
   | 'materials'
   | 'word'
   | 'wordFruit'
+  | 'schoolWeek'
+  | 'schoolClasses'
+  | 'libraryTabs'
   | 'profileReading'
   | 'qa'
   | 'notifications';
@@ -124,6 +127,67 @@ const youngAdultSteps: NextGenerationTutorialStep[] = [
   commonNotifications,
 ];
 
+const SCHOOL_ROUTE = '/next/school';
+
+const schoolSteps: NextGenerationTutorialStep[] = [
+  {
+    id: 'overview',
+    eyebrow: '처음 이용 안내',
+    title: '2027 주일학교',
+    body: '유초등부와 중고등부가 하나의 주일학교로 모여 하이델베르크 요리문답을 함께 배웁니다. 이번 주 자료와 반별 공과, 알림을 한곳에서 확인할 수 있습니다.',
+    action: '먼저 주일학교 첫 화면을 둘러보세요.',
+    route: SCHOOL_ROUTE,
+    target: '[data-next-tour="app-home"]',
+  },
+  {
+    id: 'schoolWeek',
+    eyebrow: '이번 주 자료',
+    title: '이번 주 자료 확인',
+    body: '이번 주일에 배우는 강의 원고와 공과 가이드, 가정에서 함께할 자료를 한곳에 모아 보여 드립니다.',
+    action: '이번 주 자료에서 필요한 자료를 열어 보세요.',
+    route: SCHOOL_ROUTE,
+    target: '[data-next-tour="school-week"]',
+  },
+  {
+    id: 'schoolClasses',
+    eyebrow: '반별 공과',
+    title: '우리 아이 반 고르기',
+    body: '씨앗·자람·세움·디딤 중 우리 아이 반을 고르면 그 반 공과가 보입니다.',
+    action: '반 이름을 눌러 해당 반의 안내와 공과를 확인하세요.',
+    route: SCHOOL_ROUTE,
+    target: '[data-next-tour="school-classes"]',
+  },
+  {
+    id: 'libraryTabs',
+    eyebrow: '자료실',
+    title: '지난 자료까지 찾아보기',
+    body: '자료 탭에서 강의 원고, 공과, 공과 가이드, 예배를 잇는 가정 자료를 종류별로 찾아볼 수 있습니다. 지난 자료도 보관되어 있습니다.',
+    action: '자료 탭을 눌러 필요한 자료를 열어 보세요.',
+    route: SCHOOL_ROUTE,
+    target: '[data-next-tour="resource-tabs"]',
+  },
+  {
+    id: 'profileReading',
+    eyebrow: '개별 프로필',
+    title: '내 프로필과 로그인',
+    body: '로그인하면 더 많은 자료를 볼 수 있고, 개인 프로필에서 성경 읽기 기록표를 확인할 수 있습니다.',
+    action: '상단의 로그인 또는 내 프로필 버튼을 눌러 들어갑니다.',
+    route: SCHOOL_ROUTE,
+    target: '[data-next-tour="profile-entry"]',
+  },
+  {
+    id: 'qa',
+    eyebrow: '신앙 대화',
+    title: '질문하고 답변 확인',
+    body: '궁금한 점을 질문으로 남기면 교사의 답변을 확인할 수 있습니다.',
+    action: '질문 있습니다 영역에서 질문을 남기거나 답변을 확인하세요.',
+    route: `${SCHOOL_ROUTE}?highlight=qa`,
+    target: '[data-next-tour="qa"]',
+  },
+  { ...commonNotifications, route: SCHOOL_ROUTE },
+];
+
 export function getNextGenerationTutorialSteps(department: NextGenerationTutorialDepartment) {
+  if (department === 'school') return schoolSteps;
   return department === 'elementary' ? elementarySteps : youngAdultSteps;
 }

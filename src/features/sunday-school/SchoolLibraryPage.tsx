@@ -227,7 +227,7 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
             <>
               <div className="relative mb-8">
                 <div
-                  className="flex gap-1.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2"
+                  className="flex gap-1.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-2 sm:overflow-visible"
                   data-next-tour="resource-tabs"
                 >
                   {allowedTabs.map((tab) => {

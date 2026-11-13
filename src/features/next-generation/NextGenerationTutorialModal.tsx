@@ -8,11 +8,14 @@ import {
   Bell,
   BookMarked,
   BookOpen,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   FileText,
   HelpCircle,
+  Library,
   Sparkles,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -26,12 +29,22 @@ const tutorialIconMap: Record<NextGenerationTutorialStep['id'], React.ComponentT
   materials: FileText,
   word: BookOpen,
   wordFruit: Apple,
+  schoolWeek: CalendarDays,
+  schoolClasses: Users,
+  libraryTabs: Library,
   profileReading: BookMarked,
   qa: HelpCircle,
   notifications: Bell,
 };
 
-export default function NextGenerationTutorialModal({ onClose }: { onClose: () => void }) {
+export default function NextGenerationTutorialModal({
+  onClose,
+  schoolMode = false,
+}: {
+  onClose: () => void;
+  /** 2027 주일학교 기준 안내: 첫 번째 부서 선택지를 '주일학교'로 바꾼다. */
+  schoolMode?: boolean;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedDepartment, setSelectedDepartment] = useState<NextGenerationTutorialDepartment | null>(null);
@@ -146,12 +159,14 @@ export default function NextGenerationTutorialModal({ onClose }: { onClose: () =
           <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => selectDepartment('elementary')}
+              onClick={() => selectDepartment(schoolMode ? 'school' : 'elementary')}
               className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-left transition hover:bg-amber-100"
             >
-              <span className="block text-base font-black text-emerald-950">유초등부</span>
+              <span className="block text-base font-black text-emerald-950">{schoolMode ? '주일학교' : '유초등부'}</span>
               <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">
-                주간 자료, 말씀 열매, 성경 읽기 기록표를 안내합니다.
+                {schoolMode
+                  ? '이번 주 자료, 반별 공과, 자료실을 안내합니다.'
+                  : '주간 자료, 말씀 열매, 성경 읽기 기록표를 안내합니다.'}
               </span>
             </button>
             <button

@@ -39,7 +39,7 @@ export default function SundaySchoolPrivatePostsSection() {
           {loading ? '불러오는 중...' : '새로고침'}
         </button>
       </div>
-      <p className="mt-1 text-xs font-bold text-wood-500">공개 전으로 올려 둔 다음세대 자료입니다. 최근 100건까지 보여 줍니다. (일괄 공개는 개강 전환 단계에서 추가됩니다.)</p>
+      <p className="mt-1 text-xs font-bold text-wood-500">공개 전으로 올려 둔 다음세대 자료입니다. 최근 100건까지 보여 줍니다. 일괄 공개는 아래 "전환 준비"에서 합니다.</p>
       {error && <p className="mt-2 text-xs font-bold text-red-600">{error}</p>}
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">

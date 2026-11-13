@@ -373,7 +373,7 @@ export default function SchoolHeader() {
         </div>
       )}
 
-      {showTutorial && <NextGenerationTutorialModal onClose={closeTutorial} />}
+      {showTutorial && <NextGenerationTutorialModal onClose={closeTutorial} schoolMode />}
       {showLoginModal && (
         <NextGenerationLoginModal
           onClose={() => setShowLoginModal(false)}
