@@ -264,3 +264,9 @@
 6. **나이 기준**(한국식/만 나이): 반 소개 카드 문구에 들어간다.
 7. **중고등부 기존 자료/계정**: 별도 사이트나 그룹으로 운영 중이었다면 이관 대상 확인.
 8. **방학판 「예배를 잇는 가정」 양식**: 계획안 7장 순서(오늘 본문·부모 메모·질문 사다리…)를 웹에서도 입력 양식으로 만들지, PDF 업로드만 할지.
+
+---
+
+## 배포 기록
+
+- 2026-11-13: 사용자 승인 후 Firestore 규칙 배포(named DB, `firebase deploy --only firestore:rules`, 계정 지정 `--account`). 운영 규칙(#117) 대비 `next_generation_school_{terms,curriculum,classes}` 블록 3개만 추가. 비로그인 클라이언트로 세 컬렉션 읽기 성공·쓰기 거부, 기존 `next_generation_departments` 읽기 성공·`next_generation_word_fruit_groups` 읽기 거부 유지 확인. Hosting·Functions·데이터는 배포·변경하지 않음.
