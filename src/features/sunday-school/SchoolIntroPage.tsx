@@ -1,7 +1,7 @@
 // Intro page for the 2027 Sunday school. Replaces the old pillar/gallery
 // intro; copy lives in intro/content.ts. Reuses the original lightbox pattern.
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Leaf, Sparkles, Sprout, TreeDeciduous, Trees, X } from 'lucide-react';
 import { useSundaySchoolCatalog } from './api';
 import {
   INTRO_CURRICULUM,
@@ -13,6 +13,15 @@ import {
   INTRO_TERMS,
 } from './intro/content';
 import type { IntroGalleryImage } from './intro/content';
+
+const HERO_IMAGE = '/next-generation-elementary-illustration.png';
+
+const CLASS_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  seed: Sprout,
+  jaram: Leaf,
+  seum: TreeDeciduous,
+  didim: Trees,
+};
 
 const formatTermDate = (key: string) => {
   const [, month, day] = key.split('-').map(Number);
@@ -41,15 +50,20 @@ export default function SchoolIntroPage() {
   return (
     <div>
       <section className="bg-gradient-to-b from-amber-50 to-white">
-        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
-          <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
-            <Sparkles size={18} />
-            {INTRO_HERO.eyebrow}
-          </span>
-          <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
-            {INTRO_HERO.title}
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg font-bold leading-8 text-slate-700">{INTRO_HERO.lead}</p>
+        <div className="mx-auto grid max-w-5xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-20">
+          <div>
+            <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
+              <Sparkles size={18} />
+              {INTRO_HERO.eyebrow}
+            </span>
+            <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
+              {INTRO_HERO.title}
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg font-bold leading-8 text-slate-700">{INTRO_HERO.lead}</p>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
+            <img src={HERO_IMAGE} alt="말씀 안에서 함께 자라는 아이들 그림" className="h-full w-full object-cover" />
+          </div>
         </div>
       </section>
 
@@ -62,6 +76,31 @@ export default function SchoolIntroPage() {
                 <p className="text-sm font-black text-amber-700">원칙 {i + 1}</p>
                 <h3 className="mt-1 text-xl font-black text-emerald-950">{item.title}</h3>
                 <p className="mt-2 leading-7 text-slate-700">{item.body}</p>
+                {(() => {
+                  const group = INTRO_LOOKBACK.find((g) => g.key === item.gallery);
+                  if (!group) return null;
+                  return (
+                    <div className="mt-4">
+                      <p className="text-xs font-black text-slate-500">실제 자료 · {group.title}</p>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {group.gallery.slice(0, 3).map((image, idx) => (
+                          <button
+                            key={image.src}
+                            type="button"
+                            onClick={() => {
+                              setLightbox(group.gallery);
+                              setIndex(idx);
+                            }}
+                            className="overflow-hidden rounded-lg border border-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                            aria-label={`${image.alt} 크게 보기`}
+                          >
+                            <img src={image.src} alt={image.alt} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -100,6 +139,14 @@ export default function SchoolIntroPage() {
             {classes.map((item) => (
               <div key={item.id} className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
                 <div className="flex flex-wrap items-center gap-2">
+                  {(() => {
+                    const Icon = CLASS_ICONS[item.id] ?? Sprout;
+                    return (
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-emerald-600 ring-1 ring-amber-200">
+                        <Icon size={24} />
+                      </span>
+                    );
+                  })()}
                   <h3 className="text-xl font-black text-emerald-950">{item.name}</h3>
                   {item.mode === 'parent' && (
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-800 ring-1 ring-amber-200">
