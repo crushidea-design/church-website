@@ -30,6 +30,9 @@ import type { SchoolClassId, SchoolWeeklyDoc } from '../types';
 import { countsByStudent, formatCountsLine } from '../journey/journey';
 import { subscribeJourneyForClass } from '../journey/journeyApi';
 import type { SchoolJourneyDoc } from '../journey/journeyApi';
+import { isReadingClass, formatReadThrough, percentRead, readingYearFor } from '../reading/reading';
+import { subscribeReadingForClass } from '../reading/readingApi';
+import type { ReadingYearDoc } from '../reading/readingApi';
 
 const SCHOOL_PATH = `${NEXT_GENERATION_PATH}/school`;
 
@@ -98,6 +101,8 @@ function ClassBoard({
   const [weekly, setWeekly] = useState<SchoolWeeklyDoc[]>([]);
   const [previousWeekly, setPreviousWeekly] = useState<SchoolWeeklyDoc[]>([]);
   const [previousJourney, setPreviousJourney] = useState<SchoolJourneyDoc[]>([]);
+  const [readingRows, setReadingRows] = useState<ReadingYearDoc[]>([]);
+  const showReading = isReadingClass(classId);
   const [drafts, setDrafts] = useState<Record<string, Partial<ClassRowDraft>>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -118,6 +123,10 @@ function ClassBoard({
       subscribeSchoolWeekly(classId, previousSundayKey(sundayKey), setPreviousWeekly, onError),
       subscribeJourneyForClass(classId, previousSundayKey(sundayKey), setPreviousJourney, onError),
     ];
+    setReadingRows([]);
+    if (isReadingClass(classId)) {
+      unsubs.push(subscribeReadingForClass(classId, readingYearFor(sundayKey), setReadingRows, onError));
+    }
     return () => unsubs.forEach((unsubscribe) => unsubscribe());
   }, [classId, sundayKey]);
 
@@ -128,6 +137,7 @@ function ClassBoard({
   );
   const previousPromises = useMemo(() => previousPromiseByUid(previousWeekly), [previousWeekly]);
   const previousCounts = useMemo(() => countsByStudent(previousJourney), [previousJourney]);
+  const readingByUid = useMemo(() => new Map(readingRows.map((row) => [row.studentUid, row.chaptersRead ?? 0])), [readingRows]);
 
   const patch = (rowUid: string, change: Partial<ClassRowDraft>) => {
     setMessage(null);
@@ -223,6 +233,12 @@ function ClassBoard({
                       <span className="md:hidden">지난주 기록 </span>
                       {formatCountsLine(previousCounts.get(row.uid))}
                     </p>
+                    {showReading && (
+                      <p className="text-xs font-bold text-slate-500">
+                        성경 읽기: {formatReadThrough(readingByUid.get(row.uid) ?? 0)}
+                        {(readingByUid.get(row.uid) ?? 0) > 0 ? ` (${percentRead(readingByUid.get(row.uid) ?? 0)}%)` : ''}
+                      </p>
+                    )}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 md:mt-0 md:contents">
                     <div className="md:flex md:justify-center">

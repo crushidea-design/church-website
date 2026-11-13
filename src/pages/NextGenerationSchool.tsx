@@ -24,6 +24,7 @@ import SchoolLibraryPage from '../features/sunday-school/SchoolLibraryPage';
 import SchoolIntroPage from '../features/sunday-school/SchoolIntroPage';
 import SchoolClassPage from '../features/sunday-school/class/SchoolClassPage';
 import JourneyPanel from '../features/sunday-school/journey/JourneyPanel';
+import ReadingPanel from '../features/sunday-school/reading/ReadingPanel';
 import { sundayKeyFromDateParam } from '../features/sunday-school/classScreen';
 import { SCHOOL_REDIRECT_PATH, decideSchoolAccess } from '../features/sunday-school/access';
 import { useSundaySchool2027Flag } from '../features/sunday-school/flags';
@@ -111,11 +112,15 @@ function SchoolInner({ flagEnabled }: { flagEnabled: boolean }) {
       },
     ];
     return (
-      <NextGenerationHighlightBand
-        themeBg="bg-gradient-to-b from-amber-50 to-white border-y border-amber-100"
-        activeRing="border-amber-400 bg-amber-50"
-        entries={entries}
-      />
+      <>
+        <NextGenerationHighlightBand
+          themeBg="bg-gradient-to-b from-amber-50 to-white border-y border-amber-100"
+          activeRing="border-amber-400 bg-amber-50"
+          entries={entries}
+        />
+        {/* 올해 성경 읽기: 세움·디딤 학생/부모에게만 보인다. */}
+        <ReadingPanel />
+      </>
     );
   })();
 

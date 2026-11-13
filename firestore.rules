@@ -987,6 +987,47 @@ service cloud.firestore {
       allow delete: if isNextGenerationPastor();
     }
 
+    // ─── 주일학교 2027: 올해 성경 읽기 (1년 1독, 창세기 1장부터 이어 읽기) ───
+    // 문서 id = year_studentUid. 학생 본인 또는 부모가 쓰고, 교사는 자기 반만 읽는다.
+    // 디딤반 "학생 본인만 체크"는 화면에서 지키고, 규칙은 부모의 쓰기도 허용한다.
+    function schoolReadingYearShapeOk(data) {
+      return data.keys().hasOnly(['year','studentUid','studentName','classId','chaptersRead','log','updatedBy','updatedAt']) &&
+        data.keys().hasAll(['year','studentUid','studentName','classId','chaptersRead','log','updatedBy','updatedAt']) &&
+        data.year is int &&
+        data.year >= 2000 && data.year <= 2100 &&
+        data.studentUid is string &&
+        data.studentName is string &&
+        data.classId in ['seed','jaram','seum','didim'] &&
+        data.chaptersRead is int &&
+        data.chaptersRead >= 0 && data.chaptersRead <= 1189 &&
+        data.log is list &&
+        data.log.size() <= 400 &&
+        data.updatedBy == request.auth.uid;
+    }
+
+    match /next_generation_bible_reading_year/{readingId} {
+      allow read: if isAuthenticated() && (
+        isNextGenerationPastor() ||
+        resource.data.studentUid == request.auth.uid ||
+        isParentOfNgUser(resource.data.studentUid) ||
+        isParentOfNgChild(resource.data.studentUid) ||
+        (isNextGenerationTeacher() &&
+          'groupIds' in ngMemberData() &&
+          resource.data.classId in ngMemberData().groupIds)
+      );
+      allow create: if isAuthenticated() &&
+        canWriteSchoolJourney(request.resource.data.studentUid) &&
+        schoolReadingYearShapeOk(request.resource.data) &&
+        readingId == string(request.resource.data.year) + '_' + request.resource.data.studentUid;
+      allow update: if isAuthenticated() &&
+        canWriteSchoolJourney(resource.data.studentUid) &&
+        schoolReadingYearShapeOk(request.resource.data) &&
+        request.resource.data.studentUid == resource.data.studentUid &&
+        request.resource.data.year == resource.data.year &&
+        readingId == string(request.resource.data.year) + '_' + request.resource.data.studentUid;
+      allow delete: if isNextGenerationPastor();
+    }
+
     // ─── 가정예배 로그 ─────────────────────────────────────────────────
     match /next_generation_family_worship_logs/{logId} {
       allow read: if isAuthenticated() && (
