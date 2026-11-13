@@ -149,6 +149,86 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     await assertSucceeds(pastor.doc('next_generation_school_weekly/2027-03-21_student').delete());
   });
 
+  it('lets students and their parents write the Sunday school journey and limits who can read it', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/otherTeacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['didim'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+      await db.doc('next_generation_members/proxyParent').set({ role: 'member', department: '학부모', departments: ['학부모'] });
+      await db.doc('next_generation_members/strangerParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['someoneElse'] });
+      await db.doc('next_generation_members/pastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_children/proxyKid').set({ kind: 'proxy', displayName: '대리', groupId: 'seed', parentUids: ['proxyParent'] });
+      await db.doc('next_generation_attendance/2027-03-14_proxyKid').set({
+        weekKey: '2027-03-14', sundayDate: '2027-03-14', studentUid: 'proxyKid', studentName: '대리', groupId: 'seed', present: true, checkedBy: 'pastor',
+      });
+      await db.doc('next_generation_school_weekly/2027-03-14_proxyKid').set({
+        weekKey: '2027-03-14', studentUid: 'proxyKid', studentName: '대리', classId: 'seed', updatedBy: 'pastor', updatedAt: new Date(),
+      });
+    });
+    const journey = (overrides: Record<string, unknown> = {}) => ({
+      weekKey: '2027-03-14', studentUid: 'student', studentName: '학생', classId: 'seum',
+      familyWorshipDates: ['2027-03-15'], practiceDates: ['2027-03-15', '2027-03-16'], updatedBy: 'student', updatedAt: new Date(), ...overrides,
+    });
+    const path = 'next_generation_school_journey/2027-03-14_student';
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    const proxyParent = env.authenticatedContext('proxyParent').firestore();
+    const strangerParent = env.authenticatedContext('strangerParent').firestore();
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const otherTeacher = env.authenticatedContext('otherTeacher').firestore();
+    const pastor = env.authenticatedContext('pastor').firestore();
+    const anon = env.unauthenticatedContext().firestore();
+
+    // student and linked parent write; both update and read
+    await assertSucceeds(student.doc(path).set(journey()));
+    await assertSucceeds(parent.doc(path).set(journey({ updatedBy: 'parent', familyWorshipDates: ['2027-03-15', '2027-03-17'] })));
+    await assertSucceeds(student.doc(path).get());
+    await assertSucceeds(parent.doc(path).get());
+    await assertSucceeds(pastor.doc(path).get());
+    // teacher of the class reads (query by class and week), cannot write
+    await assertSucceeds(teacher.doc(path).get());
+    await assertSucceeds(teacher.collection('next_generation_school_journey').where('classId', '==', 'seum').where('weekKey', '==', '2027-03-14').get());
+    await assertFails(teacher.doc(path).set(journey({ updatedBy: 'teacher' })));
+    await assertFails(teacher.doc('next_generation_school_journey/2027-03-21_student').set(journey({ weekKey: '2027-03-21', updatedBy: 'teacher' })));
+    // others cannot read or write
+    await assertFails(otherTeacher.doc(path).get());
+    await assertFails(strangerParent.doc(path).get());
+    await assertFails(strangerParent.doc(path).set(journey({ updatedBy: 'strangerParent' })));
+    await assertFails(proxyParent.doc(path).set(journey({ updatedBy: 'proxyParent' })));
+    await assertFails(anon.doc(path).get());
+    // shape checks
+    const next = 'next_generation_school_journey/2027-03-21_student';
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', extra: 'x' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', classId: 'other' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', updatedBy: 'parent' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', familyWorshipDates: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', practiceDates: 'x' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: 'not-a-date' })));
+    await assertFails(student.doc('next_generation_school_journey/wrong-id').set(journey({ weekKey: '2027-03-21' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', studentUid: 'someoneElse' })));
+    await assertFails(student.doc(path).set(journey({ weekKey: '2027-03-21' })));
+    await assertSucceeds(student.doc(next).set(journey({ weekKey: '2027-03-21', familyWorshipDates: [], practiceDates: [] })));
+    // delete: pastor only
+    await assertFails(student.doc(next).delete());
+    await assertFails(parent.doc(next).delete());
+    await assertSucceeds(pastor.doc(next).delete());
+
+    // proxy child: the parent listed in next_generation_children.parentUids writes and reads
+    const proxyPath = 'next_generation_school_journey/2027-03-14_proxyKid';
+    const proxyJourney = journey({ studentUid: 'proxyKid', studentName: '대리', classId: 'seed', updatedBy: 'proxyParent' });
+    await assertSucceeds(proxyParent.doc(proxyPath).set(proxyJourney));
+    await assertSucceeds(proxyParent.doc(proxyPath).get());
+    await assertSucceeds(proxyParent.collection('next_generation_school_journey').where('studentUid', '==', 'proxyKid').where('weekKey', 'in', ['2027-03-14']).get());
+    await assertFails(parent.doc(proxyPath).get());
+    await assertFails(strangerParent.doc(proxyPath).set(proxyJourney));
+    // proxy parent can also read that child's attendance and weekly record
+    await assertSucceeds(proxyParent.collection('next_generation_attendance').where('studentUid', '==', 'proxyKid').get());
+    await assertSucceeds(proxyParent.collection('next_generation_school_weekly').where('studentUid', '==', 'proxyKid').get());
+    await assertFails(strangerParent.collection('next_generation_attendance').where('studentUid', '==', 'proxyKid').get());
+  });
+
   it('accepts only boolean period2 and publicWorship on attendance', async () => {
     await env.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });

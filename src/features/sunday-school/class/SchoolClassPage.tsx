@@ -27,6 +27,9 @@ import {
 } from '../classScreen';
 import type { ClassRowDraft } from '../classScreen';
 import type { SchoolClassId, SchoolWeeklyDoc } from '../types';
+import { countsByStudent, formatCountsLine } from '../journey/journey';
+import { subscribeJourneyForClass } from '../journey/journeyApi';
+import type { SchoolJourneyDoc } from '../journey/journeyApi';
 
 const SCHOOL_PATH = `${NEXT_GENERATION_PATH}/school`;
 
@@ -94,6 +97,7 @@ function ClassBoard({
   const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
   const [weekly, setWeekly] = useState<SchoolWeeklyDoc[]>([]);
   const [previousWeekly, setPreviousWeekly] = useState<SchoolWeeklyDoc[]>([]);
+  const [previousJourney, setPreviousJourney] = useState<SchoolJourneyDoc[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Partial<ClassRowDraft>>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -112,6 +116,7 @@ function ClassBoard({
       subscribeAttendanceForGroup(classId, [sundayKey], setAttendance, onError),
       subscribeSchoolWeekly(classId, sundayKey, setWeekly, onError),
       subscribeSchoolWeekly(classId, previousSundayKey(sundayKey), setPreviousWeekly, onError),
+      subscribeJourneyForClass(classId, previousSundayKey(sundayKey), setPreviousJourney, onError),
     ];
     return () => unsubs.forEach((unsubscribe) => unsubscribe());
   }, [classId, sundayKey]);
@@ -122,6 +127,7 @@ function ClassBoard({
     [baseRows, drafts],
   );
   const previousPromises = useMemo(() => previousPromiseByUid(previousWeekly), [previousWeekly]);
+  const previousCounts = useMemo(() => countsByStudent(previousJourney), [previousJourney]);
 
   const patch = (rowUid: string, change: Partial<ClassRowDraft>) => {
     setMessage(null);
@@ -189,7 +195,7 @@ function ClassBoard({
 
       <div className="mt-4">
         <div className={`hidden rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-900 ${grid}`} aria-hidden="true">
-          <span>이름</span>
+          <span>이름 · 지난주 기록</span>
           <span className="text-center">1교시</span>
           <span className="text-center">2교시</span>
           <span className="text-center">공예배</span>
@@ -211,7 +217,13 @@ function ClassBoard({
                   key={row.uid}
                   className={`rounded-2xl border border-slate-200 bg-white p-3 md:rounded-lg md:border-0 md:border-b md:px-3 md:py-2 ${grid}`}
                 >
-                  <p className="text-base font-black text-slate-900">{row.name}</p>
+                  <div>
+                    <p className="text-base font-black text-slate-900">{row.name}</p>
+                    <p className="text-xs font-bold text-slate-500">
+                      <span className="md:hidden">지난주 기록 </span>
+                      {formatCountsLine(previousCounts.get(row.uid))}
+                    </p>
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-2 md:mt-0 md:contents">
                     <div className="md:flex md:justify-center">
                       <Toggle label="1교시" checked={row.present} disabled={saving} onChange={(next) => patch(row.uid, { present: next })} />

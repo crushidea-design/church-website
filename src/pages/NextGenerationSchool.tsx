@@ -3,10 +3,10 @@
 // public site until the sunday_school_2027 flag is switched on.
 import React, { useEffect, useMemo } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { FileText, HeartHandshake, HelpCircle, Loader2 } from 'lucide-react';
+import { FileText, HeartHandshake, HelpCircle, Loader2, Route } from 'lucide-react';
 import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import { NextGenerationCmsProvider, useNextGenerationCms } from '../lib/nextGenerationCms';
-import { getCurrentSundayKey, NEXT_GENERATION_PATH } from '../lib/nextGenerationResources';
+import { getActiveSundayKey, getCurrentSundayKey, NEXT_GENERATION_PATH } from '../lib/nextGenerationResources';
 import { supportsNextGenerationTopic } from '../lib/nextGenerationTopics';
 import NextGenerationQA from './NextGenerationQA';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
@@ -23,6 +23,8 @@ import SchoolHeader from '../features/sunday-school/SchoolHeader';
 import SchoolLibraryPage from '../features/sunday-school/SchoolLibraryPage';
 import SchoolIntroPage from '../features/sunday-school/SchoolIntroPage';
 import SchoolClassPage from '../features/sunday-school/class/SchoolClassPage';
+import JourneyPanel from '../features/sunday-school/journey/JourneyPanel';
+import { sundayKeyFromDateParam } from '../features/sunday-school/classScreen';
 import { SCHOOL_REDIRECT_PATH, decideSchoolAccess } from '../features/sunday-school/access';
 import { useSundaySchool2027Flag } from '../features/sunday-school/flags';
 
@@ -74,10 +76,23 @@ function SchoolInner({ flagEnabled }: { flagEnabled: boolean }) {
   );
 
   const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
+  // 여정은 가장 최근 주일부터 다음 토요일까지. 교역자는 ?date= 로 다른 주를 볼 수 있다.
+  const journeySundayKey = useMemo(
+    () => (isPastor ? sundayKeyFromDateParam(new URLSearchParams(location.search).get('date')) : null) || getActiveSundayKey(),
+    [isPastor, location.search],
+  );
   const section = location.pathname.split('/').filter(Boolean)[2];
 
   const midSection = (() => {
     const entries: HighlightEntry[] = [
+      {
+        id: 'journey',
+        icon: <Route size={18} />,
+        label: '이번 주 문답 여정',
+        summary: '배움·가정예배·실천·암송으로 한 주를 이어요',
+        tourTarget: 'journey',
+        content: <JourneyPanel sundayKey={journeySundayKey} />,
+      },
       {
         id: 'qa',
         icon: <HelpCircle size={18} />,
