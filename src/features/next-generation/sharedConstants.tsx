@@ -166,6 +166,7 @@ export interface ResourceTabItem {
   icon: React.ComponentType<any>;
   departmentSlug: string;
   isGuestOpen?: boolean;
+  isVisible?: boolean;
   isWeeklyGroup?: boolean;
   useWeekKey?: boolean;
   useTopic?: boolean;

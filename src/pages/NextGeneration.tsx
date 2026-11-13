@@ -47,7 +47,7 @@ const NEXT_GENERATION_CATEGORY = 'next_generation';
 const RESOURCE_PAGE_SIZE = 12;
 
 
-function useNextGenerationHead() {
+export function useNextGenerationHead() {
   useEffect(() => {
     const previousTitle = document.title;
     const previousLinks = Array.from(
@@ -126,7 +126,7 @@ function useNextGenerationHead() {
 
 
 
-function useNextGenerationAppBadge() {
+export function useNextGenerationAppBadge() {
   const { user, hasAccess, unreadCount, loading } = useNextGenerationAuth();
 
   useEffect(() => {

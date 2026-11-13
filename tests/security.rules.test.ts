@@ -84,6 +84,27 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     await assertSucceeds(env.authenticatedContext('other').firestore().doc('posts/sermon').get());
   });
 
+  it('lets anyone read the Sunday school catalog but only next-generation pastors write it', async () => {
+    const paths = ['next_generation_school_terms/t1', 'next_generation_school_curriculum/2027-01-03', 'next_generation_school_classes/seed'];
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      for (const path of paths) await db.doc(path).set({ name: 'seed' });
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사' });
+      await db.doc('next_generation_members/pastor').set({ role: 'member', isNextGenerationAdmin: true });
+    });
+    const anon = env.unauthenticatedContext().firestore();
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const pastor = env.authenticatedContext('pastor').firestore();
+    const admin = env.authenticatedContext('admin', { email: 'crushidea@gmail.com', email_verified: true }).firestore();
+    for (const path of paths) {
+      await assertSucceeds(anon.doc(path).get());
+      await assertFails(anon.doc(path).set({ name: 'x' }));
+      await assertFails(teacher.doc(path).set({ name: 'x' }));
+      await assertSucceeds(pastor.doc(path).set({ name: 'by-pastor' }));
+      await assertSucceeds(admin.doc(path).set({ name: 'by-admin' }));
+    }
+  });
+
   it('denies stale summary snippets to public readers while retaining other public settings', async () => {
     await env.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('settings/latest_posts_summary').set({ today_word: { id: 'draft', content: 'stale snippet' } });

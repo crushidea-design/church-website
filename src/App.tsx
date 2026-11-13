@@ -32,6 +32,7 @@ const Contact = React.lazy(() => import('./pages/Contact'));
 const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
 const PrayerRoom = React.lazy(() => import('./pages/PrayerRoom'));
 const NextGeneration = React.lazy(() => import('./pages/NextGeneration'));
+const NextGenerationSchool = React.lazy(() => import('./pages/NextGenerationSchool'));
 const WordFruitPrintView = React.lazy(() => import('./features/word-fruit/WordFruitPrintView'));
 const WordFruitTreePreview = React.lazy(() => import('./features/word-fruit/WordFruitTreePreview'));
 const Login = React.lazy(() => import('./pages/Login'));
@@ -101,6 +102,7 @@ export default function App() {
                 </Routes>
               ) : (
                 <Routes>
+                  <Route path="/next/school/*" element={<NextGenerationSchool />} />
                   <Route path="/next/*" element={<NextGeneration />} />
                   <Route path="/next-generation/*" element={<RedirectNextGeneration />} />
                   <Route path="/print/word-fruit/:weekId" element={<WordFruitPrintView />} />

@@ -52,6 +52,7 @@ import CmsMaterialsTab from '../features/next-generation/CmsMaterialsTab';
 import CmsResourceTabsTab from '../features/next-generation/CmsResourceTabsTab';
 import CmsDepartmentsTab from '../features/next-generation/CmsDepartmentsTab';
 import CmsTopicsTab, { SHARED_TOPIC_DEPARTMENT_VALUE } from '../features/next-generation/CmsTopicsTab';
+import CmsSundaySchoolTab from '../features/sunday-school/admin/CmsSundaySchoolTab';
 
 const WRITE_BATCH_SIZE = 400;
 
@@ -762,6 +763,7 @@ function AdminNextGenerationCmsInner() {
             { id: 'intro', label: '소개 관리' },
             { id: 'materials', label: '자료 관리' },
             { id: 'tools', label: '운영도구' },
+            { id: 'sundaySchool', label: '주일학교 2027' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -911,6 +913,8 @@ function AdminNextGenerationCmsInner() {
             onDetectOrphans={detectOrphans}
           />
         )}
+
+        {activeTab === 'sundaySchool' && <CmsSundaySchoolTab />}
       </div>
 
       {busy && (
