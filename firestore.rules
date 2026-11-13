@@ -527,7 +527,13 @@ service cloud.firestore {
     }
 
     match /next_generation_members/{memberId} {
-      allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
+      // 교사는 자기 반(groupIds)에 배정된 학생 회원 문서만 읽는다 (반 명단).
+      allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor() ||
+        (isNextGenerationTeacher() &&
+          'groupId' in resource.data &&
+          'groupIds' in ngMemberData() &&
+          ngMemberData().groupIds.size() > 0 &&
+          resource.data.groupId in ngMemberData().groupIds));
       allow create: if isAuthenticated() && request.auth.uid == memberId &&
         request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'departments', 'primaryDepartment', 'roleProfiles', 'church', 'intro', 'createdAt', 'provider', 'isNextGenerationAdmin', 'parentEmail']) &&
         request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'department', 'church', 'intro', 'createdAt', 'provider']) &&

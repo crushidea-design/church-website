@@ -105,6 +105,29 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     }
   });
 
+  it('lets teachers read only the student member docs of their own class', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/noClassTeacher').set({ role: 'member', department: '교사', departments: ['교사'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/otherStudent').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'didim' });
+      await db.doc('next_generation_members/unassigned').set({ role: 'member', department: '학생', departments: ['학생'] });
+    });
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const noClassTeacher = env.authenticatedContext('noClassTeacher').firestore();
+    const student = env.authenticatedContext('student').firestore();
+
+    await assertSucceeds(teacher.doc('next_generation_members/student').get());
+    await assertSucceeds(teacher.collection('next_generation_members')
+      .where('role', '==', 'member').where('departments', 'array-contains', '학생').where('groupId', 'in', ['seum']).get());
+    await assertFails(teacher.doc('next_generation_members/otherStudent').get());
+    await assertFails(teacher.doc('next_generation_members/unassigned').get());
+    await assertFails(teacher.collection('next_generation_members').where('departments', 'array-contains', '학생').get());
+    await assertFails(noClassTeacher.doc('next_generation_members/student').get());
+    await assertFails(student.doc('next_generation_members/otherStudent').get());
+  });
+
   it('lets class teachers write the Sunday school weekly record and limits who can read it', async () => {
     await env.withSecurityRulesDisabled(async context => {
       const db = context.firestore();

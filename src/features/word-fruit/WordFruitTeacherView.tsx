@@ -33,11 +33,13 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
       collection(db, 'next_generation_members'),
       where('role', '==', 'member'),
       where('department', '==', '학생'),
+      where('groupId', 'in', teacherGroupIds.slice(0, 10)),
     );
     const multiRoleMemberQuery = query(
       collection(db, 'next_generation_members'),
       where('role', '==', 'member'),
       where('departments', 'array-contains', '학생'),
+      where('groupId', 'in', teacherGroupIds.slice(0, 10)),
     );
     const childQuery = query(
       collection(db, 'next_generation_children'),
