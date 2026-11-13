@@ -3,14 +3,13 @@
 // public site until the sunday_school_2027 flag is switched on.
 import React, { useEffect, useMemo } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Apple, FileText, HeartHandshake, HelpCircle, Loader2 } from 'lucide-react';
+import { FileText, HeartHandshake, HelpCircle, Loader2 } from 'lucide-react';
 import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import { NextGenerationCmsProvider, useNextGenerationCms } from '../lib/nextGenerationCms';
 import { getCurrentSundayKey, NEXT_GENERATION_PATH } from '../lib/nextGenerationResources';
 import { supportsNextGenerationTopic } from '../lib/nextGenerationTopics';
 import NextGenerationQA from './NextGenerationQA';
 import NextGenerationHighlightBand, { HighlightEntry } from '../components/NextGenerationHighlightBand';
-import WordFruitPanel from '../features/word-fruit/WordFruitPanel';
 import FamilyWorshipSharePanel from '../features/word-fruit/FamilyWorshipSharePanel';
 import {
   ResourceTabItem,
@@ -85,14 +84,6 @@ function SchoolInner({ flagEnabled }: { flagEnabled: boolean }) {
         summary: '신앙의 질문을 자유롭게 남겨 보세요',
         tourTarget: 'qa',
         content: <NextGenerationQA compact department="elementary" />,
-      },
-      {
-        id: 'word-fruit',
-        icon: <Apple size={18} />,
-        label: '이번 주 말씀 열매',
-        summary: '작은 순종으로 열매가 익어가요',
-        tourTarget: 'word-fruit',
-        content: <WordFruitPanel />,
       },
       {
         id: 'family-worship',
