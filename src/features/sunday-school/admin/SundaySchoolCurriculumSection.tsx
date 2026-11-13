@@ -36,6 +36,7 @@ interface FormState {
   memoryJaram: string;
   memorySeum: string;
   memoryDidim: string;
+  memoryPromiseExamples: string;
 }
 
 const MEMORY_FORM_KEYS = { jaram: 'memoryJaram', seum: 'memorySeum', didim: 'memoryDidim' } as const;
@@ -55,6 +56,7 @@ const EMPTY_FORM: FormState = {
   memoryJaram: '',
   memorySeum: '',
   memoryDidim: '',
+  memoryPromiseExamples: '',
 };
 
 const toNumber = (value: string) => (value.trim() === '' ? undefined : Number(value));
@@ -78,6 +80,7 @@ function formToEntryFields(form: FormState) {
       jaram: form.memoryJaram,
       seum: form.memorySeum,
       didim: form.memoryDidim,
+      promiseExamples: form.memoryPromiseExamples,
     }),
   };
 }
@@ -96,6 +99,7 @@ const entryToForm = (entry: CurriculumEntry): FormState => ({
   memoryJaram: entry.memory?.jaram ?? '',
   memorySeum: entry.memory?.seum ?? '',
   memoryDidim: entry.memory?.didim ?? '',
+  memoryPromiseExamples: (entry.memory?.promiseExamples ?? []).join('\n'),
 });
 
 export default function SundaySchoolCurriculumSection({
@@ -302,6 +306,16 @@ export default function SundaySchoolCurriculumSection({
                 </label>
               ))}
             </div>
+            <label className="mt-2 block text-xs font-bold text-wood-600">예시 실천 약속 (한 줄에 하나, 최대 3개)
+              <textarea
+                rows={3}
+                className={inputClass}
+                value={form.memoryPromiseExamples}
+                placeholder="예) 잠들기 전에 부모님께 감사하다고 말하기"
+                onChange={(e) => update({ memoryPromiseExamples: e.target.value })}
+              />
+            </label>
+            <p className="mt-1 text-xs text-wood-500">교사의 반 화면에 이번 주 예시로 보입니다. 이번 주 문답에서 이어지는 행동으로 적어 주세요.</p>
           </div>
           {validation.errors.map((message) => <p key={message} className="mt-2 text-xs font-bold text-red-600">{message}</p>)}
           {allWarnings.map((message) => <p key={message} className="mt-2 text-xs font-bold text-amber-700">{message}</p>)}

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { upsertSchoolClass } from '../api';
+import { createMissingClassGroups } from '../classApi';
+import { SCHOOL_CLASS_NAMES } from '../classScreen';
 import type { SchoolClass } from '../types';
-import { FALLBACK_EDIT_NOTICE, cardClass, inputClass, primaryButtonClass } from './ui';
+import { FALLBACK_EDIT_NOTICE, cardClass, inputClass, primaryButtonClass, subtleButtonClass } from './ui';
 
 const MODE_LABELS: Record<SchoolClass['mode'], string> = { parent: '부모 동반', class: '반 수업' };
 
@@ -35,12 +37,37 @@ export default function SundaySchoolClassesSection({
     }
   };
 
+  const createGroups = async () => {
+    if (!window.confirm('씨앗반·자람반·세움반·디딤반 그룹 중 아직 없는 것만 만듭니다. 이미 있는 그룹은 바꾸지 않습니다. 진행할까요?')) return;
+    setBusyId('groups');
+    setMessage(null);
+    try {
+      const result = await createMissingClassGroups();
+      setMessage(
+        result.created.length > 0
+          ? `${result.created.map((id) => SCHOOL_CLASS_NAMES[id]).join('·')} 그룹을 만들었습니다.`
+          : '네 반 그룹이 모두 이미 있습니다.',
+      );
+    } catch (error) {
+      console.error('Failed to create class groups', error);
+      setMessage('그룹을 만들지 못했습니다.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className={cardClass}>
       <h3 className="text-lg font-bold text-wood-900">반</h3>
       <p className="mt-1 text-xs font-bold text-wood-500">공개되는 반 소개 정보입니다. 인원수와 구성은 입력하지 않습니다.</p>
       {disabled && <p className="mt-2 text-xs font-bold text-amber-700">{FALLBACK_EDIT_NOTICE}</p>}
       {message && <p className="mt-2 text-xs font-bold text-emerald-700">{message}</p>}
+      <div className="mt-3 rounded-xl border border-wood-200 p-3">
+        <button type="button" className={subtleButtonClass} disabled={busyId !== null} onClick={createGroups}>
+          {busyId === 'groups' ? '만드는 중...' : '반 그룹 만들기'}
+        </button>
+        <p className="mt-1 text-xs text-wood-500">아이와 교사를 반에 배정하는 일은 기존 회원/반 관리 화면에서 합니다.</p>
+      </div>
       <div className="mt-3 space-y-3">
         {[...classes].sort((a, b) => a.order - b.order).map((item) => {
           const draft = drafts[item.id] ?? item;

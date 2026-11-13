@@ -480,6 +480,19 @@ service cloud.firestore {
         targetUid in ngMemberData().childIds;
     }
 
+    function schoolWeeklyShapeOk(data) {
+      return data.keys().hasOnly(['weekKey','studentUid','studentName','classId','promise','memoryChecked','memoryQuestion','updatedBy','updatedAt']) &&
+        data.keys().hasAll(['weekKey','studentUid','studentName','classId','updatedBy','updatedAt']) &&
+        data.weekKey is string &&
+        data.studentUid is string &&
+        data.studentName is string &&
+        data.classId in ['seed','jaram','seum','didim'] &&
+        (!('promise' in data) || (data.promise is string && data.promise.size() <= 200)) &&
+        (!('memoryChecked' in data) || data.memoryChecked is bool) &&
+        (!('memoryQuestion' in data) || data.memoryQuestion is int) &&
+        data.updatedBy == request.auth.uid;
+    }
+
     match /next_generation_members/{memberId} {
       allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor());
       allow create: if isAuthenticated() && request.auth.uid == memberId &&
@@ -852,11 +865,13 @@ service cloud.firestore {
           'groupIds' in ngMemberData() &&
           request.resource.data.groupId in ngMemberData().groupIds)
       ) &&
-        request.resource.data.keys().hasOnly(['weekKey','sundayDate','studentUid','studentName','groupId','present','note','checkedBy','checkedAt']) &&
+        request.resource.data.keys().hasOnly(['weekKey','sundayDate','studentUid','studentName','groupId','present','period2','publicWorship','note','checkedBy','checkedAt']) &&
         request.resource.data.weekKey is string &&
         request.resource.data.studentUid is string &&
         request.resource.data.groupId is string &&
         request.resource.data.present is bool &&
+        (!('period2' in request.resource.data) || request.resource.data.period2 is bool) &&
+        (!('publicWorship' in request.resource.data) || request.resource.data.publicWorship is bool) &&
         request.resource.data.checkedBy == request.auth.uid;
       allow update: if (
         isNextGenerationPastor() ||
@@ -865,15 +880,50 @@ service cloud.firestore {
           request.resource.data.groupId in ngMemberData().groupIds &&
           resource.data.groupId in ngMemberData().groupIds)
       ) &&
-        request.resource.data.keys().hasOnly(['weekKey','sundayDate','studentUid','studentName','groupId','present','note','checkedBy','checkedAt']) &&
+        request.resource.data.keys().hasOnly(['weekKey','sundayDate','studentUid','studentName','groupId','present','period2','publicWorship','note','checkedBy','checkedAt']) &&
         request.resource.data.weekKey is string &&
         request.resource.data.studentUid is string &&
         request.resource.data.groupId is string &&
         request.resource.data.present is bool &&
+        (!('period2' in request.resource.data) || request.resource.data.period2 is bool) &&
+        (!('publicWorship' in request.resource.data) || request.resource.data.publicWorship is bool) &&
         request.resource.data.checkedBy == request.auth.uid &&
         request.resource.data.studentUid == resource.data.studentUid &&
         request.resource.data.weekKey == resource.data.weekKey &&
         request.resource.data.groupId == resource.data.groupId;
+      allow delete: if isNextGenerationPastor();
+    }
+
+    // ─── 주일학교 2027: 반별 주간 기록 (실천 약속·지난주 암송 확인) ───
+    // 반 id는 말씀 열매 그룹 id와 같다(seed/jaram/seum/didim).
+    match /next_generation_school_weekly/{weeklyId} {
+      allow read: if isAuthenticated() && (
+        isNextGenerationPastor() ||
+        resource.data.studentUid == request.auth.uid ||
+        isParentOfNgUser(resource.data.studentUid) ||
+        (isNextGenerationTeacher() &&
+          'groupIds' in ngMemberData() &&
+          resource.data.classId in ngMemberData().groupIds)
+      );
+      allow create: if isAuthenticated() && (
+        isNextGenerationPastor() ||
+        (isNextGenerationTeacher() &&
+          'groupIds' in ngMemberData() &&
+          request.resource.data.classId in ngMemberData().groupIds)
+      ) &&
+        schoolWeeklyShapeOk(request.resource.data) &&
+        weeklyId == request.resource.data.weekKey + '_' + request.resource.data.studentUid;
+      allow update: if isAuthenticated() && (
+        isNextGenerationPastor() ||
+        (isNextGenerationTeacher() &&
+          'groupIds' in ngMemberData() &&
+          request.resource.data.classId in ngMemberData().groupIds &&
+          resource.data.classId in ngMemberData().groupIds)
+      ) &&
+        schoolWeeklyShapeOk(request.resource.data) &&
+        request.resource.data.studentUid == resource.data.studentUid &&
+        request.resource.data.weekKey == resource.data.weekKey &&
+        weeklyId == request.resource.data.weekKey + '_' + request.resource.data.studentUid;
       allow delete: if isNextGenerationPastor();
     }
 

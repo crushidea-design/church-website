@@ -19,6 +19,8 @@ import {
 import NextGenerationLoginModal from '../../pages/NextGenerationLoginModal';
 import NextGenerationAdmin from '../../pages/NextGenerationAdmin';
 import NextGenerationTutorialModal from '../next-generation/NextGenerationTutorialModal';
+import { hasDepartment } from '../../lib/nextGenerationRoles';
+import { canUseClassScreen } from './classScreen';
 import { getRejectedNoticeVersion } from '../next-generation/sharedConstants';
 
 const SCHOOL_PATH = `${NEXT_GENERATION_PATH}/school`;
@@ -72,6 +74,10 @@ export default function SchoolHeader() {
     { name: '청년부', path: `${NEXT_GENERATION_PATH}/young-adults` },
     { name: '문의하기', path: `${NEXT_GENERATION_PATH}/contact` },
   ];
+  // 반 화면은 교역자와 교사에게만 보인다. 한 목록이라 데스크톱·모바일 메뉴가 함께 바뀐다.
+  if (!authLoading && canUseClassScreen({ isPastor, isMember, isTeacher: hasDepartment(member, '교사') })) {
+    navItems.splice(2, 0, { name: '반 관리', path: `${SCHOOL_PATH}/class` });
+  }
 
   const openTutorial = () => setShowTutorial(true);
   const closeTutorial = () => {

@@ -23,6 +23,8 @@ export function buildMemory(input: {
   jaram: string;
   seum: string;
   didim: string;
+  /** 한 줄에 하나씩, 최대 3개. */
+  promiseExamples?: string;
 }): CurriculumMemory | undefined {
   const memory: CurriculumMemory = {};
   const question = input.question.trim() === '' ? undefined : Number(input.question);
@@ -31,7 +33,20 @@ export function buildMemory(input: {
     const text = input[id].trim();
     if (text) memory[id] = text;
   }
+  const examples = parsePromiseExamples(input.promiseExamples ?? '');
+  if (examples.length > 0) memory.promiseExamples = examples;
   return Object.keys(memory).length > 0 ? memory : undefined;
+}
+
+export const MAX_PROMISE_EXAMPLES = 3;
+
+/** 한 줄에 하나씩 적은 예시 약속 → 빈 줄을 뺀 목록(최대 3개). */
+export function parsePromiseExamples(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, MAX_PROMISE_EXAMPLES);
 }
 
 export function hasMemoryText(memory: CurriculumMemory | undefined): boolean {

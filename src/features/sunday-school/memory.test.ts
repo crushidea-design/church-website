@@ -6,6 +6,7 @@ import {
   getMemoryLines,
   hasMemoryText,
   memoryWarnings,
+  parsePromiseExamples,
 } from './memory';
 import type { CurriculumEntry } from './types';
 
@@ -29,6 +30,23 @@ describe('buildMemory', () => {
       question: 1,
       jaram: '나는 나의 것이 아니요',
     });
+  });
+});
+
+describe('promise examples', () => {
+  it('parses one example per line, drops blanks and caps at three', () => {
+    expect(parsePromiseExamples(' 가\n\n나 \n다\n라')).toEqual(['가', '나', '다']);
+  });
+
+  it('buildMemory carries examples and can hold only examples', () => {
+    expect(buildMemory({ question: '', jaram: '', seum: '', didim: '', promiseExamples: '가\n나' })).toEqual({
+      promiseExamples: ['가', '나'],
+    });
+    expect(buildMemory({ question: '', jaram: '', seum: '', didim: '', promiseExamples: ' \n' })).toBeUndefined();
+  });
+
+  it('examples alone do not count as memory text', () => {
+    expect(hasMemoryText({ promiseExamples: ['가'] })).toBe(false);
   });
 });
 

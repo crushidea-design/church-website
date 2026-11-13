@@ -22,6 +22,7 @@ import { useNextGenerationAppBadge, useNextGenerationHead } from './NextGenerati
 import SchoolHeader from '../features/sunday-school/SchoolHeader';
 import SchoolLibraryPage from '../features/sunday-school/SchoolLibraryPage';
 import SchoolIntroPage from '../features/sunday-school/SchoolIntroPage';
+import SchoolClassPage from '../features/sunday-school/class/SchoolClassPage';
 import { SCHOOL_REDIRECT_PATH, decideSchoolAccess } from '../features/sunday-school/access';
 import { useSundaySchool2027Flag } from '../features/sunday-school/flags';
 
@@ -108,6 +109,8 @@ function SchoolInner({ flagEnabled }: { flagEnabled: boolean }) {
     content = <SchoolLibraryPage tabs={mappedTabs.filter((tab) => tab.departmentSlug === 'elementary')} midSection={midSection} />;
   } else if (section === 'intro') {
     content = <SchoolIntroPage />;
+  } else if (section === 'class') {
+    content = <SchoolClassPage />;
   } else {
     content = <Navigate to={SCHOOL_PATH} replace />;
   }

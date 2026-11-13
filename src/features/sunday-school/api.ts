@@ -146,7 +146,7 @@ export function saveCurriculumEntry(entry: CurriculumEntry) {
     data.memory = deleteField();
   } else {
     const memory: Record<string, unknown> = {};
-    for (const key of ['question', 'jaram', 'seum', 'didim'] as const) {
+    for (const key of ['question', 'jaram', 'seum', 'didim', 'promiseExamples'] as const) {
       memory[key] = entry.memory[key] === undefined ? deleteField() : entry.memory[key];
     }
     data.memory = memory;

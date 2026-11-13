@@ -105,6 +105,66 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     }
   });
 
+  it('lets class teachers write the Sunday school weekly record and limits who can read it', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/otherTeacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['didim'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+      await db.doc('next_generation_members/pastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_school_weekly/2027-03-07_student').set({
+        weekKey: '2027-03-07', studentUid: 'student', studentName: '학생', classId: 'seum', promise: '기도하기', updatedBy: 'teacher', updatedAt: new Date(),
+      });
+    });
+    const record = (overrides: Record<string, unknown> = {}) => ({
+      weekKey: '2027-03-14', studentUid: 'student', studentName: '학생', classId: 'seum', promise: '아침에 동생에게 인사하기',
+      memoryChecked: true, memoryQuestion: 3, updatedBy: 'teacher', updatedAt: new Date(), ...overrides,
+    });
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const otherTeacher = env.authenticatedContext('otherTeacher').firestore();
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    const pastor = env.authenticatedContext('pastor').firestore();
+
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-14_student').set(record()));
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-14_student').set(record({ promise: '밤에 부모님께 감사하기' })));
+    await assertSucceeds(pastor.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertSucceeds(student.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertSucceeds(parent.doc('next_generation_school_weekly/2027-03-14_student').get());
+
+    await assertFails(otherTeacher.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertFails(otherTeacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', updatedBy: 'otherTeacher' })));
+    await assertFails(otherTeacher.doc('next_generation_school_weekly/2027-03-14_student').set(record({ updatedBy: 'otherTeacher' })));
+    await assertFails(student.doc('next_generation_school_weekly/2027-03-14_student').set(record({ updatedBy: 'student' })));
+    await assertFails(parent.doc('next_generation_school_weekly/2027-03-14_student').set(record({ updatedBy: 'parent' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', extra: 'x' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', promise: 'ㅇ'.repeat(201) })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', classId: 'other' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', memoryChecked: 'yes' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/wrong-id').set(record({ weekKey: '2027-03-21' })));
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', promise: 'ㅇ'.repeat(200) })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').delete());
+    await assertSucceeds(pastor.doc('next_generation_school_weekly/2027-03-21_student').delete());
+  });
+
+  it('accepts only boolean period2 and publicWorship on attendance', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+    });
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const attendance = (overrides: Record<string, unknown> = {}) => ({
+      weekKey: '2027-03-14', sundayDate: '2027-03-14', studentUid: 'student', studentName: '학생', groupId: 'seum',
+      present: true, checkedBy: 'teacher', checkedAt: new Date(), ...overrides,
+    });
+    await assertSucceeds(teacher.doc('next_generation_attendance/2027-03-14_student').set(attendance()));
+    await assertSucceeds(teacher.doc('next_generation_attendance/2027-03-14_student').set(attendance({ period2: true, publicWorship: false })));
+    await assertFails(teacher.doc('next_generation_attendance/2027-03-21_student').set(attendance({ weekKey: '2027-03-21', period2: 'yes' })));
+    await assertFails(teacher.doc('next_generation_attendance/2027-03-21_student').set(attendance({ weekKey: '2027-03-21', publicWorship: 1 })));
+    await assertFails(teacher.doc('next_generation_attendance/2027-03-21_student').set(attendance({ weekKey: '2027-03-21', unknown: true })));
+  });
+
   it('denies stale summary snippets to public readers while retaining other public settings', async () => {
     await env.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('settings/latest_posts_summary').set({ today_word: { id: 'draft', content: 'stale snippet' } });

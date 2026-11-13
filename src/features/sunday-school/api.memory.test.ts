@@ -41,7 +41,15 @@ describe('saveCurriculumEntry memory', () => {
     await saveCurriculumEntry({ ...base, memory: { question: 3, didim: '전체' } });
     const [, data, options] = setDoc.mock.calls[0];
     expect(options).toEqual({ merge: true });
-    expect(data.memory).toEqual({ question: 3, jaram: DELETE, seum: DELETE, didim: '전체' });
+    expect(data.memory).toEqual({ question: 3, jaram: DELETE, seum: DELETE, didim: '전체', promiseExamples: DELETE });
+  });
+
+  it('keeps promise examples and deletes them when emptied', async () => {
+    await saveCurriculumEntry({ ...base, memory: { question: 3, promiseExamples: ['아침에 동생에게 인사하기'] } });
+    expect(setDoc.mock.calls[0][1].memory.promiseExamples).toEqual(['아침에 동생에게 인사하기']);
+    setDoc.mockReset();
+    await saveCurriculumEntry({ ...base, memory: { question: 3 } });
+    expect(setDoc.mock.calls[0][1].memory.promiseExamples).toBe(DELETE);
   });
 
   it('deletes the whole memory map when it was cleared', async () => {

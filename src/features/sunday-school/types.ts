@@ -1,6 +1,7 @@
 export const SCHOOL_TERMS_COLLECTION = 'next_generation_school_terms';
 export const SCHOOL_CURRICULUM_COLLECTION = 'next_generation_school_curriculum';
 export const SCHOOL_CLASSES_COLLECTION = 'next_generation_school_classes';
+export const SCHOOL_WEEKLY_COLLECTION = 'next_generation_school_weekly';
 
 export type SchoolTermKind = 'term' | 'vacation';
 
@@ -46,6 +47,8 @@ export interface CurriculumMemory {
   seum?: string;
   /** 질문 + 답 전체 */
   didim?: string;
+  /** 교사에게 보여 줄 예시 실천 약속 (1~3개). */
+  promiseExamples?: string[];
 }
 
 export type SchoolClassId = 'seed' | 'jaram' | 'seum' | 'didim';
@@ -61,4 +64,24 @@ export interface SchoolClass {
   mode: 'parent' | 'class';
   order: number;
   isVisible: boolean;
+}
+
+/**
+ * 반별 주간 기록 (문서 id = `${weekKey}_${studentUid}`). 교사가 주일에 입력한다.
+ * 이후 단계에서 부모·학생의 날짜별 체크 필드를 더할 수 있다.
+ */
+export interface SchoolWeeklyDoc {
+  id: string;
+  weekKey: string; // Sunday YYYY-MM-DD, same as the attendance weekKey
+  studentUid: string;
+  studentName: string;
+  classId: SchoolClassId;
+  /** 이번 주 실천 약속 (교사가 아이의 말을 받아 적음, 200자 이내). */
+  promise?: string;
+  /** 지난주 암송을 이번 주일에 확인했는가. */
+  memoryChecked?: boolean;
+  /** 확인한 암송 문항 번호. */
+  memoryQuestion?: number;
+  updatedBy: string;
+  updatedAt?: any;
 }
