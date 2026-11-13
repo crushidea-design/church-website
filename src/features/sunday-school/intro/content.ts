@@ -1,9 +1,8 @@
 // Static copy for the 2027 intro page. CMS editing comes later.
 // No head counts, no names of people, no approval wording (public page).
 
+// The badge and title come from the school identity (identity.ts).
 export const INTRO_HERO = {
-  eyebrow: '2027 주일학교',
-  title: '함께 지어져 가는 언약의 자녀들',
   lead: '2027년부터 유초등부와 중고등부가 하나의 주일학교로 모입니다.',
 };
 

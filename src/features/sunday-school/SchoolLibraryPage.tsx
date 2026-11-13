@@ -23,6 +23,7 @@ import { getPostAttachments } from '../../lib/attachments';
 import { formatDate } from '../../lib/utils';
 import type { NextGenerationPost, ResourceTabItem } from '../next-generation/sharedConstants';
 import { useSundaySchoolCatalog } from './api';
+import { useSchoolIdentity } from './identity';
 import { getHeidelbergProgress, getSchoolWeekStatus } from './schedule';
 import { findWeekMemoryEntry } from './memory';
 import ThisWeekMemory from './home/ThisWeekMemory';
@@ -67,6 +68,7 @@ interface SchoolLibraryPageProps {
 export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: SchoolLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
   const { user: ngUser, member, isPastor } = useNextGenerationAuth();
+  const { identity } = useSchoolIdentity();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const catalog = useSundaySchoolCatalog();
@@ -212,7 +214,7 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
 
   return (
     <div>
-      <SchoolWeekHero model={heroModel} sundayKey={sundayKey} isOverride={!!overrideKey} />
+      <SchoolWeekHero model={heroModel} sundayKey={sundayKey} isOverride={!!overrideKey} schoolName={identity.name} schoolNameEn={identity.nameEn} />
       <CurriculumProgress progress={progress} />
       <ClassChips classes={catalog.classes} value={classFilter} onChange={setClassFilter} />
       <ThisWeekMemory entry={memoryEntry} classFilter={classFilter} />

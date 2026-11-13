@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Leaf, Sparkles, Sprout, TreeDeciduous, Trees, X } from 'lucide-react';
 import { useSundaySchoolCatalog } from './api';
+import { useSchoolIdentity } from './identity';
 import {
   INTRO_CURRICULUM,
   INTRO_HERO,
@@ -30,6 +31,7 @@ const formatTermDate = (key: string) => {
 
 export default function SchoolIntroPage() {
   const catalog = useSundaySchoolCatalog();
+  const { identity } = useSchoolIdentity();
   const classes = catalog.classes.filter((item) => item.isVisible).sort((a, b) => a.order - b.order);
   const [lightbox, setLightbox] = useState<IntroGalleryImage[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -54,11 +56,14 @@ export default function SchoolIntroPage() {
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
-              {INTRO_HERO.eyebrow}
+              {identity.nameEn} · {identity.period}
             </span>
             <h1 className="text-4xl font-black leading-tight tracking-normal text-emerald-950 sm:text-5xl">
-              {INTRO_HERO.title}
+              {identity.name}
             </h1>
+            <p className="mt-4 text-base font-black text-emerald-800">
+              “{identity.motto}” <span className="font-bold text-emerald-700">({identity.verseRef})</span>
+            </p>
             <p className="mt-5 max-w-2xl text-lg font-bold leading-8 text-slate-700">{INTRO_HERO.lead}</p>
           </div>
           <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">

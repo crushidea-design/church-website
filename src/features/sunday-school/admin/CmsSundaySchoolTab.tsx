@@ -2,6 +2,7 @@
 import React from 'react';
 import { useSundaySchoolCatalog } from '../api';
 import SundaySchoolStatusSection from './SundaySchoolStatusSection';
+import SundaySchoolIdentitySection from './SundaySchoolIdentitySection';
 import SundaySchoolTermsSection from './SundaySchoolTermsSection';
 import SundaySchoolCurriculumSection from './SundaySchoolCurriculumSection';
 import SundaySchoolClassesSection from './SundaySchoolClassesSection';
@@ -19,6 +20,7 @@ export default function CmsSundaySchoolTab() {
   return (
     <div className="space-y-4">
       <SundaySchoolStatusSection catalog={catalog} />
+      <SundaySchoolIdentitySection />
       <SundaySchoolTermsSection terms={catalog.terms} disabled={termsLocked} />
       <SundaySchoolCurriculumSection terms={catalog.terms} curriculum={catalog.curriculum} disabled={curriculumLocked} />
       <SundaySchoolClassesSection classes={catalog.classes} disabled={classesLocked} />

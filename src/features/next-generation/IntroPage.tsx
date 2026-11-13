@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Sparkles, Users, X } from 'lucide-react';
 import { NextGenerationIntroSection } from '../../lib/nextGenerationCms';
+import SchoolIdentityHeroCopy from '../sunday-school/SchoolIdentityHeroCopy';
 import {
   DepartmentCardItem,
   introImage,
@@ -174,6 +175,10 @@ export default function IntroPage({
       <section className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-16">
           <div>
+            {schoolMode ? (
+              <SchoolIdentityHeroCopy />
+            ) : (
+              <>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
               언약 안에서 예배하는 유초등부
@@ -186,6 +191,8 @@ export default function IntroPage({
               우리는 예배 중심의 신앙교육을 지향하며, 교회 교육이 가정과 이어지도록 힘씁니다.
               성경과 교리 위에 다음세대를 세워, 하나님을 알고 사랑하며 순종하는 삶으로 자라가게 하는 것이 우리의 목표입니다.
             </p>
+              </>
+            )}
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {visiblePillars.map((pillar) => (
                 <button
