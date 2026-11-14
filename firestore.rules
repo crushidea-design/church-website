@@ -715,9 +715,14 @@ service cloud.firestore {
     }
 
     match /next_generation_post_files/{postId} {
-      // Guests can read attachment metadata so PDFs can be previewed without login.
-      // Download blocking is handled in the UI.
-      allow read: if true;
+      // Guests can read attachment metadata of published posts so PDFs can be previewed
+      // without login (download blocking is handled in the UI). Private (unpublished)
+      // posts' attachments follow the post: only admins, next-generation pastors and the author.
+      // Files are always fetched by id, so listing the collection is not allowed.
+      allow get: if isNextGenerationPastor() ||
+        canReadPostData(get(/databases/$(database)/documents/posts/$(postId)).data) ||
+        (isAuthenticated() && get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+      allow list: if false;
       // Only the post author (or pastor) can write file data
       allow create, update: if isAuthenticated() &&
         request.resource.data.keys().hasOnly(['postId', 'pdfUrl', 'pdfName', 'pdfBase64', 'attachments', 'updatedAt']) &&

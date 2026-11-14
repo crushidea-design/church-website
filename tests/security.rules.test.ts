@@ -105,6 +105,30 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     }
   });
 
+  it('hides attachments of private next-generation posts like the post itself', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      const post = { category: 'next_generation', title: 't', content: 'c', authorId: 'author' };
+      await db.doc('posts/publicPost').set({ ...post, isPublished: true });
+      await db.doc('posts/privatePost').set({ ...post, isPublished: false });
+      await db.doc('next_generation_post_files/publicPost').set({ postId: 'publicPost', pdfUrl: 'https://example.com/a.pdf' });
+      await db.doc('next_generation_post_files/privatePost').set({ postId: 'privatePost', pdfUrl: 'https://example.com/b.pdf' });
+      await db.doc('next_generation_members/ngPastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_members/ngMember').set({ role: 'member', department: '학부모' });
+    });
+    const guest = env.unauthenticatedContext().firestore();
+    const member = env.authenticatedContext('ngMember').firestore();
+    const pastor = env.authenticatedContext('ngPastor').firestore();
+    const author = env.authenticatedContext('author').firestore();
+
+    await assertSucceeds(guest.doc('next_generation_post_files/publicPost').get());
+    await assertFails(guest.doc('next_generation_post_files/privatePost').get());
+    await assertFails(member.doc('next_generation_post_files/privatePost').get());
+    await assertSucceeds(pastor.doc('next_generation_post_files/privatePost').get());
+    await assertSucceeds(author.doc('next_generation_post_files/privatePost').get());
+    await assertFails(guest.collection('next_generation_post_files').get());
+  });
+
   it('lets a student request a class at sign-up but not assign one', async () => {
     const signup = (uid: string, extra: Record<string, unknown>) => ({
       uid, email: `${uid}@example.com`, displayName: '학생', role: 'pending',
