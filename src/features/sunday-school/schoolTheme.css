@@ -1,0 +1,55 @@
+/*
+ * 그안에 주일학교 tone: navy and gold.
+ * Scoped to the Sunday school pages (.school-theme on the page root). The
+ * components keep their emerald/amber utility classes; inside this scope those
+ * Tailwind color variables resolve to navy (emerald) and gold (amber/yellow),
+ * so the layout is untouched and other departments keep their colors.
+ */
+.school-theme {
+  --color-emerald-50: #f1f4fa;
+  --color-emerald-100: #e2e8f3;
+  --color-emerald-200: #c5d0e5;
+  --color-emerald-300: #9cadcf;
+  --color-emerald-400: #6f84b2;
+  --color-emerald-500: #4a6094;
+  --color-emerald-600: #34497a;
+  --color-emerald-700: #263a66;
+  --color-emerald-800: #1f3158;
+  --color-emerald-900: #1b2a4a;
+  --color-emerald-950: #111b33;
+
+  --color-amber-50: #fbf7ec;
+  --color-amber-100: #f4ecd6;
+  --color-amber-200: #ead9ad;
+  --color-amber-300: #dfc27f;
+  --color-amber-400: #d4ad5a;
+  --color-amber-500: #c49a3e;
+  --color-amber-600: #a47e2c;
+  --color-amber-700: #806122;
+  --color-amber-800: #5f481b;
+  --color-amber-900: #46351a;
+  --color-amber-950: #2a1f0e;
+
+  --color-yellow-50: #fbf7ec;
+  --color-yellow-100: #f4ecd6;
+  --color-yellow-200: #ead9ad;
+  --color-yellow-300: #dfc27f;
+  --color-yellow-400: #d4ad5a;
+  --color-yellow-500: #c49a3e;
+  --color-yellow-600: #a47e2c;
+  --color-yellow-700: #806122;
+  --color-yellow-800: #5f481b;
+  --color-yellow-900: #46351a;
+
+  --color-coral-500: #a47e2c;
+  --color-coral-600: #806122;
+  --color-coral-700: #5f481b;
+  --color-coral-800: #46351a;
+
+  background-color: #f8f6f0;
+}
+
+.school-theme h1,
+.school-theme h2 {
+  font-family: var(--font-serif);
+}
