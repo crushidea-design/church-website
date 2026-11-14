@@ -1,6 +1,6 @@
 // Firestore access for 이번 주 문답 여정. Reads are per student (rules need the
-// studentUid constraint in the query); writes carry the full document shape.
-import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+// studentUid constraint in the query); date checks write one list atomically.
+import { arrayRemove, arrayUnion, collection, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { ATTENDANCE_COLLECTION } from '../../word-fruit/attendanceApi';
 import type { AttendanceDoc } from '../../word-fruit/attendanceApi';
@@ -97,28 +97,49 @@ export function subscribeJourneyForClass(
   );
 }
 
-export function buildJourneyFields(input: {
+export type JourneyDateKind = 'worship' | 'practice';
+
+const DATE_FIELD: Record<JourneyDateKind, 'familyWorshipDates' | 'practiceDates'> = {
+  worship: 'familyWorshipDates',
+  practice: 'practiceDates',
+};
+
+/**
+ * Fields for one date check. Only the changed list is touched, with arrayUnion /
+ * arrayRemove, so a parent (가정예배) and a student (실천) editing the same
+ * document never overwrite each other. The other list gets an empty arrayUnion:
+ * a no-op on an existing document, and `[]` when the first write creates it
+ * (the rules require both lists to exist).
+ */
+export function buildJourneyDateFields(input: {
   weekKey: string;
   studentUid: string;
   studentName: string;
   classId: SchoolClassId;
-  familyWorshipDates: string[];
-  practiceDates: string[];
+  kind: JourneyDateKind;
+  date: string;
+  checked: boolean;
   updatedBy: string;
 }) {
+  const changed = DATE_FIELD[input.kind];
+  const other = DATE_FIELD[input.kind === 'worship' ? 'practice' : 'worship'];
   return {
     weekKey: input.weekKey,
     studentUid: input.studentUid,
     studentName: input.studentName,
     classId: input.classId,
-    familyWorshipDates: input.familyWorshipDates,
-    practiceDates: input.practiceDates,
+    [changed]: input.checked ? arrayUnion(input.date) : arrayRemove(input.date),
+    [other]: arrayUnion(),
     updatedBy: input.updatedBy,
     updatedAt: serverTimestamp(),
   };
 }
 
-/** Saves the child's whole journey record (both date lists) for the week. */
-export async function saveJourneyDates(input: Parameters<typeof buildJourneyFields>[0]) {
-  await setDoc(doc(db, SCHOOL_JOURNEY_COLLECTION, journeyDocId(input.weekKey, input.studentUid)), buildJourneyFields(input));
+/** Checks or unchecks one date of the child's journey without replacing the other list. */
+export async function saveJourneyDate(input: Parameters<typeof buildJourneyDateFields>[0]) {
+  await setDoc(
+    doc(db, SCHOOL_JOURNEY_COLLECTION, journeyDocId(input.weekKey, input.studentUid)),
+    buildJourneyDateFields(input),
+    { merge: true },
+  );
 }

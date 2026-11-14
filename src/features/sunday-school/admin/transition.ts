@@ -5,7 +5,7 @@ import {
   supportsNextGenerationTopic,
 } from '../../../lib/nextGenerationTopics';
 import type { NextGenerationTopicOption } from '../../../lib/nextGenerationTopics';
-import { ARCHIVED_TAB_IDS, PREPARATION_TAB_IDS, SCHOOL_DEPARTMENT_SLUG } from '../home/libraryTabs';
+import { ARCHIVED_TAB_IDS, PREPARATION_TAB_IDS, SCHOOL_DEPARTMENT_SLUG, SCHOOL_TAB_ORDER } from '../home/libraryTabs';
 
 // Pure helpers for the "전환 준비" admin section (plan §5-3). The Firestore
 // reads/writes live in api.ts; nothing here touches the network.
@@ -35,6 +35,15 @@ export const INVENTORY_TAB_IDS = [
 ] as const;
 
 export const postTabId = (post: InventoryPost) => post.nextGenerationTabSlug || post.subCategory || '';
+
+/**
+ * Bulk publishing is limited to Sunday-school material: posts whose tab is one of the
+ * school library tabs. Other private next-generation posts (e.g. 청년부 drafts) stay private.
+ */
+export function isSchoolTransitionPost(post: { tabSlug?: string } & InventoryPost): boolean {
+  const slug = post.tabSlug || postTabId(post);
+  return (SCHOOL_TAB_ORDER as readonly string[]).includes(slug);
+}
 
 export function isElementaryPost(post: InventoryPost): boolean {
   if (post.nextGenerationDepartmentSlug) return post.nextGenerationDepartmentSlug === SCHOOL_DEPARTMENT_SLUG;

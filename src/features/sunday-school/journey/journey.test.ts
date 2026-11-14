@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addDaysToKey,
   buildJourneySteps,
+  buildLastWeekSummary,
   canCheckStep,
   cleanDates,
   countsByStudent,
@@ -12,7 +13,9 @@ import {
   isDayCheckable,
   isWeekOpen,
   nextWeekKey,
+  pickLinkedClassId,
   practiceChecker,
+  previousWeekKey,
   toggleDate,
   weekDays,
 } from './journey';
@@ -166,5 +169,39 @@ describe('teacher summary', () => {
     expect(formatCountsLine(map.get('a'))).toBe('가정예배 2회 · 실천 1회');
     expect(formatCountsLine(map.get('b'))).toBe('가정예배 0회 · 실천 0회');
     expect(formatCountsLine(map.get('missing'))).toBe('가정예배 0회 · 실천 0회');
+  });
+});
+
+describe('last week summary', () => {
+  const last = { classId: 'seum' as const, present: true, worshipDates: ['2027-03-15'], practiceDates: ['2027-03-16'], promise: '인사하기' };
+
+  it('moves back one week', () => {
+    expect(previousWeekKey('2027-03-14')).toBe('2027-03-07');
+    expect(previousWeekKey(nextWeekKey(WEEK))).toBe(WEEK);
+  });
+
+  it('completes the fruit once this Sunday\'s memory check is in', () => {
+    const open = buildLastWeekSummary({ ...last, memoryChecked: false });
+    expect(open.completed).toBe(false);
+    expect(open.hasRecord).toBe(true);
+    const done = buildLastWeekSummary({ ...last, memoryChecked: true });
+    expect(done.completed).toBe(true);
+    expect(done.stage).toBe(3);
+  });
+
+  it('has no memory step for 씨앗반 and hides when nothing was recorded', () => {
+    const seed = buildLastWeekSummary({ classId: 'seed', present: true, worshipDates: ['2027-03-15'], practiceDates: ['2027-03-16'], memoryChecked: false });
+    expect(seed.steps.map((step) => step.id)).toEqual(['learn', 'worship', 'practice']);
+    expect(seed.completed).toBe(true);
+    expect(buildLastWeekSummary({ classId: 'seum', present: false, worshipDates: [], practiceDates: [], memoryChecked: false }).hasRecord).toBe(false);
+  });
+});
+
+describe('linked child class', () => {
+  it('prefers the member doc class over attendance history', () => {
+    expect(pickLinkedClassId({ memberClassId: 'seum', attendanceClassId: 'jaram' })).toBe('seum');
+    expect(pickLinkedClassId({ attendanceClassId: 'jaram' })).toBe('jaram');
+    expect(pickLinkedClassId({ memberClassId: 'didim' })).toBe('didim');
+    expect(pickLinkedClassId(undefined)).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   fetchPostsForInventory,
@@ -10,7 +10,7 @@ import type { PreparationPostSummary, SundaySchoolCatalog } from '../api';
 import { useSundaySchool2027Flag } from '../flags';
 import { useNextGenerationCms } from '../../../lib/nextGenerationCms';
 import { getNextGenerationTopicLabel } from '../../../lib/nextGenerationTopics';
-import { buildPreservationInventory, hasPosts } from './transition';
+import { buildPreservationInventory, hasPosts, isSchoolTransitionPost } from './transition';
 import type { PreservationInventory } from './transition';
 import { cardClass, dangerButtonClass, primaryButtonClass, subtleButtonClass } from './ui';
 
@@ -54,6 +54,10 @@ export default function SundaySchoolTransitionSection({ catalog }: { catalog: Su
     void loadPrivate();
   }, [loadPrivate]);
 
+  // Only Sunday-school material is bulk-published; other private next-generation posts stay untouched.
+  const schoolPosts = useMemo(() => (privatePosts ?? []).filter(isSchoolTransitionPost), [privatePosts]);
+  const excludedCount = privatePosts ? privatePosts.length - schoolPosts.length : 0;
+
   const tabName = (id: string) => tabs.find((tab) => (tab.slug || tab.id) === id)?.name ?? id;
 
   const handleInventory = async () => {
@@ -73,12 +77,12 @@ export default function SundaySchoolTransitionSection({ catalog }: { catalog: Su
   };
 
   const handlePublish = async () => {
-    if (!privatePosts || privatePosts.length === 0) return;
-    if (!window.confirm(`비공개 준비 자료 ${privatePosts.length}건을 모두 공개합니다. 공개하면 성도 화면의 자료실에서 바로 보일 수 있습니다. 진행할까요?`)) return;
+    if (schoolPosts.length === 0) return;
+    if (!window.confirm(`비공개 주일학교 준비 자료 ${schoolPosts.length}건을 모두 공개합니다. 공개하면 성도 화면의 자료실에서 바로 보일 수 있습니다. 진행할까요?`)) return;
     setBusy('publish');
     setResult(null);
     try {
-      const outcome = await publishPreparationPosts(privatePosts.map((post) => post.id));
+      const outcome = await publishPreparationPosts(schoolPosts.map((post) => post.id));
       setResult(
         outcome.failed.length === 0
           ? `${outcome.published}건을 공개했습니다.`
@@ -137,7 +141,8 @@ export default function SundaySchoolTransitionSection({ catalog }: { catalog: Su
         <li className="flex items-center justify-between rounded-lg border border-wood-200 px-3 py-2 text-sm">
           <span className="font-bold text-wood-800">비공개 준비 자료</span>
           <span className="text-xs font-bold text-wood-700">
-            {privateError ?? (privatePosts ? `${privatePosts.length}건` : '확인 중...')}
+            {privateError ?? (privatePosts ? `${schoolPosts.length}건` : '확인 중...')}
+            {privatePosts && excludedCount > 0 && ` (다른 비공개 ${excludedCount}건 제외)`}
           </span>
         </li>
         <li className="flex items-center justify-between rounded-lg border border-wood-200 px-3 py-2 text-sm">
@@ -216,11 +221,16 @@ export default function SundaySchoolTransitionSection({ catalog }: { catalog: Su
           <li key={line}>{line}</li>
         ))}
       </ul>
+      {excludedCount > 0 && (
+        <p className="mt-2 text-xs font-bold text-wood-500">
+          주일학교 자료가 아닌 비공개 글 {excludedCount}건(예: 청년부)은 공개 대상에서 제외됩니다.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button
           type="button"
           className={primaryButtonClass}
-          disabled={busy !== null || !privatePosts || privatePosts.length === 0}
+          disabled={busy !== null || schoolPosts.length === 0}
           onClick={() => void handlePublish()}
         >
           {busy === 'publish' ? <Loader2 size={12} className="inline animate-spin" /> : null} 비공개 준비 자료 모두 공개

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import type { Firestore } from 'firebase/firestore';
+import firebaseCompat from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { ensureUserProfile } from '../src/lib/userProfile';
 
 vi.mock('../netlify/functions/_shared/firebase-admin.mjs', async () => {
@@ -165,6 +167,50 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     await assertFails(teacher.collection('next_generation_members').where('departments', 'array-contains', '학생').get());
     await assertFails(noClassTeacher.doc('next_generation_members/student').get());
     await assertFails(student.doc('next_generation_members/otherStudent').get());
+  });
+
+  it('lets a linked parent read the child member doc, and nobody else unlinked', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/kid').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/linkedParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['kid'] });
+      await db.doc('next_generation_members/unlinkedParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['someoneElse'] });
+      await db.doc('next_generation_members/noChildrenParent').set({ role: 'member', department: '학부모', departments: ['학부모'] });
+      await db.doc('next_generation_members/pendingParent').set({ role: 'pending', department: '학부모', departments: ['학부모'], childIds: ['kid'] });
+    });
+    await assertSucceeds(env.authenticatedContext('linkedParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.authenticatedContext('unlinkedParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.authenticatedContext('noChildrenParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.authenticatedContext('pendingParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.unauthenticatedContext().firestore().doc('next_generation_members/kid').get());
+    // the link grants only that child's doc, not other members
+    await assertFails(env.authenticatedContext('linkedParent').firestore().doc('next_generation_members/unlinkedParent').get());
+  });
+
+  it('keeps parent and student journey date checks from overwriting each other', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+    });
+    const { FieldValue } = firebaseCompat.firestore;
+    const fields = (kind: 'worship' | 'practice', date: string, checked: boolean, by: string) => ({
+      weekKey: '2027-03-14', studentUid: 'student', studentName: '학생', classId: 'seum',
+      [kind === 'worship' ? 'familyWorshipDates' : 'practiceDates']: checked ? FieldValue.arrayUnion(date) : FieldValue.arrayRemove(date),
+      [kind === 'worship' ? 'practiceDates' : 'familyWorshipDates']: FieldValue.arrayUnion(),
+      updatedBy: by, updatedAt: new Date(),
+    });
+    const path = 'next_generation_school_journey/2027-03-14_student';
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    // first write creates the document (merge), later writes touch only their own list
+    await assertSucceeds(parent.doc(path).set(fields('worship', '2027-03-15', true, 'parent'), { merge: true }));
+    await assertSucceeds(student.doc(path).set(fields('practice', '2027-03-16', true, 'student'), { merge: true }));
+    await assertSucceeds(parent.doc(path).set(fields('worship', '2027-03-17', true, 'parent'), { merge: true }));
+    await assertSucceeds(student.doc(path).set(fields('practice', '2027-03-16', false, 'student'), { merge: true }));
+    const data = (await student.doc(path).get()).data()!;
+    expect(data.familyWorshipDates).toEqual(['2027-03-15', '2027-03-17']);
+    expect(data.practiceDates).toEqual([]);
   });
 
   it('lets class teachers write the Sunday school weekly record and limits who can read it', async () => {

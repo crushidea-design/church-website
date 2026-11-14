@@ -1,14 +1,15 @@
 // Resolves "the child" of the signed-in account: a student account is its own
 // child; a parent account has linked member children and proxy children.
 import { useEffect, useMemo, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { useNextGenerationAuth } from '../../../lib/nextGenerationAuth';
 import { hasDepartment } from '../../../lib/nextGenerationRoles';
 import { subscribeAttendanceForStudent } from '../../word-fruit/attendanceApi';
 import { isSchoolClassId } from '../classScreen';
 import type { SchoolClassId } from '../types';
-import type { JourneyRole } from './journey';
+import { pickLinkedClassId } from './journey';
+import type { JourneyRole, LinkedChildInfo } from './journey';
 
 export interface JourneyChild {
   uid: string;
@@ -40,23 +41,32 @@ export function useJourneyChildren(): JourneyViewer {
   const linkedKey = linkedIds.join('|');
   const proxyKey = proxyList.map((child) => child.id).join('|');
 
-  // Linked children: class and name come from their attendance records (a parent cannot read the child's member doc).
-  const [linked, setLinked] = useState<Record<string, { name?: string; classId?: SchoolClassId }>>({});
+  // Linked children: the class comes from the child's member doc (readable by the linked parent), so a
+  // newly approved or re-assigned student is correct at once. Attendance history is only a fallback
+  // (and the name source when the member doc is unavailable).
+  const [linked, setLinked] = useState<Record<string, LinkedChildInfo>>({});
   useEffect(() => {
     setLinked({});
-    const unsubs = linkedIds.map((uid) =>
+    const patch = (uid: string, change: LinkedChildInfo) =>
+      setLinked((current) => ({ ...current, [uid]: { ...current[uid], ...change } }));
+    const unsubs = linkedIds.flatMap((uid) => [
+      onSnapshot(
+        doc(db, 'next_generation_members', uid),
+        (snap) => {
+          const data = snap.data() as { displayName?: string; groupId?: string } | undefined;
+          patch(uid, { memberName: data?.displayName, memberClassId: asClassId(data?.groupId) });
+        },
+        () => undefined,
+      ),
       subscribeAttendanceForStudent(
         uid,
         (rows) => {
           const withClass = rows.find((row) => isSchoolClassId(row.groupId));
-          setLinked((current) => ({
-            ...current,
-            [uid]: { name: (withClass ?? rows[0])?.studentName, classId: asClassId(withClass?.groupId) },
-          }));
+          patch(uid, { attendanceName: (withClass ?? rows[0])?.studentName, attendanceClassId: asClassId(withClass?.groupId) });
         },
         () => undefined,
       ),
-    );
+    ]);
     return () => unsubs.forEach((unsubscribe) => unsubscribe());
     // linkedKey stands in for linkedIds
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -97,7 +107,14 @@ export function useJourneyChildren(): JourneyViewer {
       add({ uid: user.uid, name: member?.displayName || '나', classId: asClassId(member?.groupId), isProxy: false, viewer: 'student' });
     }
     for (const uid of linkedIds) {
-      add({ uid, name: linked[uid]?.name || '자녀', classId: linked[uid]?.classId, isProxy: false, viewer: 'parent' });
+      const info = linked[uid];
+      add({
+        uid,
+        name: info?.memberName || info?.attendanceName || '자녀',
+        classId: pickLinkedClassId(info),
+        isProxy: false,
+        viewer: 'parent',
+      });
     }
     for (const child of proxyList) {
       const fresh = proxyDocs[child.id];

@@ -8,7 +8,7 @@ import { hasDepartment } from '../../../lib/nextGenerationRoles';
 import { NEXT_GENERATION_PATH, getActiveSundayKey } from '../../../lib/nextGenerationResources';
 import { subscribeAttendanceForGroup } from '../../word-fruit/attendanceApi';
 import type { AttendanceDoc } from '../../word-fruit/attendanceApi';
-import { useTeacherStudents } from '../../word-fruit/WordFruitTeacherView';
+import { useTeacherRoster } from '../../word-fruit/WordFruitTeacherView';
 import { useSundaySchoolCatalog } from '../api';
 import { saveClassRows, subscribeSchoolWeekly } from '../classApi';
 import {
@@ -17,6 +17,8 @@ import {
   buildRowDrafts,
   buildWeeklyWrites,
   canUseClassScreen,
+  classBoardKey,
+  getClassBoardStatus,
   getMemoryCheckTarget,
   getWeekCurriculumInfo,
   hasPromiseAndMemory,
@@ -96,9 +98,17 @@ function ClassBoard({
   const withPromise = hasPromiseAndMemory(classId);
   const showMemory = withPromise && !!memoryTarget;
   const groupIds = useMemo(() => [classId], [classId]);
-  const students = useTeacherStudents(groupIds);
-  const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
-  const [weekly, setWeekly] = useState<SchoolWeeklyDoc[]>([]);
+  const roster = useTeacherRoster(groupIds);
+  const students = roster.students;
+  const boardKey = classBoardKey(classId, sundayKey);
+  // Each result is tagged with the key it was loaded for, so a previous class/week is never shown or saved.
+  const [attendanceState, setAttendanceState] = useState<{ key: string; rows: AttendanceDoc[] } | null>(null);
+  const [weeklyState, setWeeklyState] = useState<{ key: string; rows: SchoolWeeklyDoc[] } | null>(null);
+  const attendance = useMemo(
+    () => (attendanceState?.key === boardKey ? attendanceState.rows : []),
+    [attendanceState, boardKey],
+  );
+  const weekly = useMemo(() => (weeklyState?.key === boardKey ? weeklyState.rows : []), [weeklyState, boardKey]);
   const [previousWeekly, setPreviousWeekly] = useState<SchoolWeeklyDoc[]>([]);
   const [previousJourney, setPreviousJourney] = useState<SchoolJourneyDoc[]>([]);
   const [readingRows, setReadingRows] = useState<ReadingYearDoc[]>([]);
@@ -113,13 +123,17 @@ function ClassBoard({
     setDrafts({});
     setMessage(null);
     setLoadError(false);
+    setAttendanceState(null);
+    setWeeklyState(null);
+    setPreviousWeekly([]);
+    setPreviousJourney([]);
   }, [classId, sundayKey]);
 
   useEffect(() => {
     const onError = () => setLoadError(true);
     const unsubs = [
-      subscribeAttendanceForGroup(classId, [sundayKey], setAttendance, onError),
-      subscribeSchoolWeekly(classId, sundayKey, setWeekly, onError),
+      subscribeAttendanceForGroup(classId, [sundayKey], (rows) => setAttendanceState({ key: boardKey, rows }), onError),
+      subscribeSchoolWeekly(classId, sundayKey, (rows) => setWeeklyState({ key: boardKey, rows }), onError),
       subscribeSchoolWeekly(classId, previousSundayKey(sundayKey), setPreviousWeekly, onError),
       subscribeJourneyForClass(classId, previousSundayKey(sundayKey), setPreviousJourney, onError),
     ];
@@ -128,7 +142,16 @@ function ClassBoard({
       unsubs.push(subscribeReadingForClass(classId, readingYearFor(sundayKey), setReadingRows, onError));
     }
     return () => unsubs.forEach((unsubscribe) => unsubscribe());
-  }, [classId, sundayKey]);
+  }, [classId, sundayKey, boardKey]);
+
+  const status = getClassBoardStatus({
+    key: boardKey,
+    rosterLoaded: roster.loaded,
+    attendanceKey: attendanceState?.key ?? null,
+    weeklyKey: weeklyState?.key ?? null,
+    hasError: loadError || roster.error,
+  });
+  const ready = status === 'ready';
 
   const baseRows = useMemo(() => buildRowDrafts(students, attendance, weekly), [students, attendance, weekly]);
   const rows = useMemo(
@@ -145,7 +168,7 @@ function ClassBoard({
   };
 
   const save = async () => {
-    if (saving || rows.length === 0) return;
+    if (saving || !ready || rows.length === 0) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -197,9 +220,14 @@ function ClassBoard({
         </p>
       )}
 
-      {loadError && (
+      {status === 'error' && (
         <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">
           기록을 불러오지 못했습니다. 화면을 새로 고쳐 주세요.
+        </p>
+      )}
+      {status === 'loading' && (
+        <p role="status" className="mt-3 rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-600">
+          기록을 불러오는 중입니다. 잠시만 기다려 주세요.
         </p>
       )}
 
@@ -214,7 +242,7 @@ function ClassBoard({
           {withPromise && <span>지난주 약속</span>}
         </div>
 
-        {rows.length === 0 ? (
+        {!ready ? null : rows.length === 0 ? (
           <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
             이 반에 배정된 아이가 아직 없습니다. 교역자가 아이를 반에 배정하면 여기에 보입니다.
           </p>
@@ -293,7 +321,7 @@ function ClassBoard({
         <button
           type="button"
           onClick={save}
-          disabled={saving || rows.length === 0}
+          disabled={saving || !ready || rows.length === 0}
           className="min-h-[44px] rounded-xl bg-emerald-700 px-6 text-sm font-black text-white transition hover:bg-emerald-800 disabled:opacity-50"
         >
           {saving ? '저장 중...' : '저장'}

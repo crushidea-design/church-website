@@ -12,13 +12,32 @@ import {
   upsertProgressByLeader,
 } from './api';
 
+export interface TeacherRosterState {
+  students: TeacherStudent[];
+  /** Group-id key the students were loaded for; compare with the current key to detect stale data. */
+  key: string;
+  /** True once all three roster subscriptions delivered a first result (or failed). */
+  loaded: boolean;
+  /** True when any roster subscription failed. */
+  error: boolean;
+}
+
 export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] {
-  const [students, setStudents] = useState<TeacherStudent[]>([]);
+  return useTeacherRoster(teacherGroupIds).students;
+}
+
+/** Roster plus load state, keyed by the group ids so stale rosters are never reported as current. */
+export function useTeacherRoster(teacherGroupIds: string[]): TeacherRosterState {
+  const currentKey = teacherGroupIds.join('|');
+  const [state, setState] = useState<TeacherRosterState>({ students: [], key: currentKey, loaded: false, error: false });
   useEffect(() => {
     if (teacherGroupIds.length === 0) {
-      setStudents([]);
+      setState({ students: [], key: currentKey, loaded: true, error: false });
       return;
     }
+    setState({ students: [], key: currentKey, loaded: false, error: false });
+    const received = { legacy: false, multi: false, proxy: false };
+    let failed = false;
     let legacyMemberStudents: TeacherStudent[] = [];
     let multiRoleMemberStudents: TeacherStudent[] = [];
     let proxyStudents: TeacherStudent[] = [];
@@ -27,7 +46,12 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
       [...legacyMemberStudents, ...multiRoleMemberStudents, ...proxyStudents].forEach((student) => {
         byUid.set(student.uid, student);
       });
-      setStudents(Array.from(byUid.values()).sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko')));
+      setState({
+        students: Array.from(byUid.values()).sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko')),
+        key: currentKey,
+        loaded: received.legacy && received.multi && received.proxy,
+        error: failed,
+      });
     };
     const legacyMemberQuery = query(
       collection(db, 'next_generation_members'),
@@ -64,10 +88,13 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
       legacyMemberQuery,
       (snap) => {
         legacyMemberStudents = mapMemberSnap(snap);
+        received.legacy = true;
         sync();
       },
       () => {
         legacyMemberStudents = [];
+        received.legacy = true;
+        failed = true;
         sync();
       },
     );
@@ -75,10 +102,13 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
       multiRoleMemberQuery,
       (snap) => {
         multiRoleMemberStudents = mapMemberSnap(snap);
+        received.multi = true;
         sync();
       },
       () => {
         multiRoleMemberStudents = [];
+        received.multi = true;
+        failed = true;
         sync();
       },
     );
@@ -93,10 +123,13 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
             groupId: data.groupId ?? '',
           };
         }).filter((student) => teacherGroupIds.includes(student.groupId));
+        received.proxy = true;
         sync();
       },
       () => {
         proxyStudents = [];
+        received.proxy = true;
+        failed = true;
         sync();
       },
     );
@@ -105,8 +138,9 @@ export function useTeacherStudents(teacherGroupIds: string[]): TeacherStudent[] 
       unsubscribeMultiRoleMembers();
       unsubscribeChildren();
     };
-  }, [teacherGroupIds.join('|')]);
-  return students;
+  }, [currentKey]);
+  // A roster from a previous group selection is never reported as current.
+  return state.key === currentKey ? state : { students: [], key: currentKey, loaded: false, error: false };
 }
 export function TeacherView({
   weekId,

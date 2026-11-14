@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPreservationInventory, isElementaryPost } from './transition';
+import { buildPreservationInventory, isElementaryPost, isSchoolTransitionPost } from './transition';
 
 describe('preservation inventory', () => {
   const published = [
@@ -39,5 +39,22 @@ describe('preservation inventory', () => {
     expect(isElementaryPost({ subCategory: 'elementary_guide' })).toBe(true);
     expect(isElementaryPost({ subCategory: 'retreat_materials' })).toBe(false);
     expect(isElementaryPost({ subCategory: 'x', nextGenerationDepartmentSlug: 'young-adults' })).toBe(false);
+  });
+});
+
+describe('bulk publish scope', () => {
+  it('accepts school library tabs by tab slug or sub category', () => {
+    expect(isSchoolTransitionPost({ tabSlug: 'workbook_jaram' })).toBe(true);
+    expect(isSchoolTransitionPost({ nextGenerationTabSlug: 'family_worship' })).toBe(true);
+    expect(isSchoolTransitionPost({ subCategory: 'elementary_script' })).toBe(true);
+    expect(isSchoolTransitionPost({ nextGenerationTabSlug: 'parent_guide', subCategory: 'other' })).toBe(true);
+  });
+
+  it('keeps youth drafts, archived tabs and untagged posts out', () => {
+    expect(isSchoolTransitionPost({ tabSlug: 'pilgrim_lecture' })).toBe(false);
+    expect(isSchoolTransitionPost({ subCategory: 'retreat_materials' })).toBe(false);
+    expect(isSchoolTransitionPost({ tabSlug: 'elementary_workbook' })).toBe(false);
+    expect(isSchoolTransitionPost({ tabSlug: '' })).toBe(false);
+    expect(isSchoolTransitionPost({})).toBe(false);
   });
 });

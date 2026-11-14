@@ -96,6 +96,28 @@ export function getMemoryCheckTarget(
   };
 }
 
+/** Identity of one class screen load: data is only valid for the exact class and Sunday it was fetched for. */
+export const classBoardKey = (classId: string, sundayKey: string) => `${classId}|${sundayKey}`;
+
+export type ClassBoardStatus = 'loading' | 'error' | 'ready';
+
+/**
+ * Rows are editable/saveable only once the roster, attendance and weekly
+ * subscriptions all delivered data for the current key. Missing records before
+ * that point must not be treated as "absent / empty".
+ */
+export function getClassBoardStatus(input: {
+  key: string;
+  rosterLoaded: boolean;
+  attendanceKey: string | null;
+  weeklyKey: string | null;
+  hasError: boolean;
+}): ClassBoardStatus {
+  if (input.hasError) return 'error';
+  if (!input.rosterLoaded || input.attendanceKey !== input.key || input.weeklyKey !== input.key) return 'loading';
+  return 'ready';
+}
+
 export interface ClassRowDraft {
   uid: string;
   name: string;

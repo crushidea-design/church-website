@@ -31,6 +31,7 @@ import ResourceLibraryPage from '../features/next-generation/ResourceLibraryPage
 import IntroPage from '../features/next-generation/IntroPage';
 import NextGenerationHeader from '../features/next-generation/NextGenerationHeader';
 import { useSundaySchool2027Flag } from '../features/sunday-school/flags';
+import { ARCHIVED_TAB_IDS } from '../features/sunday-school/home/libraryTabs';
 const NextGenerationMyPage = React.lazy(() => import('../features/next-generation/NextGenerationMyPage'));
 const NextGenerationDemoPage = React.lazy(() => import('../features/next-generation/NextGenerationDemoPage'));
 import {
@@ -260,8 +261,12 @@ function NextGenerationInner() {
     <IntroPage sections={introSections} departments={mappedDepartments} schoolMode={schoolFlag.enabled} />
   );
 
-  if (schoolFlag.enabled && currentSection === 'elementary') {
+  const requestedResource = new URLSearchParams(location.search).get('resource') || '';
+  const isArchivedResourceRequest = (ARCHIVED_TAB_IDS as readonly string[]).includes(requestedResource);
+
+  if (schoolFlag.enabled && currentSection === 'elementary' && !isArchivedResourceRequest) {
     // 주일학교 전환 후 옛 주소는 새 주소로 보낸다. 플래그를 끄면 그대로 유초등부가 열린다.
+    // "지난 자료 (2025–26)" 링크(보관 탭)만은 옛 유초등부 자료실로 열어 준다.
     content = <Navigate replace to={`${NEXT_GENERATION_PATH}/school${location.search}`} />;
   } else if (postId) {
     content = <NextGenerationPostDetail id={postId} />;

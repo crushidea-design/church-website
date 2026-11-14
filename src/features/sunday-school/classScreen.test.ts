@@ -3,6 +3,8 @@ import {
   buildRowDrafts,
   buildWeeklyWrites,
   canUseClassScreen,
+  classBoardKey,
+  getClassBoardStatus,
   getMemoryCheckTarget,
   getWeekCurriculumInfo,
   manageableClassIds,
@@ -124,5 +126,28 @@ describe('rows and writes', () => {
   it('caps promises at 200 characters', () => {
     const [write] = buildWeeklyWrites([{ ...rows[1], promise: 'ㅇ'.repeat(250) }], 'seum', target, new Set());
     expect(write.promise).toHaveLength(200);
+  });
+});
+
+describe('class board load status', () => {
+  const key = classBoardKey('jaram', '2027-03-07');
+  const loaded = { key, rosterLoaded: true, attendanceKey: key, weeklyKey: key, hasError: false };
+
+  it('is ready only when roster, attendance and weekly all loaded for the current key', () => {
+    expect(getClassBoardStatus(loaded)).toBe('ready');
+    expect(getClassBoardStatus({ ...loaded, rosterLoaded: false })).toBe('loading');
+    expect(getClassBoardStatus({ ...loaded, attendanceKey: null })).toBe('loading');
+    expect(getClassBoardStatus({ ...loaded, weeklyKey: null })).toBe('loading');
+  });
+
+  it('treats data from a previous class or week as not loaded', () => {
+    const other = classBoardKey('jaram', '2027-02-28');
+    expect(getClassBoardStatus({ ...loaded, attendanceKey: other })).toBe('loading');
+    expect(getClassBoardStatus({ ...loaded, weeklyKey: classBoardKey('seed', '2027-03-07') })).toBe('loading');
+  });
+
+  it('reports an error over loading or ready', () => {
+    expect(getClassBoardStatus({ ...loaded, hasError: true })).toBe('error');
+    expect(getClassBoardStatus({ ...loaded, rosterLoaded: false, hasError: true })).toBe('error');
   });
 });

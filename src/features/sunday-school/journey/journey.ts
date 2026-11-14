@@ -151,11 +151,51 @@ export function extraDayCount(worshipCount: number, practiceCount: number): numb
   return Math.max(worshipCount - 1, 0) + Math.max(practiceCount - 1, 0);
 }
 
+export interface LinkedChildInfo {
+  memberName?: string;
+  memberClassId?: SchoolClassId;
+  attendanceName?: string;
+  attendanceClassId?: SchoolClassId;
+}
+
+/** A linked child's class: the member doc's current groupId wins; attendance history is only a fallback. */
+export const pickLinkedClassId = (info: LinkedChildInfo | undefined): SchoolClassId | undefined =>
+  info?.memberClassId ?? info?.attendanceClassId;
+
 export const journeyDocId = (weekKey: string, studentUid: string) => `${weekKey}_${studentUid}`;
 
 /** 오늘이 이 주 월~토 안인가. */
 export function isWeekOpen(weekKey: string, todayKey: string): boolean {
   return todayKey > weekKey && todayKey <= addDaysToKey(weekKey, 6);
+}
+
+/** 지난 주일 키. */
+export const previousWeekKey = (weekKey: string) => addDaysToKey(weekKey, -7);
+
+export interface LastWeekSummary {
+  steps: JourneyStep[];
+  stage: FruitStage;
+  /** 모든 단계를 마쳐 열매가 완성되었는가. */
+  completed: boolean;
+  /** 지난주에 기록된 것이 하나라도 있는가(없으면 요약을 숨긴다). */
+  hasRecord: boolean;
+}
+
+/**
+ * 지난주 여정 요약(읽기 전용). 암송 확인은 이번 주일(= 지난주의 다음 주) 반 기록에 있으므로
+ * memoryChecked는 이번 주 기록에서 받는다.
+ */
+export function buildLastWeekSummary(input: {
+  classId: SchoolClassId;
+  present: boolean;
+  worshipDates: readonly string[];
+  practiceDates: readonly string[];
+  promise?: string;
+  memoryChecked: boolean;
+}): LastWeekSummary {
+  const steps = buildJourneySteps({ ...input, weekOpen: false });
+  const stage = fruitStageFromSteps(steps);
+  return { steps, stage, completed: stage === 3, hasRecord: steps.some((step) => step.state === 'done') };
 }
 
 export interface JourneyCounts {

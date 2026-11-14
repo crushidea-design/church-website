@@ -528,7 +528,9 @@ service cloud.firestore {
 
     match /next_generation_members/{memberId} {
       // 교사는 자기 반(groupIds)에 배정된 학생 회원 문서만 읽는다 (반 명단).
+      // 학부모는 자기 member 문서의 childIds에 연결된 자녀 문서를 읽는다 (자녀의 현재 반 확인).
       allow read: if isAuthenticated() && (request.auth.uid == memberId || isNextGenerationPastor() ||
+        isParentOfNgUser(memberId) ||
         (isNextGenerationTeacher() &&
           'groupId' in resource.data &&
           'groupIds' in ngMemberData() &&

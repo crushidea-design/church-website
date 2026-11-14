@@ -11,6 +11,7 @@ import {
   JOURNEY_STATE_LABELS,
   SEED_PRACTICE_TEXT,
   buildJourneySteps,
+  buildLastWeekSummary,
   canCheckStep,
   cleanDates,
   extraDayCount,
@@ -20,11 +21,11 @@ import {
   isWeekOpen,
   nextWeekKey,
   practiceChecker,
-  toggleDate,
+  previousWeekKey,
 } from './journey';
 import type { JourneyStepState } from './journey';
 import {
-  saveJourneyDates,
+  saveJourneyDate,
   subscribeAttendanceForStudentWeek,
   subscribeJourneyForStudent,
   subscribeWeeklyForStudent,
@@ -64,23 +65,31 @@ export default function JourneyChildCard({
   const [journey, setJourney] = useState<SchoolJourneyDoc | null>(null);
   const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
   const [weekly, setWeekly] = useState<SchoolWeeklyDoc[]>([]);
+  const [lastJourney, setLastJourney] = useState<SchoolJourneyDoc | null>(null);
+  const [lastAttendance, setLastAttendance] = useState<AttendanceDoc[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const followingKey = nextWeekKey(weekKey);
+  const lastKey = previousWeekKey(weekKey);
 
   useEffect(() => {
     setJourney(null);
     setAttendance([]);
     setWeekly([]);
+    setLastJourney(null);
+    setLastAttendance([]);
     if (!classId) return;
     const unsubs = [
       subscribeJourneyForStudent(child.uid, weekKey, (rows) => setJourney(rows[0] ?? null)),
       subscribeAttendanceForStudentWeek(child.uid, weekKey, setAttendance),
-      subscribeWeeklyForStudent(child.uid, [weekKey, followingKey], setWeekly),
+      subscribeWeeklyForStudent(child.uid, [lastKey, weekKey, followingKey], setWeekly),
+      // Last week's journey stays visible: its memory check is recorded on this week's weekly record.
+      subscribeJourneyForStudent(child.uid, lastKey, (rows) => setLastJourney(rows[0] ?? null)),
+      subscribeAttendanceForStudentWeek(child.uid, lastKey, setLastAttendance),
     ];
     return () => unsubs.forEach((unsubscribe) => unsubscribe());
-  }, [child.uid, classId, weekKey, followingKey]);
+  }, [child.uid, classId, weekKey, followingKey, lastKey]);
 
   const worshipDates = useMemo(() => cleanDates(journey?.familyWorshipDates, weekKey), [journey, weekKey]);
   const practiceDates = useMemo(() => cleanDates(journey?.practiceDates, weekKey), [journey, weekKey]);
@@ -101,6 +110,15 @@ export default function JourneyChildCard({
   const promise = thisWeekly?.promise?.trim() || undefined;
   const present = attendance.some((row) => row.present);
   const weekOpen = isWeekOpen(weekKey, todayKey);
+
+  const lastSummary = buildLastWeekSummary({
+    classId,
+    present: lastAttendance.some((row) => row.present),
+    worshipDates: cleanDates(lastJourney?.familyWorshipDates, lastKey),
+    practiceDates: cleanDates(lastJourney?.practiceDates, lastKey),
+    promise: weekly.find((row) => row.weekKey === lastKey)?.promise?.trim() || undefined,
+    memoryChecked: !!thisWeekly?.memoryChecked,
+  });
 
   const steps = buildJourneySteps({
     classId,
@@ -128,13 +146,15 @@ export default function JourneyChildCard({
     setBusy(true);
     setError('');
     try {
-      await saveJourneyDates({
+      const current = kind === 'worship' ? worshipDates : practiceDates;
+      await saveJourneyDate({
         weekKey,
         studentUid: child.uid,
         studentName: child.name,
         classId,
-        familyWorshipDates: kind === 'worship' ? toggleDate(worshipDates, date) : worshipDates,
-        practiceDates: kind === 'practice' ? toggleDate(practiceDates, date) : practiceDates,
+        kind,
+        date,
+        checked: !current.includes(date),
         updatedBy: uid,
       });
     } catch {
@@ -222,6 +242,21 @@ export default function JourneyChildCard({
           <p className="mt-1 whitespace-pre-line rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-950">
             {memoryLine?.text ?? '이번 주 암송 문구는 준비 중이에요.'}
           </p>
+        </section>
+      )}
+
+      {lastSummary.hasRecord && (
+        <section className="mt-4 rounded-xl bg-slate-50 px-3 py-2" aria-label="지난주 여정">
+          <h4 className="text-xs font-black text-slate-700">
+            지난주 여정 ({lastKey}) · {lastSummary.completed ? '열매를 맺었어요' : '열매가 익어 가는 중이에요'}
+          </h4>
+          <ul className="mt-1 flex flex-wrap gap-1.5">
+            {lastSummary.steps.map((step) => (
+              <li key={step.id} className={`rounded-full px-2.5 py-1 text-xs font-black ${STATE_STYLES[step.state]}`}>
+                {step.label} {JOURNEY_STATE_LABELS[step.state]}
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
