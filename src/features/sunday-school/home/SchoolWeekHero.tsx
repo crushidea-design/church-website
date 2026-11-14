@@ -7,8 +7,8 @@ const TONE_CLASS: Record<WeekHeroModel['tone'], string> = {
   lesson: 'border-t-amber-400',
   holiday: 'border-t-amber-200',
   vacation: 'border-t-sky-300',
-  unscheduled: 'border-t-slate-400',
-  off: 'border-t-slate-400',
+  unscheduled: 'border-t-emerald-900',
+  off: 'border-t-emerald-900',
 };
 
 export default function SchoolWeekHero({
@@ -27,7 +27,7 @@ export default function SchoolWeekHero({
   return (
     <section className="pt-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className={`rounded-2xl border-t-4 bg-emerald-900 p-6 text-white shadow-sm sm:p-8 ${TONE_CLASS[model.tone]}`}>
+        <div className={`rounded-lg border-t-4 bg-emerald-700 p-6 text-white shadow-sm sm:p-8 ${TONE_CLASS[model.tone]}`}>
           {schoolName && (
             <p className="mb-3 text-base font-black text-white">
               {schoolName}

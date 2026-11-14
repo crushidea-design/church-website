@@ -1,5 +1,6 @@
-// One color per class, from warm to deep: 씨앗 gold, 자람 sage, 세움 slate blue, 디딤 wine.
-// Literal hex classes so Tailwind picks them up; they read well on the navy/gold school theme.
+// Class chip / tab styles. Following the printed materials, classes share one
+// quiet style (white paper with a thin border) and only the selected one is
+// filled with the school green. Kept per class so each can get its own color later.
 import type { SchoolClassId } from './types';
 
 export interface ClassColor {
@@ -11,27 +12,17 @@ export interface ClassColor {
   accent: string;
 }
 
+const SHARED: ClassColor = {
+  active: 'bg-emerald-700 text-white shadow-sm',
+  idle: 'bg-white text-emerald-900 ring-1 ring-inset ring-[#D9D3C4] hover:bg-[#F5F1E8]',
+  accent: 'bg-[#F5F1E8] text-emerald-700 ring-[#E1DACB]',
+};
+
 export const CLASS_COLORS: Record<SchoolClassId, ClassColor> = {
-  seed: {
-    active: 'bg-[#A47E2C] text-white shadow-sm',
-    idle: 'bg-[#F4ECD6] text-[#5F481B] hover:bg-[#EAD9AD]',
-    accent: 'bg-[#F4ECD6] text-[#806122] ring-[#EAD9AD]',
-  },
-  jaram: {
-    active: 'bg-[#56704F] text-white shadow-sm',
-    idle: 'bg-[#E4EBDD] text-[#33452F] hover:bg-[#D2DEC6]',
-    accent: 'bg-[#E4EBDD] text-[#56704F] ring-[#D2DEC6]',
-  },
-  seum: {
-    active: 'bg-[#4A6094] text-white shadow-sm',
-    idle: 'bg-[#E2E8F3] text-[#263A66] hover:bg-[#C5D0E5]',
-    accent: 'bg-[#E2E8F3] text-[#4A6094] ring-[#C5D0E5]',
-  },
-  didim: {
-    active: 'bg-[#7A2E3A] text-white shadow-sm',
-    idle: 'bg-[#F3E1E3] text-[#5A1F29] hover:bg-[#E8C9CD]',
-    accent: 'bg-[#F3E1E3] text-[#7A2E3A] ring-[#E8C9CD]',
-  },
+  seed: SHARED,
+  jaram: SHARED,
+  seum: SHARED,
+  didim: SHARED,
 };
 
 export function classColor(id: string): ClassColor | undefined {

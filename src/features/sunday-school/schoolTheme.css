@@ -1,55 +1,57 @@
 /*
- * 그안에 주일학교 tone: navy and gold.
+ * 그안에 주일학교 tone, taken from the church's own printed materials:
+ * deep green (가정예배지 "설교 한 문장" box), ochre (verse references),
+ * paper cream and soft teal (설교노트), and a little orange (공과 질문 heads).
  * Scoped to the Sunday school pages (.school-theme on the page root). The
- * components keep their emerald/amber utility classes; inside this scope those
- * Tailwind color variables resolve to navy (emerald) and gold (amber/yellow),
- * so the layout is untouched and other departments keep their colors.
+ * components keep their emerald/amber/sky/coral utility classes; inside this
+ * scope those Tailwind color variables resolve to this palette, so the layout
+ * is untouched and other departments keep their colors.
  */
 .school-theme {
-  --color-emerald-50: #f1f4fa;
-  --color-emerald-100: #e2e8f3;
-  --color-emerald-200: #c5d0e5;
-  --color-emerald-300: #9cadcf;
-  --color-emerald-400: #6f84b2;
-  --color-emerald-500: #4a6094;
-  --color-emerald-600: #34497a;
-  --color-emerald-700: #263a66;
-  --color-emerald-800: #1f3158;
-  --color-emerald-900: #1b2a4a;
-  --color-emerald-950: #111b33;
+  --color-emerald-50: #eef4f2;
+  --color-emerald-100: #dce9e6;
+  --color-emerald-200: #bcd3cd;
+  --color-emerald-300: #93b5ad;
+  --color-emerald-400: #6a958b;
+  --color-emerald-500: #4c7b70;
+  --color-emerald-600: #3a6a5f;
+  --color-emerald-700: #2f5e54;
+  --color-emerald-800: #264c44;
+  --color-emerald-900: #1f3f38;
+  --color-emerald-950: #142a25;
 
-  --color-amber-50: #fbf7ec;
-  --color-amber-100: #f4ecd6;
-  --color-amber-200: #ead9ad;
-  --color-amber-300: #dfc27f;
-  --color-amber-400: #d4ad5a;
-  --color-amber-500: #c49a3e;
-  --color-amber-600: #a47e2c;
-  --color-amber-700: #806122;
-  --color-amber-800: #5f481b;
-  --color-amber-900: #46351a;
-  --color-amber-950: #2a1f0e;
+  --color-amber-50: #fbf6ec;
+  --color-amber-100: #f5ead3;
+  --color-amber-200: #ebd5a8;
+  --color-amber-300: #e0be7a;
+  --color-amber-400: #d4a955;
+  --color-amber-500: #c8963a;
+  --color-amber-600: #a97b2c;
+  --color-amber-700: #876124;
+  --color-amber-800: #66491d;
+  --color-amber-900: #4a3617;
+  --color-amber-950: #2c200e;
 
-  --color-yellow-50: #fbf7ec;
-  --color-yellow-100: #f4ecd6;
-  --color-yellow-200: #ead9ad;
-  --color-yellow-300: #dfc27f;
-  --color-yellow-400: #d4ad5a;
-  --color-yellow-500: #c49a3e;
-  --color-yellow-600: #a47e2c;
-  --color-yellow-700: #806122;
-  --color-yellow-800: #5f481b;
-  --color-yellow-900: #46351a;
+  --color-yellow-50: #fbf6ec;
+  --color-yellow-100: #f5ead3;
+  --color-yellow-200: #ebd5a8;
+  --color-yellow-300: #e0be7a;
+  --color-yellow-400: #d4a955;
+  --color-yellow-500: #c8963a;
+  --color-yellow-600: #a97b2c;
+  --color-yellow-700: #876124;
+  --color-yellow-800: #66491d;
+  --color-yellow-900: #4a3617;
 
-  --color-coral-500: #a47e2c;
-  --color-coral-600: #806122;
-  --color-coral-700: #5f481b;
-  --color-coral-800: #46351a;
+  --color-sky-50: #f3f7f6;
+  --color-sky-100: #dce9e6;
+  --color-sky-200: #bcd3cd;
+  --color-sky-300: #93b5ad;
 
-  background-color: #f8f6f0;
-}
+  --color-coral-500: #e8703a;
+  --color-coral-600: #d2602e;
+  --color-coral-700: #b04f25;
+  --color-coral-800: #8a3e1e;
 
-.school-theme h1,
-.school-theme h2 {
-  font-family: var(--font-serif);
+  background-color: #fbfaf6;
 }
