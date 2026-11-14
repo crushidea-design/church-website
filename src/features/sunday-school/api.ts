@@ -11,6 +11,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
@@ -26,6 +27,8 @@ import {
   SCHOOL_TERMS_COLLECTION,
 } from './types';
 import type { CurriculumEntry, SchoolClass, SchoolTerm } from './types';
+import { SUNDAY_SCHOOL_FLAG_DOC, SUNDAY_SCHOOL_FLAG_FIELD } from './flags';
+import type { InventoryPost } from './admin/transition';
 import {
   buildHeidelbergTopics,
   buildPreparationTabs,
@@ -138,6 +141,16 @@ export function saveCurriculumEntry(entry: CurriculumEntry) {
   for (const field of OPTIONAL_CURRICULUM_FIELDS) {
     if (entry[field] === undefined) data[field] = deleteField();
   }
+  // merge: true merges nested maps, so emptied memory fields must be deleted one by one.
+  if (entry.memory === undefined) {
+    data.memory = deleteField();
+  } else {
+    const memory: Record<string, unknown> = {};
+    for (const key of ['question', 'jaram', 'seum', 'didim', 'promiseExamples'] as const) {
+      memory[key] = entry.memory[key] === undefined ? deleteField() : entry.memory[key];
+    }
+    data.memory = memory;
+  }
   return setDoc(doc(db, SCHOOL_CURRICULUM_COLLECTION, entry.id), data, { merge: true });
 }
 
@@ -222,4 +235,65 @@ export async function fetchUnpublishedPreparationPosts(): Promise<PreparationPos
       topicId: data.nextGenerationTopicId || '',
     };
   });
+}
+
+/** Posts used by the preservation check (plan §5-3); read-only. */
+export interface InventoryFetchResult {
+  published: PreservationPostRecord[];
+  unpublished: PreservationPostRecord[];
+  /** True when a query hit the limit, so the counts may be incomplete. */
+  truncated: boolean;
+}
+
+type PreservationPostRecord = InventoryPost;
+
+export const INVENTORY_QUERY_LIMIT = 1000;
+
+/** Reads next-generation posts (published and private) for counting. Admin only for the private half. */
+export async function fetchPostsForInventory(): Promise<InventoryFetchResult> {
+  const run = async (isPublished: boolean) => {
+    const snapshot = await getDocs(
+      query(
+        collection(db, 'posts'),
+        where('isPublished', '==', isPublished),
+        where('category', '==', 'next_generation'),
+        orderBy('createdAt', 'desc'),
+        limit(INVENTORY_QUERY_LIMIT),
+      ),
+    );
+    return {
+      posts: snapshot.docs.map((postDoc) => postDoc.data() as PreservationPostRecord),
+      full: snapshot.docs.length >= INVENTORY_QUERY_LIMIT,
+    };
+  };
+  const [published, unpublished] = await Promise.all([run(true), run(false)]);
+  return { published: published.posts, unpublished: unpublished.posts, truncated: published.full || unpublished.full };
+}
+
+/**
+ * Publishes the given private preparation posts. Only `isPublished` is written,
+ * so the posts keep passing the Firestore rules' field whitelist.
+ */
+export async function publishPreparationPosts(postIds: string[]): Promise<{ published: number; failed: string[] }> {
+  const failed: string[] = [];
+  let published = 0;
+  for (const id of postIds) {
+    try {
+      await updateDoc(doc(db, 'posts', id), { isPublished: true });
+      published += 1;
+    } catch (error) {
+      console.error('Failed to publish post', id, error);
+      failed.push(id);
+    }
+  }
+  return { published, failed };
+}
+
+/** Turns the 2027 school screens on or off (settings write requires the site admin). */
+export function setSundaySchool2027Flag(enabled: boolean) {
+  return setDoc(
+    doc(db, SUNDAY_SCHOOL_FLAG_DOC.collection, SUNDAY_SCHOOL_FLAG_DOC.id),
+    { [SUNDAY_SCHOOL_FLAG_FIELD]: enabled },
+    { merge: true },
+  );
 }

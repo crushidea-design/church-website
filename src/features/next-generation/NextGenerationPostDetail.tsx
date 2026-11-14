@@ -31,6 +31,8 @@ import {
   getInlinePreviewAttachments,
 } from '../../lib/attachments';
 import { formatDate } from '../../lib/utils';
+import { useSundaySchool2027Flag } from '../sunday-school/flags';
+import { SCHOOL_STUDENT_TAB_IDS } from '../sunday-school/home/libraryTabs';
 import {
   DepartmentCardItem,
   NextGenerationPost,
@@ -54,6 +56,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
   const { role, loading: authLoading } = useAuth();
   const { hasAccess: ngAccess, user: ngUser, member, isPending, isRejected } = useNextGenerationAuth();
   const isRestricted = hasDepartment(member, '학생');
+  const schoolFlag = useSundaySchool2027Flag();
   const { tabs: cmsTabs, departments: cmsDepartments, topics: cmsTopics } = useNextGenerationCms();
   const [post, setPost] = useState<NextGenerationPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +70,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
     : '\uB85C\uADF8\uC778\uD558\uC2DC\uBA74 \uB2E4\uC6B4\uB85C\uB4DC \uAE30\uB2A5\uC744 \uC774\uC6A9\uD558\uC2E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.';
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || schoolFlag.loading) return;
     let cancelled = false;
     const fetchPost = async () => {
       setLoading(true);
@@ -94,8 +97,15 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
 
         if (isRestricted && !isAdmin) {
           const postTabSlug = data.nextGenerationTabSlug || data.subCategory || '';
-          if (!(STUDENT_ACCESSIBLE_TAB_SLUGS as readonly string[]).includes(postTabSlug)) {
-            navigate(`${NEXT_GENERATION_PATH}/elementary?resource=elementary_workbook`, { replace: true });
+          // After the 2027 switch, students may also open the class workbooks and the common script.
+          const studentTabs: readonly string[] = schoolFlag.enabled ? SCHOOL_STUDENT_TAB_IDS : STUDENT_ACCESSIBLE_TAB_SLUGS;
+          if (!studentTabs.includes(postTabSlug)) {
+            navigate(
+              schoolFlag.enabled
+                ? `${NEXT_GENERATION_PATH}/school`
+                : `${NEXT_GENERATION_PATH}/elementary?resource=elementary_workbook`,
+              { replace: true },
+            );
             return;
           }
         }
@@ -157,7 +167,7 @@ export default function NextGenerationPostDetail({ id }: { id: string }) {
 
     void fetchPost();
     return () => { cancelled = true; };
-  }, [id, navigate, isRestricted, isAdmin, authLoading]);
+  }, [id, navigate, isRestricted, isAdmin, authLoading, schoolFlag.loading, schoolFlag.enabled]);
 
   if (loading || authLoading) {
     return (

@@ -7,6 +7,7 @@ import {
   EmailSignUpData,
   SignUpData,
 } from '../lib/nextGenerationAuth';
+import SignupClassSelect from '../features/sunday-school/SignupClassSelect';
 import { getInAppBrowserLoginMessage, isInAppBrowser } from '../lib/inAppBrowser';
 
 type ModalView = 'login' | 'signup' | 'complete_google' | 'forgot_password' | 'pending' | 'rejected';
@@ -69,6 +70,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
   const [signupChurch, setSignupChurch] = useState('');
   const [signupIntro, setSignupIntro] = useState('');
   const [signupParentEmail, setSignupParentEmail] = useState('');
+  const [signupClass, setSignupClass] = useState('');
   const [signupDepartments, setSignupDepartments] = useState<Department[]>([]);
 
   // Complete Google signup form
@@ -76,6 +78,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
   const [googleChurch, setGoogleChurch] = useState('');
   const [googleIntro, setGoogleIntro] = useState('');
   const [googleParentEmail, setGoogleParentEmail] = useState('');
+  const [googleClass, setGoogleClass] = useState('');
   const [googleDepartments, setGoogleDepartments] = useState<Department[]>([]);
 
   // Forgot password
@@ -187,6 +190,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
         ...(signupDepartments.includes('학생') && signupParentEmail.trim()
           ? { parentEmail: signupParentEmail.trim() }
           : {}),
+        ...(signupDepartments.includes('학생') && signupClass ? { requestedGroupId: signupClass } : {}),
       };
       await signUpWithEmail(data);
       setError('');
@@ -225,6 +229,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
         ...(googleDepartments.includes('학생') && googleParentEmail.trim()
           ? { parentEmail: googleParentEmail.trim() }
           : {}),
+        ...(googleDepartments.includes('학생') && googleClass ? { requestedGroupId: googleClass } : {}),
       };
       await completeGoogleSignUp(data);
       setError('');
@@ -498,6 +503,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                     <p className="mt-1 text-xs text-gray-500">
                       부모님 계정이 이미 가입되어 있으면 승인 시 자동으로 연결됩니다.
                     </p>
+                    <SignupClassSelect value={signupClass} onChange={setSignupClass} />
                   </div>
                 )}
                 <div>
@@ -600,6 +606,7 @@ export default function NextGenerationLoginModal({ onClose, initialView = 'login
                   <p className="mt-1 text-xs text-gray-500">
                     부모님 계정이 이미 가입되어 있으면 승인 시 자동으로 연결됩니다.
                   </p>
+                  <SignupClassSelect value={googleClass} onChange={setGoogleClass} />
                 </div>
               )}
               <div>

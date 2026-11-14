@@ -21,7 +21,7 @@ export default function ClassChips({
   return (
     <section className="bg-white pt-6">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex gap-2 overflow-x-auto pb-2" role="group" aria-label="반 선택">
+        <div className="flex gap-2 overflow-x-auto pb-2" role="group" aria-label="반 선택" data-next-tour="school-classes">
           <button type="button" onClick={() => onChange('all')} className={chipClass(value === 'all')} aria-pressed={value === 'all'}>
             전체
           </button>

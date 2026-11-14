@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { FileText } from 'lucide-react';
 import { NextGenerationAuthProvider, useNextGenerationAuth } from '../lib/nextGenerationAuth';
 import NextGenerationContact from './NextGenerationContact';
@@ -30,6 +30,8 @@ import NextGenerationPostDetail from '../features/next-generation/NextGeneration
 import ResourceLibraryPage from '../features/next-generation/ResourceLibraryPage';
 import IntroPage from '../features/next-generation/IntroPage';
 import NextGenerationHeader from '../features/next-generation/NextGenerationHeader';
+import { useSundaySchool2027Flag } from '../features/sunday-school/flags';
+import { ARCHIVED_TAB_IDS } from '../features/sunday-school/home/libraryTabs';
 const NextGenerationMyPage = React.lazy(() => import('../features/next-generation/NextGenerationMyPage'));
 const NextGenerationDemoPage = React.lazy(() => import('../features/next-generation/NextGenerationDemoPage'));
 import {
@@ -181,6 +183,7 @@ function NextGenerationInner() {
   const location = useLocation();
   const { hasAccess, isPastor, loading: authLoading } = useNextGenerationAuth();
   const { departments: cmsDepartments, tabs: cmsTabs, introSections } = useNextGenerationCms();
+  const schoolFlag = useSundaySchool2027Flag();
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -193,21 +196,26 @@ function NextGenerationInner() {
       (cmsDepartments.length > 0 ? cmsDepartments : (sectionTabs as any))
         .filter((department: any) => department.isVisible !== false)
         .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-        .map((department: any) => ({
+        .map((department: any) => {
+          const isSchoolCard = schoolFlag.enabled && (department.slug || department.id) === 'elementary';
+          return {
           id: department.slug || department.id,
           slug: department.slug || department.id,
-          name: department.name,
-          path: `${NEXT_GENERATION_PATH}/${department.slug || department.id}`,
+          name: isSchoolCard ? '주일학교' : department.name,
+          path: isSchoolCard ? `${NEXT_GENERATION_PATH}/school` : `${NEXT_GENERATION_PATH}/${department.slug || department.id}`,
           image: department.image || elementaryImage,
-          copy: department.description || department.copy || '',
+          copy: isSchoolCard
+            ? '씨앗·자람·세움·디딤 네 반이 함께 배우는 주일학교 자료실입니다.'
+            : department.description || department.copy || '',
           heroTitle: department.heroTitle,
           heroDescription: department.heroDescription,
           heroClassName: department.heroClassName,
           badgeClassName: department.badgeClassName,
           guestPostLimit: department.guestPostLimit,
           icon: iconMap.Sparkles,
-        })),
-    [cmsDepartments]
+          };
+        }),
+    [cmsDepartments, schoolFlag.enabled]
   );
   const mappedTabs: ResourceTabItem[] = useMemo(
     () =>
@@ -249,9 +257,18 @@ function NextGenerationInner() {
     [departmentTabs]
   );
 
-  let content: React.ReactNode = <IntroPage sections={introSections} departments={mappedDepartments} />;
+  let content: React.ReactNode = (
+    <IntroPage sections={introSections} departments={mappedDepartments} schoolMode={schoolFlag.enabled} />
+  );
 
-  if (postId) {
+  const requestedResource = new URLSearchParams(location.search).get('resource') || '';
+  const isArchivedResourceRequest = (ARCHIVED_TAB_IDS as readonly string[]).includes(requestedResource);
+
+  if (schoolFlag.enabled && currentSection === 'elementary' && !isArchivedResourceRequest) {
+    // 주일학교 전환 후 옛 주소는 새 주소로 보낸다. 플래그를 끄면 그대로 유초등부가 열린다.
+    // "지난 자료 (2025–26)" 링크(보관 탭)만은 옛 유초등부 자료실로 열어 준다.
+    content = <Navigate replace to={`${NEXT_GENERATION_PATH}/school${location.search}`} />;
+  } else if (postId) {
     content = <NextGenerationPostDetail id={postId} />;
   } else if (editId) {
     content = <EditPost postId={editId} nextGenerationMode />;

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import type { Firestore } from 'firebase/firestore';
+import firebaseCompat from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { ensureUserProfile } from '../src/lib/userProfile';
 
 vi.mock('../netlify/functions/_shared/firebase-admin.mjs', async () => {
@@ -103,6 +105,325 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
       await assertSucceeds(pastor.doc(path).set({ name: 'by-pastor' }));
       await assertSucceeds(admin.doc(path).set({ name: 'by-admin' }));
     }
+  });
+
+  it('hides attachments of private next-generation posts like the post itself', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      const post = { category: 'next_generation', title: 't', content: 'c', authorId: 'author' };
+      await db.doc('posts/publicPost').set({ ...post, isPublished: true });
+      await db.doc('posts/privatePost').set({ ...post, isPublished: false });
+      await db.doc('next_generation_post_files/publicPost').set({ postId: 'publicPost', pdfUrl: 'https://example.com/a.pdf' });
+      await db.doc('next_generation_post_files/privatePost').set({ postId: 'privatePost', pdfUrl: 'https://example.com/b.pdf' });
+      await db.doc('next_generation_members/ngPastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_members/ngMember').set({ role: 'member', department: '학부모' });
+    });
+    const guest = env.unauthenticatedContext().firestore();
+    const member = env.authenticatedContext('ngMember').firestore();
+    const pastor = env.authenticatedContext('ngPastor').firestore();
+    const author = env.authenticatedContext('author').firestore();
+
+    await assertSucceeds(guest.doc('next_generation_post_files/publicPost').get());
+    await assertFails(guest.doc('next_generation_post_files/privatePost').get());
+    await assertFails(member.doc('next_generation_post_files/privatePost').get());
+    await assertSucceeds(pastor.doc('next_generation_post_files/privatePost').get());
+    await assertSucceeds(author.doc('next_generation_post_files/privatePost').get());
+    await assertFails(guest.collection('next_generation_post_files').get());
+  });
+
+  it('lets a student request a class at sign-up but not assign one', async () => {
+    const signup = (uid: string, extra: Record<string, unknown>) => ({
+      uid, email: `${uid}@example.com`, displayName: '학생', role: 'pending',
+      department: '학생', departments: ['학생'], primaryDepartment: '학생',
+      church: '한우리교회', intro: '', provider: 'email', createdAt: new Date(), ...extra,
+    });
+    const requester = env.authenticatedContext('requester').firestore();
+    const selfAssigner = env.authenticatedContext('selfAssigner').firestore();
+
+    await assertSucceeds(requester.doc('next_generation_members/requester')
+      .set(signup('requester', { roleProfiles: { student: { requestedGroupId: 'seum' } } })));
+    await assertFails(selfAssigner.doc('next_generation_members/selfAssigner')
+      .set(signup('selfAssigner', { groupId: 'seum' })));
+  });
+
+  it('lets teachers read only the student member docs of their own class', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/noClassTeacher').set({ role: 'member', department: '교사', departments: ['교사'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/otherStudent').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'didim' });
+      await db.doc('next_generation_members/unassigned').set({ role: 'member', department: '학생', departments: ['학생'] });
+    });
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const noClassTeacher = env.authenticatedContext('noClassTeacher').firestore();
+    const student = env.authenticatedContext('student').firestore();
+
+    await assertSucceeds(teacher.doc('next_generation_members/student').get());
+    await assertSucceeds(teacher.collection('next_generation_members')
+      .where('role', '==', 'member').where('departments', 'array-contains', '학생').where('groupId', 'in', ['seum']).get());
+    await assertFails(teacher.doc('next_generation_members/otherStudent').get());
+    await assertFails(teacher.doc('next_generation_members/unassigned').get());
+    await assertFails(teacher.collection('next_generation_members').where('departments', 'array-contains', '학생').get());
+    await assertFails(noClassTeacher.doc('next_generation_members/student').get());
+    await assertFails(student.doc('next_generation_members/otherStudent').get());
+  });
+
+  it('lets a linked parent read the child member doc, and nobody else unlinked', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/kid').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/linkedParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['kid'] });
+      await db.doc('next_generation_members/unlinkedParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['someoneElse'] });
+      await db.doc('next_generation_members/noChildrenParent').set({ role: 'member', department: '학부모', departments: ['학부모'] });
+      await db.doc('next_generation_members/pendingParent').set({ role: 'pending', department: '학부모', departments: ['학부모'], childIds: ['kid'] });
+    });
+    await assertSucceeds(env.authenticatedContext('linkedParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.authenticatedContext('unlinkedParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.authenticatedContext('noChildrenParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.authenticatedContext('pendingParent').firestore().doc('next_generation_members/kid').get());
+    await assertFails(env.unauthenticatedContext().firestore().doc('next_generation_members/kid').get());
+    // the link grants only that child's doc, not other members
+    await assertFails(env.authenticatedContext('linkedParent').firestore().doc('next_generation_members/unlinkedParent').get());
+  });
+
+  it('keeps parent and student journey date checks from overwriting each other', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+    });
+    const { FieldValue } = firebaseCompat.firestore;
+    const fields = (kind: 'worship' | 'practice', date: string, checked: boolean, by: string) => ({
+      weekKey: '2027-03-14', studentUid: 'student', studentName: '학생', classId: 'seum',
+      [kind === 'worship' ? 'familyWorshipDates' : 'practiceDates']: checked ? FieldValue.arrayUnion(date) : FieldValue.arrayRemove(date),
+      [kind === 'worship' ? 'practiceDates' : 'familyWorshipDates']: FieldValue.arrayUnion(),
+      updatedBy: by, updatedAt: new Date(),
+    });
+    const path = 'next_generation_school_journey/2027-03-14_student';
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    // first write creates the document (merge), later writes touch only their own list
+    await assertSucceeds(parent.doc(path).set(fields('worship', '2027-03-15', true, 'parent'), { merge: true }));
+    await assertSucceeds(student.doc(path).set(fields('practice', '2027-03-16', true, 'student'), { merge: true }));
+    await assertSucceeds(parent.doc(path).set(fields('worship', '2027-03-17', true, 'parent'), { merge: true }));
+    await assertSucceeds(student.doc(path).set(fields('practice', '2027-03-16', false, 'student'), { merge: true }));
+    const data = (await student.doc(path).get()).data()!;
+    expect(data.familyWorshipDates).toEqual(['2027-03-15', '2027-03-17']);
+    expect(data.practiceDates).toEqual([]);
+  });
+
+  it('lets class teachers write the Sunday school weekly record and limits who can read it', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/otherTeacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['didim'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+      await db.doc('next_generation_members/pastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_school_weekly/2027-03-07_student').set({
+        weekKey: '2027-03-07', studentUid: 'student', studentName: '학생', classId: 'seum', promise: '기도하기', updatedBy: 'teacher', updatedAt: new Date(),
+      });
+    });
+    const record = (overrides: Record<string, unknown> = {}) => ({
+      weekKey: '2027-03-14', studentUid: 'student', studentName: '학생', classId: 'seum', promise: '아침에 동생에게 인사하기',
+      memoryChecked: true, memoryQuestion: 3, updatedBy: 'teacher', updatedAt: new Date(), ...overrides,
+    });
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const otherTeacher = env.authenticatedContext('otherTeacher').firestore();
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    const pastor = env.authenticatedContext('pastor').firestore();
+
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-14_student').set(record()));
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-14_student').set(record({ promise: '밤에 부모님께 감사하기' })));
+    await assertSucceeds(pastor.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertSucceeds(student.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertSucceeds(parent.doc('next_generation_school_weekly/2027-03-14_student').get());
+
+    await assertFails(otherTeacher.doc('next_generation_school_weekly/2027-03-14_student').get());
+    await assertFails(otherTeacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', updatedBy: 'otherTeacher' })));
+    await assertFails(otherTeacher.doc('next_generation_school_weekly/2027-03-14_student').set(record({ updatedBy: 'otherTeacher' })));
+    await assertFails(student.doc('next_generation_school_weekly/2027-03-14_student').set(record({ updatedBy: 'student' })));
+    await assertFails(parent.doc('next_generation_school_weekly/2027-03-14_student').set(record({ updatedBy: 'parent' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', extra: 'x' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', promise: 'ㅇ'.repeat(201) })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', classId: 'other' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', memoryChecked: 'yes' })));
+    await assertFails(teacher.doc('next_generation_school_weekly/wrong-id').set(record({ weekKey: '2027-03-21' })));
+    await assertSucceeds(teacher.doc('next_generation_school_weekly/2027-03-21_student').set(record({ weekKey: '2027-03-21', promise: 'ㅇ'.repeat(200) })));
+    await assertFails(teacher.doc('next_generation_school_weekly/2027-03-21_student').delete());
+    await assertSucceeds(pastor.doc('next_generation_school_weekly/2027-03-21_student').delete());
+  });
+
+  it('lets students and their parents write the Sunday school journey and limits who can read it', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/otherTeacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['didim'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+      await db.doc('next_generation_members/proxyParent').set({ role: 'member', department: '학부모', departments: ['학부모'] });
+      await db.doc('next_generation_members/strangerParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['someoneElse'] });
+      await db.doc('next_generation_members/pastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_children/proxyKid').set({ kind: 'proxy', displayName: '대리', groupId: 'seed', parentUids: ['proxyParent'] });
+      await db.doc('next_generation_attendance/2027-03-14_proxyKid').set({
+        weekKey: '2027-03-14', sundayDate: '2027-03-14', studentUid: 'proxyKid', studentName: '대리', groupId: 'seed', present: true, checkedBy: 'pastor',
+      });
+      await db.doc('next_generation_school_weekly/2027-03-14_proxyKid').set({
+        weekKey: '2027-03-14', studentUid: 'proxyKid', studentName: '대리', classId: 'seed', updatedBy: 'pastor', updatedAt: new Date(),
+      });
+    });
+    const journey = (overrides: Record<string, unknown> = {}) => ({
+      weekKey: '2027-03-14', studentUid: 'student', studentName: '학생', classId: 'seum',
+      familyWorshipDates: ['2027-03-15'], practiceDates: ['2027-03-15', '2027-03-16'], updatedBy: 'student', updatedAt: new Date(), ...overrides,
+    });
+    const path = 'next_generation_school_journey/2027-03-14_student';
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    const proxyParent = env.authenticatedContext('proxyParent').firestore();
+    const strangerParent = env.authenticatedContext('strangerParent').firestore();
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const otherTeacher = env.authenticatedContext('otherTeacher').firestore();
+    const pastor = env.authenticatedContext('pastor').firestore();
+    const anon = env.unauthenticatedContext().firestore();
+
+    // student and linked parent write; both update and read
+    await assertSucceeds(student.doc(path).set(journey()));
+    await assertSucceeds(parent.doc(path).set(journey({ updatedBy: 'parent', familyWorshipDates: ['2027-03-15', '2027-03-17'] })));
+    await assertSucceeds(student.doc(path).get());
+    await assertSucceeds(parent.doc(path).get());
+    await assertSucceeds(pastor.doc(path).get());
+    // teacher of the class reads (query by class and week), cannot write
+    await assertSucceeds(teacher.doc(path).get());
+    await assertSucceeds(teacher.collection('next_generation_school_journey').where('classId', '==', 'seum').where('weekKey', '==', '2027-03-14').get());
+    await assertFails(teacher.doc(path).set(journey({ updatedBy: 'teacher' })));
+    await assertFails(teacher.doc('next_generation_school_journey/2027-03-21_student').set(journey({ weekKey: '2027-03-21', updatedBy: 'teacher' })));
+    // others cannot read or write
+    await assertFails(otherTeacher.doc(path).get());
+    await assertFails(strangerParent.doc(path).get());
+    await assertFails(strangerParent.doc(path).set(journey({ updatedBy: 'strangerParent' })));
+    await assertFails(proxyParent.doc(path).set(journey({ updatedBy: 'proxyParent' })));
+    await assertFails(anon.doc(path).get());
+    // shape checks
+    const next = 'next_generation_school_journey/2027-03-21_student';
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', extra: 'x' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', classId: 'other' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', updatedBy: 'parent' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', familyWorshipDates: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', practiceDates: 'x' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: 'not-a-date' })));
+    await assertFails(student.doc('next_generation_school_journey/wrong-id').set(journey({ weekKey: '2027-03-21' })));
+    await assertFails(student.doc(next).set(journey({ weekKey: '2027-03-21', studentUid: 'someoneElse' })));
+    await assertFails(student.doc(path).set(journey({ weekKey: '2027-03-21' })));
+    await assertSucceeds(student.doc(next).set(journey({ weekKey: '2027-03-21', familyWorshipDates: [], practiceDates: [] })));
+    // delete: pastor only
+    await assertFails(student.doc(next).delete());
+    await assertFails(parent.doc(next).delete());
+    await assertSucceeds(pastor.doc(next).delete());
+
+    // proxy child: the parent listed in next_generation_children.parentUids writes and reads
+    const proxyPath = 'next_generation_school_journey/2027-03-14_proxyKid';
+    const proxyJourney = journey({ studentUid: 'proxyKid', studentName: '대리', classId: 'seed', updatedBy: 'proxyParent' });
+    await assertSucceeds(proxyParent.doc(proxyPath).set(proxyJourney));
+    await assertSucceeds(proxyParent.doc(proxyPath).get());
+    await assertSucceeds(proxyParent.collection('next_generation_school_journey').where('studentUid', '==', 'proxyKid').where('weekKey', 'in', ['2027-03-14']).get());
+    await assertFails(parent.doc(proxyPath).get());
+    await assertFails(strangerParent.doc(proxyPath).set(proxyJourney));
+    // proxy parent can also read that child's attendance and weekly record
+    await assertSucceeds(proxyParent.collection('next_generation_attendance').where('studentUid', '==', 'proxyKid').get());
+    await assertSucceeds(proxyParent.collection('next_generation_school_weekly').where('studentUid', '==', 'proxyKid').get());
+    await assertFails(strangerParent.collection('next_generation_attendance').where('studentUid', '==', 'proxyKid').get());
+  });
+
+  it('lets students and parents write the yearly Bible reading and limits who can read it', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await db.doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+      await db.doc('next_generation_members/otherTeacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['didim'] });
+      await db.doc('next_generation_members/student').set({ role: 'member', department: '학생', departments: ['학생'], groupId: 'seum' });
+      await db.doc('next_generation_members/parent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['student'] });
+      await db.doc('next_generation_members/proxyParent').set({ role: 'member', department: '학부모', departments: ['학부모'] });
+      await db.doc('next_generation_members/strangerParent').set({ role: 'member', department: '학부모', departments: ['학부모'], childIds: ['someoneElse'] });
+      await db.doc('next_generation_members/pastor').set({ role: 'member', isNextGenerationAdmin: true });
+      await db.doc('next_generation_children/proxyKid').set({ kind: 'proxy', displayName: '대리', groupId: 'didim', parentUids: ['proxyParent'] });
+    });
+    const reading = (overrides: Record<string, unknown> = {}) => ({
+      year: 2027, studentUid: 'student', studentName: '학생', classId: 'seum', chaptersRead: 26,
+      log: [{ date: '2027-01-02', to: 26 }], updatedBy: 'student', updatedAt: new Date(), ...overrides,
+    });
+    const path = 'next_generation_bible_reading_year/2027_student';
+    const student = env.authenticatedContext('student').firestore();
+    const parent = env.authenticatedContext('parent').firestore();
+    const proxyParent = env.authenticatedContext('proxyParent').firestore();
+    const strangerParent = env.authenticatedContext('strangerParent').firestore();
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const otherTeacher = env.authenticatedContext('otherTeacher').firestore();
+    const pastor = env.authenticatedContext('pastor').firestore();
+    const anon = env.unauthenticatedContext().firestore();
+
+    // student and linked parent write; both read; pastor reads
+    await assertSucceeds(student.doc(path).set(reading()));
+    await assertSucceeds(parent.doc(path).set(reading({ updatedBy: 'parent', chaptersRead: 30, log: [{ date: '2027-01-02', to: 26 }, { date: '2027-01-03', to: 30 }] })));
+    await assertSucceeds(student.doc(path).get());
+    await assertSucceeds(parent.doc(path).get());
+    await assertSucceeds(pastor.doc(path).get());
+    await assertSucceeds(student.collection('next_generation_bible_reading_year').where('studentUid', '==', 'student').where('year', '==', 2027).get());
+    // teacher of the class reads (query by class and year), cannot write
+    await assertSucceeds(teacher.doc(path).get());
+    await assertSucceeds(teacher.collection('next_generation_bible_reading_year').where('classId', '==', 'seum').where('year', '==', 2027).get());
+    await assertFails(teacher.doc(path).set(reading({ updatedBy: 'teacher' })));
+    // others cannot read or write
+    await assertFails(otherTeacher.doc(path).get());
+    await assertFails(strangerParent.doc(path).get());
+    await assertFails(strangerParent.doc(path).set(reading({ updatedBy: 'strangerParent' })));
+    await assertFails(proxyParent.doc(path).set(reading({ updatedBy: 'proxyParent' })));
+    await assertFails(anon.doc(path).get());
+    // shape checks
+    const next = 'next_generation_bible_reading_year/2028_student';
+    await assertFails(student.doc(next).set(reading({ year: 2028, extra: 'x' })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, classId: 'other' })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, updatedBy: 'parent' })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, chaptersRead: 1190 })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, chaptersRead: -1 })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, chaptersRead: 1.5 })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, chaptersRead: '26' })));
+    await assertFails(student.doc(next).set(reading({ year: '2028' })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, log: 'x' })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, log: Array.from({ length: 401 }, () => ({ date: '2027-01-02', to: 1 })) })));
+    await assertFails(student.doc('next_generation_bible_reading_year/wrong-id').set(reading({ year: 2028 })));
+    await assertFails(student.doc(next).set(reading({ year: 2028, studentUid: 'someoneElse' })));
+    await assertFails(student.doc(path).set(reading({ year: 2028 })));
+    await assertSucceeds(student.doc(next).set(reading({ year: 2028, chaptersRead: 0, log: [] })));
+    await assertSucceeds(student.doc(next).set(reading({ year: 2028, chaptersRead: 1189, log: Array.from({ length: 400 }, () => ({ date: '2028-01-02', to: 1189 })) })));
+    // delete: pastor only
+    await assertFails(student.doc(next).delete());
+    await assertFails(parent.doc(next).delete());
+    await assertSucceeds(pastor.doc(next).delete());
+
+    // proxy child (디딤): the parent in next_generation_children.parentUids writes and reads
+    const proxyPath = 'next_generation_bible_reading_year/2027_proxyKid';
+    await assertSucceeds(proxyParent.doc(proxyPath).set(reading({ studentUid: 'proxyKid', studentName: '대리', classId: 'didim', updatedBy: 'proxyParent' })));
+    await assertSucceeds(proxyParent.collection('next_generation_bible_reading_year').where('studentUid', '==', 'proxyKid').where('year', '==', 2027).get());
+    await assertFails(parent.doc(proxyPath).get());
+    await assertFails(strangerParent.doc(proxyPath).set(reading({ studentUid: 'proxyKid', updatedBy: 'strangerParent' })));
+  });
+
+  it('accepts only boolean period2 and publicWorship on attendance', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('next_generation_members/teacher').set({ role: 'member', department: '교사', departments: ['교사'], groupIds: ['seum'] });
+    });
+    const teacher = env.authenticatedContext('teacher').firestore();
+    const attendance = (overrides: Record<string, unknown> = {}) => ({
+      weekKey: '2027-03-14', sundayDate: '2027-03-14', studentUid: 'student', studentName: '학생', groupId: 'seum',
+      present: true, checkedBy: 'teacher', checkedAt: new Date(), ...overrides,
+    });
+    await assertSucceeds(teacher.doc('next_generation_attendance/2027-03-14_student').set(attendance()));
+    await assertSucceeds(teacher.doc('next_generation_attendance/2027-03-14_student').set(attendance({ period2: true, publicWorship: false })));
+    await assertFails(teacher.doc('next_generation_attendance/2027-03-21_student').set(attendance({ weekKey: '2027-03-21', period2: 'yes' })));
+    await assertFails(teacher.doc('next_generation_attendance/2027-03-21_student').set(attendance({ weekKey: '2027-03-21', publicWorship: 1 })));
+    await assertFails(teacher.doc('next_generation_attendance/2027-03-21_student').set(attendance({ weekKey: '2027-03-21', unknown: true })));
   });
 
   it('denies stale summary snippets to public readers while retaining other public settings', async () => {

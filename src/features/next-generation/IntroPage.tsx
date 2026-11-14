@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Sparkles, Users, X } from 'lucide-react';
 import { NextGenerationIntroSection } from '../../lib/nextGenerationCms';
+import SchoolIdentityHeroCopy from '../sunday-school/SchoolIdentityHeroCopy';
 import {
   DepartmentCardItem,
   introImage,
@@ -14,9 +15,12 @@ import {
 export default function IntroPage({
   sections,
   departments,
+  schoolMode = false,
 }: {
   sections?: NextGenerationIntroSection[];
   departments?: DepartmentCardItem[];
+  /** 2027 주일학교 전환 후: 2025–26 유초등부 교과 설명 대신 주일학교 소개를 보여 준다. */
+  schoolMode?: boolean;
 }) {
   const departmentCards = (departments && departments.length > 0) ? departments : (sectionTabs as any);
   const cmsIntroSections = (sections || [])
@@ -77,6 +81,8 @@ export default function IntroPage({
   ];
   const [activePillar, setActivePillar] = useState<string | null>(null);
   const selectedPillar = introPillars.find((pillar) => pillar.title === activePillar);
+  // 주일학교 전환 후에는 2025–26 교과 내용을 담은 '성경과 교리' 항목을 빼고 아래 소개 블록으로 대신한다.
+  const visiblePillars = schoolMode ? introPillars.filter((pillar) => pillar.title !== '성경과 교리') : introPillars;
   const youngAdultIntroPillars = [
     {
       title: '교리 교육',
@@ -169,6 +175,10 @@ export default function IntroPage({
       <section className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-16">
           <div>
+            {schoolMode ? (
+              <SchoolIdentityHeroCopy />
+            ) : (
+              <>
             <span className="mb-5 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-black text-emerald-950">
               <Sparkles size={18} />
               언약 안에서 예배하는 유초등부
@@ -181,8 +191,10 @@ export default function IntroPage({
               우리는 예배 중심의 신앙교육을 지향하며, 교회 교육이 가정과 이어지도록 힘씁니다.
               성경과 교리 위에 다음세대를 세워, 하나님을 알고 사랑하며 순종하는 삶으로 자라가게 하는 것이 우리의 목표입니다.
             </p>
+              </>
+            )}
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {introPillars.map((pillar) => (
+              {visiblePillars.map((pillar) => (
                 <button
                   key={pillar.title}
                   type="button"
@@ -198,6 +210,21 @@ export default function IntroPage({
                 </button>
               ))}
             </div>
+            {schoolMode && (
+              <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
+                <h2 className="text-lg font-black text-emerald-950">2027 주일학교</h2>
+                <p className="mt-2 text-base font-medium leading-7 text-slate-700">
+                  2027년부터 유초등부와 중고등부가 하나의 주일학교로 모여 하이델베르크 요리문답을 함께 배웁니다.
+                </p>
+                <Link
+                  to="/next/school/intro"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                >
+                  주일학교 소개 보기
+                  <ChevronRight size={16} />
+                </Link>
+              </div>
+            )}
           </div>
 
           <div className="overflow-hidden rounded-lg border border-sky-100 shadow-sm">

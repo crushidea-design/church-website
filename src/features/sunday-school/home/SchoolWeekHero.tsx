@@ -15,15 +15,25 @@ export default function SchoolWeekHero({
   model,
   sundayKey,
   isOverride,
+  schoolName,
+  schoolNameEn,
 }: {
   model: WeekHeroModel;
   sundayKey: string;
   isOverride?: boolean;
+  schoolName?: string;
+  schoolNameEn?: string;
 }) {
   return (
     <section className="bg-white pt-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className={`rounded-2xl border bg-gradient-to-b p-6 shadow-sm sm:p-8 ${TONE_CLASS[model.tone]}`}>
+          {schoolName && (
+            <p className="mb-3 text-base font-black text-emerald-950">
+              {schoolName}
+              {schoolNameEn && <span className="ml-2 text-xs font-bold uppercase tracking-wide text-emerald-700">{schoolNameEn}</span>}
+            </p>
+          )}
           <p className="flex items-center gap-2 text-sm font-black text-emerald-700">
             <CalendarDays size={16} />
             이번 주일 · {sundayKey}

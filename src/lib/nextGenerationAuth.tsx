@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider, signInWithGoogle as firebaseSignInWithGoogle } from './firebase';
 import { buildMemberRoleFields } from './nextGenerationRoles';
+import { isSchoolClassId } from '../features/sunday-school/signupClass';
 
 const ADMIN_EMAIL = 'crushidea@gmail.com';
 
@@ -32,7 +33,8 @@ export interface NextGenerationRoleProfiles {
   teacher?: { groupIds: string[] };
   parent?: { childIds: string[] };
   youngAdult?: { enabled: boolean };
-  student?: { groupId?: string };
+  /** requestedGroupId: class picked at sign-up; the pastor confirms it on approval. */
+  student?: { groupId?: string; requestedGroupId?: string };
 }
 
 /** Department members that can only access the workbook (공과) tab. */
@@ -77,6 +79,19 @@ export interface NextGenerationMember {
   parentEmail?: string;
 }
 
+/** Stores a student's requested class inside roleProfiles (allowed by the create rule). */
+function applyRequestedGroup(
+  payload: Record<string, unknown>,
+  roleFields: ReturnType<typeof buildMemberRoleFields>,
+  requestedGroupId: string | undefined,
+) {
+  if (!roleFields.departments.includes('학생') || !isSchoolClassId(requestedGroupId)) return;
+  payload.roleProfiles = {
+    ...roleFields.roleProfiles,
+    student: { ...roleFields.roleProfiles.student, requestedGroupId },
+  };
+}
+
 export interface NextGenerationNotification {
   id: string;
   uid: string;
@@ -95,6 +110,8 @@ export interface SignUpData {
   intro: string;
   /** Only set when department === '학생' — used to auto-link the parent on approval. */
   parentEmail?: string;
+  /** Only for '학생': 2027 class picked at sign-up (a request, not an assignment). */
+  requestedGroupId?: string;
 }
 
 export interface EmailSignUpData extends SignUpData {
@@ -262,6 +279,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
       if (roleFields.departments.includes('학생') && data.parentEmail && data.parentEmail.trim()) {
         payload.parentEmail = data.parentEmail.trim().toLowerCase();
       }
+      applyRequestedGroup(payload, roleFields, data.requestedGroupId);
       await setDoc(memberRef, payload);
     } catch (err) {
       // Roll back the Auth account if Firestore write fails
@@ -302,6 +320,7 @@ export const NextGenerationAuthProvider: React.FC<{ children: React.ReactNode }>
     if (roleFields.departments.includes('학생') && data.parentEmail && data.parentEmail.trim()) {
       payload.parentEmail = data.parentEmail.trim().toLowerCase();
     }
+    applyRequestedGroup(payload, roleFields, data.requestedGroupId);
     await setDoc(memberRef, payload);
     setNeedsSignUp(false);
   }, [user]);

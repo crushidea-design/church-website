@@ -2,11 +2,13 @@
 import React from 'react';
 import { useSundaySchoolCatalog } from '../api';
 import SundaySchoolStatusSection from './SundaySchoolStatusSection';
+import SundaySchoolIdentitySection from './SundaySchoolIdentitySection';
 import SundaySchoolTermsSection from './SundaySchoolTermsSection';
 import SundaySchoolCurriculumSection from './SundaySchoolCurriculumSection';
 import SundaySchoolClassesSection from './SundaySchoolClassesSection';
 import SundaySchoolPreparationSection from './SundaySchoolPreparationSection';
 import SundaySchoolPrivatePostsSection from './SundaySchoolPrivatePostsSection';
+import SundaySchoolTransitionSection from './SundaySchoolTransitionSection';
 
 export default function CmsSundaySchoolTab() {
   const catalog = useSundaySchoolCatalog();
@@ -18,11 +20,13 @@ export default function CmsSundaySchoolTab() {
   return (
     <div className="space-y-4">
       <SundaySchoolStatusSection catalog={catalog} />
+      <SundaySchoolIdentitySection />
       <SundaySchoolTermsSection terms={catalog.terms} disabled={termsLocked} />
       <SundaySchoolCurriculumSection terms={catalog.terms} curriculum={catalog.curriculum} disabled={curriculumLocked} />
       <SundaySchoolClassesSection classes={catalog.classes} disabled={classesLocked} />
       <SundaySchoolPreparationSection />
       <SundaySchoolPrivatePostsSection />
+      <SundaySchoolTransitionSection catalog={catalog} />
     </div>
   );
 }

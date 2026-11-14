@@ -25,7 +25,7 @@ export default function ThisWeekMaterials({
   const total = groups.reduce((sum, group) => sum + group.posts.length, 0);
 
   return (
-    <section className="bg-white py-8">
+    <section className="bg-white py-8" data-next-tour="school-week">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-black tracking-normal text-emerald-950">이번 주 자료</h2>
         {loading ? (

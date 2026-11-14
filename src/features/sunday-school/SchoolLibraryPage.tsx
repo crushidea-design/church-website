@@ -23,7 +23,10 @@ import { getPostAttachments } from '../../lib/attachments';
 import { formatDate } from '../../lib/utils';
 import type { NextGenerationPost, ResourceTabItem } from '../next-generation/sharedConstants';
 import { useSundaySchoolCatalog } from './api';
+import { useSchoolIdentity } from './identity';
 import { getHeidelbergProgress, getSchoolWeekStatus } from './schedule';
+import { findWeekMemoryEntry } from './memory';
+import ThisWeekMemory from './home/ThisWeekMemory';
 import CurriculumProgress from './home/CurriculumProgress';
 import ClassChips from './home/ClassChips';
 import SchoolWeekHero from './home/SchoolWeekHero';
@@ -65,6 +68,7 @@ interface SchoolLibraryPageProps {
 export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: SchoolLibraryPageProps) {
   const { role, loading: authLoading } = useAuth();
   const { user: ngUser, member, isPastor } = useNextGenerationAuth();
+  const { identity } = useSchoolIdentity();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const catalog = useSundaySchoolCatalog();
@@ -84,6 +88,11 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
   }, [catalog.terms, catalog.curriculum, sundayKey]);
   const progress = useMemo(
     () => getHeidelbergProgress(catalog.curriculum, sundayKey),
+    [catalog.curriculum, sundayKey],
+  );
+
+  const memoryEntry = useMemo(
+    () => findWeekMemoryEntry(catalog.curriculum, sundayKey),
     [catalog.curriculum, sundayKey],
   );
 
@@ -205,9 +214,10 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
 
   return (
     <div>
-      <SchoolWeekHero model={heroModel} sundayKey={sundayKey} isOverride={!!overrideKey} />
+      <SchoolWeekHero model={heroModel} sundayKey={sundayKey} isOverride={!!overrideKey} schoolName={identity.name} schoolNameEn={identity.nameEn} />
       <CurriculumProgress progress={progress} />
       <ClassChips classes={catalog.classes} value={classFilter} onChange={setClassFilter} />
+      <ThisWeekMemory entry={memoryEntry} classFilter={classFilter} />
       <ThisWeekMaterials
         groups={weeklyGroups}
         loading={loading}
@@ -227,7 +237,7 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
             <>
               <div className="relative mb-8">
                 <div
-                  className="flex gap-1.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2"
+                  className="flex gap-1.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-2 sm:overflow-visible"
                   data-next-tour="resource-tabs"
                 >
                   {allowedTabs.map((tab) => {
