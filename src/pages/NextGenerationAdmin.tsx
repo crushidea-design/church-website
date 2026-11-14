@@ -38,6 +38,7 @@ import AdminClassesTab from '../features/next-generation/AdminClassesTab';
 import AdminMembersTab from '../features/next-generation/AdminMembersTab';
 import { AdminAnswerModal, AdminRejectModal } from '../features/next-generation/AdminModals';
 import { inferProxyChildDepartment } from '../features/next-generation/proxyChildren';
+import { getGroupIdToApply } from '../features/sunday-school/signupClass';
 import type { VirtualChildProfile } from '../features/next-generation/virtualChildren';
 
 export default function NextGenerationAdmin({ onClose }: { onClose: () => void }) {
@@ -338,11 +339,14 @@ export default function NextGenerationAdmin({ onClose }: { onClose: () => void }
     try {
       const target = members.find((m) => m.uid === uid);
       const batch = writeBatch(db);
+      const requestedGroupId = getGroupIdToApply(target);
       batch.update(doc(db, 'next_generation_members', uid), {
         role: 'member',
         approvedAt: serverTimestamp(),
         rejectedAt: deleteField(),
         rejectionReason: deleteField(),
+        // A student's class picked at sign-up becomes the assignment on approval.
+        ...(requestedGroupId ? { groupId: requestedGroupId } : {}),
       });
 
       // Auto-link student → parent via parentEmail

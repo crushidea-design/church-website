@@ -30,6 +30,7 @@ import {
 import type { WordFruitGroup } from '../word-fruit/types';
 import type { VirtualChildProfile } from './virtualChildren';
 import { getVirtualChildrenForMember } from './virtualChildren';
+import { getRequestedSchoolClass, SCHOOL_CLASS_NAMES } from '../sunday-school/signupClass';
 
 export type SystemHealth = {
   ok: boolean;
@@ -82,6 +83,7 @@ function MemberRow({
   const [assignedChildName, setAssignedChildName] = useState('');
   const [assignedChildGrade, setAssignedChildGrade] = useState('');
   const [assignedChildGroupId, setAssignedChildGroupId] = useState(m.groupIds?.[0] ?? '');
+  const requestedClass = getRequestedSchoolClass(m);
   const parentDepartment = NEXT_GENERATION_DEPARTMENTS[2];
   const studentDepartment = NEXT_GENERATION_DEPARTMENTS[3];
   const isParent = hasDepartment(m, parentDepartment);
@@ -173,6 +175,17 @@ function MemberRow({
 
       {isExpanded && (
         <div className="border-t border-gray-100 p-3 bg-gray-50 space-y-3">
+          {requestedClass && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">희망 주일학교 반</p>
+              <p className="text-sm text-gray-700">
+                {SCHOOL_CLASS_NAMES[requestedClass]}반
+                {m.role === 'pending' && !m.groupId && (
+                  <span className="ml-1 text-xs text-gray-500">(승인하면 이 반으로 배정됩니다)</span>
+                )}
+              </p>
+            </div>
+          )}
           {m.intro && (
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">자기소개</p>

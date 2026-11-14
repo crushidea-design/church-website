@@ -105,6 +105,21 @@ describe.skipIf(!enabled)('deployed security rule contracts (emulators only)', (
     }
   });
 
+  it('lets a student request a class at sign-up but not assign one', async () => {
+    const signup = (uid: string, extra: Record<string, unknown>) => ({
+      uid, email: `${uid}@example.com`, displayName: '학생', role: 'pending',
+      department: '학생', departments: ['학생'], primaryDepartment: '학생',
+      church: '한우리교회', intro: '', provider: 'email', createdAt: new Date(), ...extra,
+    });
+    const requester = env.authenticatedContext('requester').firestore();
+    const selfAssigner = env.authenticatedContext('selfAssigner').firestore();
+
+    await assertSucceeds(requester.doc('next_generation_members/requester')
+      .set(signup('requester', { roleProfiles: { student: { requestedGroupId: 'seum' } } })));
+    await assertFails(selfAssigner.doc('next_generation_members/selfAssigner')
+      .set(signup('selfAssigner', { groupId: 'seum' })));
+  });
+
   it('lets teachers read only the student member docs of their own class', async () => {
     await env.withSecurityRulesDisabled(async context => {
       const db = context.firestore();
