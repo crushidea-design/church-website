@@ -382,7 +382,7 @@ export default function SchoolClassPage() {
         </p>
       ) : (
         <>
-          <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="반 선택">
+          <div className="mt-4 flex flex-wrap gap-2 border-b border-[#DADFDD]" role="tablist" aria-label="반 선택">
             {classIds.map((id) => (
               <button
                 key={id}
@@ -390,7 +390,7 @@ export default function SchoolClassPage() {
                 role="tab"
                 aria-selected={id === classId}
                 onClick={() => setPicked(id)}
-                className={`min-h-[44px] rounded-lg px-4 text-sm font-black transition ${
+                className={`min-h-[44px] px-3 text-sm font-black transition ${
                   id === classId ? CLASS_COLORS[id].active : CLASS_COLORS[id].idle
                 }`}
               >

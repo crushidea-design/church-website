@@ -168,13 +168,13 @@ export default function SchoolHeader() {
                     </span>
                   ))}
                 </span>
-                <span className="mt-1 flex justify-between text-[10px] font-bold uppercase leading-none text-coral-700 sm:hidden">
+                <span className="mt-1 flex justify-between text-[10px] font-bold uppercase leading-none text-amber-700 sm:hidden">
                   <span>GROWING</span>
                   <span>IN</span>
                   <span>THE</span>
                   <span>COVENANT</span>
                 </span>
-                <span className="mt-1 flex max-sm:hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
+                <span className="mt-1 flex max-sm:hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-amber-700">
                   {Array.from('GROWING IN THE COVENANT').map((char, index) => (
                     <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
                       {char}
@@ -257,10 +257,10 @@ export default function SchoolHeader() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
+                    className={`whitespace-nowrap border-b-2 px-2 py-3 text-sm font-bold transition ${
                       isActive
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                        ? 'border-emerald-700 text-emerald-800'
+                        : 'border-transparent text-slate-600 hover:text-emerald-800'
                     }`}
                   >
                     {item.name}

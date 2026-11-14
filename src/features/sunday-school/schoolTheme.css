@@ -1,7 +1,7 @@
 /*
- * 그안에 주일학교 tone, taken from the church's own printed materials:
- * deep green (가정예배지 "설교 한 문장" box), ochre (verse references),
- * paper cream and soft teal (설교노트), and a little orange (공과 질문 heads).
+ * 그안에 주일학교 tone, taken from the parents' printed materials that stay
+ * (가정예배지, 예배를 잇는 가정): white paper, one deep green, and ochre only for
+ * verse and catechism references. Light amber/sky fills become quiet neutrals.
  * Scoped to the Sunday school pages (.school-theme on the page root). The
  * components keep their emerald/amber/sky/coral utility classes; inside this
  * scope those Tailwind color variables resolve to this palette, so the layout
@@ -20,9 +20,9 @@
   --color-emerald-900: #1f3f38;
   --color-emerald-950: #142a25;
 
-  --color-amber-50: #fbf6ec;
-  --color-amber-100: #f5ead3;
-  --color-amber-200: #ebd5a8;
+  --color-amber-50: #f8f7f3;
+  --color-amber-100: #efede6;
+  --color-amber-200: #e2ded3;
   --color-amber-300: #e0be7a;
   --color-amber-400: #d4a955;
   --color-amber-500: #c8963a;
@@ -32,9 +32,9 @@
   --color-amber-900: #4a3617;
   --color-amber-950: #2c200e;
 
-  --color-yellow-50: #fbf6ec;
-  --color-yellow-100: #f5ead3;
-  --color-yellow-200: #ebd5a8;
+  --color-yellow-50: #f8f7f3;
+  --color-yellow-100: #efede6;
+  --color-yellow-200: #e2ded3;
   --color-yellow-300: #e0be7a;
   --color-yellow-400: #d4a955;
   --color-yellow-500: #c8963a;
@@ -43,15 +43,20 @@
   --color-yellow-800: #66491d;
   --color-yellow-900: #4a3617;
 
-  --color-sky-50: #f3f7f6;
-  --color-sky-100: #dce9e6;
-  --color-sky-200: #bcd3cd;
+  --color-sky-50: #f6f7f6;
+  --color-sky-100: #e5e9e7;
+  --color-sky-200: #dadfdd;
   --color-sky-300: #93b5ad;
 
-  --color-coral-500: #e8703a;
-  --color-coral-600: #d2602e;
-  --color-coral-700: #b04f25;
-  --color-coral-800: #8a3e1e;
+  --color-coral-500: #3a6a5f;
+  --color-coral-600: #2f5e54;
+  --color-coral-700: #264c44;
+  --color-coral-800: #1f3f38;
 
-  background-color: #fbfaf6;
+  /* Squarer corners, like printed boxes. */
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.375rem;
+  --radius-2xl: 0.5rem;
+
+  background-color: #ffffff;
 }
