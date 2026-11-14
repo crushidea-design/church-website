@@ -452,12 +452,12 @@ export default function SchoolLibraryPage({ tabs, midSection, guestPostLimit }: 
                 지난 자료 (2025–26)
                 <ChevronDown size={18} className="transition group-open:rotate-180" />
               </summary>
-              <ul className="space-y-2 border-t border-slate-200 px-5 py-4">
+              <ul className="space-y-1 border-t border-slate-200 px-3 py-2">
                 {pastLinks.map((link) => (
                   <li key={link.id}>
                     <Link
                       to={`${NEXT_GENERATION_PATH}/elementary?resource=${link.id}`}
-                      className="inline-flex items-center gap-2 text-sm font-bold text-emerald-800 hover:underline"
+                      className="flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-sm font-bold text-emerald-800 hover:bg-emerald-50 hover:underline"
                     >
                       <FileText size={15} />
                       {link.name}
