@@ -157,8 +157,8 @@ export default function SchoolHeader() {
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
           <div className="flex items-center justify-between gap-4">
             <Link to={SCHOOL_PATH} className="flex items-center gap-3" data-next-tour="app-home">
-              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
-                <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
+              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg shadow-sm">
+                <img src="/sunday-school-logo.svg" alt="" className="h-12 w-12" />
               </span>
               <span className="flex w-[160px] flex-col sm:w-[198px]">
                 <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">

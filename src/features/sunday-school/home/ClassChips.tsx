@@ -1,5 +1,6 @@
 import React from 'react';
 import type { SchoolClass } from '../types';
+import { classColor } from '../classColors';
 import type { ClassFilter } from './weeklyMaterials';
 
 export default function ClassChips({
@@ -13,10 +14,13 @@ export default function ClassChips({
 }) {
   const visible = classes.filter((item) => item.isVisible).sort((a, b) => a.order - b.order);
   const selected = visible.find((item) => item.id === value);
-  const chipClass = (active: boolean) =>
-    `shrink-0 rounded-xl px-4 py-2.5 text-sm font-black transition min-h-[44px] ${
-      active ? 'bg-emerald-600 text-white shadow-sm' : 'bg-sky-50 text-emerald-950 hover:bg-sky-100'
-    }`;
+  const chipClass = (active: boolean, id?: string) => {
+    const color = id ? classColor(id) : undefined;
+    const tone = color
+      ? active ? color.active : color.idle
+      : active ? 'bg-emerald-600 text-white shadow-sm' : 'bg-sky-50 text-emerald-950 hover:bg-sky-100';
+    return `shrink-0 rounded-xl px-4 py-2.5 text-sm font-black transition min-h-[44px] ${tone}`;
+  };
 
   return (
     <section className="bg-white pt-6">
@@ -30,7 +34,7 @@ export default function ClassChips({
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
-              className={chipClass(value === item.id)}
+              className={chipClass(value === item.id, item.id)}
               aria-pressed={value === item.id}
             >
               {item.name}
