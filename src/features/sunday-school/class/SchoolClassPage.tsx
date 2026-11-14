@@ -34,6 +34,7 @@ import { subscribeJourneyForClass } from '../journey/journeyApi';
 import type { SchoolJourneyDoc } from '../journey/journeyApi';
 import { isReadingClass, formatReadThrough, percentRead, readingYearFor } from '../reading/reading';
 import { subscribeReadingForClass } from '../reading/readingApi';
+import { CLASS_COLORS } from '../classColors';
 import type { ReadingYearDoc } from '../reading/readingApi';
 
 const SCHOOL_PATH = `${NEXT_GENERATION_PATH}/school`;
@@ -381,7 +382,7 @@ export default function SchoolClassPage() {
         </p>
       ) : (
         <>
-          <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="반 선택">
+          <div className="mt-4 flex flex-wrap gap-2 border-b border-[#DADFDD]" role="tablist" aria-label="반 선택">
             {classIds.map((id) => (
               <button
                 key={id}
@@ -389,8 +390,8 @@ export default function SchoolClassPage() {
                 role="tab"
                 aria-selected={id === classId}
                 onClick={() => setPicked(id)}
-                className={`min-h-[44px] rounded-lg px-4 text-sm font-black transition ${
-                  id === classId ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                className={`min-h-[44px] px-3 text-sm font-black transition ${
+                  id === classId ? CLASS_COLORS[id].active : CLASS_COLORS[id].idle
                 }`}
               >
                 {SCHOOL_CLASS_NAMES[id]}

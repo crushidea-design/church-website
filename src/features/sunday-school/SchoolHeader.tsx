@@ -157,8 +157,8 @@ export default function SchoolHeader() {
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6 sm:gap-3 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-4">
           <div className="flex items-center justify-between gap-4">
             <Link to={SCHOOL_PATH} className="flex items-center gap-3" data-next-tour="app-home">
-              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-amber-100 shadow-sm">
-                <img src="/next-generation-favicon.svg" alt="" className="h-12 w-12" />
+              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg shadow-sm">
+                <img src="/sunday-school-logo.svg" alt="" className="h-12 w-12" />
               </span>
               <span className="flex w-[160px] flex-col sm:w-[198px]">
                 <span className="flex justify-between text-lg font-black leading-tight tracking-normal text-emerald-950">
@@ -168,13 +168,13 @@ export default function SchoolHeader() {
                     </span>
                   ))}
                 </span>
-                <span className="mt-1 flex justify-between text-[10px] font-bold uppercase leading-none text-coral-700 sm:hidden">
+                <span className="mt-1 flex justify-between text-[10px] font-bold uppercase leading-none text-amber-700 sm:hidden">
                   <span>GROWING</span>
                   <span>IN</span>
                   <span>THE</span>
                   <span>COVENANT</span>
                 </span>
-                <span className="mt-1 flex max-sm:hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-coral-700">
+                <span className="mt-1 flex max-sm:hidden justify-between text-xs font-bold uppercase leading-none tracking-normal text-amber-700">
                   {Array.from('GROWING IN THE COVENANT').map((char, index) => (
                     <span key={`${char}-${index}`} className={char === ' ' ? 'w-1.5' : ''}>
                       {char}
@@ -257,10 +257,10 @@ export default function SchoolHeader() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition ${
+                    className={`whitespace-nowrap border-b-2 px-2 py-3 text-sm font-bold transition ${
                       isActive
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                        ? 'border-emerald-700 text-emerald-800'
+                        : 'border-transparent text-slate-600 hover:text-emerald-800'
                     }`}
                   >
                     {item.name}

@@ -41,7 +41,7 @@ export default function ThisWeekMaterials({
             {groups
               .filter((group) => group.posts.length > 0)
               .map((group) => (
-                <div key={group.tabId} className="rounded-lg border border-sky-100 bg-white p-4 shadow-sm">
+                <div key={group.tabId} className="border border-[#DADFDD] bg-white p-4">
                   <h3 className="text-sm font-black text-emerald-800">{group.name}</h3>
                   <ul className="mt-3 space-y-2">
                     {group.posts.map((post) => (

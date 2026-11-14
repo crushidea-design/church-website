@@ -13,6 +13,7 @@ import {
   INTRO_SCHEDULE,
   INTRO_TERMS,
 } from './intro/content';
+import { classColor } from './classColors';
 import type { IntroGalleryImage } from './intro/content';
 
 const HERO_IMAGE = '/next-generation-elementary-illustration.png';
@@ -147,7 +148,7 @@ export default function SchoolIntroPage() {
                   {(() => {
                     const Icon = CLASS_ICONS[item.id] ?? Sprout;
                     return (
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-emerald-600 ring-1 ring-amber-200">
+                      <span className={`flex h-11 w-11 items-center justify-center rounded-full ring-1 ${classColor(item.id)?.accent ?? 'bg-white text-emerald-600 ring-amber-200'}`}>
                         <Icon size={24} />
                       </span>
                     );

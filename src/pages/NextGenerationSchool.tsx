@@ -27,6 +27,7 @@ import JourneyPanel from '../features/sunday-school/journey/JourneyPanel';
 import ReadingPanel from '../features/sunday-school/reading/ReadingPanel';
 import { sundayKeyFromDateParam } from '../features/sunday-school/classScreen';
 import { SCHOOL_REDIRECT_PATH, decideSchoolAccess } from '../features/sunday-school/access';
+import '../features/sunday-school/schoolTheme.css';
 import { useSundaySchool2027Flag } from '../features/sunday-school/flags';
 
 const SCHOOL_PATH = `${NEXT_GENERATION_PATH}/school`;
@@ -136,7 +137,7 @@ function SchoolInner({ flagEnabled }: { flagEnabled: boolean }) {
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900">
+    <div className="school-theme min-h-screen font-sans text-slate-900">
       {!flagEnabled && isPastor && <PreviewBanner />}
       <SchoolHeader />
       {content}
